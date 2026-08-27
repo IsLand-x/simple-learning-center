@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dropdown, Empty, Modal, Progress, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Empty, Modal, Progress, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   IconAIStrokedLevel1,
   IconBookmark,
-  IconClose,
   IconDeleteStroked,
+  IconEditStroked,
   IconMore,
+  IconSidebar,
 } from '@douyinfe/semi-icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReaderRightSidebar } from '../components/ReaderRightSidebar';
@@ -28,12 +29,15 @@ export function ReaderPage() {
   const updateBook = useLearningStore((state) => state.updateBook);
   const deleteBook = useLearningStore((state) => state.deleteBook);
   const addHighlight = useLearningStore((state) => state.addHighlight);
+  const addNote = useLearningStore((state) => state.addNote);
+  const themeMode = useLearningStore((state) => state.themeMode);
   const preferences = useLearningStore((state) => state.readerPreferences);
   const setPreferences = useLearningStore((state) => state.setReaderPreferences);
   const readerRef = useRef<ReaderSurfaceHandle>(null);
   const latestBookRef = useRef(book);
   const [activePanel, setActivePanel] = useState<RightPanel>(null);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
+  const [panelQuote, setPanelQuote] = useState<string | null>(null);
   const [activeHref, setActiveHref] = useState(book?.toc[0]?.href);
   const highlights = useMemo(
     () => allHighlights.filter((item) => item.bookId === bookId),
@@ -48,17 +52,8 @@ export function ReaderPage() {
     setActiveHref(chapter?.href ?? book.toc[0]?.href);
     setActivePanel(null);
     setSelection(null);
+    setPanelQuote(null);
   }, [book?.id]);
-
-  useEffect(() => {
-    const handleSaveShortcut = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return;
-      event.preventDefault();
-      Toast.success('阅读进度已保存在本地');
-    };
-    window.addEventListener('keydown', handleSaveShortcut);
-    return () => window.removeEventListener('keydown', handleSaveShortcut);
-  }, []);
 
   const handleLocationChange = useCallback((location: ReaderLocationUpdate) => {
     const current = latestBookRef.current;
@@ -128,6 +123,27 @@ export function ReaderPage() {
     Toast.success('已加入划线');
   };
 
+  const askAboutSelection = () => {
+    if (!selection) return;
+    setPanelQuote(selection.text);
+    setActivePanel('ai');
+    setSelection(null);
+  };
+
+  const createNoteFromSelection = () => {
+    if (!selection) return;
+    const timestamp = Date.now();
+    addNote({
+      id: crypto.randomUUID(),
+      bookId: book.id,
+      content: `> ${selection.text}\n\n`,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    setActivePanel('notes');
+    setSelection(null);
+  };
+
   const jumpToHighlight = (highlight: HighlightItem) => {
     readerRef.current?.display(highlight.cfi);
   };
@@ -151,7 +167,14 @@ export function ReaderPage() {
           </div>
         </div>
         <div className="reader-header__actions">
-          <Tag color="green" size="small">已自动保存</Tag>
+          <Tooltip content={preferences.tocCollapsed ? '展开目录' : '收起目录'}>
+            <Button
+              aria-label={preferences.tocCollapsed ? '展开目录' : '收起目录'}
+              icon={<IconSidebar />}
+              theme="borderless"
+              onClick={() => setPreferences({ tocCollapsed: !preferences.tocCollapsed })}
+            />
+          </Tooltip>
           <Dropdown
             trigger="hover"
             position="bottomRight"
@@ -167,20 +190,27 @@ export function ReaderPage() {
       </header>
 
       <div className="reader-workspace">
-        <div className="toc-column" style={{ width: preferences.tocWidth }}>
-          <TableOfContents
-            items={book.toc}
-            activeHref={activeHref}
-            onSelect={(item) => {
-              setActiveHref(item.href);
-              readerRef.current?.display(item.href);
-            }}
-          />
-        </div>
-        <SplitHandle
-          label="调整目录宽度"
-          onDelta={(delta) => setPreferences({ tocWidth: clamp(preferences.tocWidth + delta, 220, 400) })}
-        />
+        {!preferences.tocCollapsed && (
+          <>
+            <div className="toc-column" style={{ width: preferences.tocWidth }}>
+              <TableOfContents
+                items={book.toc}
+                activeHref={activeHref}
+                onSelect={(item) => {
+                  setActiveHref(item.href);
+                  readerRef.current?.display(item.href);
+                }}
+              />
+            </div>
+            <SplitHandle
+              label="调整目录宽度"
+              value={preferences.tocWidth}
+              min={220}
+              max={400}
+              onChange={(tocWidth) => setPreferences({ tocWidth })}
+            />
+          </>
+        )}
 
         <section className="reader-center">
           <ReaderToolbar
@@ -194,24 +224,34 @@ export function ReaderPage() {
               ref={readerRef}
               book={book}
               preferences={preferences}
+              themeMode={themeMode}
               highlights={highlights}
               onLocationChange={handleLocationChange}
               onSelection={setSelection}
             />
             {selection && (
-              <div className="selection-toolbar" role="toolbar" aria-label="文本选择操作">
+              <div
+                className={`selection-toolbar${selection.rect.top < 150 ? ' selection-toolbar--below' : ''}`}
+                role="toolbar"
+                aria-label="文本选择操作"
+                style={{
+                  left: clamp(selection.rect.left + selection.rect.width / 2, 120, window.innerWidth - 120),
+                  top: selection.rect.top < 150
+                    ? selection.rect.top + selection.rect.height + 8
+                    : selection.rect.top - 8,
+                }}
+              >
                 <Button
                   icon={<IconAIStrokedLevel1 />}
                   theme="borderless"
-                  onClick={() => setActivePanel('ai')}
+                  onClick={askAboutSelection}
                 >
-                  快速提问
+                  提问
                 </Button>
                 <span className="selection-toolbar__divider" />
-                <Button icon={<IconBookmark />} theme="borderless" onClick={saveHighlight}>高亮收藏</Button>
-                <Tooltip content="关闭">
-                  <Button aria-label="关闭文本操作栏" icon={<IconClose />} theme="borderless" onClick={() => setSelection(null)} />
-                </Tooltip>
+                <Button icon={<IconBookmark />} theme="borderless" onClick={saveHighlight}>高亮</Button>
+                <span className="selection-toolbar__divider" />
+                <Button icon={<IconEditStroked />} theme="borderless" onClick={createNoteFromSelection}>笔记</Button>
               </div>
             )}
           </div>
@@ -220,14 +260,19 @@ export function ReaderPage() {
         {activePanel && (
           <SplitHandle
             label="调整右侧面板宽度"
-            onDelta={(delta) => setPreferences({ panelWidth: clamp(preferences.panelWidth - delta, 320, 720) })}
+            value={preferences.panelWidth}
+            min={320}
+            max={720}
+            direction={-1}
+            onChange={(panelWidth) => setPreferences({ panelWidth })}
           />
         )}
         <ReaderRightSidebar
           book={book}
           activePanel={activePanel}
           width={preferences.panelWidth}
-          selectedText={selection?.text}
+          selectedText={panelQuote ?? undefined}
+          onClearSelectedText={() => setPanelQuote(null)}
           onChangePanel={setActivePanel}
           onJumpHighlight={jumpToHighlight}
         />

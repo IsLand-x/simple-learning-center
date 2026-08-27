@@ -14,8 +14,11 @@ const defaultReaderPreferences: ReaderPreferences = {
   fontSize: 18,
   lineHeight: 1.8,
   theme: 'paper',
+  fontFamily: 'system-serif',
   tocWidth: 272,
   panelWidth: 380,
+  tocCollapsed: false,
+  toolbarCollapsed: false,
 };
 
 interface LearningState {
@@ -94,6 +97,17 @@ export const useLearningStore = create<LearningState>()(
     {
       name: 'learning-center-state-v1',
       version: 1,
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<LearningState>;
+        return {
+          ...currentState,
+          ...persisted,
+          readerPreferences: {
+            ...defaultReaderPreferences,
+            ...persisted.readerPreferences,
+          },
+        };
+      },
     },
   ),
 );

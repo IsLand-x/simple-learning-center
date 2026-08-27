@@ -34,9 +34,13 @@ export function AppSidebar() {
       isCollapsed={navCollapsed}
       onCollapseChange={setNavCollapsed}
       selectedKeys={location.pathname.startsWith('/books') || location.pathname === '/' ? ['books'] : []}
-      onSelect={({ itemKey }) => itemKey === 'books' && navigate('/')}
-      items={[{ itemKey: 'books', text: '读书', icon: <IconBook /> }]}
-      header={{ logo: <span className="brand-mark">L</span>, text: '学习中心' }}
+      onClick={({ itemKey }) => itemKey === 'books' && navigate('/')}
+      items={[{
+        itemKey: 'books',
+        text: '读书',
+        icon: <IconBook />,
+        onClick: () => navigate('/'),
+      }]}
       footer={{
         collapseButton: true,
         children: navCollapsed ? <Tooltip content={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'}>{themeButton}</Tooltip> : themeButton,

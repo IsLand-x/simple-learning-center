@@ -1,6 +1,6 @@
 import { Button, ButtonGroup, Select, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { IconChevronLeft, IconChevronRight, IconFont, IconMinus, IconPlus } from '@douyinfe/semi-icons';
-import type { ReaderPreferences, ReaderTheme } from '../types';
+import { IconChevronLeft, IconChevronRight, IconEyeClosed, IconEyeOpened, IconFont, IconMinus, IconPlus } from '@douyinfe/semi-icons';
+import type { ReaderFont, ReaderPreferences, ReaderTheme } from '../types';
 
 const { Text } = Typography;
 
@@ -17,6 +17,20 @@ export function ReaderToolbar({
   onPrev,
   onNext,
 }: ReaderToolbarProps) {
+  if (preferences.toolbarCollapsed) {
+    return (
+      <div className="reader-toolbar reader-toolbar--collapsed">
+        <ButtonGroup>
+          <Tooltip content="上一页"><Button aria-label="上一页" icon={<IconChevronLeft />} theme="borderless" onClick={onPrev} /></Tooltip>
+          <Tooltip content="下一页"><Button aria-label="下一页" icon={<IconChevronRight />} theme="borderless" onClick={onNext} /></Tooltip>
+        </ButtonGroup>
+        <Tooltip content="显示阅读工具">
+          <Button aria-label="显示阅读工具" icon={<IconEyeOpened />} theme="borderless" onClick={() => onChangePreferences({ toolbarCollapsed: false })}>显示工具</Button>
+        </Tooltip>
+      </div>
+    );
+  }
+
   return (
     <div className="reader-toolbar">
       <ButtonGroup>
@@ -52,6 +66,18 @@ export function ReaderToolbar({
         </Tooltip>
       </ButtonGroup>
       <Select
+        aria-label="正文字体"
+        size="small"
+        value={preferences.fontFamily}
+        onChange={(value) => onChangePreferences({ fontFamily: value as ReaderFont })}
+        className="reader-font-select"
+      >
+        <Select.Option value="system-serif">宋体</Select.Option>
+        <Select.Option value="source-serif">思源宋体</Select.Option>
+        <Select.Option value="sans">黑体</Select.Option>
+        <Select.Option value="kai">楷体</Select.Option>
+      </Select>
+      <Select
         aria-label="阅读背景"
         size="small"
         value={preferences.theme}
@@ -73,7 +99,10 @@ export function ReaderToolbar({
         <Select.Option value="1.8">舒适</Select.Option>
         <Select.Option value="2">宽松</Select.Option>
       </Select>
-      <Text size="small" type="tertiary" className="reader-toolbar__hint">选择文字可提问或高亮</Text>
+      <Text size="small" type="tertiary" className="reader-toolbar__hint">选择文字可提问、高亮或记笔记</Text>
+      <Tooltip content="隐藏阅读工具">
+        <Button aria-label="隐藏阅读工具" icon={<IconEyeClosed />} theme="borderless" onClick={() => onChangePreferences({ toolbarCollapsed: true })} />
+      </Tooltip>
     </div>
   );
 }

@@ -12,7 +12,7 @@
 }
 
 :root {
-  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
   color: var(--semi-color-text-0);
   background: var(--semi-color-bg-0);
   font-synthesis: none;
@@ -85,18 +85,6 @@ button,
 
 .main-nav.semi-navigation-collapsed {
   width: 60px !important;
-}
-
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--semi-border-radius-medium);
-  color: var(--semi-color-white);
-  background: var(--semi-color-primary);
-  font-weight: 700;
-  letter-spacing: -0.03em;
 }
 
 .theme-button {
@@ -505,6 +493,12 @@ button,
   background: var(--semi-color-primary);
 }
 
+body.is-resizing-panels,
+body.is-resizing-panels * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 .reader-center {
   display: flex;
   min-width: 0;
@@ -522,6 +516,10 @@ button,
   background: var(--semi-color-bg-1);
 }
 
+.reader-toolbar--collapsed {
+  justify-content: space-between;
+}
+
 .reader-toolbar__divider,
 .selection-toolbar__divider {
   width: 1px;
@@ -535,6 +533,10 @@ button,
 
 .reader-theme-select {
   width: 112px;
+}
+
+.reader-font-select {
+  width: 108px;
 }
 
 .reader-line-height-select {
@@ -580,10 +582,10 @@ button,
 }
 
 .demo-reader article {
-  max-width: 720px;
+  width: clamp(520px, 82%, 920px);
+  max-width: calc(100% - 48px);
   margin: 0 auto;
   padding: clamp(40px, 7vh, 76px) clamp(28px, 6vw, 72px) 88px;
-  font-family: Georgia, "Noto Serif SC", serif;
 }
 
 .demo-reader h1 {
@@ -613,7 +615,7 @@ button,
 .reader-callout p {
   margin: 6px 0 0;
   color: var(--semi-color-text-2);
-  font-family: Inter, "PingFang SC", sans-serif;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 14px;
   line-height: 1.6;
   text-align: left;
@@ -640,9 +642,7 @@ button,
 }
 
 .selection-toolbar {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
+  position: fixed;
   z-index: 30;
   gap: 2px;
   padding: 4px;
@@ -650,6 +650,10 @@ button,
   border-radius: var(--semi-border-radius-medium);
   background: var(--semi-color-bg-2);
   box-shadow: var(--semi-shadow-elevated);
+  transform: translate(-50%, -100%);
+}
+
+.selection-toolbar--below {
   transform: translateX(-50%);
 }
 
@@ -738,22 +742,9 @@ button,
   overflow: hidden;
 }
 
-.ai-status {
-  flex: 0 0 auto;
-  gap: 8px;
-}
-
-.ai-status__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--semi-color-warning);
-}
-
 .selected-quote,
 .note-card,
-.highlight-card,
-.chat-message {
+.highlight-card {
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
   background: var(--semi-color-bg-0);
@@ -782,45 +773,43 @@ button,
   gap: 6px;
 }
 
-.chat-list {
+.ai-connection-bar {
   display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 8px;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.chat-message {
-  padding: 10px 12px;
-}
-
-.chat-message--user {
-  margin-left: 24px;
-  border-color: var(--semi-color-primary-light-active);
-  background: var(--semi-color-primary-light-default);
-}
-
-.chat-message--assistant {
-  margin-right: 24px;
-}
-
-.chat-message p {
-  margin: 4px 0 0;
-  white-space: pre-wrap;
-  line-height: 1.55;
-}
-
-.chat-composer {
   flex: 0 0 auto;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px;
 }
 
-.chat-composer .semi-input-textarea-wrapper {
-  min-width: 0;
+.ai-provider-select {
+  min-width: 108px;
   flex: 1;
+}
+
+.ai-status-message {
+  display: block;
+  flex: 0 0 auto;
+  line-height: 1.5;
+}
+
+.semi-chat-area {
+  min-height: 120px;
+  flex: 1;
+  overflow: hidden;
+  border-top: 1px solid var(--semi-color-border);
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.semi-chat-area .semi-ai-chat-dialogue-wrapper {
+  padding-right: 4px;
+  padding-left: 4px;
+}
+
+.reader-ai-input {
+  flex: 0 0 auto;
+}
+
+.reader-ai-input.semi-ai-chat-input {
+  width: 100%;
 }
 
 .note-card {
@@ -832,6 +821,10 @@ button,
   justify-content: space-between;
   gap: 8px;
   margin-top: 8px;
+}
+
+.note-card__footer--end {
+  justify-content: flex-end;
 }
 
 .highlight-card {
@@ -890,10 +883,6 @@ button,
     display: none;
   }
 
-  .reader-header__actions .semi-tag {
-    display: none;
-  }
-
   .reader-toolbar {
     overflow-x: auto;
   }
@@ -945,13 +934,6 @@ button,
     display: none;
   }
 
-  .selection-toolbar {
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
-    justify-content: center;
-    transform: none;
-  }
 }
 
 @media (max-width: 480px) {
@@ -977,6 +959,10 @@ button,
 
   .reader-theme-select {
     width: 96px;
+  }
+
+  .reader-font-select {
+    width: 92px;
   }
 
   .font-size-indicator {

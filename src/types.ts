@@ -1,5 +1,7 @@
 export type ThemeMode = 'light' | 'dark';
 export type ReaderTheme = 'paper' | 'white' | 'night';
+export type ReaderFont = 'system-serif' | 'source-serif' | 'sans' | 'kai';
+export type AcpProvider = 'codex' | 'kimi';
 export type RightPanel = 'ai' | 'notes' | 'highlights' | null;
 
 export interface TocItem {
@@ -57,11 +59,20 @@ export interface ReaderPreferences {
   fontSize: number;
   lineHeight: number;
   theme: ReaderTheme;
+  fontFamily: ReaderFont;
   tocWidth: number;
   panelWidth: number;
+  tocCollapsed: boolean;
+  toolbarCollapsed: boolean;
 }
 
 export interface ReaderSelection {
   text: string;
   cfi: string;
+  rect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
 }

@@ -11,7 +11,8 @@ import {
 import { Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import { getDemoContent } from '../data/demo';
 import { loadEpubFile } from '../lib/epubStorage';
-import type { BookItem, HighlightItem, ReaderPreferences, ReaderSelection, TocItem } from '../types';
+import { READER_FONT_STACKS } from '../lib/readerFonts';
+import type { BookItem, HighlightItem, ReaderPreferences, ReaderSelection, ThemeMode, TocItem } from '../types';
 
 const { Text } = Typography;
 
@@ -33,6 +34,7 @@ interface ReaderSurfaceProps {
   book: BookItem;
   preferences: ReaderPreferences;
   highlights: HighlightItem[];
+  themeMode: ThemeMode;
   onLocationChange: (location: ReaderLocationUpdate) => void;
   onSelection: (selection: ReaderSelection | null) => void;
 }
@@ -53,7 +55,7 @@ function DemoReader({
   onSelection,
   controllerRef,
   onLocationChange,
-}: Omit<ReaderSurfaceProps, 'highlights'> & { controllerRef: React.Ref<ReaderSurfaceHandle> }) {
+}: Omit<ReaderSurfaceProps, 'highlights' | 'themeMode'> & { controllerRef: React.Ref<ReaderSurfaceHandle> }) {
   const chapters = useMemo(() => flattenToc(book.toc), [book.toc]);
   const initialIndex = Math.max(0, chapters.findIndex((item) => item.label === book.currentChapter));
   const [chapterIndex, setChapterIndex] = useState(initialIndex);
@@ -88,12 +90,27 @@ function DemoReader({
       onSelection(null);
       return;
     }
-    onSelection({ text: text.slice(0, 600), cfi: `demo:${chapter?.href ?? 'chapter-1'}:${Date.now()}` });
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const rect = range?.getBoundingClientRect();
+    onSelection({
+      text: text.slice(0, 600),
+      cfi: `demo:${chapter?.href ?? 'chapter-1'}:${Date.now()}`,
+      rect: {
+        left: rect?.left ?? event.clientX,
+        top: rect?.top ?? event.clientY,
+        width: rect?.width ?? 0,
+        height: rect?.height ?? 0,
+      },
+    });
   };
 
   return (
     <div className={`demo-reader demo-reader--${preferences.theme}`} onMouseUp={handleMouseUp}>
-      <article style={{ fontSize: preferences.fontSize, lineHeight: preferences.lineHeight }}>
+      <article style={{
+        fontSize: preferences.fontSize,
+        lineHeight: preferences.lineHeight,
+        fontFamily: READER_FONT_STACKS[preferences.fontFamily],
+      }}>
         <Text type="tertiary" className="reader-eyebrow">{content.eyebrow}</Text>
         <h1>{content.heading}</h1>
         {content.paragraphs.map((paragraph, index) => <p key={`${chapter?.id}-${index}`}>{paragraph}</p>)}
@@ -109,6 +126,7 @@ function DemoReader({
 function EpubReader({
   book,
   preferences,
+  themeMode,
   highlights,
   onLocationChange,
   onSelection,
@@ -133,6 +151,7 @@ function EpubReader({
 
   useEffect(() => {
     let disposed = false;
+    let resizeObserver: ResizeObserver | null = null;
     setStatus('loading');
     setErrorMessage('请返回书架后重新导入这个 EPUB');
 
@@ -154,6 +173,11 @@ function EpubReader({
         flow: 'paginated',
       });
       renditionRef.current = rendition;
+      resizeObserver = new ResizeObserver(() => {
+        const container = containerRef.current;
+        if (container) rendition.resize(container.clientWidth, container.clientHeight);
+      });
+      resizeObserver.observe(containerRef.current);
 
       rendition.on('relocated', (location: Location) => {
         const cfi = location.start.cfi;
@@ -170,8 +194,23 @@ function EpubReader({
       });
 
       rendition.on('selected', (cfi: string, contents: Contents) => {
-        const text = contents.window.getSelection()?.toString().trim();
-        if (text) onSelectionRef.current({ text: text.slice(0, 600), cfi });
+        const selection = contents.window.getSelection();
+        const text = selection?.toString().trim();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        const rect = range?.getBoundingClientRect();
+        const frameRect = contents.document.defaultView?.frameElement?.getBoundingClientRect();
+        if (text && rect) {
+          onSelectionRef.current({
+            text: text.slice(0, 600),
+            cfi,
+            rect: {
+              left: (frameRect?.left ?? 0) + rect.left,
+              top: (frameRect?.top ?? 0) + rect.top,
+              width: rect.width,
+              height: rect.height,
+            },
+          });
+        }
       });
 
       try {
@@ -198,6 +237,7 @@ function EpubReader({
 
     return () => {
       disposed = true;
+      resizeObserver?.disconnect();
       try {
         renditionRef.current?.destroy();
       } catch {
@@ -228,7 +268,7 @@ function EpubReader({
       body: {
         color: `${color} !important`,
         background: `${background} !important`,
-        'font-family': 'Georgia, "Noto Serif SC", serif !important',
+        'font-family': `${READER_FONT_STACKS[preferences.fontFamily]} !important`,
         'font-size': `${preferences.fontSize}px !important`,
         'line-height': `${preferences.lineHeight} !important`,
         padding: '0 6% !important',
@@ -237,7 +277,7 @@ function EpubReader({
       'img, svg': { 'max-width': '100% !important' },
     });
     rendition.themes.select('learning-center-reader');
-  }, [preferences.fontSize, preferences.lineHeight, preferences.theme, status]);
+  }, [preferences.fontFamily, preferences.fontSize, preferences.lineHeight, preferences.theme, status, themeMode]);
 
   useEffect(() => {
     const rendition = renditionRef.current;

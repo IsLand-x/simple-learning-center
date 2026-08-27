@@ -2,36 +2,41 @@ import type { KeyboardEvent, PointerEvent } from 'react';
 
 interface SplitHandleProps {
   label: string;
-  onDelta: (delta: number) => void;
+  value: number;
+  min: number;
+  max: number;
+  direction?: 1 | -1;
+  onChange: (value: number) => void;
 }
 
-export function SplitHandle({ label, onDelta }: SplitHandleProps) {
+export function SplitHandle({ label, value, min, max, direction = 1, onChange }: SplitHandleProps) {
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     const startX = event.clientX;
-    const target = event.currentTarget;
-    target.setPointerCapture(event.pointerId);
-    let previousX = startX;
+    const startValue = value;
+    document.body.classList.add('is-resizing-panels');
 
     const move = (moveEvent: globalThis.PointerEvent) => {
-      const delta = moveEvent.clientX - previousX;
-      previousX = moveEvent.clientX;
-      onDelta(delta);
+      const nextValue = startValue + (moveEvent.clientX - startX) * direction;
+      onChange(Math.max(min, Math.min(max, nextValue)));
     };
     const finish = () => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', finish);
-      target.removeEventListener('pointercancel', finish);
+      document.body.classList.remove('is-resizing-panels');
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
     };
 
-    target.addEventListener('pointermove', move);
-    target.addEventListener('pointerup', finish);
-    target.addEventListener('pointercancel', finish);
+    event.preventDefault();
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
-    onDelta(event.key === 'ArrowLeft' ? -16 : 16);
+    const delta = event.key === 'ArrowLeft' ? -16 : 16;
+    onChange(Math.max(min, Math.min(max, value + delta * direction)));
   };
 
   return (
