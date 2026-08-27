@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { Button, Toast } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
-import { parseEpubFile } from '../lib/parseEpub';
 import { requestPersistentStorage, saveEpubFile } from '../lib/epubStorage';
 import { useLearningStore } from '../store/useLearningStore';
 
@@ -18,6 +17,7 @@ export function ImportBooksButton() {
 
     try {
       await requestPersistentStorage();
+      const { parseEpubFile } = await import('../lib/parseEpub');
       for (const file of Array.from(files)) {
         if (!file.name.toLowerCase().endsWith('.epub')) {
           failed.push(file.name);
