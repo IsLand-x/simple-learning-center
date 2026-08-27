@@ -167,14 +167,6 @@ export function ReaderPage() {
           </div>
         </div>
         <div className="reader-header__actions">
-          <Tooltip content={preferences.tocCollapsed ? '展开目录' : '收起目录'}>
-            <Button
-              aria-label={preferences.tocCollapsed ? '展开目录' : '收起目录'}
-              icon={<IconSidebar />}
-              theme="borderless"
-              onClick={() => setPreferences({ tocCollapsed: !preferences.tocCollapsed })}
-            />
-          </Tooltip>
           <Dropdown
             trigger="hover"
             position="bottomRight"
@@ -213,6 +205,19 @@ export function ReaderPage() {
         )}
 
         <section className="reader-center">
+          <div className="reader-menu-bar">
+            <Tooltip content={preferences.tocCollapsed ? '展开书籍目录' : '收起书籍目录'}>
+              <Button
+                aria-label={preferences.tocCollapsed ? '展开书籍目录' : '收起书籍目录'}
+                icon={<IconSidebar />}
+                size="small"
+                theme="borderless"
+                onClick={() => setPreferences({ tocCollapsed: !preferences.tocCollapsed })}
+              >
+                {preferences.tocCollapsed ? '展开目录' : '收起目录'}
+              </Button>
+            </Tooltip>
+          </div>
           <ReaderToolbar
             preferences={preferences}
             onChangePreferences={setPreferences}

@@ -175,8 +175,6 @@ function AiPanel({
     }] : []),
   ];
   const currentStatus = statusMeta[status];
-  const references = selectedText ? [{ id: 'reader-selection', type: 'text', content: selectedText }] : [];
-
   return (
     <div className="right-panel__body ai-panel">
       <div className="ai-connection-bar">
@@ -203,7 +201,7 @@ function AiPanel({
           disabled={status === 'unavailable' || status === 'connecting' || status === 'generating'}
           onClick={connect}
         >
-          {status === 'ready' ? '重新连接' : '连接'}
+          {status === 'ready' ? '重连' : '连接'}
         </Button>
       </div>
 
@@ -214,13 +212,16 @@ function AiPanel({
       )}
 
       {selectedText && (
-        <div className="selected-quote">
-          <Text size="small" type="tertiary">已引用原文</Text>
-          <p>{selectedText}</p>
+        <div className="ai-context-strip">
+          <div className="ai-context-strip__text">
+            <Text size="small" type="tertiary">原文</Text>
+            <Text size="small" ellipsis={{ showTooltip: true }}>{selectedText}</Text>
+            <Button size="small" theme="borderless" type="tertiary" onClick={onClearSelectedText}>取消</Button>
+          </div>
           <div className="prompt-suggestions">
-            <Button size="small" theme="light" disabled={!canSend} onClick={() => send('请用简单的话解释这段内容。')}>解释</Button>
-            <Button size="small" theme="light" disabled={!canSend} onClick={() => send('请为这段内容举一个具体例子。')}>举例</Button>
-            <Button size="small" theme="light" disabled={!canSend} onClick={() => send('这段内容在本章中的作用是什么？')}>联系上下文</Button>
+            <Button size="small" theme="borderless" disabled={!canSend} onClick={() => send('请用简单的话解释这段内容。')}>解释</Button>
+            <Button size="small" theme="borderless" disabled={!canSend} onClick={() => send('请为这段内容举一个具体例子。')}>举例</Button>
+            <Button size="small" theme="borderless" disabled={!canSend} onClick={() => send('这段内容在本章中的作用是什么？')}>联系上下文</Button>
           </div>
         </div>
       )}
@@ -235,6 +236,11 @@ function AiPanel({
               user: { name: '你' },
               assistant: { name: provider === 'codex' ? 'Codex' : 'Kimi CLI' },
             }}
+            dialogueRenderConfig={{
+              renderDialogueAvatar: () => null,
+              renderDialogueTitle: () => null,
+              renderDialogueAction: () => null,
+            }}
           />
         ) : (
           <Empty title="从原文开始提问" description="连接本地助手后，选中一段文字或直接输入问题" />
@@ -246,13 +252,10 @@ function AiPanel({
         placeholder={canSend ? '输入关于本书的问题…' : '连接本地助手后开始提问'}
         canSend={canSend}
         generating={status === 'generating'}
-        references={references}
-        onReferenceDelete={onClearSelectedText}
         onMessageSend={({ inputContents }) => send(extractInputText(inputContents as Array<Record<string, unknown>>))}
         onStopGenerate={() => clientRef.current?.cancel()}
         showUploadButton={false}
         showTemplateButton={false}
-        showReference
         className="reader-ai-input"
       />
     </div>
@@ -364,7 +367,7 @@ export function ReaderRightSidebar({
   return (
     <div className="reader-right">
       {activePanel && (
-        <aside className="right-panel" style={{ width }} aria-label={panelMeta[activePanel].label}>
+        <aside className={`right-panel${activePanel === 'ai' ? ' right-panel--ai' : ''}`} style={{ width }} aria-label={panelMeta[activePanel].label}>
           <div className="panel-titlebar">
             <div className="panel-titlebar__title">{panelMeta[activePanel].icon}<Text strong>{panelMeta[activePanel].label}</Text></div>
           </div>
