@@ -50,6 +50,21 @@ function findChapterLabel(items: TocItem[], href?: string) {
   return flattenToc(items).find((item) => item.href.split('#')[0] === normalized)?.label;
 }
 
+function redrawHighlightPanes(rendition: Rendition) {
+  const redraw = () => {
+    try {
+      rendition.views().forEach((view) => {
+        const pane = (view as unknown as { pane?: { render: () => void } }).pane;
+        pane?.render();
+      });
+    } catch {
+      // The rendition may have been replaced while a delayed redraw was pending.
+    }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(redraw));
+  window.setTimeout(redraw, 120);
+}
+
 function DemoReader({
   book,
   preferences,
@@ -138,6 +153,7 @@ function EpubReader({
   const bookRef = useRef<EpubBook | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const appliedHighlightCfisRef = useRef<Map<string, string>>(new Map());
+  const currentCfiRef = useRef(book.currentCfi);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('请返回书架后重新导入这个 EPUB');
   const onLocationRef = useRef(onLocationChange);
@@ -159,9 +175,13 @@ function EpubReader({
   useEffect(() => {
     let disposed = false;
     let resizeObserver: ResizeObserver | null = null;
+    let resizeTimer: number | null = null;
+    let lastWidth = 0;
+    let lastHeight = 0;
     setStatus('loading');
     setErrorMessage('请返回书架后重新导入这个 EPUB');
     appliedHighlightCfisRef.current.clear();
+    currentCfiRef.current = book.currentCfi;
 
     const setup = async () => {
       const data = await loadEpubFile(book.id);
@@ -181,14 +201,10 @@ function EpubReader({
         flow: 'paginated',
       });
       renditionRef.current = rendition;
-      resizeObserver = new ResizeObserver(() => {
-        const container = containerRef.current;
-        if (container) rendition.resize(container.clientWidth, container.clientHeight);
-      });
-      resizeObserver.observe(containerRef.current);
 
       rendition.on('relocated', (location: Location) => {
         const cfi = location.start.cfi;
+        currentCfiRef.current = cfi;
         const locationCount = epubBook.locations.length();
         const generatedProgress = locationCount && cfi ? epubBook.locations.percentageFromCfi(cfi) * 100 : undefined;
         const rawProgress = generatedProgress ?? (location.start.percentage ?? 0) * 100;
@@ -234,12 +250,38 @@ function EpubReader({
         }
       });
 
+      rendition.on('rendered', () => redrawHighlightPanes(rendition));
+
       try {
         await rendition.display(book.currentCfi || undefined);
       } catch {
         await rendition.display();
       }
       if (disposed) return;
+      const container = containerRef.current;
+      if (container) {
+        lastWidth = container.clientWidth;
+        lastHeight = container.clientHeight;
+        resizeObserver = new ResizeObserver(() => {
+          const nextContainer = containerRef.current;
+          if (!nextContainer) return;
+          const width = nextContainer.clientWidth;
+          const height = nextContainer.clientHeight;
+          if (!width || !height || (width === lastWidth && height === lastHeight)) return;
+          lastWidth = width;
+          lastHeight = height;
+          if (resizeTimer) window.clearTimeout(resizeTimer);
+          resizeTimer = window.setTimeout(() => {
+            (rendition.resize as (nextWidth: number, nextHeight: number, cfi?: string) => void)(
+              width,
+              height,
+              currentCfiRef.current,
+            );
+            redrawHighlightPanes(rendition);
+          }, 90);
+        });
+        resizeObserver.observe(container);
+      }
       setStatus('ready');
       void epubBook.locations
         .generate(1200)
@@ -259,6 +301,7 @@ function EpubReader({
     return () => {
       disposed = true;
       resizeObserver?.disconnect();
+      if (resizeTimer) window.clearTimeout(resizeTimer);
       try {
         renditionRef.current?.destroy();
       } catch {
@@ -299,6 +342,7 @@ function EpubReader({
       'img, svg': { 'max-width': '100% !important' },
     });
     rendition.themes.select('learning-center-reader');
+    redrawHighlightPanes(rendition);
   }, [preferences.fontFamily, preferences.fontSize, preferences.lineHeight, preferences.theme, status, themeMode]);
 
   useEffect(() => {
@@ -333,6 +377,7 @@ function EpubReader({
         // Invalid CFIs from a changed file are ignored without blocking reading.
       }
     });
+    redrawHighlightPanes(rendition);
   }, [highlights, preferences.theme, status, themeMode]);
 
   return (

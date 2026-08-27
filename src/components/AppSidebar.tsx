@@ -17,15 +17,15 @@ export function AppSidebar() {
   }, [themeMode]);
 
   const themeButton = (
-    <Button
-      aria-label={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'}
-      icon={themeMode === 'light' ? <IconMoon /> : <IconSun />}
-      theme="borderless"
-      className="theme-button"
-      onClick={() => setThemeMode(themeMode === 'light' ? 'dark' : 'light')}
-    >
-      {!navCollapsed && (themeMode === 'light' ? '深色' : '浅色')}
-    </Button>
+    <Tooltip content={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'} position="right">
+      <Button
+        aria-label={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'}
+        icon={themeMode === 'light' ? <IconMoon /> : <IconSun />}
+        theme="borderless"
+        className="theme-button"
+        onClick={() => setThemeMode(themeMode === 'light' ? 'dark' : 'light')}
+      />
+    </Tooltip>
   );
 
   const collapseButton = (
@@ -57,9 +57,7 @@ export function AppSidebar() {
         collapseButton: false,
         children: (
           <div className="nav-footer-actions">
-            {navCollapsed
-              ? <Tooltip content={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'} position="right">{themeButton}</Tooltip>
-              : themeButton}
+            {themeButton}
             {collapseButton}
           </div>
         ),

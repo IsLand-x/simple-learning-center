@@ -97,7 +97,8 @@ button,
   display: flex;
   width: 100%;
   flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .nav-collapse-button {
@@ -117,9 +118,9 @@ button,
 }
 
 .theme-button {
-  width: 100%;
+  width: 40px;
   min-height: 40px;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .library-page {
@@ -158,7 +159,7 @@ button,
 }
 
 .search-input {
-  width: 320px;
+  width: 200px;
   max-width: 100%;
 }
 
@@ -267,10 +268,7 @@ button,
 
 .book-meta__topline {
   margin-bottom: 4px;
-}
-
-.book-file-size {
-  margin-top: 2px;
+  justify-content: flex-end;
 }
 
 .book-progress {
@@ -287,34 +285,6 @@ button,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.book-grid--list {
-  grid-template-columns: 1fr;
-}
-
-.book-grid--list .book-card {
-  grid-template-columns: 64px minmax(0, 1fr);
-  min-height: 100px;
-}
-
-.book-grid--list .book-cover,
-.book-grid--list .book-cover-image {
-  width: 64px;
-  height: 84px;
-}
-
-.book-grid--list .book-cover {
-  padding: 8px;
-}
-
-.book-grid--list .book-cover__eyebrow,
-.book-grid--list .book-cover span:last-child {
-  display: none;
-}
-
-.book-grid--list .book-cover strong {
-  font-size: 10px;
 }
 
 .library-empty,
@@ -1019,8 +989,7 @@ body.is-resizing-panels * {
 }
 
 @media (max-width: 720px) {
-  .main-nav.semi-navigation-collapsed .semi-navigation-item-text,
-  .main-nav.semi-navigation-collapsed .theme-button .semi-button-content-right {
+  .main-nav.semi-navigation-collapsed .semi-navigation-item-text {
     display: none;
   }
 

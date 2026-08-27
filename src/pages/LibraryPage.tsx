@@ -1,9 +1,9 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
-import { Button, ButtonGroup, Empty, Input, Progress, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { IconGridView, IconListView, IconSearch } from '@douyinfe/semi-icons';
+import { Button, ButtonGroup, Empty, Input, Progress, Typography } from '@douyinfe/semi-ui';
+import { IconSearch } from '@douyinfe/semi-icons';
 import { useNavigate } from 'react-router-dom';
 import { ImportBooksButton } from '../components/ImportBooksButton';
-import { formatFileSize, formatRelativeTime } from '../lib/format';
+import { formatRelativeTime } from '../lib/format';
 import { useLearningStore } from '../store/useLearningStore';
 import type { BookItem } from '../types';
 
@@ -29,7 +29,6 @@ export function LibraryPage() {
   const books = useLearningStore((state) => state.books);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
-  const [view, setView] = useState<'grid' | 'list'>('grid');
 
   const filteredBooks = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
@@ -55,7 +54,7 @@ export function LibraryPage() {
       <header className="library-header">
         <div>
           <Title heading={4}>我的书架</Title>
-          <Text type="tertiary">{books.length} 本书 · EPUB 文件仅保存在此设备</Text>
+          <Text type="tertiary">{books.length} 本书</Text>
         </div>
         <ImportBooksButton />
       </header>
@@ -76,19 +75,11 @@ export function LibraryPage() {
             <Button theme={filter === 'reading' ? 'solid' : 'borderless'} type="tertiary" onClick={() => setFilter('reading')}>阅读中</Button>
             <Button theme={filter === 'finished' ? 'solid' : 'borderless'} type="tertiary" onClick={() => setFilter('finished')}>已读完</Button>
           </ButtonGroup>
-          <ButtonGroup>
-            <Tooltip content="卡片视图">
-              <Button aria-label="卡片视图" icon={<IconGridView />} theme={view === 'grid' ? 'solid' : 'borderless'} type="tertiary" onClick={() => setView('grid')} />
-            </Tooltip>
-            <Tooltip content="列表视图">
-              <Button aria-label="列表视图" icon={<IconListView />} theme={view === 'list' ? 'solid' : 'borderless'} type="tertiary" onClick={() => setView('list')} />
-            </Tooltip>
-          </ButtonGroup>
         </div>
       </div>
 
       {filteredBooks.length ? (
-        <section className={`book-grid book-grid--${view}`} aria-label="书籍列表">
+        <section className="book-grid" aria-label="书籍列表">
           {filteredBooks.map((book, index) => (
             <article
               className="book-card"
@@ -102,12 +93,10 @@ export function LibraryPage() {
               <BookCover book={book} index={index} />
               <div className="book-meta">
                 <div className="book-meta__topline">
-                  <Tag size="small" color="blue">EPUB</Tag>
                   <Text size="small" type="tertiary">{formatRelativeTime(book.updatedAt)}</Text>
                 </div>
                 <Text strong ellipsis={{ showTooltip: true }}>{book.title}</Text>
                 <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>{book.author}</Text>
-                <Text size="small" type="tertiary" className="book-file-size">{formatFileSize(book.fileSize)}</Text>
                 <div className="book-progress">
                   <div className="book-progress__label">
                     <Text size="small" type="tertiary">{book.currentChapter || '尚未开始'}</Text>
