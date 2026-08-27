@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Spin } from '@douyinfe/semi-ui';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppSidebar } from './components/AppSidebar';
+import { ReaderErrorBoundary } from './components/ReaderErrorBoundary';
 import { LibraryPage } from './pages/LibraryPage';
 
 const ReaderPage = lazy(() => import('./pages/ReaderPage').then((module) => ({ default: module.ReaderPage })));
@@ -16,9 +17,11 @@ export function App() {
           <Route
             path="/books/:bookId"
             element={(
-              <Suspense fallback={<div className="route-loading"><Spin size="large" /></div>}>
-                <ReaderPage />
-              </Suspense>
+              <ReaderErrorBoundary>
+                <Suspense fallback={<div className="route-loading"><Spin size="large" /></div>}>
+                  <ReaderPage />
+                </Suspense>
+              </ReaderErrorBoundary>
             )}
           />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -24,7 +24,7 @@ export function ReaderPage() {
   const { bookId = '' } = useParams();
   const navigate = useNavigate();
   const book = useLearningStore((state) => state.books.find((item) => item.id === bookId));
-  const highlights = useLearningStore((state) => state.highlights.filter((item) => item.bookId === bookId));
+  const allHighlights = useLearningStore((state) => state.highlights);
   const updateBook = useLearningStore((state) => state.updateBook);
   const deleteBook = useLearningStore((state) => state.deleteBook);
   const addHighlight = useLearningStore((state) => state.addHighlight);
@@ -35,6 +35,10 @@ export function ReaderPage() {
   const [activePanel, setActivePanel] = useState<RightPanel>(null);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [activeHref, setActiveHref] = useState(book?.toc[0]?.href);
+  const highlights = useMemo(
+    () => allHighlights.filter((item) => item.bookId === bookId),
+    [allHighlights, bookId],
+  );
 
   useEffect(() => { latestBookRef.current = book; }, [book]);
 

@@ -310,6 +310,22 @@ button,
   gap: 16px;
 }
 
+.reader-error-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  align-content: center;
+  gap: 16px;
+  padding: 24px;
+  background: var(--semi-color-bg-0);
+}
+
+.reader-error-fallback__actions {
+  display: flex;
+  gap: 8px;
+}
+
 .route-loading {
   width: 100%;
   height: 100%;

@@ -118,6 +118,7 @@ function EpubReader({
   const bookRef = useRef<EpubBook | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [errorMessage, setErrorMessage] = useState('请返回书架后重新导入这个 EPUB');
   const onLocationRef = useRef(onLocationChange);
   const onSelectionRef = useRef(onSelection);
 
@@ -125,14 +126,15 @@ function EpubReader({
   useEffect(() => { onSelectionRef.current = onSelection; }, [onSelection]);
 
   useImperativeHandle(controllerRef, () => ({
-    next: () => { void renditionRef.current?.next(); },
-    prev: () => { void renditionRef.current?.prev(); },
-    display: (target) => { void renditionRef.current?.display(target); },
+    next: () => { void renditionRef.current?.next().catch(() => setErrorMessage('无法翻到下一页，请尝试从目录跳转')); },
+    prev: () => { void renditionRef.current?.prev().catch(() => setErrorMessage('无法翻到上一页，请尝试从目录跳转')); },
+    display: (target) => { void renditionRef.current?.display(target).catch(() => setErrorMessage('无法定位到所选内容')); },
   }), []);
 
   useEffect(() => {
     let disposed = false;
     setStatus('loading');
+    setErrorMessage('请返回书架后重新导入这个 EPUB');
 
     const setup = async () => {
       const data = await loadEpubFile(book.id);
@@ -172,21 +174,41 @@ function EpubReader({
         if (text) onSelectionRef.current({ text: text.slice(0, 600), cfi });
       });
 
-      await rendition.display(book.currentCfi || undefined);
+      try {
+        await rendition.display(book.currentCfi || undefined);
+      } catch {
+        await rendition.display();
+      }
       if (disposed) return;
       setStatus('ready');
-      void epubBook.locations.generate(1200).then(() => rendition.reportLocation());
+      void epubBook.locations
+        .generate(1200)
+        .then(() => rendition.reportLocation())
+        .catch(() => rendition.reportLocation().catch(() => undefined));
     };
 
-    void setup().catch(() => {
-      if (!disposed) setStatus('error');
+    void setup().catch((error: unknown) => {
+      if (!disposed) {
+        setErrorMessage(error instanceof Error && error.message.includes('不存在')
+          ? '本地 EPUB 文件不存在，请返回书架后重新导入'
+          : '文件可能已损坏或不符合 EPUB 规范，请尝试重新导入');
+        setStatus('error');
+      }
     });
 
     return () => {
       disposed = true;
-      renditionRef.current?.destroy();
+      try {
+        renditionRef.current?.destroy();
+      } catch {
+        // A partially initialized rendition can already be disposed by epub.js.
+      }
       renditionRef.current = null;
-      bookRef.current?.destroy();
+      try {
+        bookRef.current?.destroy();
+      } catch {
+        // Cleanup must never take down the surrounding React page.
+      }
       bookRef.current = null;
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
@@ -239,7 +261,7 @@ function EpubReader({
   return (
     <div className="epub-reader-wrap">
       {status === 'loading' && <div className="reader-status"><Spin size="large" /><Text type="tertiary">正在打开 EPUB…</Text></div>}
-      {status === 'error' && <div className="reader-status"><Empty title="无法打开这本书" description="本地文件可能已被浏览器清理，请重新导入 EPUB" /></div>}
+      {status === 'error' && <div className="reader-status"><Empty title="无法打开这本书" description={errorMessage} /></div>}
       <div ref={containerRef} className="epub-reader" aria-label={`《${book.title}》阅读区`} />
     </div>
   );

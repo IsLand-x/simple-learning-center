@@ -59,8 +59,12 @@ function ActivityButton({
 
 function AiPanel({ bookId, selectedText }: { bookId: string; selectedText?: string }) {
   const [draft, setDraft] = useState('');
-  const chats = useLearningStore((state) => state.chats.filter((message) => message.bookId === bookId));
+  const allChats = useLearningStore((state) => state.chats);
   const addChatMessage = useLearningStore((state) => state.addChatMessage);
+  const chats = useMemo(
+    () => allChats.filter((message) => message.bookId === bookId),
+    [allChats, bookId],
+  );
 
   const send = (content: string) => {
     const question = content.trim();
@@ -124,10 +128,14 @@ function AiPanel({ bookId, selectedText }: { bookId: string; selectedText?: stri
 }
 
 function NotesPanel({ bookId }: { bookId: string }) {
-  const notes = useLearningStore((state) => state.notes.filter((note) => note.bookId === bookId));
+  const allNotes = useLearningStore((state) => state.notes);
   const addNote = useLearningStore((state) => state.addNote);
   const updateNote = useLearningStore((state) => state.updateNote);
   const deleteNote = useLearningStore((state) => state.deleteNote);
+  const notes = useMemo(
+    () => allNotes.filter((note) => note.bookId === bookId),
+    [allNotes, bookId],
+  );
 
   const createNote = () => {
     const timestamp = Date.now();
