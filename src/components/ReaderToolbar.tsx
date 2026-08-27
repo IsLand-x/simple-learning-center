@@ -1,5 +1,6 @@
 import { Button, ButtonGroup, Select, Tooltip } from '@douyinfe/semi-ui';
 import { IconChevronLeft, IconChevronRight, IconFont, IconMinus, IconPlus, IconSidebar } from '@douyinfe/semi-icons';
+import { READER_FONT_OPTIONS } from '../lib/readerFonts';
 import type { ReaderFont, ReaderPreferences, ReaderTheme } from '../types';
 
 interface ReaderToolbarProps {
@@ -72,10 +73,9 @@ export function ReaderToolbar({
         onChange={(value) => onChangePreferences({ fontFamily: value as ReaderFont })}
         className="reader-font-select"
       >
-        <Select.Option value="system-serif">宋体</Select.Option>
-        <Select.Option value="source-serif">思源宋体</Select.Option>
-        <Select.Option value="sans">黑体</Select.Option>
-        <Select.Option value="kai">楷体</Select.Option>
+        {READER_FONT_OPTIONS.map((font) => (
+          <Select.Option key={font.value} value={font.value}>{font.label}</Select.Option>
+        ))}
       </Select>
       <Select
         aria-label="阅读背景"

@@ -11,7 +11,7 @@ import {
 import { Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import { getDemoContent } from '../data/demo';
 import { loadEpubFile } from '../lib/epubStorage';
-import { READER_FONT_STACKS } from '../lib/readerFonts';
+import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import type { BookItem, HighlightItem, ReaderPreferences, ReaderSelection, ThemeMode, TocItem } from '../types';
 
 const { Text } = Typography;
@@ -77,6 +77,10 @@ function DemoReader({
   const [chapterIndex, setChapterIndex] = useState(initialIndex);
   const chapter = chapters[chapterIndex] ?? chapters[0];
   const content = getDemoContent(chapter?.href ?? 'chapter-5');
+
+  useEffect(() => {
+    void ensureReaderFontStylesheet(document, preferences.fontFamily);
+  }, [preferences.fontFamily]);
 
   useImperativeHandle(controllerRef, () => ({
     next: () => setChapterIndex((current) => Math.min(chapters.length - 1, current + 1)),
@@ -158,9 +162,11 @@ function EpubReader({
   const [errorMessage, setErrorMessage] = useState('请返回书架后重新导入这个 EPUB');
   const onLocationRef = useRef(onLocationChange);
   const onSelectionRef = useRef(onSelection);
+  const preferencesRef = useRef(preferences);
 
   useEffect(() => { onLocationRef.current = onLocationChange; }, [onLocationChange]);
   useEffect(() => { onSelectionRef.current = onSelection; }, [onSelection]);
+  useEffect(() => { preferencesRef.current = preferences; }, [preferences]);
 
   useImperativeHandle(controllerRef, () => ({
     next: () => { void renditionRef.current?.next().catch(() => setErrorMessage('无法翻到下一页，请尝试从目录跳转')); },
@@ -201,6 +207,9 @@ function EpubReader({
         flow: 'paginated',
       });
       renditionRef.current = rendition;
+      rendition.hooks.content.register((contents: Contents) => {
+        void ensureReaderFontStylesheet(contents.document, preferencesRef.current.fontFamily);
+      });
 
       rendition.on('relocated', (location: Location) => {
         const cfi = location.start.cfi;
@@ -343,6 +352,16 @@ function EpubReader({
     });
     rendition.themes.select('learning-center-reader');
     redrawHighlightPanes(rendition);
+    const selectedFont = preferences.fontFamily;
+    const contents = rendition.getContents() as unknown as Contents[];
+    void Promise.all(contents.map(async (content) => {
+      await ensureReaderFontStylesheet(content.document, selectedFont);
+      await content.document.fonts?.ready;
+    })).then(() => {
+      if (preferencesRef.current.fontFamily !== selectedFont) return;
+      redrawHighlightPanes(rendition);
+      void rendition.reportLocation().catch(() => undefined);
+    });
   }, [preferences.fontFamily, preferences.fontSize, preferences.lineHeight, preferences.theme, status, themeMode]);
 
   useEffect(() => {

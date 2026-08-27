@@ -15,6 +15,8 @@ npm run dev
 - Kimi 通过 `kimi acp` 启动，请先安装 Kimi CLI 并运行 `kimi login`。
 - 阅读器不会自动批准本地工具操作；ACP 助手发起的文件或终端权限请求会被拒绝。
 
+阅读字体包含系统宋体，以及按需加载的思源宋体、思源黑体和霞鹜文楷。后三种字体均采用 SIL Open Font License 1.1；字体文件通过固定版本的 jsDelivr 地址加载。
+
 如本机命令位置不同，可通过 `LEARNING_CENTER_CODEX_ACP_COMMAND`、`LEARNING_CENTER_CODEX_ACP_ARGS`、`LEARNING_CENTER_KIMI_ACP_COMMAND` 和 `LEARNING_CENTER_KIMI_ACP_ARGS` 覆盖；`*_ARGS` 的值为 JSON 字符串数组。
 
 线上部署只包含阅读器界面，浏览器无法从托管站点直接启动本机 CLI；使用 AI 助手时请运行本地版本。
