@@ -36,9 +36,7 @@ export function AppSidebar() {
         theme="borderless"
         className="nav-collapse-button"
         onClick={() => setNavCollapsed(!navCollapsed)}
-      >
-        {!navCollapsed && '收起侧栏'}
-      </Button>
+      />
     </Tooltip>
   );
 
