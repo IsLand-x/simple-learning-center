@@ -87,26 +87,33 @@ button,
   width: 60px !important;
 }
 
-.main-nav .semi-navigation-header {
-  min-height: 52px;
+.main-nav .semi-navigation-footer {
+  width: 100%;
   padding: 8px;
-  justify-content: flex-end;
+  align-items: stretch;
 }
 
-.main-nav.semi-navigation-collapsed .semi-navigation-header {
-  padding: 8px;
-  justify-content: center;
+.nav-footer-actions {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .nav-collapse-button {
   width: 100%;
-  min-height: 36px;
+  min-height: 40px;
   justify-content: flex-start;
 }
 
-.main-nav.semi-navigation-collapsed .nav-collapse-button {
+.main-nav.semi-navigation-collapsed .nav-collapse-button,
+.main-nav.semi-navigation-collapsed .theme-button {
   width: 40px;
   justify-content: center;
+}
+
+.main-nav.semi-navigation-collapsed .nav-footer-actions {
+  align-items: center;
 }
 
 .theme-button {
@@ -440,6 +447,13 @@ button,
 .panel-titlebar__title {
   min-width: 0;
   gap: 8px;
+  color: var(--semi-color-text-1);
+}
+
+.panel-tool-icon,
+.panel-titlebar__title .semi-icon,
+.activity-button .semi-icon {
+  color: currentColor;
 }
 
 .toc-list {
@@ -530,26 +544,17 @@ body.is-resizing-panels * {
   overflow: hidden;
 }
 
-.reader-menu-bar {
-  display: flex;
-  min-height: 36px;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 2px 6px;
-  border-bottom: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-1);
-}
-
 .reader-toolbar {
+  height: 44px;
   min-height: 44px;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: 6px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--semi-color-border);
   background: var(--semi-color-bg-1);
 }
 
-.reader-toolbar--collapsed {
-  justify-content: space-between;
+.reader-toolbar .semi-button-small {
+  height: 28px;
 }
 
 .reader-toolbar__divider,
@@ -573,12 +578,6 @@ body.is-resizing-panels * {
 
 .reader-line-height-select {
   width: 88px;
-}
-
-.reader-toolbar__hint {
-  min-width: 0;
-  margin-left: auto;
-  white-space: nowrap;
 }
 
 .reader-content {
@@ -758,6 +757,12 @@ body.is-resizing-panels * {
 .activity-button span {
   font-size: 11px;
   line-height: 1;
+}
+
+.activity-button .panel-tool-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
 }
 
 .activity-button:hover,
@@ -999,9 +1004,6 @@ body.is-resizing-panels * {
     box-shadow: var(--semi-shadow-elevated);
   }
 
-  .reader-toolbar__hint {
-    display: none;
-  }
 }
 
 @media (max-width: 860px) {

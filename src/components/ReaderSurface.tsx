@@ -28,6 +28,7 @@ export interface ReaderSurfaceHandle {
   next: () => void;
   prev: () => void;
   display: (target: string) => void;
+  clearSelection: () => void;
 }
 
 interface ReaderSurfaceProps {
@@ -70,6 +71,7 @@ function DemoReader({
       const index = chapters.findIndex((item) => item.href.split('#')[0] === normalized);
       if (index >= 0) setChapterIndex(index);
     },
+    clearSelection: () => window.getSelection()?.removeAllRanges(),
   }), [chapters]);
 
   useEffect(() => {
@@ -135,6 +137,7 @@ function EpubReader({
   const containerRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<EpubBook | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
+  const appliedHighlightCfisRef = useRef<Map<string, string>>(new Map());
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('请返回书架后重新导入这个 EPUB');
   const onLocationRef = useRef(onLocationChange);
@@ -147,6 +150,10 @@ function EpubReader({
     next: () => { void renditionRef.current?.next().catch(() => setErrorMessage('无法翻到下一页，请尝试从目录跳转')); },
     prev: () => { void renditionRef.current?.prev().catch(() => setErrorMessage('无法翻到上一页，请尝试从目录跳转')); },
     display: (target) => { void renditionRef.current?.display(target).catch(() => setErrorMessage('无法定位到所选内容')); },
+    clearSelection: () => {
+      const contents = renditionRef.current?.getContents() as unknown as Contents[] | undefined;
+      contents?.forEach((content) => content.window.getSelection()?.removeAllRanges());
+    },
   }), []);
 
   useEffect(() => {
@@ -154,6 +161,7 @@ function EpubReader({
     let resizeObserver: ResizeObserver | null = null;
     setStatus('loading');
     setErrorMessage('请返回书架后重新导入这个 EPUB');
+    appliedHighlightCfisRef.current.clear();
 
     const setup = async () => {
       const data = await loadEpubFile(book.id);
@@ -213,6 +221,19 @@ function EpubReader({
         }
       });
 
+      rendition.on('keydown', (event: KeyboardEvent) => {
+        if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('input, textarea, select, button, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], [role="menu"]')) return;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          void rendition.prev();
+        } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+          event.preventDefault();
+          void rendition.next();
+        }
+      });
+
       try {
         await rendition.display(book.currentCfi || undefined);
       } catch {
@@ -250,6 +271,7 @@ function EpubReader({
         // Cleanup must never take down the surrounding React page.
       }
       bookRef.current = null;
+      appliedHighlightCfisRef.current.clear();
       if (containerRef.current) containerRef.current.innerHTML = '';
     };
   }, [book.id]);
@@ -282,21 +304,36 @@ function EpubReader({
   useEffect(() => {
     const rendition = renditionRef.current;
     if (!rendition) return;
-    const highlightColor = getComputedStyle(document.body).getPropertyValue('--semi-color-warning-light-active');
-    highlights.forEach((highlight) => {
+    const highlightColor = getComputedStyle(document.body).getPropertyValue('--semi-color-warning-light-active').trim();
+    const desiredHighlights = new Map(highlights.map((highlight) => [highlight.cfi, highlight]));
+    const appliedHighlights = appliedHighlightCfisRef.current;
+
+    appliedHighlights.forEach((appliedColor, cfi) => {
+      if (desiredHighlights.has(cfi) && appliedColor === highlightColor) return;
+      try {
+        rendition.annotations.remove(cfi, 'highlight');
+      } catch {
+        // The rendition may already have unloaded this annotation.
+      }
+      appliedHighlights.delete(cfi);
+    });
+
+    desiredHighlights.forEach((highlight, cfi) => {
+      if (appliedHighlights.get(cfi) === highlightColor) return;
       try {
         rendition.annotations.highlight(
-          highlight.cfi,
+          cfi,
           { highlightId: highlight.id },
           undefined,
           'reader-highlight',
           { fill: highlightColor, 'fill-opacity': '0.5', 'mix-blend-mode': 'multiply' },
         );
+        appliedHighlights.set(cfi, highlightColor);
       } catch {
         // Invalid CFIs from a changed file are ignored without blocking reading.
       }
     });
-  }, [highlights, status]);
+  }, [highlights, preferences.theme, status, themeMode]);
 
   return (
     <div className="epub-reader-wrap">

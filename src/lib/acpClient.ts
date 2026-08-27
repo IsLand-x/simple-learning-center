@@ -40,23 +40,28 @@ export class AcpBridgeClient {
     }
     this.disconnect();
     const socket = new WebSocket(url);
+    let reportedError = false;
     this.socket = socket;
     this.onMessage({ type: 'status', status: 'connecting', provider });
     socket.addEventListener('open', () => socket.send(JSON.stringify({ type: 'connect', provider })));
     socket.addEventListener('message', (event) => {
       try {
-        this.onMessage(JSON.parse(String(event.data)) as AcpBridgeMessage);
+        const message = JSON.parse(String(event.data)) as AcpBridgeMessage;
+        if (message.status === 'error') reportedError = true;
+        this.onMessage(message);
       } catch {
+        reportedError = true;
         this.onMessage({ type: 'status', status: 'error', message: 'ACP 桥接返回了无法解析的数据' });
       }
     });
     socket.addEventListener('error', () => {
+      reportedError = true;
       this.onMessage({ type: 'status', status: 'error', provider, message: '无法连接本地 ACP 桥接服务' });
     });
     socket.addEventListener('close', () => {
       if (this.socket === socket) {
         this.socket = null;
-        this.onMessage({ type: 'status', status: 'disconnected', provider });
+        if (!reportedError) this.onMessage({ type: 'status', status: 'disconnected', provider });
       }
     });
   }

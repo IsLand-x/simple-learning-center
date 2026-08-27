@@ -6,10 +6,10 @@
 
 ```bash
 npm install
-npm run dev:local
+npm run dev
 ```
 
-打开 `http://127.0.0.1:5173/`。`dev:local` 会同时启动 Vite 和仅监听 `127.0.0.1` 的 ACP 桥接服务。
+打开 `http://127.0.0.1:5173/`。`npm run dev` 会同时启动 Vite 和仅监听 `127.0.0.1` 的 ACP 桥接服务；只调试页面且不需要 AI 助手时可运行 `npm run dev:web`。
 
 - Codex 默认通过 `npx --yes @zed-industries/codex-acp` 启动，请先完成 Codex 登录。
 - Kimi 通过 `kimi acp` 启动，请先安装 Kimi CLI 并运行 `kimi login`。

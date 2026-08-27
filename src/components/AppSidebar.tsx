@@ -55,10 +55,16 @@ export function AppSidebar() {
         icon: <IconBook />,
         onClick: () => navigate('/'),
       }]}
-      header={collapseButton}
       footer={{
         collapseButton: false,
-        children: navCollapsed ? <Tooltip content={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'}>{themeButton}</Tooltip> : themeButton,
+        children: (
+          <div className="nav-footer-actions">
+            {navCollapsed
+              ? <Tooltip content={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'} position="right">{themeButton}</Tooltip>
+              : themeButton}
+            {collapseButton}
+          </div>
+        ),
       }}
     />
   );

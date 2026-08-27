@@ -24,9 +24,9 @@ interface ReaderRightSidebarProps {
 }
 
 const panelMeta = {
-  ai: { label: 'AI 助手', icon: <IconAIStrokedLevel1 /> },
-  notes: { label: '笔记', icon: <IconEditStroked /> },
-  highlights: { label: '划线', icon: <IconBookmark /> },
+  ai: { label: 'AI 助手', Icon: IconAIStrokedLevel1 },
+  notes: { label: '笔记', Icon: IconEditStroked },
+  highlights: { label: '划线', Icon: IconBookmark },
 };
 
 const statusMeta: Record<AcpStatus, { label: string; color: 'grey' | 'blue' | 'green' | 'amber' | 'red' }> = {
@@ -49,6 +49,7 @@ function ActivityButton({
 }) {
   const active = panel === activePanel;
   const meta = panelMeta[panel];
+  const PanelIcon = meta.Icon;
   return (
     <Tooltip content={active ? `收起${meta.label}` : `打开${meta.label}`} position="left">
       <button
@@ -58,7 +59,7 @@ function ActivityButton({
         aria-pressed={active}
         onClick={() => onChange(active ? null : panel)}
       >
-        {meta.icon}
+        <PanelIcon size="large" className="panel-tool-icon" />
         <span>{panel === 'highlights' ? '划线' : panel === 'notes' ? '笔记' : 'AI'}</span>
       </button>
     </Tooltip>
@@ -147,7 +148,7 @@ function AiPanel({
     const question = content.trim();
     if (!question) return;
     if (!canSend) {
-      Toast.warning(status === 'unavailable' ? '请在项目目录运行 npm run dev:local' : '请先连接 Codex 或 Kimi CLI');
+      Toast.warning(status === 'unavailable' ? '请在项目目录运行 npm run dev' : '请先连接 Codex 或 Kimi CLI');
       return;
     }
     const prompt = selectedText
@@ -207,7 +208,7 @@ function AiPanel({
 
       {(statusMessage || status === 'unavailable') && (
         <Text size="small" type={status === 'error' ? 'danger' : 'tertiary'} className="ai-status-message">
-          {statusMessage || '在线版本不能启动本地 CLI；请在项目目录运行 npm run dev:local。'}
+          {statusMessage || '本地 ACP 服务未启动；请在项目目录运行 npm run dev。'}
         </Text>
       )}
 
@@ -364,12 +365,16 @@ export function ReaderRightSidebar({
   onChangePanel,
   onJumpHighlight,
 }: ReaderRightSidebarProps) {
+  const ActivePanelIcon = activePanel ? panelMeta[activePanel].Icon : null;
   return (
     <div className="reader-right">
       {activePanel && (
         <aside className={`right-panel${activePanel === 'ai' ? ' right-panel--ai' : ''}`} style={{ width }} aria-label={panelMeta[activePanel].label}>
           <div className="panel-titlebar">
-            <div className="panel-titlebar__title">{panelMeta[activePanel].icon}<Text strong>{panelMeta[activePanel].label}</Text></div>
+            <div className="panel-titlebar__title">
+              {ActivePanelIcon && <ActivePanelIcon size="large" className="panel-tool-icon" />}
+              <Text strong>{panelMeta[activePanel].label}</Text>
+            </div>
           </div>
           {activePanel === 'ai' && <AiPanel bookId={book.id} selectedText={selectedText} onClearSelectedText={onClearSelectedText} />}
           {activePanel === 'notes' && <NotesPanel bookId={book.id} />}

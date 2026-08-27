@@ -63,7 +63,6 @@ export interface ReaderPreferences {
   tocWidth: number;
   panelWidth: number;
   tocCollapsed: boolean;
-  toolbarCollapsed: boolean;
 }
 
 export interface ReaderSelection {

@@ -47,6 +47,22 @@ function safeError(error) {
   return String(error || '未知错误');
 }
 
+function providerError(provider, error) {
+  const message = safeError(error);
+  if (/ENOENT|not found|找不到/i.test(message)) {
+    return provider === 'kimi'
+      ? '未找到 Kimi CLI。请先安装 Kimi，并确认 `kimi` 命令已加入 PATH。'
+      : '未找到 npx，无法启动 Codex ACP 适配器。请检查 Node.js 与 npm 安装。';
+  }
+  if (provider === 'kimi' && /AUTH_REQUIRED|-32000|login|authentication/i.test(message)) {
+    return 'Kimi CLI 尚未登录，请先在终端运行 `kimi login`。';
+  }
+  if (provider === 'codex' && /unauthorized|login|authentication|api key/i.test(message)) {
+    return 'Codex 尚未完成登录，请先在终端运行 Codex 并完成认证。';
+  }
+  return message;
+}
+
 class LearningCenterClient {
   constructor(socket) {
     this.socket = socket;
@@ -94,6 +110,7 @@ server.on('connection', (socket) => {
   const connect = async (nextProvider) => {
     cleanup();
     provider = nextProvider;
+    stderrTail = '';
     const config = providerCommands[nextProvider];
     if (!config) throw new Error('不支持的 ACP 提供方');
 
@@ -110,7 +127,7 @@ server.on('connection', (socket) => {
       stderrTail = `${stderrTail}${chunk}`.slice(-4000);
     });
     child.on('error', (error) => {
-      send(socket, { type: 'status', status: 'error', provider, message: safeError(error) });
+      send(socket, { type: 'status', status: 'error', provider, message: providerError(provider, error) });
     });
     child.on('exit', (code, signal) => {
       if (connection) {
@@ -167,7 +184,13 @@ server.on('connection', (socket) => {
     try {
       const message = JSON.parse(raw.toString());
       if (message.type === 'connect') {
-        await connect(message.provider);
+        try {
+          await connect(message.provider);
+        } catch (error) {
+          const failedProvider = message.provider;
+          cleanup();
+          throw new Error(providerError(failedProvider, error));
+        }
         return;
       }
       if (message.type === 'prompt') {

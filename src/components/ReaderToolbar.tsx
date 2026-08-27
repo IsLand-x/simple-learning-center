@@ -1,44 +1,42 @@
-import { Button, ButtonGroup, Select, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { IconChevronLeft, IconChevronRight, IconEyeClosed, IconEyeOpened, IconFont, IconMinus, IconPlus } from '@douyinfe/semi-icons';
+import { Button, ButtonGroup, Select, Tooltip } from '@douyinfe/semi-ui';
+import { IconChevronLeft, IconChevronRight, IconFont, IconMinus, IconPlus, IconSidebar } from '@douyinfe/semi-icons';
 import type { ReaderFont, ReaderPreferences, ReaderTheme } from '../types';
-
-const { Text } = Typography;
 
 interface ReaderToolbarProps {
   preferences: ReaderPreferences;
+  tocCollapsed: boolean;
   onChangePreferences: (changes: Partial<ReaderPreferences>) => void;
+  onToggleToc: () => void;
   onPrev: () => void;
   onNext: () => void;
 }
 
 export function ReaderToolbar({
   preferences,
+  tocCollapsed,
   onChangePreferences,
+  onToggleToc,
   onPrev,
   onNext,
 }: ReaderToolbarProps) {
-  if (preferences.toolbarCollapsed) {
-    return (
-      <div className="reader-toolbar reader-toolbar--collapsed">
-        <ButtonGroup>
-          <Tooltip content="上一页"><Button aria-label="上一页" icon={<IconChevronLeft />} theme="borderless" onClick={onPrev} /></Tooltip>
-          <Tooltip content="下一页"><Button aria-label="下一页" icon={<IconChevronRight />} theme="borderless" onClick={onNext} /></Tooltip>
-        </ButtonGroup>
-        <Tooltip content="显示阅读工具">
-          <Button aria-label="显示阅读工具" icon={<IconEyeOpened />} theme="borderless" onClick={() => onChangePreferences({ toolbarCollapsed: false })}>显示工具</Button>
-        </Tooltip>
-      </div>
-    );
-  }
-
   return (
     <div className="reader-toolbar">
+      <Tooltip content={tocCollapsed ? '展开书籍目录' : '收起书籍目录'}>
+        <Button
+          aria-label={tocCollapsed ? '展开书籍目录' : '收起书籍目录'}
+          icon={<IconSidebar />}
+          size="small"
+          theme="borderless"
+          onClick={onToggleToc}
+        />
+      </Tooltip>
+      <span className="reader-toolbar__divider" />
       <ButtonGroup>
-        <Tooltip content="上一页">
-          <Button aria-label="上一页" icon={<IconChevronLeft />} theme="borderless" onClick={onPrev} />
+        <Tooltip content="上一页（← / ↑）">
+          <Button aria-label="上一页" icon={<IconChevronLeft />} size="small" theme="borderless" onClick={onPrev} />
         </Tooltip>
-        <Tooltip content="下一页">
-          <Button aria-label="下一页" icon={<IconChevronRight />} theme="borderless" onClick={onNext} />
+        <Tooltip content="下一页（→ / ↓）">
+          <Button aria-label="下一页" icon={<IconChevronRight />} size="small" theme="borderless" onClick={onNext} />
         </Tooltip>
       </ButtonGroup>
       <span className="reader-toolbar__divider" />
@@ -47,18 +45,20 @@ export function ReaderToolbar({
           <Button
             aria-label="减小字号"
             icon={<IconMinus />}
+            size="small"
             theme="borderless"
             disabled={preferences.fontSize <= 14}
             onClick={() => onChangePreferences({ fontSize: preferences.fontSize - 1 })}
           />
         </Tooltip>
-        <Button className="font-size-indicator" theme="borderless" icon={<IconFont />} disabled>
+        <Button className="font-size-indicator" size="small" theme="borderless" icon={<IconFont />} disabled>
           {preferences.fontSize}
         </Button>
         <Tooltip content="增大字号">
           <Button
             aria-label="增大字号"
             icon={<IconPlus />}
+            size="small"
             theme="borderless"
             disabled={preferences.fontSize >= 28}
             onClick={() => onChangePreferences({ fontSize: preferences.fontSize + 1 })}
@@ -99,10 +99,6 @@ export function ReaderToolbar({
         <Select.Option value="1.8">舒适</Select.Option>
         <Select.Option value="2">宽松</Select.Option>
       </Select>
-      <Text size="small" type="tertiary" className="reader-toolbar__hint">选择文字可提问、高亮或记笔记</Text>
-      <Tooltip content="隐藏阅读工具">
-        <Button aria-label="隐藏阅读工具" icon={<IconEyeClosed />} theme="borderless" onClick={() => onChangePreferences({ toolbarCollapsed: true })} />
-      </Tooltip>
     </div>
   );
 }

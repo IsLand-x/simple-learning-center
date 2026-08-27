@@ -18,7 +18,6 @@ const defaultReaderPreferences: ReaderPreferences = {
   tocWidth: 272,
   panelWidth: 380,
   tocCollapsed: false,
-  toolbarCollapsed: false,
 };
 
 interface LearningState {

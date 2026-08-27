@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dropdown, Empty, Modal, Progress, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Empty, Modal, Progress, Toast, Typography } from '@douyinfe/semi-ui';
 import {
   IconAIStrokedLevel1,
   IconBookmark,
   IconDeleteStroked,
   IconEditStroked,
   IconMore,
-  IconSidebar,
 } from '@douyinfe/semi-icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReaderRightSidebar } from '../components/ReaderRightSidebar';
@@ -54,6 +53,23 @@ export function ReaderPage() {
     setSelection(null);
     setPanelQuote(null);
   }, [book?.id]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, button, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], [role="menu"]')) return;
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        readerRef.current?.prev();
+      } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        readerRef.current?.next();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleLocationChange = useCallback((location: ReaderLocationUpdate) => {
     const current = latestBookRef.current;
@@ -109,6 +125,12 @@ export function ReaderPage() {
 
   const saveHighlight = () => {
     if (!selection) return;
+    if (highlights.some((highlight) => highlight.cfi === selection.cfi)) {
+      readerRef.current?.clearSelection();
+      setSelection(null);
+      Toast.info('这段文字已经高亮');
+      return;
+    }
     addHighlight({
       id: crypto.randomUUID(),
       bookId: book.id,
@@ -118,6 +140,7 @@ export function ReaderPage() {
       page: book.currentPage,
       createdAt: Date.now(),
     });
+    readerRef.current?.clearSelection();
     setActivePanel('highlights');
     setSelection(null);
     Toast.success('已加入划线');
@@ -127,6 +150,7 @@ export function ReaderPage() {
     if (!selection) return;
     setPanelQuote(selection.text);
     setActivePanel('ai');
+    readerRef.current?.clearSelection();
     setSelection(null);
   };
 
@@ -141,6 +165,7 @@ export function ReaderPage() {
       updatedAt: timestamp,
     });
     setActivePanel('notes');
+    readerRef.current?.clearSelection();
     setSelection(null);
   };
 
@@ -205,22 +230,11 @@ export function ReaderPage() {
         )}
 
         <section className="reader-center">
-          <div className="reader-menu-bar">
-            <Tooltip content={preferences.tocCollapsed ? '展开书籍目录' : '收起书籍目录'}>
-              <Button
-                aria-label={preferences.tocCollapsed ? '展开书籍目录' : '收起书籍目录'}
-                icon={<IconSidebar />}
-                size="small"
-                theme="borderless"
-                onClick={() => setPreferences({ tocCollapsed: !preferences.tocCollapsed })}
-              >
-                {preferences.tocCollapsed ? '展开目录' : '收起目录'}
-              </Button>
-            </Tooltip>
-          </div>
           <ReaderToolbar
             preferences={preferences}
+            tocCollapsed={preferences.tocCollapsed}
             onChangePreferences={setPreferences}
+            onToggleToc={() => setPreferences({ tocCollapsed: !preferences.tocCollapsed })}
             onPrev={() => readerRef.current?.prev()}
             onNext={() => readerRef.current?.next()}
           />
