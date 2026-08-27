@@ -1,0 +1,30 @@
+{
+  "name": "learning-center",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@douyinfe/semi-icons": "2.102.0",
+    "@douyinfe/semi-ui": "2.102.0",
+    "epubjs": "0.3.93",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "7.8.2",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@openai/sites-vite-plugin": "0.2.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "6.0.2",
+    "tailwindcss": "4.3.3",
+    "typescript": "5.9.3",
+    "vite": "8.0.13"
+  }
+}
