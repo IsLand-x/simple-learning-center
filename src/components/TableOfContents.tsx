@@ -1,6 +1,6 @@
 import { Tooltip, Typography } from '@douyinfe/semi-ui';
-import { IconArticle, IconBookOpenStroked } from '@douyinfe/semi-icons';
-import type { KeyboardEvent } from 'react';
+import { IconBookOpenStroked } from '@douyinfe/semi-icons';
+import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { TocItem } from '../types';
 
 const { Text } = Typography;
@@ -8,6 +8,7 @@ const { Text } = Typography;
 interface TableOfContentsProps {
   items: TocItem[];
   activeHref?: string;
+  progress: number;
   onSelect: (item: TocItem) => void;
 }
 
@@ -27,6 +28,12 @@ function TocRow({
   onSelect: (item: TocItem) => void;
 }) {
   const selected = normalizeHref(item.href) === normalizeHref(activeHref);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [selected]);
+
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -37,6 +44,7 @@ function TocRow({
     <>
       <Tooltip content={item.label} position="right" mouseEnterDelay={500}>
         <div
+          ref={rowRef}
           className={`toc-item${selected ? ' toc-item--selected' : ''}`}
           style={{ paddingLeft: 8 + depth * 16 }}
           role="button"
@@ -45,7 +53,6 @@ function TocRow({
           onClick={() => onSelect(item)}
           onKeyDown={handleKeyDown}
         >
-          <IconArticle size="small" />
           <Text ellipsis={{ showTooltip: false }}>{item.label}</Text>
         </div>
       </Tooltip>
@@ -56,7 +63,8 @@ function TocRow({
   );
 }
 
-export function TableOfContents({ items, activeHref, onSelect }: TableOfContentsProps) {
+export function TableOfContents({ items, activeHref, progress, onSelect }: TableOfContentsProps) {
+  const safeProgress = Math.max(0, Math.min(100, progress));
   return (
     <aside className="toc-panel">
       <div className="panel-titlebar">
@@ -64,7 +72,15 @@ export function TableOfContents({ items, activeHref, onSelect }: TableOfContents
           <IconBookOpenStroked />
           <Text strong>目录</Text>
         </div>
-        <Text size="small" type="tertiary">{items.length} 章</Text>
+        <Text
+          size="small"
+          type="tertiary"
+          className="toc-progress-label"
+          role="status"
+          aria-label={`阅读进度 ${Math.round(safeProgress)}%`}
+        >
+          {Math.round(safeProgress)}% · {items.length} 章
+        </Text>
       </div>
       <nav className="toc-list" aria-label="书籍目录">
         {items.map((item) => (

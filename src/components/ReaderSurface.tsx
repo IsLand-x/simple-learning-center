@@ -19,7 +19,7 @@ const { Text } = Typography;
 export interface ReaderLocationUpdate {
   cfi?: string;
   href?: string;
-  progress: number;
+  progress?: number;
   page?: number;
   totalPages?: number;
 }
@@ -29,6 +29,7 @@ export interface ReaderSurfaceHandle {
   prev: () => void;
   display: (target: string) => void;
   clearSelection: () => void;
+  getCurrentText: () => string;
 }
 
 interface ReaderSurfaceProps {
@@ -50,6 +51,15 @@ function findChapterLabel(items: TocItem[], href?: string) {
   return flattenToc(items).find((item) => item.href.split('#')[0] === normalized)?.label;
 }
 
+function getDemoScrollRatio(cfi: string | undefined, href: string | undefined) {
+  if (!cfi || !href) return 0;
+  const marker = ':scroll:';
+  const markerIndex = cfi.lastIndexOf(marker);
+  if (markerIndex < 0 || cfi.slice(5, markerIndex) !== href) return 0;
+  const ratio = Number(cfi.slice(markerIndex + marker.length));
+  return Number.isFinite(ratio) ? Math.max(0, Math.min(1, ratio)) : 0;
+}
+
 function redrawHighlightPanes(rendition: Rendition) {
   const redraw = () => {
     try {
@@ -65,6 +75,45 @@ function redrawHighlightPanes(rendition: Rendition) {
   window.setTimeout(redraw, 120);
 }
 
+function hasActiveTextSelection(selection: Selection | null | undefined) {
+  return Boolean(selection && !selection.isCollapsed && selection.toString().trim().length >= 2);
+}
+
+function applyReaderTheme(rendition: Rendition, preferences: ReaderPreferences) {
+  const styles = getComputedStyle(document.body);
+  const fontFamily = READER_FONT_STACKS[preferences.fontFamily];
+  const background = preferences.theme === 'night'
+    ? styles.getPropertyValue('--semi-color-bg-2').trim()
+    : preferences.theme === 'paper'
+      ? styles.getPropertyValue('--semi-color-warning-light-default').trim()
+      : styles.getPropertyValue('--semi-color-bg-0').trim();
+  const color = styles.getPropertyValue('--semi-color-text-0').trim();
+  const textElements = 'body, body *';
+  rendition.themes.register('learning-center-reader', {
+    'html, body': {
+      color: `${color} !important`,
+      background: `${background} !important`,
+    },
+    body: {
+      'font-size': `${preferences.fontSize}px !important`,
+      'line-height': `${preferences.lineHeight} !important`,
+      padding: '0 6% !important',
+    },
+    [textElements]: {
+      color: `${color} !important`,
+      'font-family': `${fontFamily} !important`,
+    },
+    'p, li': { 'line-height': `${preferences.lineHeight} !important` },
+    'img, svg': { 'max-width': '100% !important' },
+  });
+  rendition.themes.select('learning-center-reader');
+}
+
+function renditionHasReadableText(rendition: Rendition) {
+  const contents = rendition.getContents() as unknown as Contents[];
+  return contents.some((content) => (content.document.body?.innerText.trim().length ?? 0) > 1);
+}
+
 function DemoReader({
   book,
   preferences,
@@ -72,15 +121,27 @@ function DemoReader({
   controllerRef,
   onLocationChange,
 }: Omit<ReaderSurfaceProps, 'highlights' | 'themeMode'> & { controllerRef: React.Ref<ReaderSurfaceHandle> }) {
+  const readerRootRef = useRef<HTMLDivElement>(null);
   const chapters = useMemo(() => flattenToc(book.toc), [book.toc]);
   const initialIndex = Math.max(0, chapters.findIndex((item) => item.label === book.currentChapter));
   const [chapterIndex, setChapterIndex] = useState(initialIndex);
   const chapter = chapters[chapterIndex] ?? chapters[0];
   const content = getDemoContent(chapter?.href ?? 'chapter-5');
+  const lastLocationCfiRef = useRef(book.currentCfi);
 
   useEffect(() => {
     void ensureReaderFontStylesheet(document, preferences.fontFamily);
   }, [preferences.fontFamily]);
+
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const selection = window.getSelection();
+      const selectionIsInsideReader = selection?.anchorNode && readerRootRef.current?.contains(selection.anchorNode);
+      if (!hasActiveTextSelection(selection) || !selectionIsInsideReader) onSelection(null);
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, [onSelection]);
 
   useImperativeHandle(controllerRef, () => ({
     next: () => setChapterIndex((current) => Math.min(chapters.length - 1, current + 1)),
@@ -91,17 +152,61 @@ function DemoReader({
       if (index >= 0) setChapterIndex(index);
     },
     clearSelection: () => window.getSelection()?.removeAllRanges(),
-  }), [chapters]);
+    getCurrentText: () => [content.heading, ...content.paragraphs].join('\n\n'),
+  }), [chapters, content.heading, content.paragraphs]);
 
   useEffect(() => {
-    if (!chapter) return;
-    const progress = Math.round(((chapterIndex + 1) / Math.max(1, chapters.length)) * 100);
-    onLocationChange({
-      href: chapter.href,
-      progress,
-      page: Math.max(1, Math.round((book.totalPages ?? 200) * progress / 100)),
-      totalPages: book.totalPages,
+    const readerRoot = readerRootRef.current;
+    if (!readerRoot || !chapter) return;
+    const savedRatio = getDemoScrollRatio(lastLocationCfiRef.current, chapter.href);
+    let restored = false;
+    let saveTimer: number | null = null;
+    let outerFrame = 0;
+    let innerFrame = 0;
+
+    const reportLocation = () => {
+      if (!restored) return;
+      const maxScroll = Math.max(0, readerRoot.scrollHeight - readerRoot.clientHeight);
+      const ratio = maxScroll ? readerRoot.scrollTop / maxScroll : 0;
+      const progress = Math.max(0, Math.min(100, ((chapterIndex + ratio) / Math.max(1, chapters.length)) * 100));
+      const cfi = `demo:${chapter.href}:scroll:${ratio.toFixed(6)}`;
+      lastLocationCfiRef.current = cfi;
+      onLocationChange({
+        cfi,
+        href: chapter.href,
+        progress,
+        page: book.totalPages ? Math.max(1, Math.round(book.totalPages * progress / 100)) : undefined,
+        totalPages: book.totalPages,
+      });
+    };
+    const scheduleSave = () => {
+      if (saveTimer) window.clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(reportLocation, 120);
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') reportLocation();
+    };
+
+    readerRoot.addEventListener('scroll', scheduleSave, { passive: true });
+    document.addEventListener('visibilitychange', flushWhenHidden);
+    window.addEventListener('pagehide', reportLocation);
+    outerFrame = window.requestAnimationFrame(() => {
+      innerFrame = window.requestAnimationFrame(() => {
+        const maxScroll = Math.max(0, readerRoot.scrollHeight - readerRoot.clientHeight);
+        readerRoot.scrollTop = maxScroll * savedRatio;
+        restored = true;
+        reportLocation();
+      });
     });
+    return () => {
+      readerRoot.removeEventListener('scroll', scheduleSave);
+      document.removeEventListener('visibilitychange', flushWhenHidden);
+      window.removeEventListener('pagehide', reportLocation);
+      window.cancelAnimationFrame(outerFrame);
+      window.cancelAnimationFrame(innerFrame);
+      if (saveTimer) window.clearTimeout(saveTimer);
+      reportLocation();
+    };
   }, [book.totalPages, chapter, chapterIndex, chapters.length, onLocationChange]);
 
   const handleMouseUp = (event: MouseEvent<HTMLElement>) => {
@@ -126,7 +231,7 @@ function DemoReader({
   };
 
   return (
-    <div className={`demo-reader demo-reader--${preferences.theme}`} onMouseUp={handleMouseUp}>
+    <div ref={readerRootRef} className={`demo-reader demo-reader--${preferences.theme}`} onMouseUp={handleMouseUp}>
       <article style={{
         fontSize: preferences.fontSize,
         lineHeight: preferences.lineHeight,
@@ -176,6 +281,13 @@ function EpubReader({
       const contents = renditionRef.current?.getContents() as unknown as Contents[] | undefined;
       contents?.forEach((content) => content.window.getSelection()?.removeAllRanges());
     },
+    getCurrentText: () => {
+      const contents = renditionRef.current?.getContents() as unknown as Contents[] | undefined;
+      return (contents ?? [])
+        .map((content) => content.document.body?.innerText ?? '')
+        .filter(Boolean)
+        .join('\n\n');
+    },
   }), []);
 
   useEffect(() => {
@@ -184,6 +296,19 @@ function EpubReader({
     let resizeTimer: number | null = null;
     let lastWidth = 0;
     let lastHeight = 0;
+    const selectionDocuments = new Set<Document>();
+    const handleSelectionChange = (event: Event) => {
+      const selectionDocument = event.currentTarget as Document;
+      if (!hasActiveTextSelection(selectionDocument.defaultView?.getSelection())) {
+        onSelectionRef.current(null);
+      }
+    };
+    const watchSelection = (contents: Contents) => {
+      const selectionDocument = contents.document;
+      if (selectionDocuments.has(selectionDocument)) return;
+      selectionDocuments.add(selectionDocument);
+      selectionDocument.addEventListener('selectionchange', handleSelectionChange);
+    };
     setStatus('loading');
     setErrorMessage('请返回书架后重新导入这个 EPUB');
     appliedHighlightCfisRef.current.clear();
@@ -207,8 +332,10 @@ function EpubReader({
         flow: 'paginated',
       });
       renditionRef.current = rendition;
+      applyReaderTheme(rendition, preferencesRef.current);
       rendition.hooks.content.register((contents: Contents) => {
         void ensureReaderFontStylesheet(contents.document, preferencesRef.current.fontFamily);
+        watchSelection(contents);
       });
 
       rendition.on('relocated', (location: Location) => {
@@ -216,13 +343,14 @@ function EpubReader({
         currentCfiRef.current = cfi;
         const locationCount = epubBook.locations.length();
         const generatedProgress = locationCount && cfi ? epubBook.locations.percentageFromCfi(cfi) * 100 : undefined;
-        const rawProgress = generatedProgress ?? (location.start.percentage ?? 0) * 100;
         onLocationRef.current({
           cfi,
           href: location.start.href,
-          progress: Math.max(0, Math.min(100, rawProgress)),
+          progress: generatedProgress === undefined
+            ? undefined
+            : Math.max(0, Math.min(100, generatedProgress)),
           page: location.start.displayed?.page,
-          totalPages: locationCount || location.start.displayed?.total,
+          totalPages: locationCount || undefined,
         });
       });
 
@@ -261,10 +389,28 @@ function EpubReader({
 
       rendition.on('rendered', () => redrawHighlightPanes(rendition));
 
-      try {
-        await rendition.display(book.currentCfi || undefined);
-      } catch {
+      const chapterHref = flattenToc(book.toc).find((item) => item.label === book.currentChapter)?.href;
+      const candidates = Array.from(new Set([
+        book.currentCfi,
+        chapterHref,
+        ...flattenToc(book.toc).slice(0, 24).map((item) => item.href),
+      ].filter((target): target is string => Boolean(target))));
+      let displayed = false;
+      for (const target of candidates) {
+        try {
+          await rendition.display(target);
+          await new Promise((resolve) => window.setTimeout(resolve, 40));
+          if (target === book.currentCfi || renditionHasReadableText(rendition)) {
+            displayed = true;
+            break;
+          }
+        } catch {
+          // Continue with the chapter or first TOC target when a saved CFI is stale.
+        }
+      }
+      if (!displayed) {
         await rendition.display();
+        await new Promise((resolve) => window.setTimeout(resolve, 40));
       }
       if (disposed) return;
       const container = containerRef.current;
@@ -310,6 +456,10 @@ function EpubReader({
     return () => {
       disposed = true;
       resizeObserver?.disconnect();
+      selectionDocuments.forEach((selectionDocument) => {
+        selectionDocument.removeEventListener('selectionchange', handleSelectionChange);
+      });
+      selectionDocuments.clear();
       if (resizeTimer) window.clearTimeout(resizeTimer);
       try {
         renditionRef.current?.destroy();
@@ -331,26 +481,7 @@ function EpubReader({
   useEffect(() => {
     const rendition = renditionRef.current;
     if (!rendition) return;
-    const styles = getComputedStyle(document.body);
-    const background = preferences.theme === 'night'
-      ? styles.getPropertyValue('--semi-color-bg-2')
-      : preferences.theme === 'paper'
-        ? styles.getPropertyValue('--semi-color-warning-light-default')
-        : styles.getPropertyValue('--semi-color-bg-0');
-    const color = styles.getPropertyValue('--semi-color-text-0');
-    rendition.themes.register('learning-center-reader', {
-      body: {
-        color: `${color} !important`,
-        background: `${background} !important`,
-        'font-family': `${READER_FONT_STACKS[preferences.fontFamily]} !important`,
-        'font-size': `${preferences.fontSize}px !important`,
-        'line-height': `${preferences.lineHeight} !important`,
-        padding: '0 6% !important',
-      },
-      'p, li': { 'line-height': `${preferences.lineHeight} !important` },
-      'img, svg': { 'max-width': '100% !important' },
-    });
-    rendition.themes.select('learning-center-reader');
+    applyReaderTheme(rendition, preferences);
     redrawHighlightPanes(rendition);
     const selectedFont = preferences.fontFamily;
     const contents = rendition.getContents() as unknown as Contents[];
