@@ -1090,8 +1090,9 @@ button,
 }
 
 .demo-reader,
-.epub-reader-wrap,
-.epub-reader {
+.foliate-reader-wrap,
+.foliate-reader-host,
+.foliate-reader {
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -1203,7 +1204,7 @@ button,
   outline-offset: 2px;
 }
 
-.epub-reader-wrap {
+.foliate-reader-wrap {
   position: relative;
   overflow: hidden;
   background-color: var(--reader-paper-color, var(--semi-color-bg-0));
@@ -1211,80 +1212,27 @@ button,
   background-position: var(--reader-texture-position, 0 0);
   background-size: var(--reader-texture-size, auto);
   background-blend-mode: var(--reader-texture-blend-mode, normal);
-  view-transition-name: reader-page;
 }
 
-.epub-reader {
+.foliate-reader-host {
   position: relative;
   z-index: 1;
   background-color: transparent;
 }
 
-.epub-reader > div,
-.epub-reader iframe {
-  background-color: transparent !important;
-}
-
-.epub-reader iframe {
+.foliate-reader {
+  display: block;
+  overflow: hidden;
+  color: inherit;
+  background-color: transparent;
   color-scheme: var(--reader-color-scheme, light);
   touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 
-html[data-reader-page-turn] {
-  view-transition-name: none;
-}
-
-::view-transition-group(reader-page),
-::view-transition-image-pair(reader-page) {
-  overflow: hidden;
-  animation-duration: 220ms;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-::view-transition-old(reader-page),
-::view-transition-new(reader-page) {
-  width: 100%;
-  height: 100%;
-  mix-blend-mode: normal;
-  animation-duration: 220ms;
-  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  animation-fill-mode: both;
-}
-
-html[data-reader-page-turn='next']::view-transition-old(reader-page) {
-  animation-name: reader-page-exit-left;
-}
-
-html[data-reader-page-turn='next']::view-transition-new(reader-page) {
-  animation-name: reader-page-enter-right;
-}
-
-html[data-reader-page-turn='prev']::view-transition-old(reader-page) {
-  animation-name: reader-page-exit-right;
-}
-
-html[data-reader-page-turn='prev']::view-transition-new(reader-page) {
-  animation-name: reader-page-enter-left;
-}
-
-@keyframes reader-page-exit-left {
-  from { transform: translateX(0); }
-  to { transform: translateX(-100%); }
-}
-
-@keyframes reader-page-enter-right {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}
-
-@keyframes reader-page-exit-right {
-  from { transform: translateX(0); }
-  to { transform: translateX(100%); }
-}
-
-@keyframes reader-page-enter-left {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
+.foliate-reader::part(container),
+.foliate-reader::part(filter) {
+  background-color: transparent;
 }
 
 .reader-status {

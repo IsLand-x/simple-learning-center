@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Button, Empty, Input, Modal, TabPane, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Empty, Input, TabPane, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconAlertTriangle, IconDeleteStroked, IconEditStroked, IconGlobeStroked, IconKeyStroked, IconPlus } from '@douyinfe/semi-icons';
+import { confirmDialog } from '../lib/confirmDialog';
 import { useLearningStore } from '../store/useLearningStore';
 import type { OpenAICompatibleConfig } from '../types';
 
@@ -63,7 +64,7 @@ function ConfigEditor({
   };
 
   const confirmDelete = () => {
-    Modal.confirm({
+    confirmDialog({
       title: `删除“${config.name}”？`,
       content: '只会删除保存在此设备上的模型配置。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,

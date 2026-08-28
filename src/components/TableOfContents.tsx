@@ -13,7 +13,21 @@ interface TableOfContentsProps {
 }
 
 function normalizeHref(href?: string) {
-  return href?.split('#')[0].replace(/^\.\//, '');
+  if (!href) return undefined;
+  try {
+    return decodeURI(href).replace(/^\.\//, '').replace(/^\//, '');
+  } catch {
+    return href.replace(/^\.\//, '').replace(/^\//, '');
+  }
+}
+
+function hrefsMatch(left?: string, right?: string) {
+  const normalizedLeft = normalizeHref(left);
+  const normalizedRight = normalizeHref(right);
+  if (!normalizedLeft || !normalizedRight) return false;
+  return normalizedLeft === normalizedRight
+    || normalizedLeft.endsWith(`/${normalizedRight}`)
+    || normalizedRight.endsWith(`/${normalizedLeft}`);
 }
 
 function TocRow({
@@ -27,7 +41,7 @@ function TocRow({
   activeHref?: string;
   onSelect: (item: TocItem) => void;
 }) {
-  const selected = normalizeHref(item.href) === normalizeHref(activeHref);
+  const selected = hrefsMatch(item.href, activeHref);
   const rowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

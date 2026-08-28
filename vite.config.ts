@@ -1,11 +1,86 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { sites } from '@openai/sites-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+function foliateSrcdocCompatibility(): Plugin {
+  const paginatorImport = "import('./paginator.js')";
+  const versionedPaginatorImport = "import('./paginator.js?learning-center-srcdoc-v1')";
+  const fixedLayoutImport = "import('./fixed-layout.js')";
+  const versionedFixedLayoutImport = "import('./fixed-layout.js?learning-center-srcdoc-v1')";
+  const loadGuard = "if (typeof src !== 'string') throw new Error(`${src} is not string`)";
+  const iframeNavigation = 'this.#iframe.src = src';
+  const fixedLayoutGuard = 'if (!src) return { blank: true, element, iframe }';
+  const fixedLayoutNavigation = 'iframe.src = src';
+
+  return {
+    name: 'foliate-srcdoc-compatibility',
+    enforce: 'pre',
+    transform(code, id) {
+      const cleanId = id.split('?', 1)[0].replaceAll('\\', '/');
+      if (cleanId.endsWith('/foliate-js/view.js')) {
+        if (!code.includes(paginatorImport) || !code.includes(fixedLayoutImport)) {
+          throw new Error('Foliate view changed: the renderer compatibility imports must be reviewed.');
+        }
+        return code
+          .replace(paginatorImport, versionedPaginatorImport)
+          .replace(fixedLayoutImport, versionedFixedLayoutImport);
+      }
+      if (cleanId.endsWith('/foliate-js/fixed-layout.js')) {
+        if (!code.includes(fixedLayoutGuard) || !code.includes(fixedLayoutNavigation)) {
+          throw new Error('Foliate fixed-layout renderer changed: the srcdoc compatibility patch must be reviewed.');
+        }
+        return code
+          .replace(fixedLayoutGuard, `${fixedLayoutGuard}
+        const srcdoc = src.startsWith('learning-center-srcdoc:')
+            ? src.slice('learning-center-srcdoc:'.length) : null
+        if (srcdoc != null) await new Promise(resolve => setTimeout(resolve, 0))`)
+          .replace(fixedLayoutNavigation, `
+            if (srcdoc == null) iframe.src = src
+            else {
+                const doc = iframe.contentDocument
+                doc.open()
+                doc.write(srcdoc)
+                doc.close()
+            }`);
+      }
+      if (!cleanId.endsWith('/foliate-js/paginator.js')) return null;
+      if (
+        !code.includes(loadGuard)
+        || !code.includes(iframeNavigation)
+      ) {
+        throw new Error('Foliate paginator changed: the srcdoc compatibility patch must be reviewed.');
+      }
+      return code
+        .replace(loadGuard, `${loadGuard}
+        let srcdoc
+        if (src.startsWith('learning-center-srcdoc:')) {
+            srcdoc = src.slice('learning-center-srcdoc:'.length)
+        }
+        else if (src.startsWith('blob:')) {
+            const response = await fetch(src)
+            if (!response.ok) throw new Error(\`Failed to load EPUB section: \${response.status}\`)
+            srcdoc = await response.text()
+        }
+        if (srcdoc != null) {
+            await new Promise(resolve => setTimeout(resolve, 0))
+        }`)
+        .replace(iframeNavigation, `
+            if (srcdoc == null) this.#iframe.src = src
+            else {
+                const doc = this.#iframe.contentDocument
+                doc.open()
+                doc.write(srcdoc)
+                doc.close()
+            }`);
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    foliateSrcdocCompatibility(),
     react(),
     tailwindcss(),
     sites(),
@@ -58,10 +133,9 @@ export default defineConfig({
         navigateFallback: '/index.html',
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
-      devOptions: {
-        enabled: true,
-        navigateFallbackAllowlist: [/^\/$/, /^\/books\//, /^\/settings$/],
-      },
     }),
   ],
+  optimizeDeps: {
+    exclude: ['foliate-js'],
+  },
 });

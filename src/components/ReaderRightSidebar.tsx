@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AIChatDialogue, AIChatInput, Button, Cascader, Dropdown, Empty, Input, Modal, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { AIChatDialogue, AIChatInput, Button, Cascader, Dropdown, Empty, Input, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   IconAIStrokedLevel1,
   IconAlertTriangle,
@@ -15,6 +15,7 @@ import {
   IconPlus,
   IconSearch,
 } from '@douyinfe/semi-icons';
+import { confirmDialog } from '../lib/confirmDialog';
 import { formatRelativeTime } from '../lib/format';
 import { markdownNoteExcerpt, markdownNoteTitle } from '../lib/markdownNotes';
 import { runOpenAICompatibleChat, type OpenAICompatibleChatProgress } from '../lib/openAICompatibleClient';
@@ -513,7 +514,7 @@ function HistoryPanel({
   }, [contextMenu]);
 
   const confirmDelete = (session: ChatSession) => {
-    Modal.confirm({
+    confirmDialog({
       title: `删除“${session.title}”？`,
       content: '这条对话及其中的消息只会从此设备删除，且无法恢复。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-danger)' }} />,
@@ -663,7 +664,7 @@ function NotesPanel({
   };
 
   const confirmDelete = (note: NoteItem) => {
-    Modal.confirm({
+    confirmDialog({
       title: `删除“${note.title || '未命名笔记'}”？`,
       content: '只会删除保存在此设备上的这篇笔记。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
@@ -1005,7 +1006,7 @@ function CommentsPanel({ bookId, onJumpHighlight }: { bookId: string; onJumpHigh
   }, [contextMenu]);
 
   const confirmDeleteComment = (highlight: HighlightItem) => {
-    Modal.confirm({
+    confirmDialog({
       title: '删除这条评论？',
       content: highlight.kind === 'comment'
         ? '只会删除保存在此设备上的评论和对应正文标记。'
@@ -1235,7 +1236,7 @@ export function ReaderRightPanel({
 
   const confirmDeleteNote = () => {
     if (!selectedNote) return;
-    Modal.confirm({
+    confirmDialog({
       title: `删除“${selectedNote.title || '未命名笔记'}”？`,
       content: '只会删除保存在此设备上的这篇笔记。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,

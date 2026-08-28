@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Allotment } from 'allotment';
-import { Button, ButtonGroup, Dropdown, Empty, Modal, Progress, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, ButtonGroup, Dropdown, Empty, Progress, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   IconAIStrokedLevel1,
   IconAlertTriangle,
@@ -21,6 +21,7 @@ import {
 } from '../components/ReaderSurface';
 import { ReaderToolbar } from '../components/ReaderToolbar';
 import { TableOfContents } from '../components/TableOfContents';
+import { confirmDialog } from '../lib/confirmDialog';
 import { removeEpubFile } from '../lib/epubStorage';
 import { clamp } from '../lib/format';
 import { useLearningStore } from '../store/useLearningStore';
@@ -232,7 +233,7 @@ export function ReaderPage() {
   }
 
   const handleDelete = () => {
-    Modal.confirm({
+    confirmDialog({
       title: `删除《${book.title}》？`,
       content: '书籍文件、阅读进度、笔记、高亮和评论都将从此设备删除，且无法恢复。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-danger)' }} />,
@@ -470,7 +471,7 @@ export function ReaderPage() {
               progress={book.progress}
               onSelect={(item) => {
                 setActiveHref(item.href);
-                readerRef.current?.display(item.href);
+                readerRef.current?.display(item.href, item.label);
                 setCompactTocOpen(false);
               }}
             />
@@ -498,7 +499,7 @@ export function ReaderPage() {
                 progress={book.progress}
                 onSelect={(item) => {
                   setActiveHref(item.href);
-                  readerRef.current?.display(item.href);
+                  readerRef.current?.display(item.href, item.label);
                 }}
               />
             </div>
@@ -642,9 +643,9 @@ export function ReaderPage() {
                               theme="borderless"
                               type="tertiary"
                             >
-                              <Button icon={<IconDeleteStroked />} onClick={cancelHighlight}>取消划线</Button>
+                              <Button icon={<IconDeleteStroked />} onClick={cancelHighlight}>取消高亮</Button>
                               {activeHighlight.kind !== 'comment' && (
-                                <Button icon={<IconBookmark />} onClick={viewHighlight}>在划线中查看</Button>
+                                <Button icon={<IconBookmark />} onClick={viewHighlight}>在高亮中查看</Button>
                               )}
                               <Button icon={<IconComment />} onClick={editHighlightComment}>
                                 {activeHighlight.comment ? '查看评论' : '评论'}
