@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Button, Empty, Input, Modal, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import { IconAlertTriangle, IconDeleteStroked, IconEditStroked, IconKeyStroked, IconPlus } from '@douyinfe/semi-icons';
+import { Button, Empty, Input, Modal, TabPane, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { IconAlertTriangle, IconDeleteStroked, IconEditStroked, IconGlobeStroked, IconKeyStroked, IconPlus } from '@douyinfe/semi-icons';
 import { useLearningStore } from '../store/useLearningStore';
 import type { OpenAICompatibleConfig } from '../types';
 
@@ -163,10 +163,99 @@ function ConfigEditor({
   );
 }
 
+function WebSearchSettings() {
+  const config = useLearningStore((state) => state.webSearchConfig);
+  const setWebSearchConfig = useLearningStore((state) => state.setWebSearchConfig);
+  const [apiKey, setApiKey] = useState(config.apiKey);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => setApiKey(config.apiKey), [config.apiKey]);
+
+  const save = (event: FormEvent) => {
+    event.preventDefault();
+    setWebSearchConfig({ apiKey: apiKey.trim() });
+    Toast.success('联网搜索配置已保存');
+    setEditing(false);
+  };
+
+  if (!editing) {
+    return (
+      <article className="api-config-summary web-search-summary">
+        <div className="api-config-summary__identity">
+          <IconGlobeStroked size="large" />
+          <div>
+            <Text strong>Jina Search &amp; Reader</Text>
+            <Text size="small" type="tertiary">联网搜索服务</Text>
+          </div>
+        </div>
+        <div className="api-config-summary__models" aria-label="联网搜索支持的工具">
+          <Tag size="small" color="grey">联网搜索</Tag>
+          <Tag size="small" color="grey">网页读取</Tag>
+        </div>
+        <div className="api-config-summary__meta">
+          <Tag size="small" color={config.apiKey ? 'green' : 'amber'}>{config.apiKey ? 'Key 已配置' : 'Key 未配置'}</Tag>
+        </div>
+        <div className="api-config-summary__actions">
+          <Button
+            aria-label="编辑联网搜索配置"
+            icon={<IconEditStroked />}
+            size="small"
+            theme="borderless"
+            type="tertiary"
+            onClick={() => setEditing(true)}
+          />
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <form className="web-search-settings web-search-settings--editing" aria-labelledby="web-search-settings-title" onSubmit={save}>
+      <div className="web-search-settings__heading">
+        <div className="web-search-settings__identity">
+          <IconGlobeStroked size="large" />
+          <div>
+            <Text id="web-search-settings-title" strong>联网搜索</Text>
+            <Text size="small" type="tertiary">通过 Jina Search 和 Reader 为 Agent 提供网页检索与正文读取</Text>
+          </div>
+        </div>
+        <Text size="small" type="tertiary">编辑联网搜索配置</Text>
+      </div>
+      <label className="settings-field">
+        <Text size="small" strong>Jina API Key</Text>
+        <Input
+          type="password"
+          value={apiKey}
+          onChange={setApiKey}
+          placeholder="jina_…"
+          autoComplete="off"
+        />
+        <Text size="small" type="tertiary">
+          仅保存在当前设备。Agent 调用联网工具时，搜索词或目标网址会发送给 Jina AI。
+        </Text>
+      </label>
+      <div className="web-search-settings__footer">
+        <Button
+          theme="borderless"
+          type="tertiary"
+          onClick={() => {
+            setApiKey(config.apiKey);
+            setEditing(false);
+          }}
+        >
+          取消
+        </Button>
+        <Button htmlType="submit" theme="solid" type="primary">保存配置</Button>
+      </div>
+    </form>
+  );
+}
+
 export function SettingsPage() {
   const configs = useLearningStore((state) => state.openAIConfigs);
   const addConfig = useLearningStore((state) => state.addOpenAIConfig);
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('models');
 
   const add = () => {
     const timestamp = Date.now();
@@ -188,31 +277,51 @@ export function SettingsPage() {
       <header className="settings-header">
         <div>
           <Title heading={4}>设置</Title>
-          <Text type="tertiary">管理 AI 模型</Text>
+          <Text type="tertiary">管理 AI 模型与联网搜索</Text>
         </div>
-        <Button icon={<IconPlus />} theme="solid" type="primary" onClick={add}>添加模型</Button>
       </header>
 
-      <section className="settings-notice" aria-label="API Key 存储说明">
-        <Text strong>仅保存在此设备</Text>
-        <Text size="small" type="tertiary">
-          API Key 会写入当前浏览器的本地存储，并由浏览器直接请求你配置的地址。该地址需要允许浏览器跨域访问；请勿在公共设备上保存密钥。
-        </Text>
-      </section>
-
-      <section className="api-config-list" aria-label="AI 模型配置列表">
-        {configs.length
-          ? configs.map((config) => (
-            <ConfigEditor
-              key={config.id}
-              config={config}
-              editing={editingConfigId === config.id}
-              onEdit={() => setEditingConfigId(config.id)}
-              onClose={() => setEditingConfigId(null)}
-            />
-          ))
-          : <Empty title="还没有 AI 模型" description="添加一个 OpenAI 兼容模型后，就能在阅读器侧栏开始对话" />}
-      </section>
+      <Tabs
+        activeKey={activeTab}
+        className="settings-tabs"
+        keepDOM={false}
+        onChange={setActiveTab}
+        type="line"
+      >
+        <TabPane itemKey="models" tab="AI 模型">
+          <div className="settings-tab-actions">
+            <Button icon={<IconPlus />} theme="solid" type="primary" onClick={add}>添加模型</Button>
+          </div>
+          <section className="settings-notice" aria-label="模型 API Key 存储说明">
+            <Text strong>仅保存在此设备</Text>
+            <Text size="small" type="tertiary">
+              API Key 会写入当前浏览器的本地存储，并由浏览器直接请求你配置的地址。该地址需要允许浏览器跨域访问；请勿在公共设备上保存密钥。
+            </Text>
+          </section>
+          <section className="api-config-list" aria-label="AI 模型配置列表">
+            {configs.length
+              ? configs.map((config) => (
+                <ConfigEditor
+                  key={config.id}
+                  config={config}
+                  editing={editingConfigId === config.id}
+                  onEdit={() => setEditingConfigId(config.id)}
+                  onClose={() => setEditingConfigId(null)}
+                />
+              ))
+              : <Empty title="还没有 AI 模型" description="添加一个 OpenAI 兼容模型后，就能在阅读器侧栏开始对话" />}
+          </section>
+        </TabPane>
+        <TabPane itemKey="web-search" tab="联网搜索">
+          <section className="settings-notice" aria-label="联网搜索说明">
+            <Text strong>按需连接第三方搜索服务</Text>
+            <Text size="small" type="tertiary">
+              配置后，Agent 可以调用联网搜索和网页读取工具。搜索词或目标网址会发送给 Jina AI，API Key 只保存在当前设备。
+            </Text>
+          </section>
+          <WebSearchSettings />
+        </TabPane>
+      </Tabs>
     </main>
   );
 }

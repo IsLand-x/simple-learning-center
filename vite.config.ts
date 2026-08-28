@@ -21,6 +21,15 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        display_override: ['window-controls-overlay'],
+        related_applications: [
+          {
+            platform: 'webapp',
+            url: '/manifest.webmanifest',
+            id: '/',
+          },
+        ],
+        prefer_related_applications: false,
         orientation: 'any',
         theme_color: '#18181b',
         background_color: '#fafafa',

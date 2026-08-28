@@ -2,37 +2,28 @@ import type { ReaderFont } from '../types';
 
 export const READER_FONT_STACKS: Record<ReaderFont, string> = {
   'system-serif': '"Songti SC", STSong, SimSun, Georgia, serif',
-  'source-serif': '"Noto Serif SC", "Source Han Serif SC", "Noto Serif CJK SC", serif',
+  'source-serif': '"Noto Serif SC", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", serif',
   sans: '"Noto Sans SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif',
   kai: '"LXGW WenKai", "Kaiti SC", STKaiti, KaiTi, serif',
+  bright: '"LXGW Bright", "LXGW WenKai", "Kaiti SC", serif',
   pingfang: '"PingFang SC", "PingFang TC", "Hiragino Sans GB", "Noto Sans SC", sans-serif',
-  'mi-lanting': '"Mi Lanting Pro", "MI Lan Pro", "Mi Lanting", "小米兰亭", MiSans, "Noto Sans SC", sans-serif',
-  yahei: '"Microsoft YaHei", "微软雅黑", "Noto Sans SC", sans-serif',
-  fangsong: 'FangSong, "仿宋", STFangsong, "Noto Serif SC", serif',
-  'wenkai-screen': '"LXGW WenKai Screen R", "LXGW WenKai Screen", "LXGW WenKai GB Screen", "LXGW WenKai", "Kaiti SC", serif',
 };
 
 export const READER_FONT_OPTIONS: Array<{ value: ReaderFont; label: string }> = [
   { value: 'system-serif', label: '系统宋体' },
   { value: 'source-serif', label: '思源宋体' },
-  { value: 'fangsong', label: '仿宋' },
   { value: 'kai', label: '霞鹜文楷' },
-  { value: 'wenkai-screen', label: '霞鹜文楷·屏幕' },
+  { value: 'bright', label: '霞鹜 Bright' },
   { value: 'sans', label: '思源黑体' },
   { value: 'pingfang', label: '苹方' },
-  { value: 'mi-lanting', label: '小米兰亭 / MiSans' },
-  { value: 'yahei', label: '微软雅黑' },
 ];
 
 const READER_FONT_STYLESHEETS: Partial<Record<ReaderFont, string>> = {
   'source-serif': 'https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5.3.0/400.css',
   sans: 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.3.0/400.css',
   kai: 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-regular.css',
+  bright: 'https://cdn.jsdelivr.net/npm/@krosdai/lxgw-bright@2.0.0/400-normal.css',
   pingfang: 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.3.0/400.css',
-  'mi-lanting': 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.3.0/400.css',
-  yahei: 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.3.0/400.css',
-  fangsong: 'https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-sc@5.3.0/400.css',
-  'wenkai-screen': 'https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/lxgwwenkaiscreenr.css',
 };
 
 const fontLoads = new WeakMap<Document, Map<ReaderFont, Promise<void>>>();

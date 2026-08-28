@@ -1,25 +1,33 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Allotment } from 'allotment';
-import { Button, Dropdown, Empty, Modal, Progress, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, ButtonGroup, Dropdown, Empty, Modal, Progress, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   IconAIStrokedLevel1,
   IconAlertTriangle,
   IconBookmark,
+  IconComment,
   IconDeleteStroked,
-  IconEditStroked,
+  IconArrowLeft,
   IconMore,
 } from '@douyinfe/semi-icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReaderActivityBar, ReaderRightPanel } from '../components/ReaderRightSidebar';
-import { ReaderSurface, findChapterLabel, type ReaderLocationUpdate, type ReaderSurfaceHandle } from '../components/ReaderSurface';
+import {
+  ReaderSurface,
+  findChapterLabel,
+  isReaderKeyboardEditingTarget,
+  type ReaderLocationUpdate,
+  type ReaderSurfaceHandle,
+} from '../components/ReaderSurface';
 import { ReaderToolbar } from '../components/ReaderToolbar';
 import { TableOfContents } from '../components/TableOfContents';
 import { removeEpubFile } from '../lib/epubStorage';
 import { clamp } from '../lib/format';
 import { useLearningStore } from '../store/useLearningStore';
-import type { ChatSession, HighlightItem, ReaderSelection, RightPanel } from '../types';
+import type { ChatSession, HighlightItem, ReaderHighlightTarget, ReaderSelection, RightPanel } from '../types';
 
 const { Text } = Typography;
+const PENDING_COMMENT_HIGHLIGHT_ID = 'pending-comment-highlight';
 
 export function ReaderPage() {
   const { bookId = '' } = useParams();
@@ -29,7 +37,8 @@ export function ReaderPage() {
   const updateBook = useLearningStore((state) => state.updateBook);
   const deleteBook = useLearningStore((state) => state.deleteBook);
   const addHighlight = useLearningStore((state) => state.addHighlight);
-  const addNote = useLearningStore((state) => state.addNote);
+  const updateHighlight = useLearningStore((state) => state.updateHighlight);
+  const deleteHighlight = useLearningStore((state) => state.deleteHighlight);
   const themeMode = useLearningStore((state) => state.themeMode);
   const preferences = useLearningStore((state) => state.readerPreferences);
   const setPreferences = useLearningStore((state) => state.setReaderPreferences);
@@ -44,12 +53,21 @@ export function ReaderPage() {
   const [compactTocOpen, setCompactTocOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string>(() => crypto.randomUUID());
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
+  const [activeHighlightTarget, setActiveHighlightTarget] = useState<ReaderHighlightTarget | null>(null);
+  const [commentingHighlightId, setCommentingHighlightId] = useState<string | null>(null);
+  const [pendingCommentSelection, setPendingCommentSelection] = useState<ReaderSelection | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
   const [panelQuote, setPanelQuote] = useState<string | null>(null);
+  const [stylePopoverVisible, setStylePopoverVisible] = useState(false);
   const [activeHref, setActiveHref] = useState(book?.toc[0]?.href);
   const highlights = useMemo(
     () => allHighlights.filter((item) => item.bookId === bookId),
     [allHighlights, bookId],
   );
+  const activeHighlight = activeHighlightTarget
+    ? highlights.find((highlight) => highlight.id === activeHighlightTarget.highlightId)
+    : undefined;
 
   useEffect(() => { latestBookRef.current = book; }, [book]);
 
@@ -71,10 +89,37 @@ export function ReaderPage() {
     setActiveHref(chapter?.href ?? book.toc[0]?.href);
     setActivePanel(null);
     setSelection(null);
+    setActiveHighlightTarget(null);
+    setCommentingHighlightId(null);
+    setPendingCommentSelection(null);
+    setCommentDraft('');
+    setFocusedHighlightId(null);
     setPanelQuote(null);
     setCompactTocOpen(false);
     setConversationId(crypto.randomUUID());
   }, [book?.id]);
+
+  useEffect(() => {
+    if (!activeHighlightTarget && !pendingCommentSelection) return undefined;
+    const closeHighlightActions = () => {
+      setActiveHighlightTarget(null);
+      setCommentingHighlightId(null);
+      setPendingCommentSelection(null);
+    };
+    window.addEventListener('resize', closeHighlightActions);
+    document.addEventListener('scroll', closeHighlightActions, true);
+    return () => {
+      window.removeEventListener('resize', closeHighlightActions);
+      document.removeEventListener('scroll', closeHighlightActions, true);
+    };
+  }, [activeHighlightTarget, pendingCommentSelection]);
+
+  useEffect(() => {
+    if (activeHighlightTarget && !activeHighlight) {
+      setActiveHighlightTarget(null);
+      setCommentingHighlightId(null);
+    }
+  }, [activeHighlight, activeHighlightTarget]);
 
   useEffect(() => {
     if (!book) return;
@@ -117,10 +162,9 @@ export function ReaderPage() {
   }, [book?.id, upsertReadingSession]);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleKeyUp = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('input, textarea, select, button, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], [role="menu"]')) return;
+      if (isReaderKeyboardEditingTarget(event.target)) return;
       if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
         event.preventDefault();
         readerRef.current?.prev();
@@ -129,8 +173,8 @@ export function ReaderPage() {
         readerRef.current?.next();
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => window.removeEventListener('keyup', handleKeyUp);
   }, []);
 
   const handleLocationChange = useCallback((location: ReaderLocationUpdate) => {
@@ -161,6 +205,22 @@ export function ReaderPage() {
     () => (book ? findChapterLabel(book.toc, activeHref) ?? book.currentChapter : ''),
     [activeHref, book],
   );
+  const readerHighlights = useMemo<HighlightItem[]>(() => {
+    if (!book || !pendingCommentSelection) return highlights;
+    return [
+      ...highlights,
+      {
+        id: PENDING_COMMENT_HIGHLIGHT_ID,
+        bookId: book.id,
+        kind: 'comment',
+        text: pendingCommentSelection.text,
+        cfi: pendingCommentSelection.cfi,
+        chapter: currentChapter,
+        page: book.currentPage,
+        createdAt: 0,
+      },
+    ];
+  }, [book, currentChapter, highlights, pendingCommentSelection]);
 
   if (!book) {
     return (
@@ -174,7 +234,7 @@ export function ReaderPage() {
   const handleDelete = () => {
     Modal.confirm({
       title: `删除《${book.title}》？`,
-      content: '书籍文件、阅读进度、笔记和划线都将从此设备删除，且无法恢复。',
+      content: '书籍文件、阅读进度、笔记、高亮和评论都将从此设备删除，且无法恢复。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-danger)' }} />,
       okText: '删除',
       cancelText: '取消',
@@ -190,15 +250,19 @@ export function ReaderPage() {
 
   const saveHighlight = () => {
     if (!selection) return;
-    if (highlights.some((highlight) => highlight.cfi === selection.cfi)) {
+    const existingHighlight = highlights.find((highlight) => highlight.cfi === selection.cfi);
+    if (existingHighlight) {
       readerRef.current?.clearSelection();
       setSelection(null);
-      Toast.info('这段文字已经高亮');
+      setFocusedHighlightId(existingHighlight.id);
+      setActiveHighlightTarget({ highlightId: existingHighlight.id, rect: selection.rect });
       return;
     }
+    const highlightId = crypto.randomUUID();
     addHighlight({
-      id: crypto.randomUUID(),
+      id: highlightId,
       bookId: book.id,
+      kind: 'highlight',
       text: selection.text,
       cfi: selection.cfi,
       chapter: currentChapter,
@@ -206,30 +270,107 @@ export function ReaderPage() {
       createdAt: Date.now(),
     });
     readerRef.current?.clearSelection();
-    setActivePanel('highlights');
     setSelection(null);
-    Toast.success('已加入划线');
+    setFocusedHighlightId(highlightId);
+    setActiveHighlightTarget({ highlightId, rect: selection.rect });
+    Toast.success('已添加高亮');
+  };
+
+  const showHighlightActions = (target: ReaderHighlightTarget) => {
+    readerRef.current?.clearSelection();
+    setSelection(null);
+    setCommentingHighlightId(null);
+    setPendingCommentSelection(null);
+    setCommentDraft('');
+    setFocusedHighlightId(target.highlightId);
+    setActiveHighlightTarget(target);
+  };
+
+  const cancelHighlight = () => {
+    if (!activeHighlight) return;
+    deleteHighlight(activeHighlight.id);
+    setActiveHighlightTarget(null);
+    setCommentingHighlightId(null);
+    Toast.success('已取消高亮');
+  };
+
+  const viewHighlight = () => {
+    if (!activeHighlight) return;
+    setFocusedHighlightId(activeHighlight.id);
+    setActivePanel('highlights');
+    setActiveHighlightTarget(null);
+    setCommentingHighlightId(null);
+  };
+
+  const editHighlightComment = () => {
+    if (!activeHighlight) return;
+    setCommentDraft(activeHighlight.comment ?? '');
+    setCommentingHighlightId(activeHighlight.id);
+  };
+
+  const createCommentFromSelection = () => {
+    if (!selection) return;
+    const existingHighlight = highlights.find((highlight) => highlight.cfi === selection.cfi);
+    if (existingHighlight) {
+      setFocusedHighlightId(existingHighlight.id);
+      setActiveHighlightTarget({ highlightId: existingHighlight.id, rect: selection.rect });
+      setCommentDraft(existingHighlight.comment ?? '');
+      setCommentingHighlightId(existingHighlight.id);
+      readerRef.current?.clearSelection();
+      setSelection(null);
+      return;
+    }
+    setPendingCommentSelection(selection);
+    setActiveHighlightTarget(null);
+    setCommentingHighlightId(null);
+    setCommentDraft('');
+    readerRef.current?.clearSelection();
+    setSelection(null);
+  };
+
+  const cancelCommentEditing = () => {
+    setPendingCommentSelection(null);
+    setCommentingHighlightId(null);
+    setCommentDraft('');
+  };
+
+  const saveHighlightComment = () => {
+    const comment = commentDraft.trim();
+    if (pendingCommentSelection) {
+      if (!comment) return;
+      addHighlight({
+        id: crypto.randomUUID(),
+        bookId: book.id,
+        kind: 'comment',
+        text: pendingCommentSelection.text,
+        cfi: pendingCommentSelection.cfi,
+        chapter: currentChapter,
+        page: book.currentPage,
+        comment,
+        commentUpdatedAt: Date.now(),
+        createdAt: Date.now(),
+      });
+      setPendingCommentSelection(null);
+      setCommentDraft('');
+      Toast.success('评论已保存');
+      return;
+    }
+    if (!activeHighlight || commentingHighlightId !== activeHighlight.id) return;
+    if (!comment && activeHighlight.kind === 'comment') {
+      deleteHighlight(activeHighlight.id);
+    } else {
+      updateHighlight(activeHighlight.id, { comment });
+    }
+    setCommentingHighlightId(null);
+    setActiveHighlightTarget(null);
+    setCommentDraft('');
+    Toast.success(comment ? '评论已保存' : '评论已删除');
   };
 
   const askAboutSelection = () => {
     if (!selection) return;
     setPanelQuote(selection.text);
     setActivePanel('ai');
-    readerRef.current?.clearSelection();
-    setSelection(null);
-  };
-
-  const createNoteFromSelection = () => {
-    if (!selection) return;
-    const timestamp = Date.now();
-    addNote({
-      id: crypto.randomUUID(),
-      bookId: book.id,
-      content: `> ${selection.text}\n\n`,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    });
-    setActivePanel('notes');
     readerRef.current?.clearSelection();
     setSelection(null);
   };
@@ -263,6 +404,16 @@ export function ReaderPage() {
     <main className="reader-page">
       <header className="reader-header">
         <div className="reader-header__identity">
+          <Tooltip content="返回书架" position="bottomLeft">
+            <Button
+              aria-label="退出阅读并返回书架"
+              icon={<IconArrowLeft />}
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              onClick={() => navigate('/')}
+            />
+          </Tooltip>
           <Progress
             type="circle"
             percent={book.progress}
@@ -273,9 +424,27 @@ export function ReaderPage() {
           <div className="reader-header__title">
             <Text strong ellipsis={{ showTooltip: true }}>{book.title}</Text>
             <Text size="small" type="tertiary">
-              {Math.round(book.progress)}% · {currentChapter}{book.currentPage ? ` · 第 ${book.currentPage} 页` : ''}
+              {Math.round(book.progress)}% · {currentChapter}
             </Text>
           </div>
+        </div>
+        <div className="reader-header__toolbar">
+          <ReaderToolbar
+            preferences={preferences}
+            tocCollapsed={compactReader ? !compactTocOpen : preferences.tocCollapsed}
+            stylePopoverVisible={stylePopoverVisible}
+            onChangePreferences={setPreferences}
+            onStylePopoverVisibleChange={setStylePopoverVisible}
+            onToggleToc={() => {
+              if (compactReader) {
+                setCompactTocOpen((open) => !open);
+              } else {
+                setPreferences({ tocCollapsed: !preferences.tocCollapsed });
+              }
+            }}
+            onPrev={() => readerRef.current?.prev()}
+            onNext={() => readerRef.current?.next()}
+          />
         </div>
         <div className="reader-header__actions">
           <Dropdown
@@ -287,7 +456,7 @@ export function ReaderPage() {
               </Dropdown.Menu>
             )}
           >
-            <Button aria-label="更多书籍操作" icon={<IconMore />} theme="borderless" />
+            <Button aria-label="更多书籍操作" icon={<IconMore />} theme="borderless" type="tertiary" />
           </Dropdown>
         </div>
       </header>
@@ -348,29 +517,22 @@ export function ReaderPage() {
               >
                 <Allotment.Pane minSize={0}>
                   <section className="reader-center">
-                    <ReaderToolbar
-                      preferences={preferences}
-                      tocCollapsed={compactReader ? !compactTocOpen : preferences.tocCollapsed}
-                      onChangePreferences={setPreferences}
-                      onToggleToc={() => {
-                        if (compactReader) {
-                          setCompactTocOpen((open) => !open);
-                        } else {
-                          setPreferences({ tocCollapsed: !preferences.tocCollapsed });
-                        }
-                      }}
-                      onPrev={() => readerRef.current?.prev()}
-                      onNext={() => readerRef.current?.next()}
-                    />
                     <div className="reader-content">
                       <ReaderSurface
                         ref={readerRef}
                         book={book}
                         preferences={preferences}
                         themeMode={themeMode}
-                        highlights={highlights}
+                        highlights={readerHighlights}
                         onLocationChange={handleLocationChange}
                         onSelection={setSelection}
+                        onHighlightClick={showHighlightActions}
+                        onContentInteraction={() => {
+                          setStylePopoverVisible(false);
+                          setActiveHighlightTarget(null);
+                          setCommentingHighlightId(null);
+                          setPendingCommentSelection(null);
+                        }}
                       />
                       {selection && (
                         <div
@@ -385,12 +547,110 @@ export function ReaderPage() {
                               : selection.rect.top - 8,
                           }}
                         >
-                          <Button icon={<IconAIStrokedLevel1 />} theme="borderless" onClick={askAboutSelection}>提问</Button>
-                          <span className="selection-toolbar__divider" />
-                          <Button icon={<IconBookmark />} theme="borderless" onClick={saveHighlight}>高亮</Button>
-                          <span className="selection-toolbar__divider" />
-                          <Button icon={<IconEditStroked />} theme="borderless" onClick={createNoteFromSelection}>笔记</Button>
+                          <ButtonGroup
+                            aria-label="文本选择操作"
+                            className="selection-toolbar__button-group"
+                            size="small"
+                            theme="borderless"
+                            type="tertiary"
+                          >
+                            <Button icon={<IconAIStrokedLevel1 />} onClick={askAboutSelection}>提问</Button>
+                            <Button icon={<IconBookmark />} onClick={saveHighlight}>高亮</Button>
+                            <Button icon={<IconComment />} onClick={createCommentFromSelection}>评论</Button>
+                          </ButtonGroup>
                         </div>
+                      )}
+                      {(pendingCommentSelection || (activeHighlightTarget && activeHighlight && commentingHighlightId === activeHighlight.id)) && (
+                          <form
+                            className={`highlight-comment-editor${((pendingCommentSelection?.rect ?? activeHighlightTarget?.rect)?.top ?? 0) < 210 ? ' highlight-comment-editor--below' : ''}`}
+                            aria-label={`评论高亮：${pendingCommentSelection?.text ?? activeHighlight?.text ?? ''}`}
+                            style={{
+                              left: clamp(
+                                (pendingCommentSelection?.rect.left ?? activeHighlightTarget?.rect.left ?? 0)
+                                  + (pendingCommentSelection?.rect.width ?? activeHighlightTarget?.rect.width ?? 0) / 2,
+                                166,
+                                window.innerWidth - 166,
+                              ),
+                              top: (pendingCommentSelection?.rect.top ?? activeHighlightTarget?.rect.top ?? 0) < 210
+                                ? (pendingCommentSelection?.rect.top ?? activeHighlightTarget?.rect.top ?? 0)
+                                  + (pendingCommentSelection?.rect.height ?? activeHighlightTarget?.rect.height ?? 0) + 8
+                                : (pendingCommentSelection?.rect.top ?? activeHighlightTarget?.rect.top ?? 0) - 8,
+                            }}
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              saveHighlightComment();
+                            }}
+                          >
+                            <TextArea
+                              autoFocus
+                              autosize={{ minRows: 3, maxRows: 6 }}
+                              maxCount={1000}
+                              placeholder="写下你对这段内容的见解…"
+                              value={commentDraft}
+                              onChange={setCommentDraft}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                  event.preventDefault();
+                                  cancelCommentEditing();
+                                } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                                  event.preventDefault();
+                                  saveHighlightComment();
+                                }
+                              }}
+                            />
+                            <div className="highlight-comment-editor__actions">
+                              <Button
+                                size="small"
+                                theme="borderless"
+                                type="tertiary"
+                                onClick={cancelCommentEditing}
+                              >
+                                取消
+                              </Button>
+                              <Tooltip content="Cmd + Enter 可以保存" position="topRight">
+                                <span>
+                                  <Button
+                                    disabled={!commentDraft.trim() && !(activeHighlight?.comment && !pendingCommentSelection)}
+                                    htmlType="submit"
+                                    size="small"
+                                    theme="solid"
+                                    type="primary"
+                                  >
+                                    保存
+                                  </Button>
+                                </span>
+                              </Tooltip>
+                            </div>
+                          </form>
+                      )}
+                      {activeHighlightTarget && activeHighlight && commentingHighlightId !== activeHighlight.id && (
+                          <div
+                            className={`selection-toolbar${activeHighlightTarget.rect.top < 150 ? ' selection-toolbar--below' : ''}`}
+                            role="toolbar"
+                            aria-label="已高亮内容操作"
+                            style={{
+                              left: clamp(activeHighlightTarget.rect.left + activeHighlightTarget.rect.width / 2, 170, window.innerWidth - 170),
+                              top: activeHighlightTarget.rect.top < 150
+                                ? activeHighlightTarget.rect.top + activeHighlightTarget.rect.height + 8
+                                : activeHighlightTarget.rect.top - 8,
+                            }}
+                          >
+                            <ButtonGroup
+                              aria-label="已高亮内容操作"
+                              className="selection-toolbar__button-group"
+                              size="small"
+                              theme="borderless"
+                              type="tertiary"
+                            >
+                              <Button icon={<IconDeleteStroked />} onClick={cancelHighlight}>取消划线</Button>
+                              {activeHighlight.kind !== 'comment' && (
+                                <Button icon={<IconBookmark />} onClick={viewHighlight}>在划线中查看</Button>
+                              )}
+                              <Button icon={<IconComment />} onClick={editHighlightComment}>
+                                {activeHighlight.comment ? '查看评论' : '评论'}
+                              </Button>
+                            </ButtonGroup>
+                          </div>
                       )}
                     </div>
                   </section>
@@ -409,16 +669,22 @@ export function ReaderPage() {
                       selectedText={panelQuote ?? undefined}
                       getCurrentText={() => readerRef.current?.getCurrentText() ?? ''}
                       onClearSelectedText={() => setPanelQuote(null)}
+                      onStartNewConversation={startNewConversation}
                       onResumeConversation={resumeConversation}
                       onJumpHighlight={jumpToHighlight}
+                      focusedHighlightId={focusedHighlightId}
                     />
                   )}
                 </Allotment.Pane>
               </Allotment>
               <ReaderActivityBar
                 activePanel={activePanel}
-                onChangePanel={setActivePanel}
-                onStartNewConversation={startNewConversation}
+                onChangePanel={(panel) => {
+                  setActivePanel(panel);
+                  setActiveHighlightTarget(null);
+                  setCommentingHighlightId(null);
+                  setPendingCommentSelection(null);
+                }}
               />
             </div>
           </Allotment.Pane>

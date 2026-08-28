@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { demoBooks } from '../data/demo';
+import {
+  DEFAULT_READER_CUSTOM_STYLE,
+  legacyReaderPaperColor,
+  normalizeReaderCustomStyle,
+  readerDensityFromLineHeight,
+} from '../lib/readerThemes';
+import { markdownNoteTitle } from '../lib/markdownNotes';
 import type {
   AiPreferences,
   BookItem,
@@ -9,16 +16,21 @@ import type {
   HighlightItem,
   NoteItem,
   OpenAICompatibleConfig,
+  ReaderCustomStyle,
+  ReaderFont,
   ReaderPreferences,
+  ReaderTheme,
   ReadingSession,
   ThemeMode,
+  WebSearchConfig,
 } from '../types';
 
 const defaultReaderPreferences: ReaderPreferences = {
   fontSize: 18,
-  lineHeight: 1.8,
+  lineHeight: 2,
   theme: 'paper',
-  fontFamily: 'system-serif',
+  fontFamily: 'kai',
+  customStyle: DEFAULT_READER_CUSTOM_STYLE,
   tocWidth: 272,
   panelWidth: 380,
   tocCollapsed: false,
@@ -29,6 +41,41 @@ const defaultAiPreferences: AiPreferences = {
   model: '',
 };
 
+const defaultWebSearchConfig: WebSearchConfig = {
+  provider: 'jina',
+  apiKey: '',
+};
+
+function normalizeReaderFont(font: unknown): ReaderFont {
+  if (font === 'kai' || font === 'wenkai-screen') return 'kai';
+  if (font === 'source-serif') return 'source-serif';
+  if (font === 'bright') return 'bright';
+  if (font === 'sans') return 'sans';
+  if (font === 'pingfang' || font === 'mi-lanting' || font === 'yahei') return 'pingfang';
+  return 'system-serif';
+}
+
+function normalizeStoredCustomStyle(style: Partial<ReaderCustomStyle> | undefined) {
+  return normalizeReaderCustomStyle({
+    ...style,
+    fontFamily: normalizeReaderFont(style?.fontFamily),
+  });
+}
+
+function normalizeReaderTheme(theme: unknown): ReaderTheme {
+  return theme === 'paper'
+    || theme === 'ivory'
+    || theme === 'mist'
+    || theme === 'celadon'
+    || theme === 'twilight'
+    || theme === 'rice'
+    || theme === 'azure'
+    || theme === 'ink'
+    || theme === 'custom'
+    ? theme
+    : 'custom';
+}
+
 interface LearningState {
   books: BookItem[];
   highlights: HighlightItem[];
@@ -37,6 +84,7 @@ interface LearningState {
   chatSessions: ChatSession[];
   readingSessions: ReadingSession[];
   openAIConfigs: OpenAICompatibleConfig[];
+  webSearchConfig: WebSearchConfig;
   aiPreferences: AiPreferences;
   navCollapsed: boolean;
   themeMode: ThemeMode;
@@ -45,9 +93,10 @@ interface LearningState {
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
   deleteBook: (bookId: string) => void;
   addHighlight: (highlight: HighlightItem) => void;
+  updateHighlight: (highlightId: string, changes: Partial<Pick<HighlightItem, 'comment'>>) => void;
   deleteHighlight: (highlightId: string) => void;
   addNote: (note: NoteItem) => void;
-  updateNote: (noteId: string, content: string) => void;
+  updateNote: (noteId: string, changes: Partial<Pick<NoteItem, 'title' | 'content' | 'fileName'>>) => void;
   deleteNote: (noteId: string) => void;
   createChatSession: (session: ChatSession) => void;
   updateChatSession: (sessionId: string, changes: Partial<ChatSession>) => void;
@@ -58,6 +107,7 @@ interface LearningState {
   addOpenAIConfig: (config: OpenAICompatibleConfig) => void;
   updateOpenAIConfig: (configId: string, changes: Partial<OpenAICompatibleConfig>) => void;
   deleteOpenAIConfig: (configId: string) => void;
+  setWebSearchConfig: (changes: Partial<WebSearchConfig>) => void;
   setAiPreferences: (changes: Partial<AiPreferences>) => void;
   setNavCollapsed: (collapsed: boolean) => void;
   setThemeMode: (theme: ThemeMode) => void;
@@ -74,6 +124,7 @@ export const useLearningStore = create<LearningState>()(
       chatSessions: [],
       readingSessions: [],
       openAIConfigs: [],
+      webSearchConfig: defaultWebSearchConfig,
       aiPreferences: defaultAiPreferences,
       navCollapsed: false,
       themeMode: 'light',
@@ -99,13 +150,25 @@ export const useLearningStore = create<LearningState>()(
         set((state) => ({
           highlights: [highlight, ...state.highlights.filter((item) => item.id !== highlight.id)],
         })),
+      updateHighlight: (highlightId, changes) =>
+        set((state) => ({
+          highlights: state.highlights.map((highlight) => {
+            if (highlight.id !== highlightId) return highlight;
+            const comment = changes.comment?.trim();
+            if (!comment) {
+              const { comment: _comment, commentUpdatedAt: _commentUpdatedAt, ...withoutComment } = highlight;
+              return withoutComment;
+            }
+            return { ...highlight, comment, commentUpdatedAt: Date.now() };
+          }),
+        })),
       deleteHighlight: (highlightId) =>
         set((state) => ({ highlights: state.highlights.filter((item) => item.id !== highlightId) })),
       addNote: (note) => set((state) => ({ notes: [note, ...state.notes] })),
-      updateNote: (noteId, content) =>
+      updateNote: (noteId, changes) =>
         set((state) => ({
           notes: state.notes.map((note) =>
-            note.id === noteId ? { ...note, content, updatedAt: Date.now() } : note,
+            note.id === noteId ? { ...note, ...changes, updatedAt: Date.now() } : note,
           ),
         })),
       deleteNote: (noteId) =>
@@ -168,6 +231,8 @@ export const useLearningStore = create<LearningState>()(
               : state.aiPreferences,
           };
         }),
+      setWebSearchConfig: (changes) =>
+        set((state) => ({ webSearchConfig: { ...state.webSearchConfig, ...changes } })),
       setAiPreferences: (changes) =>
         set((state) => ({ aiPreferences: { ...state.aiPreferences, ...changes } })),
       setNavCollapsed: (navCollapsed) => set({ navCollapsed }),
@@ -179,7 +244,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 4,
+      version: 12,
       migrate: (persistedState, version) => {
         const persisted = persistedState as Partial<LearningState> & {
           chats?: Array<Omit<ChatMessage, 'conversationId'> & { conversationId?: string }>;
@@ -241,6 +306,101 @@ export const useLearningStore = create<LearningState>()(
             },
           };
         }
+        if (version < 5) {
+          migrated = {
+            ...migrated,
+            readerPreferences: {
+              ...defaultReaderPreferences,
+              ...migrated.readerPreferences,
+              fontFamily: normalizeReaderFont(migrated.readerPreferences?.fontFamily),
+            },
+          };
+        }
+        if (version < 6) {
+          migrated = {
+            ...migrated,
+            webSearchConfig: defaultWebSearchConfig,
+          };
+        }
+        if (version < 7) {
+          const legacyPreferences = migrated.readerPreferences;
+          migrated = {
+            ...migrated,
+            readerPreferences: {
+              ...defaultReaderPreferences,
+              ...legacyPreferences,
+              theme: 'custom',
+              customStyle: normalizeStoredCustomStyle({
+                fontFamily: normalizeReaderFont(legacyPreferences?.fontFamily),
+                paperColor: legacyReaderPaperColor(legacyPreferences?.theme),
+                fontSize: legacyPreferences?.fontSize,
+                density: readerDensityFromLineHeight(legacyPreferences?.lineHeight),
+              }),
+            },
+          };
+        }
+        if (version < 8) {
+          const legacyNotes = (migrated.notes ?? []) as Array<Omit<NoteItem, 'title'> & { title?: string }>;
+          migrated = {
+            ...migrated,
+            notes: legacyNotes.map((note) => ({
+              ...note,
+              title: note.title?.trim() || markdownNoteTitle(note.content),
+            })),
+          };
+        }
+        if (version < 9) {
+          const legacyHighlights = (migrated.highlights ?? []) as Array<HighlightItem & {
+            comment?: unknown;
+            commentUpdatedAt?: unknown;
+          }>;
+          migrated = {
+            ...migrated,
+            highlights: legacyHighlights.map((highlight) => {
+              const comment = typeof highlight.comment === 'string' ? highlight.comment.trim() : '';
+              if (!comment) {
+                const { comment: _comment, commentUpdatedAt: _commentUpdatedAt, ...withoutComment } = highlight;
+                return withoutComment;
+              }
+              return {
+                ...highlight,
+                comment,
+                commentUpdatedAt: typeof highlight.commentUpdatedAt === 'number'
+                  ? highlight.commentUpdatedAt
+                  : highlight.createdAt,
+              };
+            }),
+          };
+        }
+        if (version < 10) {
+          migrated = {
+            ...migrated,
+            highlights: (migrated.highlights ?? []).map((highlight) => ({
+              ...highlight,
+              kind: highlight.kind === 'comment' ? 'comment' : 'highlight',
+            })),
+          };
+        }
+        if (version < 11) {
+          migrated = {
+            ...migrated,
+            readerPreferences: {
+              ...defaultReaderPreferences,
+              ...migrated.readerPreferences,
+              customStyle: normalizeStoredCustomStyle(migrated.readerPreferences?.customStyle),
+            },
+          };
+        }
+        if (version < 12) {
+          migrated = {
+            ...migrated,
+            readerPreferences: {
+              ...defaultReaderPreferences,
+              ...migrated.readerPreferences,
+              customStyle: normalizeStoredCustomStyle(migrated.readerPreferences?.customStyle),
+            },
+          };
+        }
         return migrated;
       },
       merge: (persistedState, currentState) => {
@@ -251,12 +411,19 @@ export const useLearningStore = create<LearningState>()(
           readerPreferences: {
             ...defaultReaderPreferences,
             ...persisted.readerPreferences,
+            theme: normalizeReaderTheme(persisted.readerPreferences?.theme),
+            fontFamily: normalizeReaderFont(persisted.readerPreferences?.fontFamily),
+            customStyle: normalizeStoredCustomStyle(persisted.readerPreferences?.customStyle),
           },
           aiPreferences: {
             provider: persisted.aiPreferences?.provider?.startsWith('api:')
               ? persisted.aiPreferences.provider
               : null,
             model: persisted.aiPreferences?.model ?? '',
+          },
+          webSearchConfig: {
+            ...defaultWebSearchConfig,
+            ...persisted.webSearchConfig,
           },
         };
       },

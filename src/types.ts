@@ -1,18 +1,25 @@
 export type ThemeMode = 'light' | 'dark';
-export type ReaderTheme = 'paper' | 'white' | 'night';
+export type ReaderTheme =
+  | 'paper'
+  | 'ivory'
+  | 'mist'
+  | 'celadon'
+  | 'twilight'
+  | 'rice'
+  | 'azure'
+  | 'ink'
+  | 'custom';
 export type ReaderFont =
   | 'system-serif'
   | 'source-serif'
   | 'sans'
   | 'kai'
-  | 'pingfang'
-  | 'mi-lanting'
-  | 'yahei'
-  | 'fangsong'
-  | 'wenkai-screen';
+  | 'bright'
+  | 'pingfang';
+export type ReaderDensity = 'compact' | 'balanced' | 'relaxed';
+export type ReaderTexture = 'none' | 'paper' | 'grain';
 export type AiProvider = `api:${string}`;
-export type AiContextTool = 'book' | 'chapter' | 'notes' | 'highlights' | 'reading-history';
-export type RightPanel = 'ai' | 'history' | 'notes' | 'highlights' | 'trajectory' | null;
+export type RightPanel = 'ai' | 'history' | 'notes' | 'highlights' | 'comments' | 'trajectory' | null;
 
 export interface TocItem {
   id: string;
@@ -42,17 +49,22 @@ export interface BookItem {
 export interface HighlightItem {
   id: string;
   bookId: string;
+  kind?: 'highlight' | 'comment';
   text: string;
   cfi: string;
   chapter: string;
   page?: number;
+  comment?: string;
+  commentUpdatedAt?: number;
   createdAt: number;
 }
 
 export interface NoteItem {
   id: string;
   bookId: string;
+  title: string;
   content: string;
+  fileName?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -97,6 +109,11 @@ export interface OpenAICompatibleConfig {
   updatedAt: number;
 }
 
+export interface WebSearchConfig {
+  provider: 'jina';
+  apiKey: string;
+}
+
 export interface AiPreferences {
   provider: AiProvider | null;
   model: string;
@@ -115,14 +132,34 @@ export interface ReaderPreferences {
   lineHeight: number;
   theme: ReaderTheme;
   fontFamily: ReaderFont;
+  customStyle: ReaderCustomStyle;
   tocWidth: number;
   panelWidth: number;
   tocCollapsed: boolean;
 }
 
+export interface ReaderCustomStyle {
+  fontFamily: ReaderFont;
+  paperColor: string;
+  textColor: string;
+  texture: ReaderTexture;
+  fontSize: number;
+  density: ReaderDensity;
+}
+
 export interface ReaderSelection {
   text: string;
   cfi: string;
+  rect: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface ReaderHighlightTarget {
+  highlightId: string;
   rect: {
     left: number;
     top: number;

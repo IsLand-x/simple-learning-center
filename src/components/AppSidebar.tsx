@@ -3,6 +3,7 @@ import { Button, Nav, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { IconBook, IconChevronLeft, IconChevronRight, IconDownload, IconMoon, IconSettingStroked, IconSun } from '@douyinfe/semi-icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useLearningStore } from '../store/useLearningStore';
+import { detectPwaInstallation, isRunningAsInstalledPwa, watchInstalledDisplayMode } from '../lib/pwaInstall';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -17,43 +18,72 @@ export function AppSidebar() {
   const themeMode = useLearningStore((state) => state.themeMode);
   const setThemeMode = useLearningStore((state) => state.setThemeMode);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(() => window.matchMedia('(display-mode: standalone)').matches);
+  const [isPwaWindow, setIsPwaWindow] = useState(isRunningAsInstalledPwa);
+  const [installationStatus, setInstallationStatus] = useState<'checking' | 'installed' | 'not-installed'>(() => (
+    isRunningAsInstalledPwa() ? 'installed' : 'checking'
+  ));
 
   useEffect(() => {
     document.body.setAttribute('theme-mode', themeMode);
   }, [themeMode]);
 
   useEffect(() => {
+    let active = true;
     const handleInstallPrompt = (event: Event) => {
       event.preventDefault();
       setInstallPrompt(event as BeforeInstallPromptEvent);
+      setInstallationStatus('not-installed');
     };
     const handleInstalled = () => {
       setInstallPrompt(null);
-      setInstalled(true);
+      setInstallationStatus('installed');
     };
+    const handleDisplayModeChange = () => {
+      const nextIsPwaWindow = isRunningAsInstalledPwa();
+      setIsPwaWindow(nextIsPwaWindow);
+      if (nextIsPwaWindow) {
+        setInstallPrompt(null);
+        setInstallationStatus('installed');
+      }
+    };
+
+    void detectPwaInstallation().then((status) => {
+      if (!active) return;
+      setInstallationStatus(status === 'installed' ? 'installed' : 'not-installed');
+    });
+
+    const stopWatchingDisplayMode = watchInstalledDisplayMode(handleDisplayModeChange);
     window.addEventListener('beforeinstallprompt', handleInstallPrompt);
     window.addEventListener('appinstalled', handleInstalled);
     return () => {
+      active = false;
+      stopWatchingDisplayMode();
       window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
       window.removeEventListener('appinstalled', handleInstalled);
     };
   }, []);
 
-  const installButton = !installed ? (
-    <Tooltip content="安装到此设备" position="right">
+  const installButton = !isPwaWindow && installationStatus === 'not-installed' ? (
+    <Tooltip content="安装并打开应用" position="right">
       <Button
-        aria-label="安装学习中心到此设备"
+        aria-label="安装并打开学习中心"
         icon={<IconDownload />}
         size="default"
         type="tertiary"
         theme="borderless"
-        className="nav-footer-icon-button"
+        className="nav-footer-icon-button pwa-install-button"
         onClick={async () => {
           if (installPrompt) {
-            await installPrompt.prompt();
-            await installPrompt.userChoice;
             setInstallPrompt(null);
+            try {
+              await installPrompt.prompt();
+              const choice = await installPrompt.userChoice;
+              if (choice.outcome === 'accepted') {
+                setInstallationStatus('installed');
+              }
+            } catch {
+              Toast.error('未能打开安装窗口，请使用浏览器菜单安装应用');
+            }
           } else {
             Toast.info('请使用 Chrome、Edge 或 Safari 的“安装应用 / 添加到主屏幕”功能');
           }
