@@ -1,0 +1,27 @@
+name: learning-center
+
+services:
+  learning-center:
+    image: "${LEARNING_CENTER_IMAGE:?必须指定 LEARNING_CENTER_IMAGE}"
+    restart: unless-stopped
+    init: true
+    user: "${LEARNING_CENTER_UID:-1000}:${LEARNING_CENTER_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    ports:
+      - "127.0.0.1:${LEARNING_CENTER_HOST_PORT:-4174}:4174"
+    environment:
+      LEARNING_CENTER_MODE: remote
+      LEARNING_CENTER_USERNAME: "${LEARNING_CENTER_USERNAME:-reader}"
+      LEARNING_CENTER_PASSWORD: "${LEARNING_CENTER_PASSWORD:?必须设置 LEARNING_CENTER_PASSWORD}"
+      LEARNING_CENTER_DATA_DIR: /data
+      LEARNING_CENTER_PORT: 4174
+    volumes:
+      - type: bind
+        source: "${LEARNING_CENTER_DATA_DIR:-/srv/learning-center-data}"
+        target: /data

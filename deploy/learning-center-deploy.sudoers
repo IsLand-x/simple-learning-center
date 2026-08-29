@@ -1,0 +1,1 @@
+learning-deploy ALL=(root) NOPASSWD: /usr/local/sbin/deploy-learning-center *

@@ -10,6 +10,9 @@ RUN npm run verify && npm prune --omit=dev
 
 FROM node:22-alpine AS runtime
 
+LABEL org.opencontainers.image.source="https://github.com/IsLand-x/simple-learning-center" \
+    org.opencontainers.image.description="Local-first EPUB reader and AI learning center"
+
 ENV NODE_ENV=production \
     LEARNING_CENTER_MODE=remote \
     LEARNING_CENTER_DATA_DIR=/data \

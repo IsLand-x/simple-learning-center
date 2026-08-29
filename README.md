@@ -182,6 +182,19 @@ Linux 上如果挂载目录不可写，把 `.env` 中的 `LEARNING_CENTER_UID` �
 
 默认端口只绑定到宿主机回环地址。需要通过其他机器或 HTTPS 反向代理访问时，将 `LEARNING_CENTER_BIND_ADDRESS` 改为适当的监听地址；公开到网络前仍必须配置 HTTPS。升级时重新执行 `docker compose up -d --build`，挂载的数据目录不会被镜像重建覆盖。
 
+### 自动部署到 Docker 服务器
+
+`.github/workflows/deploy.yml` 在 `main` 分支更新后构建并验证镜像，将带有 Git commit digest 的不可变镜像发布到 GHCR，再通过专用 SSH 账号调用服务器上的受限部署脚本。服务器只在部署期间使用当前任务的短期 `GITHUB_TOKEN` 拉取镜像，不保存长期镜像仓库凭据。
+
+生产服务器使用 `deploy/compose.production.yaml`，部署目录固定为 `/opt/learning-center`，持久化数据默认保存在 `/srv/learning-center-data`。`deploy/deploy.sh` 会等待容器健康检查；新镜像启动失败时自动恢复上一个 digest。`deploy/learning-center-deploy.sudoers` 只允许部署账号执行受控脚本，`deploy/nginx.conf` 提供 HTTPS 签发前的反向代理配置。生产环境的 `.env` 只保存在服务器，不提交到 Git。
+
+GitHub 仓库需要创建 `production` Environment，并配置：
+
+- Secrets：`DEPLOY_SSH_KEY`、`DEPLOY_KNOWN_HOSTS`
+- Variables：`DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER`
+
+工作流默认发布到 `https://learning-center.island-x.autos`。HTTPS 反向代理应把请求转发到服务器回环地址 `127.0.0.1:4174`，不要直接把容器端口暴露到公网。
+
 ## AI 模型配置
 
 1. 打开左侧“设置”。
