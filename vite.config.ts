@@ -37,6 +37,8 @@ function addFoliateAdjacentSectionPreview(code: string) {
     '    #touchFrame',
     '    #touchDeltaX = 0',
     '    #touchDeltaY = 0',
+    '    #touchPagingBlocked = false',
+    '    #touchStartPosition = null',
     '    #adjacentPreviews = new Map()',
     '    #previewGenerations = new Map([[-1, 0], [1, 0]])',
     '    constructor() {',
@@ -373,8 +375,20 @@ function addFoliateAdjacentSectionPreview(code: string) {
     '        this.#touchDeltaX = 0',
     '        this.#touchDeltaY = 0',
     '    }',
+    '    cancelTouchPaging() {',
+    '        this.#touchPagingBlocked = true',
+    '        this.cancelTouchScroll()',
+    '        this.#touchScrolled = false',
+    '        if (this.#touchStartPosition != null)',
+    '            this.containerPosition = this.#touchStartPosition',
+    '    }',
     '    #onTouchStart(e) {',
     '        this.cancelTouchScroll()',
+    '        const doc = this.#view?.document',
+    '        const selection = doc?.getSelection()',
+    '        this.#touchPagingBlocked = Boolean(',
+    '            selection && selection.rangeCount > 0 && !selection.isCollapsed)',
+    '        this.#touchStartPosition = this.containerPosition',
     '        const touch = e.changedTouches[0]',
     '        this.#touchState = {',
     '            x: touch?.screenX, y: touch?.screenY,',
@@ -384,9 +398,9 @@ function addFoliateAdjacentSectionPreview(code: string) {
     '    }',
     '    #onTouchMove(e) {',
     '        const state = this.#touchState',
-    '        if (state.pinched) return',
+    '        if (!state || state.pinched) return',
     '        state.pinched = globalThis.visualViewport.scale > 1',
-    '        if (this.scrolled || state.pinched) return',
+    '        if (this.scrolled || state.pinched || this.#touchPagingBlocked) return',
     '        if (e.touches.length > 1) {',
     '            if (this.#touchScrolled) e.preventDefault()',
     '            return',
@@ -394,6 +408,7 @@ function addFoliateAdjacentSectionPreview(code: string) {
     '        const doc = this.#view?.document',
     '        const selection = doc?.getSelection()',
     '        if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {',
+    '            this.cancelTouchPaging()',
     '            return',
     '        }',
     '        e.preventDefault()',
@@ -414,6 +429,13 @@ function addFoliateAdjacentSectionPreview(code: string) {
     '        }',
     '    }',
     '    #onTouchEnd() {',
+    '        const state = this.#touchState',
+    '        if (!state) return',
+    '        if (this.#touchPagingBlocked) {',
+    '            this.cancelTouchScroll()',
+    '            this.#touchScrolled = false',
+    '            return',
+    '        }',
     '        this.#flushTouchScroll()',
     '        this.#touchScrolled = false',
     '        if (this.scrolled) return',
@@ -422,8 +444,10 @@ function addFoliateAdjacentSectionPreview(code: string) {
     "        // at this point I'm basically throwing `requestAnimationFrame` at",
     "        // anything that doesn't work",
     '        requestAnimationFrame(() => {',
-    '            if (globalThis.visualViewport.scale === 1)',
-    '                this.snap(this.#touchState.vx, this.#touchState.vy)',
+    '            if (!this.#touchPagingBlocked',
+    '                && this.#touchState === state',
+    '                && globalThis.visualViewport.scale === 1)',
+    '                this.snap(state.vx, state.vy)',
     '        })',
     '    }',
   ].join('\n');
@@ -432,6 +456,25 @@ function addFoliateAdjacentSectionPreview(code: string) {
     touchPagingSource,
     touchPagingReplacement,
     'Foliate paginator changed: touch paging optimization must be reviewed.',
+  );
+
+  // Foliate normally turns the page when a pointer selection crosses the
+  // visible column. Native mobile selection events can arrive after touchend,
+  // so the application needs a persistent paging block that also reaches this
+  // delayed callback.
+  const pointerSelectionSource = [
+    '        const checkPointerSelection = debounce((range, sel) => {',
+    '            if (!sel.rangeCount) return',
+  ].join('\n');
+  const pointerSelectionReplacement = [
+    '        const checkPointerSelection = debounce((range, sel) => {',
+    '            if (this.#touchPagingBlocked || !sel.rangeCount) return',
+  ].join('\n');
+  transformed = replaceFoliateSource(
+    transformed,
+    pointerSelectionSource,
+    pointerSelectionReplacement,
+    'Foliate paginator changed: selection paging guard must be reviewed.',
   );
 
   const pageAnimationSource = [

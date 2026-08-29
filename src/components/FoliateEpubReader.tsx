@@ -436,9 +436,11 @@ export function FoliateEpubReader({
         touchSelectionTimer = null;
       };
       const restoreTouchStartPosition = () => {
-        if (touchStartContainerPosition === null) return;
-        view.renderer.cancelTouchScroll?.();
-        view.renderer.containerPosition = touchStartContainerPosition;
+        if (view.renderer.cancelTouchPaging) view.renderer.cancelTouchPaging();
+        else view.renderer.cancelTouchScroll?.();
+        if (touchStartContainerPosition !== null) {
+          view.renderer.containerPosition = touchStartContainerPosition;
+        }
       };
       const handleTouchStartCapture = (touchEvent: TouchEvent) => {
         clearTouchSelectionTimer();

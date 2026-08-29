@@ -40,6 +40,7 @@ declare module 'foliate-js/view.js' {
     scrollBy?: (deltaX: number, deltaY: number) => void;
     snap?: (velocityX: number, velocityY: number) => void;
     cancelTouchScroll?: () => void;
+    cancelTouchPaging?: () => void;
     focusView?: () => void;
   }
 
