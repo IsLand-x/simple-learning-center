@@ -1,58 +1,21 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { stepCountIs, streamText, tool, type ModelMessage } from 'ai';
+import { stepCountIs, streamText, tool } from 'ai';
 import { z } from 'zod';
-import type {
-  AiDialogueContentItem,
-  BookItem,
-  HighlightItem,
-  NoteItem,
-  OpenAICompatibleConfig,
-  ReadingSession,
-  WebSearchConfig,
-} from '../types';
-import { readBookPassage, searchBookContent } from './bookSearch';
-import { readWebPage, searchWeb } from './webSearch';
+import { readBookPassage, searchBookContent } from './aiBookSearch.mjs';
+import { readWebPage, searchWeb } from './webSearch.mjs';
 
-export interface OpenAICompatibleChatProgress {
-  content: string;
-  dialogueContent: AiDialogueContentItem[];
-  status: 'in_progress' | 'completed';
-}
-
-interface ReasoningEntry {
-  kind: 'reasoning';
-  key: string;
-  text: string;
-  status: 'in_progress' | 'completed';
-}
-
-interface MessageEntry {
-  kind: 'message';
-  key: string;
-  text: string;
-  status: 'in_progress' | 'completed';
-}
-
-interface ToolEntry {
-  kind: 'tool';
-  key: string;
-  name: string;
-  arguments: string;
-  status: 'in_progress' | 'completed' | 'failed';
-}
-
-type StreamEntry = ReasoningEntry | MessageEntry | ToolEntry;
-
-function flattenToc(items: BookItem['toc']): string[] {
+function flattenToc(items = []) {
   return items.flatMap((item) => [item.label, ...flattenToc(item.subitems ?? [])]);
 }
 
-function formatDuration(durationMs: number) {
+function formatDuration(durationMs) {
   const minutes = Math.max(1, Math.round(durationMs / 60_000));
-  return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟`;
+  return minutes < 60
+    ? `${minutes} 分钟`
+    : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟`;
 }
 
-function normalizeBaseUrl(baseUrl: string) {
+function normalizeBaseUrl(baseUrl) {
   const normalized = baseUrl.trim().replace(/\/+$/, '');
   return normalized.endsWith('/chat/completions')
     ? normalized.slice(0, -'/chat/completions'.length)
@@ -67,14 +30,6 @@ function createAgentTools({
   readingSessions,
   webSearchConfig,
   signal,
-}: {
-  book: BookItem;
-  currentText: string;
-  notes: NoteItem[];
-  highlights: HighlightItem[];
-  readingSessions: ReadingSession[];
-  webSearchConfig: WebSearchConfig;
-  signal?: AbortSignal;
 }) {
   return {
     read_current_book: tool({
@@ -91,7 +46,7 @@ function createAgentTools({
       }),
     }),
     read_current_chapter: tool({
-      description: '读取阅读器当前加载章节的名称与正文。适合回答当前正在阅读位置附近的问题。',
+      description: '读取提问时阅读器当前加载章节的名称与正文。适合回答当前阅读位置附近的问题。',
       inputSchema: z.object({}),
       execute: async () => ({
         chapter: book.currentChapter,
@@ -148,7 +103,9 @@ function createAgentTools({
         query: z.string().min(1).describe('适合搜索引擎使用的查询词'),
         max_results: z.number().int().min(1).max(5).optional().describe('返回结果数量，默认 5'),
       }),
-      execute: async ({ query, max_results }) => searchWeb(webSearchConfig, query, max_results ?? 5, signal),
+      execute: async ({ query, max_results }) => (
+        searchWeb(webSearchConfig, query, max_results ?? 5, signal)
+      ),
     }),
     read_web_page: tool({
       description: '读取一个公开 HTTP/HTTPS 网页的正文。通常用于深入阅读 web_search 返回的 URL；引用网页信息时应保留 URL。',
@@ -160,16 +117,13 @@ function createAgentTools({
   };
 }
 
-function streamEntriesToProgress(
-  entries: StreamEntry[],
-  status: OpenAICompatibleChatProgress['status'],
-): OpenAICompatibleChatProgress {
+function streamEntriesToProgress(entries, status) {
   const content = entries
-    .filter((entry): entry is MessageEntry => entry.kind === 'message')
+    .filter((entry) => entry.kind === 'message')
     .map((entry) => entry.text.trim())
     .filter(Boolean)
     .join('\n\n');
-  const dialogueContent = entries.flatMap((entry): AiDialogueContentItem[] => {
+  const dialogueContent = entries.flatMap((entry) => {
     if (entry.kind === 'reasoning') {
       if (!entry.text) return [];
       return [{
@@ -199,7 +153,7 @@ function streamEntriesToProgress(
   return { content, dialogueContent, status };
 }
 
-function stringifyToolInput(input: unknown) {
+function stringifyToolInput(input) {
   try {
     return JSON.stringify(input);
   } catch {
@@ -207,12 +161,12 @@ function stringifyToolInput(input: unknown) {
   }
 }
 
-function errorMessage(error: unknown) {
+function errorMessage(error) {
   if (error instanceof Error) return error.message;
   return typeof error === 'string' ? error : '模型请求失败';
 }
 
-export async function runOpenAICompatibleChat({
+export async function runServerAiChat({
   config,
   model,
   messages,
@@ -224,29 +178,13 @@ export async function runOpenAICompatibleChat({
   webSearchConfig,
   signal,
   onProgress,
-}: {
-  config: OpenAICompatibleConfig;
-  model: string;
-  messages: Array<{
-    role: 'user' | 'assistant';
-    content: string;
-    quote?: { text: string; chapter: string };
-  }>;
-  book: BookItem;
-  currentText: string;
-  notes: NoteItem[];
-  highlights: HighlightItem[];
-  readingSessions: ReadingSession[];
-  webSearchConfig: WebSearchConfig;
-  signal?: AbortSignal;
-  onProgress?: (progress: OpenAICompatibleChatProgress) => void;
 }) {
   const provider = createOpenAICompatible({
     name: 'learningCenterCompatible',
     baseURL: normalizeBaseUrl(config.baseUrl),
     ...(config.apiKey ? { apiKey: config.apiKey } : {}),
   });
-  const requestMessages: ModelMessage[] = messages.map((message) => ({
+  const requestMessages = messages.map((message) => ({
     role: message.role,
     content: message.role === 'user' && message.quote
       ? [
@@ -285,8 +223,8 @@ export async function runOpenAICompatibleChat({
     maxRetries: 1,
   });
 
-  const entries: StreamEntry[] = [];
-  const entryByKey = new Map<string, StreamEntry>();
+  const entries = [];
+  const entryByKey = new Map();
   let step = -1;
   const publish = () => onProgress?.(streamEntriesToProgress(entries, 'in_progress'));
 
@@ -297,14 +235,14 @@ export async function runOpenAICompatibleChat({
     }
     if (part.type === 'reasoning-start') {
       const key = `reasoning:${step}:${part.id}`;
-      const entry: ReasoningEntry = { kind: 'reasoning', key, text: '', status: 'in_progress' };
+      const entry = { kind: 'reasoning', key, text: '', status: 'in_progress' };
       entries.push(entry);
       entryByKey.set(key, entry);
       continue;
     }
     if (part.type === 'reasoning-delta') {
       const key = `reasoning:${step}:${part.id}`;
-      let entry = entryByKey.get(key) as ReasoningEntry | undefined;
+      let entry = entryByKey.get(key);
       if (!entry) {
         entry = { kind: 'reasoning', key, text: '', status: 'in_progress' };
         entries.push(entry);
@@ -315,21 +253,21 @@ export async function runOpenAICompatibleChat({
       continue;
     }
     if (part.type === 'reasoning-end') {
-      const entry = entryByKey.get(`reasoning:${step}:${part.id}`) as ReasoningEntry | undefined;
+      const entry = entryByKey.get(`reasoning:${step}:${part.id}`);
       if (entry) entry.status = 'completed';
       publish();
       continue;
     }
     if (part.type === 'text-start') {
       const key = `message:${step}:${part.id}`;
-      const entry: MessageEntry = { kind: 'message', key, text: '', status: 'in_progress' };
+      const entry = { kind: 'message', key, text: '', status: 'in_progress' };
       entries.push(entry);
       entryByKey.set(key, entry);
       continue;
     }
     if (part.type === 'text-delta') {
       const key = `message:${step}:${part.id}`;
-      let entry = entryByKey.get(key) as MessageEntry | undefined;
+      let entry = entryByKey.get(key);
       if (!entry) {
         entry = { kind: 'message', key, text: '', status: 'in_progress' };
         entries.push(entry);
@@ -340,14 +278,14 @@ export async function runOpenAICompatibleChat({
       continue;
     }
     if (part.type === 'text-end') {
-      const entry = entryByKey.get(`message:${step}:${part.id}`) as MessageEntry | undefined;
+      const entry = entryByKey.get(`message:${step}:${part.id}`);
       if (entry) entry.status = 'completed';
       publish();
       continue;
     }
     if (part.type === 'tool-input-start') {
       const key = `tool:${part.id}`;
-      const entry: ToolEntry = {
+      const entry = {
         kind: 'tool',
         key,
         name: part.toolName,
@@ -360,14 +298,14 @@ export async function runOpenAICompatibleChat({
       continue;
     }
     if (part.type === 'tool-input-delta') {
-      const entry = entryByKey.get(`tool:${part.id}`) as ToolEntry | undefined;
+      const entry = entryByKey.get(`tool:${part.id}`);
       if (entry) entry.arguments += part.delta;
       publish();
       continue;
     }
     if (part.type === 'tool-call') {
       const key = `tool:${part.toolCallId}`;
-      let entry = entryByKey.get(key) as ToolEntry | undefined;
+      let entry = entryByKey.get(key);
       if (!entry) {
         entry = { kind: 'tool', key, name: part.toolName, arguments: '', status: 'in_progress' };
         entries.push(entry);
@@ -379,14 +317,14 @@ export async function runOpenAICompatibleChat({
       continue;
     }
     if (part.type === 'tool-result') {
-      const entry = entryByKey.get(`tool:${part.toolCallId}`) as ToolEntry | undefined;
+      const entry = entryByKey.get(`tool:${part.toolCallId}`);
       if (entry) entry.status = 'completed';
       publish();
       continue;
     }
     if (part.type === 'tool-error') {
       const key = `tool:${part.toolCallId}`;
-      let entry = entryByKey.get(key) as ToolEntry | undefined;
+      let entry = entryByKey.get(key);
       if (!entry) {
         entry = {
           kind: 'tool',

@@ -94,6 +94,124 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(importResponse.status, 400);
   });
 
+  await t.test('AI 任务在服务端运行并持久化对话', async () => {
+    const aiApp = createApp({
+      serveFrontend: false,
+      aiJobRunner: async ({ onProgress }) => {
+        onProgress({
+          content: '正在生成',
+          dialogueContent: [{
+            type: 'message',
+            role: 'assistant',
+            status: 'in_progress',
+            content: [{ type: 'output_text', text: '正在生成' }],
+          }],
+          status: 'in_progress',
+        });
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return {
+          content: '服务端回答',
+          dialogueContent: [{
+            type: 'message',
+            role: 'assistant',
+            status: 'completed',
+            content: [{ type: 'output_text', text: '服务端回答' }],
+          }],
+          status: 'completed',
+        };
+      },
+    });
+    const createResponse = await aiApp.request('/api/ai/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        configId: 'provider-1',
+        model: 'test-model',
+        bookId: 'book-1',
+        conversationId: 'conversation-1',
+        userMessage: {
+          id: 'user-message-1',
+          content: '请回答这个问题',
+          createdAt: 100,
+        },
+        session: { title: '测试对话', createdAt: 100 },
+        currentText: '当前章节正文',
+      }),
+    });
+    assert.equal(createResponse.status, 404);
+
+    const stateResponse = await aiApp.request('/api/state');
+    const state = await stateResponse.json();
+    state.state.books = [{
+      id: 'book-1',
+      kind: 'epub',
+      title: '测试书籍',
+      author: '作者',
+      fileName: 'book.epub',
+      fileSize: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      progress: 0,
+      currentChapter: '第一章',
+      toc: [],
+    }];
+    await aiApp.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state),
+    });
+
+    const acceptedResponse = await aiApp.request('/api/ai/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        configId: 'provider-1',
+        model: 'test-model',
+        bookId: 'book-1',
+        conversationId: 'conversation-1',
+        userMessage: {
+          id: 'user-message-1',
+          content: '请回答这个问题',
+          createdAt: 100,
+        },
+        session: { title: '测试对话', createdAt: 100 },
+        currentText: '当前章节正文',
+      }),
+    });
+    assert.equal(acceptedResponse.status, 202);
+    const acceptedJob = await acceptedResponse.json();
+
+    let completedJob;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const response = await aiApp.request(`/api/ai/jobs/${acceptedJob.id}`);
+      completedJob = await response.json();
+      if (completedJob.status === 'completed') break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.equal(completedJob.status, 'completed');
+    assert.equal(completedJob.content, '服务端回答');
+
+    const completedStateResponse = await aiApp.request('/api/state');
+    const completedState = await completedStateResponse.json();
+    assert.deepEqual(
+      completedState.state.chats.map((message) => [message.role, message.content]),
+      [['user', '请回答这个问题'], ['assistant', '服务端回答']],
+    );
+    assert.equal(completedState.state.chatSessions[0].id, 'conversation-1');
+
+    const staleClientState = structuredClone(completedState);
+    staleClientState.state.chats = staleClientState.state.chats
+      .filter((message) => message.role !== 'assistant');
+    await aiApp.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleClientState),
+    });
+    const protectedStateResponse = await aiApp.request('/api/state');
+    const protectedState = await protectedStateResponse.json();
+    assert.equal(protectedState.state.chats.at(-1).content, '服务端回答');
+  });
+
   await t.test('远程模式保护页面与 API', async () => {
     const remoteApp = createApp({
       mode: 'remote',

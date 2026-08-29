@@ -5,6 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import { rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { createApiKeyExport, importApiKeys, parseApiKeyImport } from './apiKeys.mjs';
+import { createAiJobManager } from './aiJobs.mjs';
 import {
   createAuthService,
   SESSION_COOKIE_NAME,
@@ -14,6 +15,7 @@ import {
   AUTH_FILE,
   DIST_DIRECTORY,
   MAX_AUTH_REQUEST_BYTES,
+  MAX_AI_JOB_REQUEST_BYTES,
   MAX_API_KEY_IMPORT_BYTES,
   MAX_BOOK_BYTES,
   MAX_INDEX_BYTES,
@@ -103,6 +105,7 @@ export function createApp({
   password = PASSWORD,
   serveFrontend = true,
   authFile = AUTH_FILE,
+  aiJobRunner,
 } = {}) {
   const app = new Hono();
   const auth = createAuthService({
@@ -111,6 +114,7 @@ export function createApp({
     defaultPassword: password,
   });
   const loginLimiter = createLoginLimiter();
+  const aiJobs = createAiJobManager({ runChat: aiJobRunner });
   const publicAuthPaths = new Set([
     '/api/auth/login',
     '/api/auth/logout',
@@ -198,7 +202,12 @@ export function createApp({
   });
   app.put('/api/state', async (c) => {
     const state = await readJsonRequest(c.req.raw, MAX_STATE_BYTES);
-    await writePersistedState(state, c.req.query('initialize') === '1');
+    const initializeOnly = c.req.query('initialize') === '1';
+    await writePersistedState(
+      state,
+      initializeOnly,
+      initializeOnly ? undefined : aiJobs.protectPersistedState,
+    );
     return noContent(c);
   });
   app.all('/api/state', methodNotAllowed);
@@ -220,6 +229,21 @@ export function createApp({
   });
   app.all('/api/api-keys/export', methodNotAllowed);
   app.all('/api/api-keys/import', methodNotAllowed);
+
+  app.post('/api/ai/jobs', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_AI_JOB_REQUEST_BYTES);
+    return c.json(await aiJobs.start(payload), 202);
+  });
+  app.get('/api/ai/jobs', (c) => c.json({
+    jobs: aiJobs.list({
+      bookId: c.req.query('bookId'),
+      conversationId: c.req.query('conversationId'),
+    }),
+  }));
+  app.get('/api/ai/jobs/:jobId', (c) => c.json(aiJobs.get(c.req.param('jobId'))));
+  app.delete('/api/ai/jobs/:jobId', (c) => c.json(aiJobs.cancel(c.req.param('jobId'))));
+  app.all('/api/ai/jobs', methodNotAllowed);
+  app.all('/api/ai/jobs/:jobId', methodNotAllowed);
 
   const bookRoute = '/api/books/:bookId';
   app.on(['GET', 'HEAD'], bookRoute, async (c) => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AIChatDialogue, AIChatInput, Button, Cascader, Dropdown, Empty, Input, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
@@ -16,11 +16,14 @@ import {
   IconSearch,
 } from '@douyinfe/semi-icons';
 import { confirmDialog } from '../lib/confirmDialog';
+import { cancelAiJob, getAiJob, listAiJobs, startAiJob, type AiJob } from '../lib/aiJobs';
+import { getBookPassages } from '../lib/bookSearch';
 import { formatRelativeTime } from '../lib/format';
 import { markdownNoteExcerpt, markdownNoteTitle } from '../lib/markdownNotes';
-import { runOpenAICompatibleChat, type OpenAICompatibleChatProgress } from '../lib/openAICompatibleClient';
+import { waitForServerStateWrites } from '../lib/serverStateStorage';
 import { useLearningStore } from '../store/useLearningStore';
 import type { AiDialogueContentItem, AiProvider, BookItem, ChatSession, HighlightItem, NoteItem, OpenAICompatibleConfig, RightPanel } from '../types';
+import { CspSafeChatContent } from './CspSafeChatContent';
 import { MarkdownNoteEditor } from './MarkdownNoteEditor';
 
 const { Text } = Typography;
@@ -138,11 +141,7 @@ function AiPanel({
 }) {
   const allChats = useLearningStore((state) => state.chats);
   const allSessions = useLearningStore((state) => state.chatSessions);
-  const allNotes = useLearningStore((state) => state.notes);
-  const allHighlights = useLearningStore((state) => state.highlights);
-  const allReadingSessions = useLearningStore((state) => state.readingSessions);
   const configs = useLearningStore((state) => state.openAIConfigs);
-  const webSearchConfig = useLearningStore((state) => state.webSearchConfig);
   const aiPreferences = useLearningStore((state) => state.aiPreferences);
   const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
   const createChatSession = useLearningStore((state) => state.createChatSession);
@@ -151,12 +150,6 @@ function AiPanel({
   const chats = useMemo(
     () => allChats.filter((message) => message.bookId === book.id && message.conversationId === conversationId),
     [allChats, book.id, conversationId],
-  );
-  const notes = useMemo(() => allNotes.filter((note) => note.bookId === book.id), [allNotes, book.id]);
-  const highlights = useMemo(() => allHighlights.filter((item) => item.bookId === book.id), [allHighlights, book.id]);
-  const readingSessions = useMemo(
-    () => allReadingSessions.filter((item) => item.bookId === book.id).sort((a, b) => b.startedAt - a.startedAt),
-    [allReadingSessions, book.id],
   );
   const currentSession = allSessions.find((session) => session.id === conversationId);
   const provider = aiPreferences.provider;
@@ -178,30 +171,118 @@ function AiPanel({
     id: string;
     role: 'assistant';
     content: AiDialogueContentItem[];
-    status: OpenAICompatibleChatProgress['status'] | 'failed';
+    status: 'queued' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
     createdAt: number;
   } | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const inputRef = useRef<ComponentRef<typeof AIChatInput>>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    abortRef.current?.abort();
     setStatusMessage('');
     if (!provider && configs[0]) {
       setAiPreferences({ provider: `api:${configs[0].id}`, model: configs[0].models[0] ?? '' });
       return;
     }
-    setStatus(selectedConfig && model ? 'ready' : 'unavailable');
+    if (!activeJobId) setStatus(selectedConfig && model ? 'ready' : 'unavailable');
     if (selectedConfig && model !== aiPreferences.model) setAiPreferences({ model });
-  }, [aiPreferences.model, configs, model, provider, selectedConfig, setAiPreferences]);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
+  }, [activeJobId, aiPreferences.model, configs, model, provider, selectedConfig, setAiPreferences]);
 
   useEffect(() => {
     setQuote(null);
     setStreamingAssistant(null);
+    setActiveJobId(null);
   }, [conversationId]);
+
+  const applyJob = useCallback((job: AiJob) => {
+    if (job.status === 'queued' || job.status === 'running') {
+      setActiveJobId(job.id);
+      setStreamingAssistant({
+        id: job.assistantMessageId,
+        role: 'assistant',
+        content: job.dialogueContent,
+        status: job.status === 'queued' ? 'queued' : 'in_progress',
+        createdAt: job.createdAt,
+      });
+      setStatus('generating');
+      setStatusMessage('服务端正在生成，关闭页面也不会中断');
+      return;
+    }
+    setActiveJobId(null);
+    if (job.status === 'completed') {
+      const store = useLearningStore.getState();
+      if (!store.chats.some((message) => message.id === job.assistantMessageId)) {
+        store.addChatMessage({
+          id: job.assistantMessageId,
+          bookId: job.bookId,
+          conversationId: job.conversationId,
+          role: 'assistant',
+          content: job.content,
+          dialogueContent: job.dialogueContent,
+          createdAt: job.createdAt,
+        });
+      }
+      setStreamingAssistant(null);
+      setStatus('ready');
+      setStatusMessage('');
+      return;
+    }
+    if (job.status === 'cancelled') {
+      setStreamingAssistant(null);
+      setStatus('ready');
+      setStatusMessage('已停止生成');
+      return;
+    }
+    setStreamingAssistant({
+      id: job.assistantMessageId,
+      role: 'assistant',
+      content: job.dialogueContent,
+      status: 'failed',
+      createdAt: job.createdAt,
+    });
+    setStatus('error');
+    setStatusMessage(job.error || '模型请求失败');
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    void listAiJobs(book.id, conversationId).then((jobs) => {
+      if (disposed) return;
+      const runningJob = jobs.find((job) => job.status === 'queued' || job.status === 'running');
+      if (runningJob) applyJob(runningJob);
+    }).catch((error) => {
+      if (!disposed) setStatusMessage(error instanceof Error ? error.message : '无法读取服务端任务');
+    });
+    return () => {
+      disposed = true;
+    };
+  }, [applyJob, book.id, conversationId]);
+
+  useEffect(() => {
+    if (!activeJobId) return undefined;
+    let disposed = false;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const job = await getAiJob(activeJobId);
+        if (disposed) return;
+        applyJob(job);
+        if (job.status === 'queued' || job.status === 'running') {
+          timer = window.setTimeout(poll, 800);
+        }
+      } catch (error) {
+        if (disposed) return;
+        setActiveJobId(null);
+        setStatus('error');
+        setStatusMessage(error instanceof Error ? error.message : '无法读取服务端任务');
+      }
+    };
+    void poll();
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
+  }, [activeJobId, applyJob]);
 
   useEffect(() => {
     if (!selectedText) return;
@@ -227,7 +308,6 @@ function AiPanel({
     if (!Array.isArray(selection) || selection.length < 2) return;
     const nextProvider = String(selection[0]) as AiProvider;
     const nextModel = String(selection[1]);
-    abortRef.current?.abort();
     setStatusMessage('');
     setAiPreferences({ provider: nextProvider, model: nextModel });
     if (currentSession) updateChatSession(currentSession.id, { provider: nextProvider, model: nextModel });
@@ -258,8 +338,9 @@ function AiPanel({
     const quoteForMessage = quote;
     ensureSession(question);
     const createdAt = Date.now();
+    const userMessageId = crypto.randomUUID();
     addChatMessage({
-      id: crypto.randomUUID(),
+      id: userMessageId,
       bookId: book.id,
       conversationId,
       role: 'user',
@@ -270,77 +351,51 @@ function AiPanel({
     setQuote(null);
 
     if (!selectedConfig || !model) return;
-    const controller = new AbortController();
-    const assistantMessageId = crypto.randomUUID();
-    const assistantCreatedAt = Date.now();
-    abortRef.current = controller;
+    const temporaryAssistantId = `pending:${userMessageId}`;
     setStreamingAssistant({
-      id: assistantMessageId,
+      id: temporaryAssistantId,
       role: 'assistant',
       content: [],
-      status: 'in_progress',
-      createdAt: assistantCreatedAt,
+      status: 'queued',
+      createdAt,
     });
     setStatus('generating');
-    setStatusMessage('');
+    setStatusMessage('正在准备书内索引…');
     try {
-      const answer = await runOpenAICompatibleChat({
-        config: selectedConfig,
+      await getBookPassages(book);
+      await waitForServerStateWrites();
+      const job = await startAiJob({
+        configId: selectedConfig.id,
         model,
-        messages: [
-          ...chats.map(({ role, content: messageContent, quote: messageQuote }) => ({
-            role,
-            content: messageContent,
-            ...(messageQuote ? { quote: messageQuote } : {}),
-          })),
-          { role: 'user', content: question, ...(quoteForMessage ? { quote: quoteForMessage } : {}) },
-        ],
-        book,
-        currentText: getCurrentText(),
-        notes,
-        highlights,
-        readingSessions,
-        webSearchConfig,
-        signal: controller.signal,
-        onProgress: (progress) => {
-          if (abortRef.current !== controller) return;
-          setStreamingAssistant({
-            id: assistantMessageId,
-            role: 'assistant',
-            content: progress.dialogueContent,
-            status: progress.status,
-            createdAt: assistantCreatedAt,
-          });
-        },
-      });
-      addChatMessage({
-        id: assistantMessageId,
         bookId: book.id,
         conversationId,
-        role: 'assistant',
-        content: answer.content,
-        dialogueContent: answer.dialogueContent,
-        createdAt: assistantCreatedAt,
+        userMessage: {
+          id: userMessageId,
+          content: question,
+          ...(quoteForMessage ? { quote: quoteForMessage } : {}),
+          createdAt,
+        },
+        session: {
+          title: currentSession?.title || makeConversationTitle(question),
+          createdAt: currentSession?.createdAt ?? createdAt,
+        },
+        currentText: getCurrentText(),
       });
-      setStreamingAssistant(null);
-      setStatus('ready');
-      setStatusMessage('');
+      applyJob(job);
     } catch (error) {
-      if (controller.signal.aborted) {
-        setStreamingAssistant(null);
-        setStatus('ready');
-        setStatusMessage('已停止生成');
-      } else {
-        setStreamingAssistant((message) => message ? { ...message, status: 'failed' } : null);
-        setStatus('error');
-        setStatusMessage(error instanceof Error ? error.message : '请求失败');
-      }
-    } finally {
-      if (abortRef.current === controller) abortRef.current = null;
+      setStreamingAssistant((message) => message ? { ...message, status: 'failed' } : null);
+      setStatus('error');
+      setStatusMessage(error instanceof Error ? error.message : '请求失败');
     }
   };
 
-  const stop = () => abortRef.current?.abort();
+  const stop = () => {
+    if (!activeJobId) return;
+    void cancelAiJob(activeJobId).then(applyJob).catch((error) => {
+      setStatus('error');
+      setStatusMessage(error instanceof Error ? error.message : '停止任务失败');
+    });
+  };
 
   const dialogueMessages = [
     ...chats.map((message) => ({
@@ -413,6 +468,7 @@ function AiPanel({
               renderDialogueAvatar: () => null,
               renderDialogueTitle: () => null,
               renderDialogueAction: () => null,
+              renderDialogueContent: ({ message }) => <CspSafeChatContent message={message} />,
             }}
           />
         ) : <Empty title="开始新的对话" description="Agent 会按需检索整本书、学习记录与联网资料" />}

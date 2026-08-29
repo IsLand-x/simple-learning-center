@@ -226,12 +226,15 @@ export async function readPersistedState() {
   return readPersistedStateFromDisk();
 }
 
-export function writePersistedState(persistedState, initializeOnly = false) {
+export function writePersistedState(persistedState, initializeOnly = false, transform) {
   const operation = stateWriteQueue.catch(() => undefined).then(async () => {
     if (initializeOnly && await exists(STATE_FILE)) {
       throw statusError(409, '服务端已经包含数据');
     }
-    await persistState(persistedState);
+    const nextState = transform
+      ? await transform(structuredClone(persistedState))
+      : persistedState;
+    await persistState(nextState);
   });
   stateWriteQueue = operation;
   return operation;
@@ -241,7 +244,7 @@ export function mutatePersistedState(mutator) {
   const operation = stateWriteQueue.catch(() => undefined).then(async () => {
     const persistedState = await readPersistedStateFromDisk();
     if (!persistedState) {
-      throw statusError(409, '服务端尚未初始化，无法导入 API Key');
+      throw statusError(409, '服务端尚未初始化，无法修改数据');
     }
     const nextState = structuredClone(persistedState);
     const result = await mutator(nextState);

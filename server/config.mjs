@@ -25,6 +25,7 @@ export const MAX_INDEX_BYTES = 256 * 1024 * 1024;
 export const MAX_BOOK_BYTES = 2 * 1024 * 1024 * 1024;
 export const MAX_API_KEY_IMPORT_BYTES = 1024 * 1024;
 export const MAX_AUTH_REQUEST_BYTES = 8 * 1024;
+export const MAX_AI_JOB_REQUEST_BYTES = 512 * 1024;
 
 export function validateServerConfig() {
   if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65_535) {

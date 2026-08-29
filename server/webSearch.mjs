@@ -1,21 +1,4 @@
-import type { WebSearchConfig } from '../types';
-
-interface JinaDocument {
-  title?: string;
-  url?: string;
-  description?: string;
-  content?: string;
-  publishedTime?: string;
-}
-
-interface JinaResponse {
-  code?: number;
-  status?: number;
-  message?: string;
-  data?: JinaDocument | JinaDocument[];
-}
-
-function jinaHeaders(config: WebSearchConfig, tokenBudget: number) {
+function jinaHeaders(config, tokenBudget) {
   return {
     Accept: 'application/json',
     Authorization: `Bearer ${config.apiKey.trim()}`,
@@ -23,12 +6,12 @@ function jinaHeaders(config: WebSearchConfig, tokenBudget: number) {
   };
 }
 
-async function readJinaResponse(response: Response) {
+async function readJinaResponse(response) {
   const body = await response.text();
   if (!response.ok) {
     let details = body.slice(0, 300);
     try {
-      const payload = JSON.parse(body) as JinaResponse;
+      const payload = JSON.parse(body);
       details = payload.message || details;
     } catch {
       // Preserve the short text response when the service did not return JSON.
@@ -36,28 +19,23 @@ async function readJinaResponse(response: Response) {
     throw new Error(`联网服务请求失败（${response.status}）${details ? `：${details}` : ''}`);
   }
   try {
-    return JSON.parse(body) as JinaResponse;
+    return JSON.parse(body);
   } catch {
-    return { data: { content: body } } satisfies JinaResponse;
+    return { data: { content: body } };
   }
 }
 
-function requireApiKey(config: WebSearchConfig) {
-  if (!config.apiKey.trim()) {
+function requireApiKey(config) {
+  if (!config?.apiKey?.trim()) {
     throw new Error('尚未配置 Jina API Key，请先在设置页配置联网搜索');
   }
 }
 
-function cleanText(value: string | undefined, maxLength: number) {
-  return (value ?? '').replace(/\n{3,}/g, '\n\n').trim().slice(0, maxLength);
+function cleanText(value, maxLength) {
+  return String(value ?? '').replace(/\n{3,}/g, '\n\n').trim().slice(0, maxLength);
 }
 
-export async function searchWeb(
-  config: WebSearchConfig,
-  query: string,
-  maxResults = 5,
-  signal?: AbortSignal,
-) {
+export async function searchWeb(config, query, maxResults = 5, signal) {
   requireApiKey(config);
   const cleanedQuery = query.trim();
   if (!cleanedQuery) throw new Error('联网搜索词不能为空');
@@ -79,9 +57,9 @@ export async function searchWeb(
   };
 }
 
-export async function readWebPage(config: WebSearchConfig, targetUrl: string, signal?: AbortSignal) {
+export async function readWebPage(config, targetUrl, signal) {
   requireApiKey(config);
-  let url: URL;
+  let url;
   try {
     url = new URL(targetUrl);
   } catch {

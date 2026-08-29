@@ -42,7 +42,7 @@ git diff --check
 
 - `src/pages/`：页面级路由与功能编排。
 - `src/components/`：可复用界面、阅读器和侧边栏组件。
-- `src/lib/`：EPUB、服务端存储适配、旧浏览器数据迁移、字体和 OpenAI 兼容请求等基础能力。
+- `src/lib/`：EPUB、服务端存储适配、旧浏览器数据迁移、字体和 AI 任务 API 等基础能力。
 - `server/`：静态站点、本地数据 API、远程访问认证和开发启动编排。
 - `src/store/`：跨页面状态、持久化和数据迁移。
 - `src/types.ts`：共享领域类型。
@@ -86,7 +86,8 @@ git diff --check
 
 ## AI 助手约定
 
-- AI 通过 Vercel AI SDK 的 OpenAI Compatible Provider，在浏览器中直连用户配置的 `/chat/completions` 端点。
+- AI 通过服务端的 Vercel AI SDK OpenAI Compatible Provider 请求用户配置的 `/chat/completions` 端点；浏览器只创建、查询和取消服务端 AI 任务，不得重新直连模型供应商。
+- 服务端 AI 任务在浏览器关闭或网络暂时断开后继续运行，完成结果写入数据目录；应用服务或容器重启时允许中断尚未完成的内存任务，并应向用户明确这一限制。
 - 不要重新引入 ACP、Codex CLI、Kimi CLI 桥接服务器或相关启动脚本。
 - 模型配置支持多个供应商和多个模型；选择器先选供应商，再选模型，收起状态只展示模型名称。
 - 当前书籍、章节、笔记、高亮、评论、阅读轨迹、书内搜索、段落读取、联网搜索和网页读取默认作为 Agent 工具提供，避免增加手动勾选上下文的下拉框。
