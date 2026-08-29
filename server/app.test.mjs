@@ -367,4 +367,34 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(logoutResponse.status, 204);
     assert.match(logoutResponse.headers.get('set-cookie'), /Max-Age=0/i);
   });
+
+  await t.test('局域网 HTTP 测试可显式关闭 Secure Cookie', async () => {
+    const lanApp = createApp({
+      mode: 'remote',
+      username: 'admin',
+      password: 'password',
+      secureCookie: false,
+      serveFrontend: false,
+      authFile: join(testDataDirectory, 'lan-auth.json'),
+    });
+    const loginResponse = await lanApp.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'password' }),
+    });
+    assert.equal(loginResponse.status, 200);
+    const setCookieHeader = loginResponse.headers.get('set-cookie');
+    assert.match(setCookieHeader, /HttpOnly/i);
+    assert.doesNotMatch(setCookieHeader, /; Secure/i);
+
+    const sessionCookie = setCookieHeader?.split(';', 1)[0];
+    const sessionResponse = await lanApp.request('/api/auth/session', {
+      headers: { Cookie: sessionCookie },
+    });
+    assert.deepEqual(await sessionResponse.json(), {
+      authenticated: true,
+      mode: 'remote',
+      username: 'admin',
+    });
+  });
 });

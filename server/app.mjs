@@ -23,6 +23,7 @@ import {
   MAX_STATE_BYTES,
   MODE,
   PASSWORD,
+  SECURE_COOKIE,
   STATE_FILE,
   USERNAME,
 } from './config.mjs';
@@ -106,6 +107,7 @@ export function createApp({
   mode = MODE,
   username = USERNAME,
   password = PASSWORD,
+  secureCookie = SECURE_COOKIE,
   serveFrontend = true,
   authFile = AUTH_FILE,
   aiJobRunner,
@@ -118,6 +120,7 @@ export function createApp({
   });
   const loginLimiter = createLoginLimiter();
   const aiJobs = createAiJobManager({ runChat: aiJobRunner });
+  const cookieOptions = { ...sessionCookieOptions, secure: secureCookie };
   const publicAuthPaths = new Set([
     '/api/auth/login',
     '/api/auth/logout',
@@ -175,17 +178,17 @@ export function createApp({
       return c.json({ error: '账号或密码不正确' }, 401);
     }
     loginLimiter.clear(clientAddress);
-    setCookie(c, SESSION_COOKIE_NAME, token, sessionCookieOptions);
+    setCookie(c, SESSION_COOKIE_NAME, token, cookieOptions);
     return c.json({ username: await auth.getUsername() });
   });
   app.post('/api/auth/logout', (c) => {
-    deleteCookie(c, SESSION_COOKIE_NAME, { path: '/', secure: true });
+    deleteCookie(c, SESSION_COOKIE_NAME, { path: '/', secure: secureCookie });
     return noContent(c);
   });
   app.put('/api/auth/credentials', async (c) => {
     const payload = await readJsonRequest(c.req.raw, MAX_AUTH_REQUEST_BYTES);
     const next = await auth.updatePassword(validatePassword(payload?.password, '新密码'));
-    setCookie(c, SESSION_COOKIE_NAME, next.token, sessionCookieOptions);
+    setCookie(c, SESSION_COOKIE_NAME, next.token, cookieOptions);
     return c.json({ username: next.username });
   });
   app.all('/api/auth/session', methodNotAllowed);

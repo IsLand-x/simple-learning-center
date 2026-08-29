@@ -19,6 +19,7 @@ export const HOST = MODE === 'remote' ? '0.0.0.0' : '127.0.0.1';
 export const PORT = Number.parseInt(process.env.LEARNING_CENTER_PORT || '4174', 10);
 export const USERNAME = process.env.LEARNING_CENTER_USERNAME || 'admin';
 export const PASSWORD = process.env.LEARNING_CENTER_PASSWORD || 'password';
+export const SECURE_COOKIE = process.env.LEARNING_CENTER_SECURE_COOKIE !== 'false';
 
 export const MAX_STATE_BYTES = 64 * 1024 * 1024;
 export const MAX_INDEX_BYTES = 256 * 1024 * 1024;

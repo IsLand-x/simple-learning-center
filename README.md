@@ -149,8 +149,11 @@ npm start
 | `LEARNING_CENTER_PASSWORD` | `password` | 数据目录首次初始化时使用的登录密码 |
 | `LEARNING_CENTER_PORT` | `4174` | Node 服务端口 |
 | `LEARNING_CENTER_DATA_DIR` | `./data` | 用户数据目录 |
+| `LEARNING_CENTER_SECURE_COOKIE` | `true` | 是否仅通过 HTTPS 发送登录 Cookie；只在可信局域网 HTTP 测试时临时设为 `false` |
 
 内置服务提供 HTTP，不直接管理 TLS。对公网开放时必须放在 Nginx、Caddy 或其他 HTTPS 反向代理后面，不要用明文 HTTP 传输密码、书籍和 API Key。
+
+需要临时用手机在同一可信局域网内通过 HTTP 验证时，可以设置 `LEARNING_CENTER_SECURE_COOKIE=false`。该选项会让登录 Cookie 在 HTTP 下生效，但不应与端口映射、公网 IP 或其他不可信网络一起使用；验证完成后应恢复为 `true`。
 
 首次登录时，环境变量中的账号密码会生成 `data/auth.json`；密码仅保存带随机盐的哈希，连续登录失败会触发短时限制。登录后可以在“设置 → 账户”中为当前账号设置新密码，修改结果保存在数据目录并优先于环境变量，容器重启后仍然有效。若数据目录已存在，单独修改 Docker 环境变量不会覆盖设置页保存的凭据。
 
