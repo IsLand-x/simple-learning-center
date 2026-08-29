@@ -1,18 +1,19 @@
 import { mutatePersistedState } from './storage.mjs';
+import { statusError } from './errors.mjs';
 
 export const API_KEY_EXPORT_FORMAT = 'learning-center-api-keys';
 export const API_KEY_EXPORT_VERSION = 1;
 
 function requiredString(value, field, maxLength = 10_000) {
   if (typeof value !== 'string' || !value.trim() || value.length > maxLength) {
-    throw new Error(`${field} 不正确`);
+    throw statusError(400, `${field} 不正确`);
   }
   return value.trim();
 }
 
 function optionalKey(value, field) {
   if (typeof value !== 'string' || value.length > 64 * 1024) {
-    throw new Error(`${field} 不正确`);
+    throw statusError(400, `${field} 不正确`);
   }
   return value.trim();
 }
@@ -23,17 +24,17 @@ function validateHttpUrl(value, field) {
   try {
     url = new URL(normalized);
   } catch {
-    throw new Error(`${field} 不正确`);
+    throw statusError(400, `${field} 不正确`);
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error(`${field} 只支持 HTTP 或 HTTPS`);
+    throw statusError(400, `${field} 只支持 HTTP 或 HTTPS`);
   }
   return normalized;
 }
 
 function validateModels(value, index) {
   if (!Array.isArray(value) || !value.length || value.length > 200) {
-    throw new Error(`第 ${index + 1} 个模型配置的模型列表不正确`);
+    throw statusError(400, `第 ${index + 1} 个模型配置的模型列表不正确`);
   }
   return Array.from(new Set(value.map((model) => (
     requiredString(model, `第 ${index + 1} 个模型名称`, 500)
@@ -68,22 +69,22 @@ export function createApiKeyExport(persistedState) {
 
 export function parseApiKeyImport(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error('API Key 导入文件格式不正确');
+    throw statusError(400, 'API Key 导入文件格式不正确');
   }
   if (value.format !== API_KEY_EXPORT_FORMAT || value.version !== API_KEY_EXPORT_VERSION) {
-    throw new Error('不支持的 API Key 导入文件');
+    throw statusError(400, '不支持的 API Key 导入文件');
   }
   if (!Array.isArray(value.openAIConfigs) || value.openAIConfigs.length > 100) {
-    throw new Error('模型 API Key 列表不正确');
+    throw statusError(400, '模型 API Key 列表不正确');
   }
 
   const ids = new Set();
   const openAIConfigs = value.openAIConfigs.map((config, index) => {
     if (!config || typeof config !== 'object' || Array.isArray(config)) {
-      throw new Error(`第 ${index + 1} 个模型配置不正确`);
+      throw statusError(400, `第 ${index + 1} 个模型配置不正确`);
     }
     const id = requiredString(config.id, `第 ${index + 1} 个模型配置 ID`, 200);
-    if (ids.has(id)) throw new Error(`模型配置 ID “${id}” 重复`);
+    if (ids.has(id)) throw statusError(400, `模型配置 ID “${id}” 重复`);
     ids.add(id);
     return {
       id,
@@ -101,7 +102,7 @@ export function parseApiKeyImport(value) {
       || Array.isArray(value.webSearchConfig)
       || value.webSearchConfig.provider !== 'jina'
     ) {
-      throw new Error('联网搜索 API Key 配置不正确');
+      throw statusError(400, '联网搜索 API Key 配置不正确');
     }
     webSearchConfig = {
       provider: 'jina',

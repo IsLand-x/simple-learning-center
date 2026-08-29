@@ -53,7 +53,12 @@ async function storedFileResponse(c, path) {
   return response;
 }
 
-export function createApp() {
+export function createApp({
+  mode = MODE,
+  username = USERNAME,
+  password = PASSWORD,
+  serveFrontend = true,
+} = {}) {
   const app = new Hono();
 
   app.use('/api/*', async (c, next) => {
@@ -62,10 +67,10 @@ export function createApp() {
     c.header('X-Content-Type-Options', 'nosniff');
   });
 
-  if (MODE === 'remote') {
+  if (mode === 'remote') {
     app.use('*', basicAuth({
-      username: USERNAME,
-      password: PASSWORD,
+      username,
+      password,
       realm: 'Learning Center',
       invalidUserMessage: (c) => (
         c.req.path.startsWith('/api/')
@@ -77,7 +82,7 @@ export function createApp() {
 
   app.get('/api/health', async (c) => c.json({
     initialized: await exists(STATE_FILE),
-    mode: MODE,
+    mode,
   }));
   app.all('/api/health', methodNotAllowed);
 
@@ -150,22 +155,27 @@ export function createApp() {
 
   app.all('/api/*', (c) => c.json({ error: '接口不存在' }, 404));
 
-  app.get('*', serveStatic({ root: DIST_DIRECTORY }));
-  app.get('*', async (c, next) => {
-    const indexPath = join(DIST_DIRECTORY, 'index.html');
-    if (!await exists(indexPath)) {
-      return c.json({ error: '前端尚未构建，请先运行 npm run build' }, 503);
-    }
-    c.header('Cache-Control', 'no-cache');
-    return serveStatic({ root: DIST_DIRECTORY, path: 'index.html' })(c, next);
-  });
-  app.all('*', methodNotAllowed);
+  if (serveFrontend) {
+    app.get('*', serveStatic({ root: DIST_DIRECTORY }));
+    app.get('*', async (c, next) => {
+      const indexPath = join(DIST_DIRECTORY, 'index.html');
+      if (!await exists(indexPath)) {
+        return c.json({ error: '前端尚未构建，请先运行 npm run build' }, 503);
+      }
+      c.header('Cache-Control', 'no-cache');
+      return serveStatic({ root: DIST_DIRECTORY, path: 'index.html' })(c, next);
+    });
+    app.all('*', methodNotAllowed);
+  }
 
   app.onError((error, c) => {
     if (error instanceof HTTPException) return error.getResponse();
-    const status = Number.isInteger(error?.status) ? error.status : 500;
+    const requestedStatus = Number.isInteger(error?.status) ? error.status : 500;
+    const status = requestedStatus >= 400 && requestedStatus <= 599 ? requestedStatus : 500;
     if (status >= 500) console.error(error);
-    const message = error instanceof Error ? error.message : '服务器处理失败';
+    const message = status >= 500
+      ? '服务器处理失败'
+      : error instanceof Error ? error.message : '请求处理失败';
     if (c.req.path.startsWith('/api/')) return c.json({ error: message }, status);
     return c.text(message, status);
   });

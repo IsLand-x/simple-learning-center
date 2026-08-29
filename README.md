@@ -113,7 +113,9 @@ http://127.0.0.1:5173/
 其他常用命令：
 
 ```bash
+npm test         # 运行服务端数据、API Key 与认证回归测试
 npm run build    # 类型检查并生成生产构建与 PWA 文件
+npm run verify   # 依次执行测试和生产构建
 npm run preview  # 使用 Node 服务运行现有生产构建
 ```
 
@@ -141,6 +143,44 @@ npm start
 | `LEARNING_CENTER_DATA_DIR` | `./data` | 用户数据目录 |
 
 内置服务提供 HTTP，不直接管理 TLS。对公网开放时必须放在 Nginx、Caddy 或其他 HTTPS 反向代理后面，不要用明文 HTTP 传输密码、书籍和 API Key。
+
+### Docker 部署
+
+仓库提供多阶段 `Dockerfile` 和 `compose.yaml`。镜像以非 root 用户运行，应用文件系统保持只读；唯一需要持久化的 `/data` 会绑定到宿主机指定目录。书籍、笔记、搜索索引、应用状态和 API Key 都在这个目录中，迁移或备份时复制整个目录即可。
+
+先创建配置文件并填写强密码：
+
+```bash
+cp .env.example .env
+```
+
+`.env` 中最重要的配置如下：
+
+```dotenv
+LEARNING_CENTER_PASSWORD=请替换为足够长的随机密码
+LEARNING_CENTER_DATA_DIR=/srv/learning-center-data
+LEARNING_CENTER_BIND_ADDRESS=127.0.0.1
+LEARNING_CENTER_PORT=4174
+```
+
+创建数据目录并启动：
+
+```bash
+mkdir -p /srv/learning-center-data
+docker compose up -d --build
+```
+
+默认访问 `http://127.0.0.1:4174/`，使用 `.env` 中的用户名和密码登录。查看状态和停止服务：
+
+```bash
+docker compose ps
+docker compose logs -f learning-center
+docker compose down
+```
+
+Linux 上如果挂载目录不可写，把 `.env` 中的 `LEARNING_CENTER_UID` 和 `LEARNING_CENTER_GID` 设置为 `id -u`、`id -g` 的结果，并确保数据目录属于该用户。Docker Desktop 通常可以保留默认的 `1000:1000`。
+
+默认端口只绑定到宿主机回环地址。需要通过其他机器或 HTTPS 反向代理访问时，将 `LEARNING_CENTER_BIND_ADDRESS` 改为适当的监听地址；公开到网络前仍必须配置 HTTPS。升级时重新执行 `docker compose up -d --build`，挂载的数据目录不会被镜像重建覆盖。
 
 ## AI 模型配置
 

@@ -19,12 +19,13 @@ import {
   SEARCH_INDEX_DIRECTORY,
   STATE_FILE,
 } from './config.mjs';
+import { statusError } from './errors.mjs';
 
 let stateWriteQueue = Promise.resolve();
 
 export function encodedId(value) {
   if (typeof value !== 'string' || !value || value.length > 200 || value.includes('\0')) {
-    throw new Error('资源标识不正确');
+    throw statusError(400, '资源标识不正确');
   }
   // encodeURIComponent leaves dots untouched. Escaping them prevents special
   // path segments such as `..` from ever reaching join().
@@ -79,24 +80,20 @@ export async function atomicWrite(path, data) {
 export async function readRequestBody(request, maxBytes) {
   const declaredSize = Number.parseInt(request.headers.get('content-length') || '0', 10);
   if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
-    const error = new Error('请求内容过大');
-    error.status = 413;
-    throw error;
+    throw statusError(413, '请求内容过大');
   }
-  if (!request.body) throw new Error('请求内容为空');
+  if (!request.body) throw statusError(400, '请求内容为空');
 
   const chunks = [];
   let size = 0;
   for await (const chunk of request.body) {
     size += chunk.byteLength;
     if (size > maxBytes) {
-      const error = new Error('请求内容过大');
-      error.status = 413;
-      throw error;
+      throw statusError(413, '请求内容过大');
     }
     chunks.push(Buffer.from(chunk));
   }
-  if (!size) throw new Error('请求内容为空');
+  if (!size) throw statusError(400, '请求内容为空');
   return Buffer.concat(chunks, size);
 }
 
@@ -105,7 +102,7 @@ export async function readJsonRequest(request, maxBytes) {
   try {
     return JSON.parse(body.toString('utf8'));
   } catch {
-    throw new Error('JSON 数据格式不正确');
+    throw statusError(400, 'JSON 数据格式不正确');
   }
 }
 
@@ -116,14 +113,13 @@ export async function writeRequestToFile(readable, targetPath, maxBytes) {
   const limiter = new Transform({
     transform(chunk, _encoding, callback) {
       size += chunk.length;
-      const error = size > maxBytes ? new Error('上传文件过大') : null;
-      if (error) error.status = 413;
+      const error = size > maxBytes ? statusError(413, '上传文件过大') : null;
       callback(error, chunk);
     },
   });
   try {
     await pipeline(readable, limiter, createWriteStream(temporaryPath, { mode: 0o600 }));
-    if (!size) throw new Error('上传文件为空');
+    if (!size) throw statusError(400, '上传文件为空');
     await rename(temporaryPath, targetPath);
   } catch (error) {
     await rm(temporaryPath, { force: true });
@@ -149,7 +145,7 @@ async function listMarkdownFiles(directory) {
 
 async function prepareStateForDisk(persistedState) {
   if (!persistedState || typeof persistedState !== 'object' || !persistedState.state) {
-    throw new Error('状态数据格式不正确');
+    throw statusError(400, '状态数据格式不正确');
   }
   const diskState = structuredClone(persistedState);
   const notes = persistedStateNotes(diskState);
@@ -233,9 +229,7 @@ export async function readPersistedState() {
 export function writePersistedState(persistedState, initializeOnly = false) {
   const operation = stateWriteQueue.catch(() => undefined).then(async () => {
     if (initializeOnly && await exists(STATE_FILE)) {
-      const conflict = new Error('服务端已经包含数据');
-      conflict.status = 409;
-      throw conflict;
+      throw statusError(409, '服务端已经包含数据');
     }
     await persistState(persistedState);
   });
@@ -247,9 +241,7 @@ export function mutatePersistedState(mutator) {
   const operation = stateWriteQueue.catch(() => undefined).then(async () => {
     const persistedState = await readPersistedStateFromDisk();
     if (!persistedState) {
-      const error = new Error('服务端尚未初始化，无法导入 API Key');
-      error.status = 409;
-      throw error;
+      throw statusError(409, '服务端尚未初始化，无法导入 API Key');
     }
     const nextState = structuredClone(persistedState);
     const result = await mutator(nextState);

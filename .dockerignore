@@ -1,0 +1,13 @@
+.git
+.github
+.DS_Store
+.env*
+data
+dist
+node_modules
+coverage
+work
+outputs
+*.epub
+*.log
+*.tsbuildinfo
