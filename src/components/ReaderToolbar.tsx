@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, ButtonGroup, ColorPicker, InputNumber, Popover, Select, Tooltip } from '@douyinfe/semi-ui';
-import { IconChevronLeft, IconChevronRight, IconColorPalette, IconSidebar } from '@douyinfe/semi-icons';
+import { IconApps, IconChevronLeft, IconChevronRight, IconColorPalette, IconSidebar } from '@douyinfe/semi-icons';
 import { ensureReaderFontStylesheet, READER_FONT_OPTIONS, READER_FONT_STACKS } from '../lib/readerFonts';
 import {
   DEFAULT_READER_CUSTOM_STYLE,
@@ -13,15 +13,26 @@ import {
 } from '../lib/readerThemes';
 import type { ReaderCustomStyle, ReaderFont, ReaderPreferences } from '../types';
 
-interface ReaderToolbarProps {
-  preferences: ReaderPreferences;
+interface ReaderToolbarNavigationProps {
   tocCollapsed: boolean;
-  onChangePreferences: (changes: Partial<ReaderPreferences>) => void;
   onToggleToc: () => void;
   onPrev: () => void;
   onNext: () => void;
+}
+
+interface ReaderStylePanelProps {
+  preferences: ReaderPreferences;
+  onChangePreferences: (changes: Partial<ReaderPreferences>) => void;
+}
+
+interface ReaderDesktopToolbarProps extends ReaderToolbarNavigationProps, ReaderStylePanelProps {
   stylePopoverVisible: boolean;
   onStylePopoverVisibleChange: (visible: boolean) => void;
+}
+
+interface ReaderMobileToolbarProps extends ReaderToolbarNavigationProps {
+  moreOpen: boolean;
+  onToggleMore: () => void;
 }
 
 function FontPreview({ font, label }: { font: ReaderFont; label: string }) {
@@ -32,25 +43,15 @@ function FontPreview({ font, label }: { font: ReaderFont; label: string }) {
   );
 }
 
-export function ReaderToolbar({
+export function ReaderStylePanel({
   preferences,
-  tocCollapsed,
   onChangePreferences,
-  onToggleToc,
-  onPrev,
-  onNext,
-  stylePopoverVisible,
-  onStylePopoverVisibleChange,
-}: ReaderToolbarProps) {
+}: ReaderStylePanelProps) {
   const [visibleColorPicker, setVisibleColorPicker] = useState<'paper' | 'text' | null>(null);
 
   useEffect(() => {
     void Promise.all(READER_FONT_OPTIONS.map((font) => ensureReaderFontStylesheet(document, font.value)));
   }, []);
-
-  useEffect(() => {
-    if (!stylePopoverVisible) setVisibleColorPicker(null);
-  }, [stylePopoverVisible]);
 
   const customStyle = preferences.customStyle;
   const customPreview = resolveReaderStyle({ ...preferences, theme: 'custom' });
@@ -271,6 +272,67 @@ export function ReaderToolbar({
         </label>
       </div>
     </div>
+  );
+
+  return stylePanel;
+}
+
+export function ReaderMobileToolbar({
+  tocCollapsed,
+  onToggleToc,
+  onPrev,
+  onNext,
+  moreOpen,
+  onToggleMore,
+}: ReaderMobileToolbarProps) {
+  return (
+    <div className="reader-toolbar reader-toolbar--mobile" aria-label="移动端阅读工具栏">
+      <Button
+        aria-label={tocCollapsed ? '打开书籍目录' : '收起书籍目录'}
+        aria-pressed={!tocCollapsed}
+        icon={<IconSidebar />}
+        theme="borderless"
+        type="tertiary"
+        onClick={onToggleToc}
+      >
+        目录
+      </Button>
+      <Button aria-label="上一页" icon={<IconChevronLeft />} theme="borderless" type="tertiary" onClick={onPrev}>
+        上一页
+      </Button>
+      <Button aria-label="下一页" icon={<IconChevronRight />} theme="borderless" type="tertiary" onClick={onNext}>
+        下一页
+      </Button>
+      <Button
+        aria-label={moreOpen ? '收起更多功能' : '打开更多功能，默认显示 AI 助手'}
+        aria-pressed={moreOpen}
+        className={moreOpen ? 'mobile-reader-tool--active' : ''}
+        icon={<IconApps />}
+        theme="borderless"
+        type="tertiary"
+        onClick={onToggleMore}
+      >
+        更多功能
+      </Button>
+    </div>
+  );
+}
+
+export function ReaderDesktopToolbar({
+  preferences,
+  tocCollapsed,
+  onChangePreferences,
+  onToggleToc,
+  onPrev,
+  onNext,
+  stylePopoverVisible,
+  onStylePopoverVisibleChange,
+}: ReaderDesktopToolbarProps) {
+  const stylePanel = (
+    <ReaderStylePanel
+      preferences={preferences}
+      onChangePreferences={onChangePreferences}
+    />
   );
 
   return (

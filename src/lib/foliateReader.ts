@@ -149,6 +149,10 @@ export function createFoliateReaderStyles(preferences: ReaderPreferences) {
     html, body {
       color: ${style.textColor} !important;
       background-color: transparent !important;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      -webkit-user-select: text;
+      user-select: text;
     }
     body {
       box-sizing: border-box !important;

@@ -7,6 +7,7 @@ import {
   IconArrowLeft,
   IconBookOpenStroked,
   IconBookmark,
+  IconColorPalette,
   IconComment,
   IconDeleteStroked,
   IconEditStroked,
@@ -54,6 +55,51 @@ export const panelMeta = {
   comments: { label: '评论', Icon: IconComment },
   trajectory: { label: '轨迹', Icon: IconHistogram },
 };
+
+export type MobileReaderPanel = Exclude<RightPanel, null> | 'style';
+
+const mobilePanelItems: Array<{
+  panel: MobileReaderPanel;
+  label: string;
+  ariaLabel: string;
+  Icon: typeof IconAIStrokedLevel1;
+}> = [
+  { panel: 'ai', label: 'AI', ariaLabel: '打开 AI 助手', Icon: IconAIStrokedLevel1 },
+  { panel: 'history', label: '历史', ariaLabel: '打开对话历史', Icon: IconHistory },
+  { panel: 'notes', label: '笔记', ariaLabel: '打开笔记', Icon: IconEditStroked },
+  { panel: 'highlights', label: '高亮', ariaLabel: '打开高亮', Icon: IconBookmark },
+  { panel: 'comments', label: '评论', ariaLabel: '打开评论', Icon: IconComment },
+  { panel: 'trajectory', label: '轨迹', ariaLabel: '打开阅读轨迹', Icon: IconHistogram },
+  { panel: 'style', label: '样式', ariaLabel: '打开阅读样式设置', Icon: IconColorPalette },
+];
+
+export function ReaderMobilePanelTabs({
+  activePanel,
+  onChangePanel,
+}: {
+  activePanel: MobileReaderPanel;
+  onChangePanel: (panel: MobileReaderPanel) => void;
+}) {
+  return (
+    <nav className="mobile-panel-tabs" aria-label="切换更多功能">
+      {mobilePanelItems.map(({ panel, label, ariaLabel, Icon }) => (
+        <Button
+          aria-label={ariaLabel}
+          aria-pressed={activePanel === panel}
+          className={activePanel === panel ? 'mobile-panel-tabs__button--active' : ''}
+          icon={<Icon />}
+          key={panel}
+          size="small"
+          theme="borderless"
+          type="tertiary"
+          onClick={() => onChangePanel(panel)}
+        >
+          {label}
+        </Button>
+      ))}
+    </nav>
+  );
+}
 
 type AiStatus = 'unavailable' | 'ready' | 'generating' | 'error';
 

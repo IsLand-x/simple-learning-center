@@ -346,6 +346,29 @@ function DemoReader({
   const swipeStartRef = useRef<SwipeStart | null>(null);
   const wheelSwipeRef = useRef<WheelSwipeState>(createWheelSwipeState());
 
+  const reportCurrentSelection = useCallback((fallbackX = 0, fallbackY = 0) => {
+    const selection = window.getSelection();
+    const selectionIsInsideReader = selection?.anchorNode && readerRootRef.current?.contains(selection.anchorNode);
+    const text = selection?.toString().trim();
+    if (!hasActiveTextSelection(selection) || !selectionIsInsideReader || !selection?.rangeCount || !text) {
+      onSelection(null);
+      return false;
+    }
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    onSelection({
+      text: text.slice(0, 600),
+      cfi: `demo:${chapter?.href ?? 'chapter-1'}:selection:${Date.now()}`,
+      rect: {
+        left: rect.left || fallbackX,
+        top: rect.top || fallbackY,
+        width: rect.width,
+        height: rect.height,
+      },
+    });
+    return true;
+  }, [chapter?.href, onSelection]);
+
   const turnDemoPage = (direction: PageTurnDirection) => {
     const currentIndex = chapterIndexRef.current;
     const nextIndex = direction === 'next'
@@ -360,14 +383,17 @@ function DemoReader({
   }, [readerStyle.fontFamily]);
 
   useEffect(() => {
+    let selectionFrame = 0;
     const handleSelectionChange = () => {
-      const selection = window.getSelection();
-      const selectionIsInsideReader = selection?.anchorNode && readerRootRef.current?.contains(selection.anchorNode);
-      if (!hasActiveTextSelection(selection) || !selectionIsInsideReader) onSelection(null);
+      window.cancelAnimationFrame(selectionFrame);
+      selectionFrame = window.requestAnimationFrame(() => reportCurrentSelection());
     };
     document.addEventListener('selectionchange', handleSelectionChange);
-    return () => document.removeEventListener('selectionchange', handleSelectionChange);
-  }, [onSelection]);
+    return () => {
+      window.cancelAnimationFrame(selectionFrame);
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [reportCurrentSelection]);
 
   useEffect(() => {
     const readerRoot = readerRootRef.current;
@@ -448,24 +474,7 @@ function DemoReader({
   }, [book.totalPages, chapter, chapterIndex, chapters.length, onLocationChange]);
 
   const handleMouseUp = (event: MouseEvent<HTMLElement>) => {
-    const selection = window.getSelection();
-    const text = selection?.toString().trim();
-    if (!text || text.length < 2 || !event.currentTarget.contains(selection?.anchorNode ?? null)) {
-      onSelection(null);
-      return;
-    }
-    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
-    const rect = range?.getBoundingClientRect();
-    onSelection({
-      text: text.slice(0, 600),
-      cfi: `demo:${chapter?.href ?? 'chapter-1'}:${Date.now()}`,
-      rect: {
-        left: rect?.left ?? event.clientX,
-        top: rect?.top ?? event.clientY,
-        width: rect?.width ?? 0,
-        height: rect?.height ?? 0,
-      },
-    });
+    reportCurrentSelection(event.clientX, event.clientY);
   };
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -480,16 +489,12 @@ function DemoReader({
       y: event.clientY,
       startedAt: performance.now(),
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     const start = swipeStartRef.current;
     if (!start || start.pointerId !== event.pointerId) return;
     swipeStartRef.current = null;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
     if (hasActiveTextSelection(window.getSelection())) return;
     const direction = getSwipePageTurn(start, event.clientX, event.clientY);
     if (direction) turnDemoPage(direction);

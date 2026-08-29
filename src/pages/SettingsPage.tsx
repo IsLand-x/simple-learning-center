@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Button, Empty, Input, TabPane, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Empty, Input, TabPane, Tabs, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   IconAlertTriangle,
   IconDeleteStroked,
@@ -480,6 +480,7 @@ export function SettingsPage() {
             onChange={handleImport}
           />
           <Button
+            aria-label="导入 API Key"
             icon={<IconImport />}
             loading={importing}
             disabled={exporting}
@@ -488,6 +489,7 @@ export function SettingsPage() {
             导入 API Key
           </Button>
           <Button
+            aria-label="导出 API Key"
             icon={<IconExport />}
             loading={exporting}
             disabled={importing}
@@ -515,7 +517,7 @@ export function SettingsPage() {
           <section className="settings-notice" aria-label="模型 API Key 存储说明">
             <Text strong>保存在服务器数据目录</Text>
             <Text size="small" type="tertiary">
-              API Key 会写入服务器数据目录，并由浏览器直接请求你配置的地址。该地址需要允许浏览器跨域访问；远程模式请务必启用访问认证和 HTTPS。
+              API Key 会写入服务器数据目录，模型请求由学习中心服务端发起，不要求供应商开放浏览器 CORS。远程模式请务必启用访问认证和 HTTPS。
             </Text>
           </section>
           <section className="api-config-list" aria-label="AI 模型配置列表">

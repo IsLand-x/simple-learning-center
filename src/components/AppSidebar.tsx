@@ -23,6 +23,8 @@ export function AppSidebar() {
   const [installationStatus, setInstallationStatus] = useState<'checking' | 'installed' | 'not-installed'>(() => (
     isRunningAsInstalledPwa() ? 'installed' : 'checking'
   ));
+  const activeSection = location.pathname === '/settings' ? 'settings' : 'books';
+  const readingBook = location.pathname.startsWith('/books/');
 
   useEffect(() => {
     applyAppTheme(themeMode);
@@ -122,36 +124,64 @@ export function AppSidebar() {
   );
 
   return (
-    <Nav
-      className="main-nav"
-      isCollapsed={navCollapsed}
-      onCollapseChange={setNavCollapsed}
-      selectedKeys={location.pathname === '/settings' ? ['settings'] : ['books']}
-      onClick={({ itemKey }) => navigate(itemKey === 'settings' ? '/settings' : '/')}
-      items={[
-        {
-          itemKey: 'books',
-          text: '读书',
-          icon: <IconBook />,
-          onClick: () => navigate('/'),
-        },
-        {
-          itemKey: 'settings',
-          text: '设置',
-          icon: <IconSettingStroked />,
-          onClick: () => navigate('/settings'),
-        },
-      ]}
-      footer={{
-        collapseButton: false,
-        children: (
-          <div className="nav-footer-actions">
-            {installButton}
-            {themeButton}
-            {collapseButton}
-          </div>
-        ),
-      }}
-    />
+    <>
+      <Nav
+        className="main-nav"
+        isCollapsed={navCollapsed}
+        onCollapseChange={setNavCollapsed}
+        selectedKeys={[activeSection]}
+        onClick={({ itemKey }) => navigate(itemKey === 'settings' ? '/settings' : '/')}
+        items={[
+          {
+            itemKey: 'books',
+            text: '读书',
+            icon: <IconBook />,
+            onClick: () => navigate('/'),
+          },
+          {
+            itemKey: 'settings',
+            text: '设置',
+            icon: <IconSettingStroked />,
+            onClick: () => navigate('/settings'),
+          },
+        ]}
+        footer={{
+          collapseButton: false,
+          children: (
+            <div className="nav-footer-actions">
+              {installButton}
+              {themeButton}
+              {collapseButton}
+            </div>
+          ),
+        }}
+      />
+      {!readingBook && (
+        <nav className="mobile-main-nav" aria-label="主导航">
+          <Button
+            aria-current={activeSection === 'books' ? 'page' : undefined}
+            aria-label="打开书架"
+            className={activeSection === 'books' ? 'mobile-main-nav__button--active' : ''}
+            icon={<IconBook />}
+            theme="borderless"
+            type="tertiary"
+            onClick={() => navigate('/')}
+          >
+            读书
+          </Button>
+          <Button
+            aria-current={activeSection === 'settings' ? 'page' : undefined}
+            aria-label="打开设置"
+            className={activeSection === 'settings' ? 'mobile-main-nav__button--active' : ''}
+            icon={<IconSettingStroked />}
+            theme="borderless"
+            type="tertiary"
+            onClick={() => navigate('/settings')}
+          >
+            设置
+          </Button>
+        </nav>
+      )}
+    </>
   );
 }

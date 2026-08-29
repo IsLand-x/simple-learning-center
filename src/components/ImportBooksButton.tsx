@@ -55,14 +55,17 @@ export function ImportBooksButton() {
         onChange={(event) => void handleFiles(event.target.files)}
       />
       <Button
+        aria-label={uploading ? '正在导入 EPUB' : '导入 EPUB'}
+        className="import-books-button"
         theme="solid"
         type="primary"
-        icon={<IconPlus />}
+        icon={<IconPlus size="large" />}
         loading={uploading}
         disabled={uploading}
         onClick={() => inputRef.current?.click()}
       >
-        {uploading ? '正在导入' : '导入 EPUB'}
+        <span className="import-books-button__desktop">{uploading ? '正在导入' : '导入 EPUB'}</span>
+        <span className="import-books-button__mobile">{uploading ? '导入中' : '导入'}</span>
       </Button>
     </>
   );
