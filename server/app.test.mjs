@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -100,15 +100,119 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       username: 'reader',
       password: 'test-password',
       serveFrontend: false,
+      captchaCodeFactory: () => '2468',
     });
+    const sessionResponse = await remoteApp.request('/api/auth/session');
+    assert.equal(sessionResponse.status, 200);
+    assert.deepEqual(await sessionResponse.json(), {
+      authenticated: false,
+      mode: 'remote',
+      username: null,
+    });
+
     const unauthorizedResponse = await remoteApp.request('/api/health');
     assert.equal(unauthorizedResponse.status, 401);
+    assert.equal(unauthorizedResponse.headers.has('www-authenticate'), false);
 
-    const authorization = `Basic ${Buffer.from('reader:test-password').toString('base64')}`;
+    const captchaResponse = await remoteApp.request('/api/auth/captcha');
+    assert.equal(captchaResponse.status, 200);
+    const firstCaptcha = await captchaResponse.json();
+    assert.equal(typeof firstCaptcha.id, 'string');
+    assert.match(firstCaptcha.image, /^data:image\/svg\+xml;base64,/);
+    assert.equal(firstCaptcha.image.includes('2468'), false);
+
+    const failedLoginResponse = await remoteApp.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'reader',
+        password: 'wrong-password',
+        captchaId: firstCaptcha.id,
+        captcha: '2468',
+      }),
+    });
+    assert.equal(failedLoginResponse.status, 401);
+
+    const reusedCaptchaResponse = await remoteApp.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'reader',
+        password: 'test-password',
+        captchaId: firstCaptcha.id,
+        captcha: '2468',
+      }),
+    });
+    assert.equal(reusedCaptchaResponse.status, 401);
+    assert.deepEqual(await reusedCaptchaResponse.json(), {
+      error: '验证码不正确或已失效，请重新输入',
+    });
+
+    const secondCaptcha = await (await remoteApp.request('/api/auth/captcha')).json();
+
+    const loginResponse = await remoteApp.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'reader',
+        password: 'test-password',
+        captchaId: secondCaptcha.id,
+        captcha: '2468',
+      }),
+    });
+    assert.equal(loginResponse.status, 200);
+    const sessionCookie = loginResponse.headers.get('set-cookie')?.split(';', 1)[0];
+    assert.ok(sessionCookie?.startsWith('learning_center_session='));
+    assert.match(loginResponse.headers.get('set-cookie'), /HttpOnly/i);
+    assert.match(loginResponse.headers.get('set-cookie'), /SameSite=Strict/i);
+    assert.match(loginResponse.headers.get('set-cookie'), /Secure/i);
+
     const authorizedResponse = await remoteApp.request('/api/health', {
-      headers: { Authorization: authorization },
+      headers: { Cookie: sessionCookie },
     });
     assert.equal(authorizedResponse.status, 200);
     assert.equal((await authorizedResponse.json()).mode, 'remote');
+
+    const updateResponse = await remoteApp.request('/api/auth/credentials', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: sessionCookie,
+      },
+      body: JSON.stringify({
+        currentPassword: 'test-password',
+        username: 'updated-reader',
+        password: 'updated-password',
+      }),
+    });
+    assert.equal(updateResponse.status, 200);
+    assert.deepEqual(await updateResponse.json(), { username: 'updated-reader' });
+    const updatedSessionCookie = updateResponse.headers.get('set-cookie')?.split(';', 1)[0];
+    assert.ok(updatedSessionCookie?.startsWith('learning_center_session='));
+
+    const expiredSessionResponse = await remoteApp.request('/api/health', {
+      headers: { Cookie: sessionCookie },
+    });
+    assert.equal(expiredSessionResponse.status, 401);
+    const updatedSessionResponse = await remoteApp.request('/api/auth/session', {
+      headers: { Cookie: updatedSessionCookie },
+    });
+    assert.deepEqual(await updatedSessionResponse.json(), {
+      authenticated: true,
+      mode: 'remote',
+      username: 'updated-reader',
+    });
+
+    const storedAuth = await readFile(join(testDataDirectory, 'auth.json'), 'utf8');
+    assert.equal(storedAuth.includes('test-password'), false);
+    assert.equal(storedAuth.includes('updated-password'), false);
+    assert.equal((await stat(join(testDataDirectory, 'auth.json'))).mode & 0o777, 0o600);
+
+    const logoutResponse = await remoteApp.request('/api/auth/logout', {
+      method: 'POST',
+      headers: { Cookie: updatedSessionCookie },
+    });
+    assert.equal(logoutResponse.status, 204);
+    assert.match(logoutResponse.headers.get('set-cookie'), /Max-Age=0/i);
   });
 });

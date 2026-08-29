@@ -1,12 +1,20 @@
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
-import { basicAuth } from 'hono/basic-auth';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { createApiKeyExport, importApiKeys, parseApiKeyImport } from './apiKeys.mjs';
 import {
+  createAuthService,
+  SESSION_COOKIE_NAME,
+  sessionCookieOptions,
+} from './auth.mjs';
+import { createCaptchaService } from './captcha.mjs';
+import {
+  AUTH_FILE,
   DIST_DIRECTORY,
+  MAX_AUTH_REQUEST_BYTES,
   MAX_API_KEY_IMPORT_BYTES,
   MAX_BOOK_BYTES,
   MAX_INDEX_BYTES,
@@ -16,6 +24,7 @@ import {
   STATE_FILE,
   USERNAME,
 } from './config.mjs';
+import { statusError } from './errors.mjs';
 import {
   atomicWrite,
   bookPath,
@@ -42,6 +51,50 @@ function methodNotAllowed(c) {
   return c.json({ error: '不支持的请求方法' }, 405);
 }
 
+function validateUsername(value) {
+  const username = typeof value === 'string' ? value.trim() : '';
+  if (!username || username.length > 64 || /[\u0000-\u001f\u007f]/.test(username)) {
+    throw statusError(400, '账号长度必须为 1 到 64 个字符');
+  }
+  return username;
+}
+
+function validatePassword(value, label = '密码') {
+  if (typeof value !== 'string' || value.length < 8 || value.length > 128) {
+    throw statusError(400, `${label}长度必须为 8 到 128 个字符`);
+  }
+  return value;
+}
+
+function createLoginLimiter() {
+  const attempts = new Map();
+  const windowMilliseconds = 60_000;
+  const maxFailures = 5;
+
+  return {
+    check(key) {
+      const entry = attempts.get(key);
+      if (!entry || entry.resetAt <= Date.now()) {
+        attempts.delete(key);
+        return 0;
+      }
+      return entry.failures >= maxFailures ? Math.ceil((entry.resetAt - Date.now()) / 1000) : 0;
+    },
+    fail(key) {
+      const now = Date.now();
+      const previous = attempts.get(key);
+      const entry = !previous || previous.resetAt <= now
+        ? { failures: 1, resetAt: now + windowMilliseconds }
+        : { ...previous, failures: previous.failures + 1 };
+      attempts.set(key, entry);
+      return entry.failures >= maxFailures ? Math.ceil((entry.resetAt - now) / 1000) : 0;
+    },
+    clear(key) {
+      attempts.delete(key);
+    },
+  };
+}
+
 async function storedFileResponse(c, path) {
   if (!await exists(path)) return c.json({ error: '文件不存在' }, 404);
   const response = await fileResponse(path, c.req.method);
@@ -58,8 +111,23 @@ export function createApp({
   username = USERNAME,
   password = PASSWORD,
   serveFrontend = true,
+  authFile = AUTH_FILE,
+  captchaCodeFactory,
 } = {}) {
   const app = new Hono();
+  const auth = createAuthService({
+    authFile,
+    defaultUsername: username,
+    defaultPassword: password,
+  });
+  const loginLimiter = createLoginLimiter();
+  const captcha = createCaptchaService({ codeFactory: captchaCodeFactory });
+  const publicAuthPaths = new Set([
+    '/api/auth/captcha',
+    '/api/auth/login',
+    '/api/auth/logout',
+    '/api/auth/session',
+  ]);
 
   app.use('/api/*', async (c, next) => {
     await next();
@@ -67,18 +135,80 @@ export function createApp({
     c.header('X-Content-Type-Options', 'nosniff');
   });
 
-  if (mode === 'remote') {
-    app.use('*', basicAuth({
-      username,
-      password,
-      realm: 'Learning Center',
-      invalidUserMessage: (c) => (
-        c.req.path.startsWith('/api/')
-          ? { error: '需要登录后访问学习中心' }
-          : '需要登录后访问学习中心'
-      ),
-    }));
-  }
+  app.use('/api/*', async (c, next) => {
+    if (mode !== 'remote' || publicAuthPaths.has(c.req.path)) return next();
+    if (await auth.verifySession(getCookie(c, SESSION_COOKIE_NAME))) return next();
+    return c.json({ error: '登录状态已失效，请重新登录' }, 401);
+  });
+
+  app.get('/api/auth/session', async (c) => {
+    const authenticated = mode !== 'remote'
+      || await auth.verifySession(getCookie(c, SESSION_COOKIE_NAME));
+    return c.json({
+      authenticated,
+      mode,
+      username: authenticated
+        ? (mode === 'remote' ? await auth.getUsername() : await auth.getConfiguredUsername())
+        : null,
+    });
+  });
+  app.get('/api/auth/captcha', (c) => c.json(captcha.create()));
+  app.post('/api/auth/login', async (c) => {
+    const clientAddress = c.req.header('x-real-ip')
+      || c.env?.incoming?.socket?.remoteAddress
+      || 'unknown';
+    const retryAfter = loginLimiter.check(clientAddress);
+    if (retryAfter) {
+      c.header('Retry-After', String(retryAfter));
+      return c.json({ error: `登录尝试过于频繁，请在 ${retryAfter} 秒后重试` }, 429);
+    }
+    const payload = await readJsonRequest(c.req.raw, MAX_AUTH_REQUEST_BYTES);
+    if (!captcha.verify(payload?.captchaId, payload?.captcha)) {
+      const blockedFor = loginLimiter.fail(clientAddress);
+      if (blockedFor) c.header('Retry-After', String(blockedFor));
+      return c.json({ error: '验证码不正确或已失效，请重新输入' }, 401);
+    }
+    const submittedUsername = typeof payload?.username === 'string' ? payload.username.trim() : '';
+    const submittedPassword = typeof payload?.password === 'string' ? payload.password : '';
+    if (
+      !submittedUsername
+      || submittedUsername.length > 64
+      || !submittedPassword
+      || submittedPassword.length > 128
+    ) {
+      loginLimiter.fail(clientAddress);
+      return c.json({ error: '账号或密码不正确' }, 401);
+    }
+    const token = await auth.login(submittedUsername, submittedPassword);
+    if (!token) {
+      const blockedFor = loginLimiter.fail(clientAddress);
+      if (blockedFor) c.header('Retry-After', String(blockedFor));
+      return c.json({ error: '账号或密码不正确' }, 401);
+    }
+    loginLimiter.clear(clientAddress);
+    setCookie(c, SESSION_COOKIE_NAME, token, sessionCookieOptions);
+    return c.json({ username: await auth.getUsername() });
+  });
+  app.post('/api/auth/logout', (c) => {
+    deleteCookie(c, SESSION_COOKIE_NAME, { path: '/', secure: true });
+    return noContent(c);
+  });
+  app.put('/api/auth/credentials', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_AUTH_REQUEST_BYTES);
+    const next = await auth.updateCredentials({
+      currentPassword: validatePassword(payload?.currentPassword, '当前密码'),
+      username: validateUsername(payload?.username),
+      password: validatePassword(payload?.password, '新密码'),
+    });
+    if (!next) return c.json({ error: '当前密码不正确' }, 403);
+    setCookie(c, SESSION_COOKIE_NAME, next.token, sessionCookieOptions);
+    return c.json({ username: next.username });
+  });
+  app.all('/api/auth/session', methodNotAllowed);
+  app.all('/api/auth/captcha', methodNotAllowed);
+  app.all('/api/auth/login', methodNotAllowed);
+  app.all('/api/auth/logout', methodNotAllowed);
+  app.all('/api/auth/credentials', methodNotAllowed);
 
   app.get('/api/health', async (c) => c.json({
     initialized: await exists(STATE_FILE),

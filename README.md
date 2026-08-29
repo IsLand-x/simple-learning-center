@@ -47,6 +47,8 @@
 - 同一天的阅读记录合并展示，并提供最近 12 周热力图。
 - 支持浅色和深色主题、响应式布局与 PWA 安装；桌面安装窗口默认使用保留系统顶部标题栏的 `standalone` 模式。
 - PWA 可以缓存界面静态资源；书籍和学习数据仍需连接学习中心数据服务。
+- 远程模式使用应用内登录页和安全会话 Cookie，并可在设置页修改登录账号与密码。
+- 设置页“关于”中展示当前软件版本号与更新时间；版本号包含提交标识，发布构建时自动同步。
 
 ## 数据服务
 
@@ -55,6 +57,7 @@
 ```text
 data/
 ├── state.json                  # 书籍元数据、进度、高亮、对话、设置和笔记元数据
+├── auth.json                   # 登录凭据哈希与会话签名密钥
 ├── books/                      # EPUB 原文件
 ├── notes/<bookId>/<noteId>.md  # Markdown 笔记正文
 └── search-indexes/             # 按需生成的书内搜索索引
@@ -121,11 +124,11 @@ npm run preview  # 使用 Node 服务运行现有生产构建
 
 ### 远程访问
 
-远程模式会监听所有网络接口，并通过 Hono 的认证中间件对网页和全部 API 强制要求 HTTP Basic 认证：
+远程模式会监听所有网络接口。浏览器先进入简约的应用登录页，填写账号、密码和四位图片验证码；登录成功后通过安全会话 Cookie 访问数据 API：
 
 ```bash
 LEARNING_CENTER_MODE=remote \
-LEARNING_CENTER_USERNAME=reader \
+LEARNING_CENTER_USERNAME=admin \
 LEARNING_CENTER_PASSWORD='请替换为足够长的密码' \
 LEARNING_CENTER_DATA_DIR=/srv/learning-center-data \
 LEARNING_CENTER_PORT=4174 \
@@ -137,18 +140,20 @@ npm start
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
 | `LEARNING_CENTER_MODE` | `local` | `local` 仅本机访问，`remote` 开启远程访问和认证 |
-| `LEARNING_CENTER_USERNAME` | `reader` | 远程模式用户名 |
-| `LEARNING_CENTER_PASSWORD` | 无 | 远程模式必填密码 |
+| `LEARNING_CENTER_USERNAME` | `admin` | 数据目录首次初始化时使用的登录账号 |
+| `LEARNING_CENTER_PASSWORD` | `password` | 数据目录首次初始化时使用的登录密码 |
 | `LEARNING_CENTER_PORT` | `4174` | Node 服务端口 |
 | `LEARNING_CENTER_DATA_DIR` | `./data` | 用户数据目录 |
 
 内置服务提供 HTTP，不直接管理 TLS。对公网开放时必须放在 Nginx、Caddy 或其他 HTTPS 反向代理后面，不要用明文 HTTP 传输密码、书籍和 API Key。
 
+首次登录时，环境变量中的账号密码会生成 `data/auth.json`；密码仅保存带随机盐的哈希。图片验证码由服务器生成，五分钟过期且每次登录尝试后立即失效，连续失败还会触发短时登录限制。之后可以在“设置 → 账户”中修改账号和密码，修改结果保存在数据目录并优先于环境变量，容器重启后仍然有效。若数据目录已存在，单独修改 Docker 环境变量不会覆盖设置页保存的凭据。
+
 ### Docker 部署
 
 仓库提供多阶段 `Dockerfile` 和 `compose.yaml`。镜像以非 root 用户运行，应用文件系统保持只读；唯一需要持久化的 `/data` 会绑定到宿主机指定目录。书籍、笔记、搜索索引、应用状态和 API Key 都在这个目录中，迁移或备份时复制整个目录即可。
 
-先创建配置文件并填写强密码：
+先创建配置文件：
 
 ```bash
 cp .env.example .env
@@ -157,6 +162,7 @@ cp .env.example .env
 `.env` 中最重要的配置如下：
 
 ```dotenv
+LEARNING_CENTER_USERNAME=admin
 LEARNING_CENTER_PASSWORD=请替换为足够长的随机密码
 LEARNING_CENTER_DATA_DIR=/srv/learning-center-data
 LEARNING_CENTER_BIND_ADDRESS=127.0.0.1
@@ -170,7 +176,7 @@ mkdir -p /srv/learning-center-data
 docker compose up -d --build
 ```
 
-默认访问 `http://127.0.0.1:4174/`，使用 `.env` 中的用户名和密码登录。查看状态和停止服务：
+默认访问 `http://127.0.0.1:4174/`。未修改 `.env` 时，默认账号是 `admin`，默认密码是 `password`；请在首次登录后前往“设置 → 账户”立即修改。查看状态和停止服务：
 
 ```bash
 docker compose ps
@@ -184,9 +190,9 @@ Linux 上如果挂载目录不可写，把 `.env` 中的 `LEARNING_CENTER_UID` �
 
 ### 自动部署到 Docker 服务器
 
-`.github/workflows/deploy.yml` 在 `main` 分支更新后构建并验证镜像，将带有 Git commit digest 的不可变镜像发布到 GHCR，再通过专用 SSH 账号调用服务器上的受限部署脚本。服务器只在部署期间使用当前任务的短期 `GITHUB_TOKEN` 拉取镜像，不保存长期镜像仓库凭据。
+`.github/workflows/deploy.yml` 在 `main` 分支更新后构建并验证镜像，将带有 Git commit digest 的不可变镜像发布到 GHCR，再通过专用 SSH 账号调用服务器上的受限部署脚本。工作流会把提交标识和提交时间写入前端版本信息；服务器只在部署期间使用当前任务的短期 `GITHUB_TOKEN` 拉取镜像，不保存长期镜像仓库凭据。
 
-生产服务器使用 `deploy/compose.production.yaml`，部署目录固定为 `/opt/learning-center`，持久化数据默认保存在 `/srv/learning-center-data`。`deploy/deploy.sh` 会等待容器健康检查；新镜像启动失败时自动恢复上一个 digest。`deploy/learning-center-deploy.sudoers` 只允许部署账号执行受控脚本。HTTPS 签发前使用 `deploy/nginx.bootstrap.conf`，它只开放 ACME 验证路径；证书就绪后再启用 `deploy/nginx.conf` 的 HTTPS 反向代理。生产环境的 `.env` 只保存在服务器，不提交到 Git。
+生产服务器使用 `deploy/compose.production.yaml`，部署目录固定为 `/opt/learning-center`，持久化数据默认保存在 `/srv/learning-center-data`。`deploy/deploy.sh` 会等待容器健康检查；新镜像启动失败时自动恢复上一个 digest。`deploy/learning-center-deploy.sudoers` 只允许部署账号执行受控脚本。HTTPS 签发前使用 `deploy/nginx.bootstrap.conf`，它只开放 ACME 验证路径；证书就绪后再启用 `deploy/nginx.conf` 的 HTTPS 反向代理。生产环境的 `.env` 只保存在服务器，不提交到 Git。默认凭据 `admin` / `password` 仅用于首次启动，公网部署必须在 `.env` 中设置强密码或登录后立即修改。
 
 GitHub 仓库需要创建 `production` Environment，并配置：
 

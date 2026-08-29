@@ -4,30 +4,36 @@ import { BrowserRouter } from 'react-router-dom';
 import 'allotment/dist/style.css';
 import './styles.css';
 import { App } from './App';
+import { getAuthSession } from './lib/auth';
 import { recoverMissingBookCovers } from './lib/bookCovers';
+import { AUTHENTICATION_REQUIRED_EVENT } from './lib/serverApi';
 import { prepareServerState, waitForServerStateWrites } from './lib/serverStateStorage';
+import { LoginPage } from './pages/LoginPage';
 import { useLearningStore } from './store/useLearningStore';
 
 const rootElement = document.getElementById('root')!;
+const root = ReactDOM.createRoot(rootElement);
 
 function showBootstrapMessage(message: string, error = false) {
-  const container = document.createElement('main');
-  container.className = 'route-loading';
-  const text = document.createElement('p');
-  text.textContent = message;
-  container.append(text);
-  if (error) {
-    const retry = document.createElement('button');
-    retry.type = 'button';
-    retry.textContent = '重新连接';
-    retry.addEventListener('click', () => window.location.reload());
-    container.append(retry);
-  }
-  rootElement.replaceChildren(container);
+  root.render(
+    <main className="route-loading">
+      <p>{message}</p>
+      {error ? <button type="button" onClick={() => window.location.reload()}>重新连接</button> : null}
+    </main>,
+  );
 }
 
 async function startApplication() {
   try {
+    const session = await getAuthSession();
+    if (!session.authenticated) {
+      root.render(
+        <React.StrictMode>
+          <LoginPage onAuthenticated={() => window.location.reload()} />
+        </React.StrictMode>,
+      );
+      return;
+    }
     await prepareServerState((message) => showBootstrapMessage(message));
     await useLearningStore.persist.rehydrate();
     const recoveredCovers = await recoverMissingBookCovers(
@@ -39,7 +45,7 @@ async function startApplication() {
       await waitForServerStateWrites();
     }
     useLearningStore.setState({});
-    ReactDOM.createRoot(rootElement).render(
+    root.render(
       <React.StrictMode>
         <BrowserRouter>
           <App />
@@ -52,5 +58,13 @@ async function startApplication() {
     showBootstrapMessage(message, true);
   }
 }
+
+window.addEventListener(AUTHENTICATION_REQUIRED_EVENT, () => {
+  root.render(
+    <React.StrictMode>
+      <LoginPage onAuthenticated={() => window.location.reload()} />
+    </React.StrictMode>,
+  );
+});
 
 void startApplication();

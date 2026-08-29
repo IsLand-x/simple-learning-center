@@ -11,6 +11,8 @@ import {
   IconPlus,
 } from '@douyinfe/semi-icons';
 import { downloadApiKeys, uploadApiKeys } from '../lib/apiKeyTransfer';
+import { appMetadata, formatAppUpdatedAt } from '../lib/appMetadata';
+import { getAuthSession, logout, updateCredentials } from '../lib/auth';
 import { confirmDialog } from '../lib/confirmDialog';
 import { refreshServerState } from '../lib/serverStateStorage';
 import { useLearningStore } from '../store/useLearningStore';
@@ -263,6 +265,155 @@ function WebSearchSettings() {
   );
 }
 
+function AccountSettings() {
+  const [currentUsername, setCurrentUsername] = useState('');
+  const [remoteMode, setRemoteMode] = useState(false);
+  const [username, setUsername] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void getAuthSession()
+      .then((session) => {
+        if (!active) return;
+        const activeUsername = session.username || '';
+        setRemoteMode(session.mode === 'remote');
+        setCurrentUsername(activeUsername);
+        setUsername(activeUsername);
+      })
+      .catch((error) => Toast.error(error instanceof Error ? error.message : '无法读取账户信息'))
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!username.trim()) {
+      Toast.warning('请输入账号');
+      return;
+    }
+    if (password.length < 8) {
+      Toast.warning('新密码至少需要 8 个字符');
+      return;
+    }
+    if (password !== confirmPassword) {
+      Toast.warning('两次输入的新密码不一致');
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await updateCredentials({
+        currentPassword,
+        username: username.trim(),
+        password,
+      });
+      setCurrentUsername(result.username);
+      setUsername(result.username);
+      setCurrentPassword('');
+      setPassword('');
+      setConfirmPassword('');
+      Toast.success('登录账号和密码已更新');
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : '账户信息更新失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await logout();
+      window.location.reload();
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : '退出登录失败');
+    }
+  };
+
+  return (
+    <form className="account-settings" aria-labelledby="account-settings-title" onSubmit={save}>
+      <div className="account-settings__heading">
+        <div>
+          <Title id="account-settings-title" heading={5}>登录账户</Title>
+          <Text size="small" type="tertiary">
+            修改后会立即使其他浏览器中的旧登录状态失效
+          </Text>
+        </div>
+        {remoteMode ? (
+          <Button disabled={loading || saving} theme="borderless" type="tertiary" onClick={signOut}>
+            退出登录
+          </Button>
+        ) : null}
+      </div>
+      <div className="account-settings__fields">
+        <label className="settings-field">
+          <Text size="small" strong>账号</Text>
+          <Input
+            disabled={loading}
+            value={username}
+            onChange={setUsername}
+            placeholder="admin"
+            autoComplete="username"
+          />
+          {currentUsername ? <Text size="small" type="tertiary">当前账号：{currentUsername}</Text> : null}
+        </label>
+        <label className="settings-field">
+          <Text size="small" strong>当前密码</Text>
+          <Input
+            disabled={loading}
+            type="password"
+            value={currentPassword}
+            onChange={setCurrentPassword}
+            autoComplete="current-password"
+          />
+        </label>
+        <label className="settings-field">
+          <Text size="small" strong>新密码</Text>
+          <Input
+            disabled={loading}
+            type="password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="new-password"
+            placeholder="至少 8 个字符"
+          />
+        </label>
+        <label className="settings-field">
+          <Text size="small" strong>确认新密码</Text>
+          <Input
+            disabled={loading}
+            type="password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            autoComplete="new-password"
+          />
+        </label>
+      </div>
+      <div className="account-settings__footer">
+        <Text size="small" type="tertiary">
+          凭据保存在服务器数据目录，不会写入浏览器存储或构建产物。
+        </Text>
+        <Button
+          disabled={loading || !currentPassword || !password || !confirmPassword}
+          htmlType="submit"
+          loading={saving}
+          theme="solid"
+          type="primary"
+        >
+          更新账户
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function SettingsPage() {
   const configs = useLearningStore((state) => state.openAIConfigs);
   const addConfig = useLearningStore((state) => state.addOpenAIConfig);
@@ -336,7 +487,7 @@ export function SettingsPage() {
       <header className="settings-header">
         <div>
           <Title heading={4}>设置</Title>
-          <Text type="tertiary">管理 AI 模型与联网搜索</Text>
+          <Text type="tertiary">管理账户、AI 模型、联网搜索与软件信息</Text>
         </div>
         <div className="settings-header__actions">
           <input
@@ -372,6 +523,9 @@ export function SettingsPage() {
         onChange={setActiveTab}
         type="line"
       >
+        <TabPane itemKey="account" tab="账户">
+          <AccountSettings />
+        </TabPane>
         <TabPane itemKey="models" tab="AI 模型">
           <div className="settings-tab-actions">
             <Button icon={<IconPlus />} theme="solid" type="primary" onClick={add}>添加模型</Button>
@@ -404,6 +558,27 @@ export function SettingsPage() {
             </Text>
           </section>
           <WebSearchSettings />
+        </TabPane>
+        <TabPane itemKey="about" tab="关于">
+          <section className="settings-about" aria-labelledby="settings-about-title">
+            <div className="settings-about__heading">
+              <Title id="settings-about-title" heading={5}>软件信息</Title>
+              <Text size="small" type="tertiary">当前正在运行的学习中心版本</Text>
+            </div>
+            <dl className="settings-about__details">
+              <div>
+                <dt>版本号</dt>
+                <dd><code>{appMetadata.version}</code></dd>
+              </div>
+              <div>
+                <dt>更新时间</dt>
+                <dd>{formatAppUpdatedAt(appMetadata.updatedAt)}</dd>
+              </div>
+            </dl>
+            <Text size="small" type="tertiary">
+              版本号由项目版本与提交标识组成，更新时间随发布构建自动同步。
+            </Text>
+          </section>
         </TabPane>
       </Tabs>
     </main>

@@ -37,11 +37,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: 生成构建信息
+        id: metadata
+        run: echo "updated_at=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
       - name: 构建并推送镜像
         id: image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
+          build-args: |
+            APP_BUILD_REVISION=${{ github.sha }}
+            APP_UPDATED_AT=${{ steps.metadata.outputs.updated_at }}
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}

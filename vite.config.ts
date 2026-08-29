@@ -1,8 +1,29 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { sites } from '@openai/sites-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+
+const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
+  version: string;
+};
+
+function readGitMetadata(args: string[]) {
+  try {
+    return execFileSync('git', args, { encoding: 'utf8' }).trim();
+  } catch {
+    return '';
+  }
+}
+
+const appRevision = process.env.APP_BUILD_REVISION?.trim()
+  || readGitMetadata(['rev-parse', 'HEAD'])
+  || 'local';
+const appUpdatedAt = process.env.APP_UPDATED_AT?.trim()
+  || readGitMetadata(['show', '-s', '--format=%cI', 'HEAD'])
+  || new Date().toISOString();
 
 function replaceFoliateSource(code: string, source: string, replacement: string, message: string) {
   if (!code.includes(source)) throw new Error(message);
@@ -435,6 +456,11 @@ function foliateSrcdocCompatibility(): Plugin {
 }
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(packageJson.version),
+    __APP_REVISION__: JSON.stringify(appRevision),
+    __APP_UPDATED_AT__: JSON.stringify(appUpdatedAt),
+  },
   server: {
     proxy: {
       '/api': 'http://127.0.0.1:8787',

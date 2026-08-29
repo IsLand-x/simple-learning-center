@@ -8,6 +8,8 @@ export class ServerApiError extends Error {
   }
 }
 
+export const AUTHENTICATION_REQUIRED_EVENT = 'learning-center:authentication-required';
+
 async function responseError(response: Response) {
   try {
     const payload = await response.json() as { error?: unknown };
@@ -29,6 +31,11 @@ export async function serverRequest(path: string, init?: RequestInit) {
   } catch {
     throw new ServerApiError('无法连接学习中心服务，请确认服务已经启动', 0);
   }
-  if (!response.ok) throw new ServerApiError(await responseError(response), response.status);
+  if (!response.ok) {
+    if (response.status === 401 && !path.startsWith('/api/auth/')) {
+      window.dispatchEvent(new Event(AUTHENTICATION_REQUIRED_EVENT));
+    }
+    throw new ServerApiError(await responseError(response), response.status);
+  }
   return response;
 }

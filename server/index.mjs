@@ -4,6 +4,7 @@ import {
   DATA_DIRECTORY,
   HOST,
   MODE,
+  PASSWORD,
   PORT,
   validateServerConfig,
 } from './config.mjs';
@@ -21,6 +22,9 @@ const server = serve({
   console.log(`学习中心已启动：${address}`);
   console.log(`运行模式：${MODE === 'remote' ? '远程访问（需要认证）' : '仅本机访问'}`);
   console.log(`数据目录：${DATA_DIRECTORY}`);
+  if (MODE === 'remote' && PASSWORD === 'password') {
+    console.warn('安全提示：当前使用默认登录密码，请登录后立即在设置页修改');
+  }
 });
 
 function shutdown() {
