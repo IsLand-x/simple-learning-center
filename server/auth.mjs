@@ -126,12 +126,10 @@ export function createAuthService({ authFile, defaultUsername, defaultPassword }
     async verifySession(token) {
       return verifySessionToken(token, await getCredentials());
     },
-    updateCredentials({ currentPassword, username, password }) {
+    updatePassword(password) {
       const operation = updateQueue.catch(() => undefined).then(async () => {
         const current = await getCredentials();
-        const currentPasswordHash = await hashPassword(currentPassword, current.password.salt);
-        if (!safeEqual(currentPasswordHash.hash, current.password.hash)) return null;
-        const next = await createCredentials(username, password, current);
+        const next = await createCredentials(current.username, password, current);
         await atomicWrite(authFile, `${JSON.stringify(next, null, 2)}\n`);
         credentialsPromise = Promise.resolve(next);
         return {

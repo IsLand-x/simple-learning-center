@@ -6,26 +6,16 @@ export interface AuthSession {
   username: string | null;
 }
 
-export interface CaptchaChallenge {
-  id: string;
-  image: string;
-}
-
 export async function getAuthSession() {
   const response = await serverRequest('/api/auth/session');
   return response.json() as Promise<AuthSession>;
 }
 
-export async function getCaptcha() {
-  const response = await serverRequest('/api/auth/captcha');
-  return response.json() as Promise<CaptchaChallenge>;
-}
-
-export async function login(username: string, password: string, captchaId: string, captcha: string) {
+export async function login(username: string, password: string) {
   const response = await serverRequest('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, captchaId, captcha }),
+    body: JSON.stringify({ username, password }),
   });
   return response.json() as Promise<{ username: string }>;
 }
@@ -35,8 +25,6 @@ export async function logout() {
 }
 
 export async function updateCredentials(input: {
-  currentPassword: string;
-  username: string;
   password: string;
 }) {
   const response = await serverRequest('/api/auth/credentials', {

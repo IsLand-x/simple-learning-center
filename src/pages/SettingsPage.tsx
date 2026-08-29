@@ -3,8 +3,8 @@ import { Button, Empty, Input, TabPane, Tabs, Tag, TextArea, Toast, Typography }
 import {
   IconAlertTriangle,
   IconDeleteStroked,
-  IconDownload,
   IconEditStroked,
+  IconExport,
   IconGlobeStroked,
   IconImport,
   IconKeyStroked,
@@ -266,24 +266,19 @@ function WebSearchSettings() {
 }
 
 function AccountSettings() {
-  const [currentUsername, setCurrentUsername] = useState('');
   const [remoteMode, setRemoteMode] = useState(false);
-  const [username, setUsername] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     let active = true;
     void getAuthSession()
       .then((session) => {
         if (!active) return;
-        const activeUsername = session.username || '';
         setRemoteMode(session.mode === 'remote');
-        setCurrentUsername(activeUsername);
-        setUsername(activeUsername);
       })
       .catch((error) => Toast.error(error instanceof Error ? error.message : '无法读取账户信息'))
       .finally(() => {
@@ -296,10 +291,6 @@ function AccountSettings() {
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    if (!username.trim()) {
-      Toast.warning('请输入账号');
-      return;
-    }
     if (password.length < 8) {
       Toast.warning('新密码至少需要 8 个字符');
       return;
@@ -310,17 +301,12 @@ function AccountSettings() {
     }
     setSaving(true);
     try {
-      const result = await updateCredentials({
-        currentPassword,
-        username: username.trim(),
+      await updateCredentials({
         password,
       });
-      setCurrentUsername(result.username);
-      setUsername(result.username);
-      setCurrentPassword('');
       setPassword('');
       setConfirmPassword('');
-      Toast.success('登录账号和密码已更新');
+      Toast.success('密码已更新');
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : '账户信息更新失败');
     } finally {
@@ -329,11 +315,17 @@ function AccountSettings() {
   };
 
   const signOut = async () => {
+    if (!remoteMode) {
+      Toast.info('当前为本地模式，没有登录会话需要退出');
+      return;
+    }
+    setSigningOut(true);
     try {
       await logout();
       window.location.reload();
     } catch (error) {
-      Toast.error(error instanceof Error ? error.message : '退出登录失败');
+      Toast.error(error instanceof Error ? error.message : '退出账号失败');
+      setSigningOut(false);
     }
   };
 
@@ -343,37 +335,11 @@ function AccountSettings() {
         <div>
           <Title id="account-settings-title" heading={5}>登录账户</Title>
           <Text size="small" type="tertiary">
-            修改后会立即使其他浏览器中的旧登录状态失效
+            为当前账号设置新密码，更新后其他浏览器中的旧登录状态会立即失效
           </Text>
         </div>
-        {remoteMode ? (
-          <Button disabled={loading || saving} theme="borderless" type="tertiary" onClick={signOut}>
-            退出登录
-          </Button>
-        ) : null}
       </div>
       <div className="account-settings__fields">
-        <label className="settings-field">
-          <Text size="small" strong>账号</Text>
-          <Input
-            disabled={loading}
-            value={username}
-            onChange={setUsername}
-            placeholder="admin"
-            autoComplete="username"
-          />
-          {currentUsername ? <Text size="small" type="tertiary">当前账号：{currentUsername}</Text> : null}
-        </label>
-        <label className="settings-field">
-          <Text size="small" strong>当前密码</Text>
-          <Input
-            disabled={loading}
-            type="password"
-            value={currentPassword}
-            onChange={setCurrentPassword}
-            autoComplete="current-password"
-          />
-        </label>
         <label className="settings-field">
           <Text size="small" strong>新密码</Text>
           <Input
@@ -401,14 +367,30 @@ function AccountSettings() {
           凭据保存在服务器数据目录，不会写入浏览器存储或构建产物。
         </Text>
         <Button
-          disabled={loading || !currentPassword || !password || !confirmPassword}
+          disabled={loading || !password || !confirmPassword}
           htmlType="submit"
           loading={saving}
           theme="solid"
           type="primary"
         >
-          更新账户
+          更新密码
         </Button>
+      </div>
+      <div className="account-settings__logout">
+        <Button
+          block
+          disabled={loading || saving}
+          htmlType="button"
+          loading={signingOut}
+          theme="solid"
+          type="danger"
+          onClick={signOut}
+        >
+          退出账号
+        </Button>
+        {!remoteMode ? (
+          <Text size="small" type="tertiary">当前为本地模式，没有登录会话需要退出</Text>
+        ) : null}
       </div>
     </form>
   );
@@ -506,7 +488,7 @@ export function SettingsPage() {
             导入 API Key
           </Button>
           <Button
-            icon={<IconDownload />}
+            icon={<IconExport />}
             loading={exporting}
             disabled={importing}
             onClick={confirmExport}
@@ -562,22 +544,14 @@ export function SettingsPage() {
         <TabPane itemKey="about" tab="关于">
           <section className="settings-about" aria-labelledby="settings-about-title">
             <div className="settings-about__heading">
-              <Title id="settings-about-title" heading={5}>软件信息</Title>
-              <Text size="small" type="tertiary">当前正在运行的学习中心版本</Text>
+              <div>
+                <Title id="settings-about-title" heading={5}>软件信息</Title>
+                <Text size="small" type="tertiary">
+                  更新于 {formatAppUpdatedAt(appMetadata.updatedAt)}
+                </Text>
+              </div>
+              <code className="settings-about__version">{appMetadata.version}</code>
             </div>
-            <dl className="settings-about__details">
-              <div>
-                <dt>版本号</dt>
-                <dd><code>{appMetadata.version}</code></dd>
-              </div>
-              <div>
-                <dt>更新时间</dt>
-                <dd>{formatAppUpdatedAt(appMetadata.updatedAt)}</dd>
-              </div>
-            </dl>
-            <Text size="small" type="tertiary">
-              版本号由项目版本与提交标识组成，更新时间随发布构建自动同步。
-            </Text>
           </section>
         </TabPane>
       </Tabs>

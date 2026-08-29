@@ -1,6 +1,6 @@
 {
   "name": "learning-center",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -12,7 +12,7 @@
     "dev:local": "node server/dev.mjs",
     "generate:pwa-assets": "pwa-assets-generator --preset minimal-2023 public/app-icon.svg",
     "test": "node --test --test-concurrency=1 server/*.test.mjs",
-    "build": "node --check server/config.mjs && node --check server/errors.mjs && node --check server/storage.mjs && node --check server/auth.mjs && node --check server/captcha.mjs && node --check server/apiKeys.mjs && node --check server/app.mjs && node --check server/index.mjs && node --check server/dev.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
+    "build": "node --check server/config.mjs && node --check server/errors.mjs && node --check server/storage.mjs && node --check server/auth.mjs && node --check server/apiKeys.mjs && node --check server/app.mjs && node --check server/index.mjs && node --check server/dev.mjs && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "verify": "npm test && npm run build",
     "preview": "node server/index.mjs",
     "start": "npm run build && node server/index.mjs"

@@ -10,7 +10,6 @@ import {
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
 } from './auth.mjs';
-import { createCaptchaService } from './captcha.mjs';
 import {
   AUTH_FILE,
   DIST_DIRECTORY,
@@ -49,14 +48,6 @@ function noContent(c) {
 
 function methodNotAllowed(c) {
   return c.json({ error: '不支持的请求方法' }, 405);
-}
-
-function validateUsername(value) {
-  const username = typeof value === 'string' ? value.trim() : '';
-  if (!username || username.length > 64 || /[\u0000-\u001f\u007f]/.test(username)) {
-    throw statusError(400, '账号长度必须为 1 到 64 个字符');
-  }
-  return username;
 }
 
 function validatePassword(value, label = '密码') {
@@ -112,7 +103,6 @@ export function createApp({
   password = PASSWORD,
   serveFrontend = true,
   authFile = AUTH_FILE,
-  captchaCodeFactory,
 } = {}) {
   const app = new Hono();
   const auth = createAuthService({
@@ -121,9 +111,7 @@ export function createApp({
     defaultPassword: password,
   });
   const loginLimiter = createLoginLimiter();
-  const captcha = createCaptchaService({ codeFactory: captchaCodeFactory });
   const publicAuthPaths = new Set([
-    '/api/auth/captcha',
     '/api/auth/login',
     '/api/auth/logout',
     '/api/auth/session',
@@ -152,7 +140,6 @@ export function createApp({
         : null,
     });
   });
-  app.get('/api/auth/captcha', (c) => c.json(captcha.create()));
   app.post('/api/auth/login', async (c) => {
     const clientAddress = c.req.header('x-real-ip')
       || c.env?.incoming?.socket?.remoteAddress
@@ -163,11 +150,6 @@ export function createApp({
       return c.json({ error: `登录尝试过于频繁，请在 ${retryAfter} 秒后重试` }, 429);
     }
     const payload = await readJsonRequest(c.req.raw, MAX_AUTH_REQUEST_BYTES);
-    if (!captcha.verify(payload?.captchaId, payload?.captcha)) {
-      const blockedFor = loginLimiter.fail(clientAddress);
-      if (blockedFor) c.header('Retry-After', String(blockedFor));
-      return c.json({ error: '验证码不正确或已失效，请重新输入' }, 401);
-    }
     const submittedUsername = typeof payload?.username === 'string' ? payload.username.trim() : '';
     const submittedPassword = typeof payload?.password === 'string' ? payload.password : '';
     if (
@@ -195,17 +177,11 @@ export function createApp({
   });
   app.put('/api/auth/credentials', async (c) => {
     const payload = await readJsonRequest(c.req.raw, MAX_AUTH_REQUEST_BYTES);
-    const next = await auth.updateCredentials({
-      currentPassword: validatePassword(payload?.currentPassword, '当前密码'),
-      username: validateUsername(payload?.username),
-      password: validatePassword(payload?.password, '新密码'),
-    });
-    if (!next) return c.json({ error: '当前密码不正确' }, 403);
+    const next = await auth.updatePassword(validatePassword(payload?.password, '新密码'));
     setCookie(c, SESSION_COOKIE_NAME, next.token, sessionCookieOptions);
     return c.json({ username: next.username });
   });
   app.all('/api/auth/session', methodNotAllowed);
-  app.all('/api/auth/captcha', methodNotAllowed);
   app.all('/api/auth/login', methodNotAllowed);
   app.all('/api/auth/logout', methodNotAllowed);
   app.all('/api/auth/credentials', methodNotAllowed);

@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import 'allotment/dist/style.css';
 import './styles.css';
 import { App } from './App';
+import { applyAppTheme, readInitialThemeMode } from './lib/appTheme';
 import { getAuthSession } from './lib/auth';
 import { recoverMissingBookCovers } from './lib/bookCovers';
 import { AUTHENTICATION_REQUIRED_EVENT } from './lib/serverApi';
@@ -12,6 +13,7 @@ import { LoginPage } from './pages/LoginPage';
 import { useLearningStore } from './store/useLearningStore';
 
 const rootElement = document.getElementById('root')!;
+applyAppTheme(readInitialThemeMode());
 const root = ReactDOM.createRoot(rootElement);
 
 function showBootstrapMessage(message: string, error = false) {

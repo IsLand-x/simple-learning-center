@@ -100,7 +100,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       username: 'reader',
       password: 'test-password',
       serveFrontend: false,
-      captchaCodeFactory: () => '2468',
     });
     const sessionResponse = await remoteApp.request('/api/auth/session');
     assert.equal(sessionResponse.status, 200);
@@ -114,41 +113,15 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(unauthorizedResponse.status, 401);
     assert.equal(unauthorizedResponse.headers.has('www-authenticate'), false);
 
-    const captchaResponse = await remoteApp.request('/api/auth/captcha');
-    assert.equal(captchaResponse.status, 200);
-    const firstCaptcha = await captchaResponse.json();
-    assert.equal(typeof firstCaptcha.id, 'string');
-    assert.match(firstCaptcha.image, /^data:image\/svg\+xml;base64,/);
-    assert.equal(firstCaptcha.image.includes('2468'), false);
-
     const failedLoginResponse = await remoteApp.request('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: 'reader',
         password: 'wrong-password',
-        captchaId: firstCaptcha.id,
-        captcha: '2468',
       }),
     });
     assert.equal(failedLoginResponse.status, 401);
-
-    const reusedCaptchaResponse = await remoteApp.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'reader',
-        password: 'test-password',
-        captchaId: firstCaptcha.id,
-        captcha: '2468',
-      }),
-    });
-    assert.equal(reusedCaptchaResponse.status, 401);
-    assert.deepEqual(await reusedCaptchaResponse.json(), {
-      error: '验证码不正确或已失效，请重新输入',
-    });
-
-    const secondCaptcha = await (await remoteApp.request('/api/auth/captcha')).json();
 
     const loginResponse = await remoteApp.request('/api/auth/login', {
       method: 'POST',
@@ -156,8 +129,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify({
         username: 'reader',
         password: 'test-password',
-        captchaId: secondCaptcha.id,
-        captcha: '2468',
       }),
     });
     assert.equal(loginResponse.status, 200);
@@ -180,13 +151,11 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
         Cookie: sessionCookie,
       },
       body: JSON.stringify({
-        currentPassword: 'test-password',
-        username: 'updated-reader',
         password: 'updated-password',
       }),
     });
     assert.equal(updateResponse.status, 200);
-    assert.deepEqual(await updateResponse.json(), { username: 'updated-reader' });
+    assert.deepEqual(await updateResponse.json(), { username: 'reader' });
     const updatedSessionCookie = updateResponse.headers.get('set-cookie')?.split(';', 1)[0];
     assert.ok(updatedSessionCookie?.startsWith('learning_center_session='));
 
@@ -200,7 +169,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.deepEqual(await updatedSessionResponse.json(), {
       authenticated: true,
       mode: 'remote',
-      username: 'updated-reader',
+      username: 'reader',
     });
 
     const storedAuth = await readFile(join(testDataDirectory, 'auth.json'), 'utf8');

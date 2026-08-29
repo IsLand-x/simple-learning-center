@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Nav, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { IconBook, IconChevronLeft, IconChevronRight, IconDownload, IconMoon, IconSettingStroked, IconSun } from '@douyinfe/semi-icons';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { applyAppTheme } from '../lib/appTheme';
 import { useLearningStore } from '../store/useLearningStore';
 import { detectPwaInstallation, isRunningAsInstalledPwa, watchInstalledDisplayMode } from '../lib/pwaInstall';
 
@@ -24,7 +25,7 @@ export function AppSidebar() {
   ));
 
   useEffect(() => {
-    document.body.setAttribute('theme-mode', themeMode);
+    applyAppTheme(themeMode);
   }, [themeMode]);
 
   useEffect(() => {
