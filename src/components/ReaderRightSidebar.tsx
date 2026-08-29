@@ -17,6 +17,7 @@ import {
   IconSearch,
 } from '@douyinfe/semi-icons';
 import { confirmDialog } from '../lib/confirmDialog';
+import { createClientId } from '../lib/clientId';
 import {
   cancelAiJob,
   getAiJob,
@@ -417,7 +418,7 @@ function AiPanel({
     const quoteForMessage = quote;
     ensureSession(question);
     const createdAt = Date.now();
-    const userMessageId = crypto.randomUUID();
+    const userMessageId = createClientId();
     addChatMessage({
       id: userMessageId,
       bookId: book.id,
@@ -787,7 +788,7 @@ function NotesPanel({
 
   const createNote = () => {
     const timestamp = Date.now();
-    const id = crypto.randomUUID();
+    const id = createClientId();
     addNote({
       id,
       bookId,

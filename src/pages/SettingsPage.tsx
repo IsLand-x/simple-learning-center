@@ -14,6 +14,7 @@ import { downloadApiKeys, uploadApiKeys } from '../lib/apiKeyTransfer';
 import { appMetadata, formatAppUpdatedAt } from '../lib/appMetadata';
 import { getAuthSession, logout, updateCredentials } from '../lib/auth';
 import { confirmDialog } from '../lib/confirmDialog';
+import { createClientId } from '../lib/clientId';
 import { refreshServerState } from '../lib/serverStateStorage';
 import { useLearningStore } from '../store/useLearningStore';
 import type { OpenAICompatibleConfig } from '../types';
@@ -407,7 +408,7 @@ export function SettingsPage() {
 
   const add = () => {
     const timestamp = Date.now();
-    const id = crypto.randomUUID();
+    const id = createClientId();
     addConfig({
       id,
       name: `模型 ${configs.length + 1}`,

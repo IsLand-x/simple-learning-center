@@ -20,6 +20,7 @@ import { ReaderSelectionOverlays } from '../components/ReaderSelectionOverlays';
 import { ReaderDesktopToolbar } from '../components/ReaderToolbar';
 import { ReaderWorkspace } from '../components/ReaderWorkspace';
 import { confirmDialog } from '../lib/confirmDialog';
+import { createClientId } from '../lib/clientId';
 import { removeEpubFile } from '../lib/epubStorage';
 import { useLearningStore } from '../store/useLearningStore';
 import type { BookItem, ChatSession, HighlightItem, ReaderHighlightTarget, ReaderSelection } from '../types';
@@ -54,7 +55,7 @@ export function ReaderPage() {
   const [mobileReader, setMobileReader] = useState(() => window.matchMedia('(max-width: 800px)').matches);
   const [mobileChromeVisible, setMobileChromeVisible] = useState(true);
   const [compactTocOpen, setCompactTocOpen] = useState(false);
-  const [conversationId, setConversationId] = useState<string>(() => crypto.randomUUID());
+  const [conversationId, setConversationId] = useState<string>(createClientId);
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
   const [activeHighlightTarget, setActiveHighlightTarget] = useState<ReaderHighlightTarget | null>(null);
   const [commentingHighlightId, setCommentingHighlightId] = useState<string | null>(null);
@@ -237,7 +238,7 @@ export function ReaderPage() {
     setPanelQuote(null);
     setCompactTocOpen(false);
     setMobileChromeVisible(true);
-    setConversationId(crypto.randomUUID());
+    setConversationId(createClientId());
   }, [book?.id]);
 
   useEffect(() => {
@@ -264,7 +265,7 @@ export function ReaderPage() {
 
   useEffect(() => {
     if (!book) return;
-    const sessionId = crypto.randomUUID();
+    const sessionId = createClientId();
     const startedAt = Date.now();
     let accumulatedMs = 0;
     let activeSince = document.visibilityState === 'visible' ? Date.now() : null;
@@ -405,7 +406,7 @@ export function ReaderPage() {
       setActiveHighlightTarget({ highlightId: existingHighlight.id, rect: selection.rect });
       return;
     }
-    const highlightId = crypto.randomUUID();
+    const highlightId = createClientId();
     addHighlight({
       id: highlightId,
       bookId: book.id,
@@ -487,7 +488,7 @@ export function ReaderPage() {
     if (pendingCommentSelection) {
       if (!comment) return;
       addHighlight({
-        id: crypto.randomUUID(),
+        id: createClientId(),
         bookId: book.id,
         kind: 'comment',
         text: pendingCommentSelection.text,
@@ -529,7 +530,7 @@ export function ReaderPage() {
   };
 
   const startNewConversation = () => {
-    setConversationId(crypto.randomUUID());
+    setConversationId(createClientId());
     setPanelQuote(null);
     changeActivePanel('ai');
   };
