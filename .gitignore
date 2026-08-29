@@ -37,6 +37,7 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/data/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts

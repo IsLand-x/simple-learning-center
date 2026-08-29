@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { demoBooks } from '../data/demo';
 import {
   DEFAULT_READER_CUSTOM_STYLE,
@@ -8,6 +8,7 @@ import {
   readerDensityFromLineHeight,
 } from '../lib/readerThemes';
 import { markdownNoteTitle } from '../lib/markdownNotes';
+import { serverStateStorage } from '../lib/serverStateStorage';
 import type {
   AiPreferences,
   BookItem,
@@ -90,6 +91,7 @@ interface LearningState {
   themeMode: ThemeMode;
   readerPreferences: ReaderPreferences;
   addBooks: (books: BookItem[]) => void;
+  setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
   deleteBook: (bookId: string) => void;
   addHighlight: (highlight: HighlightItem) => void;
@@ -131,6 +133,12 @@ export const useLearningStore = create<LearningState>()(
       readerPreferences: defaultReaderPreferences,
       addBooks: (books) =>
         set((state) => ({ books: [...books, ...state.books.filter((book) => !books.some((next) => next.id === book.id))] })),
+      setBookCovers: (covers) =>
+        set((state) => ({
+          books: state.books.map((book) => (
+            Object.hasOwn(covers, book.id) ? { ...book, coverDataUrl: covers[book.id] } : book
+          )),
+        })),
       updateBook: (bookId, changes) =>
         set((state) => ({
           books: state.books.map((book) =>
@@ -245,6 +253,8 @@ export const useLearningStore = create<LearningState>()(
     {
       name: 'learning-center-state-v1',
       version: 12,
+      storage: createJSONStorage(() => serverStateStorage),
+      skipHydration: true,
       migrate: (persistedState, version) => {
         const persisted = persistedState as Partial<LearningState> & {
           chats?: Array<Omit<ChatMessage, 'conversationId'> & { conversationId?: string }>;

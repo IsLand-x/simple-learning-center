@@ -226,7 +226,7 @@ export function ReaderPage() {
   if (!book) {
     return (
       <main className="missing-book">
-        <Empty title="这本书不在书架中" description="它可能已被删除，或本地数据已被清理" />
+        <Empty title="这本书不在书架中" description="它可能已被删除，或服务器数据目录已被清理" />
         <Button theme="solid" type="primary" onClick={() => navigate('/')}>返回书架</Button>
       </main>
     );
@@ -235,7 +235,7 @@ export function ReaderPage() {
   const handleDelete = () => {
     confirmDialog({
       title: `删除《${book.title}》？`,
-      content: '书籍文件、阅读进度、笔记、高亮和评论都将从此设备删除，且无法恢复。',
+      content: '书籍文件、阅读进度、笔记、高亮和评论都将从服务器数据目录删除，且无法恢复。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-danger)' }} />,
       okText: '删除',
       cancelText: '取消',

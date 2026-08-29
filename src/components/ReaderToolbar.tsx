@@ -99,7 +99,7 @@ export function ReaderToolbar({
       <div className="reader-style-custom-heading">
         <span>
           <strong>我的自定义</strong>
-          <small>修改后自动保存到此设备</small>
+          <small>修改后自动保存</small>
         </span>
         <Button
           size="small"

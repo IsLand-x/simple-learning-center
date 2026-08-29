@@ -201,11 +201,23 @@ button,
 .settings-header {
   max-width: 880px;
   margin: 0 auto 20px;
+  justify-content: space-between;
   gap: 16px;
 }
 
 .settings-header h4 {
   margin: 0 0 4px;
+}
+
+.settings-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-import-input {
+  display: none;
 }
 
 .settings-notice,
@@ -2372,6 +2384,15 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 
   .settings-page {
     padding: 16px;
+  }
+
+  .settings-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-header__actions {
+    flex-wrap: wrap;
   }
 
   .api-config-summary {

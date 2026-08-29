@@ -516,7 +516,7 @@ function HistoryPanel({
   const confirmDelete = (session: ChatSession) => {
     confirmDialog({
       title: `删除“${session.title}”？`,
-      content: '这条对话及其中的消息只会从此设备删除，且无法恢复。',
+      content: '这条对话及其中的消息只会从服务器数据目录删除，且无法恢复。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-danger)' }} />,
       okText: '删除',
       cancelText: '取消',
@@ -553,7 +553,7 @@ function HistoryPanel({
             <span className="ai-history-item__meta" title={metaLabel}>{metaLabel}</span>
           </button>
         );
-      }) : <Empty title="暂无历史对话" description="发送第一条消息后会自动保存在此设备" />}
+      }) : <Empty title="暂无历史对话" description="发送第一条消息后会自动保存到服务器" />}
       {contextMenu && createPortal((
         <Dropdown
           autoAdjustOverflow
@@ -666,7 +666,7 @@ function NotesPanel({
   const confirmDelete = (note: NoteItem) => {
     confirmDialog({
       title: `删除“${note.title || '未命名笔记'}”？`,
-      content: '只会删除保存在此设备上的这篇笔记。',
+      content: '只会删除保存在服务器数据目录中的这篇笔记。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
       okText: '删除',
       cancelText: '取消',
@@ -1009,8 +1009,8 @@ function CommentsPanel({ bookId, onJumpHighlight }: { bookId: string; onJumpHigh
     confirmDialog({
       title: '删除这条评论？',
       content: highlight.kind === 'comment'
-        ? '只会删除保存在此设备上的评论和对应正文标记。'
-        : '只会删除保存在此设备上的评论，正文高亮仍会保留。',
+        ? '只会删除保存在服务器数据目录中的评论和对应正文标记。'
+        : '只会删除保存在服务器数据目录中的评论，正文高亮仍会保留。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
       okText: '删除',
       cancelText: '取消',
@@ -1238,7 +1238,7 @@ export function ReaderRightPanel({
     if (!selectedNote) return;
     confirmDialog({
       title: `删除“${selectedNote.title || '未命名笔记'}”？`,
-      content: '只会删除保存在此设备上的这篇笔记。',
+      content: '只会删除保存在服务器数据目录中的这篇笔记。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
       okText: '删除',
       cancelText: '取消',

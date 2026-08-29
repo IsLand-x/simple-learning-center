@@ -1,7 +1,18 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Button, Empty, Input, TabPane, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
-import { IconAlertTriangle, IconDeleteStroked, IconEditStroked, IconGlobeStroked, IconKeyStroked, IconPlus } from '@douyinfe/semi-icons';
+import {
+  IconAlertTriangle,
+  IconDeleteStroked,
+  IconDownload,
+  IconEditStroked,
+  IconGlobeStroked,
+  IconImport,
+  IconKeyStroked,
+  IconPlus,
+} from '@douyinfe/semi-icons';
+import { downloadApiKeys, uploadApiKeys } from '../lib/apiKeyTransfer';
 import { confirmDialog } from '../lib/confirmDialog';
+import { refreshServerState } from '../lib/serverStateStorage';
 import { useLearningStore } from '../store/useLearningStore';
 import type { OpenAICompatibleConfig } from '../types';
 
@@ -66,7 +77,7 @@ function ConfigEditor({
   const confirmDelete = () => {
     confirmDialog({
       title: `删除“${config.name}”？`,
-      content: '只会删除保存在此设备上的模型配置。',
+      content: '只会删除保存在服务器数据目录中的模型配置。',
       icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
       okText: '删除',
       cancelText: '取消',
@@ -232,7 +243,7 @@ function WebSearchSettings() {
           autoComplete="off"
         />
         <Text size="small" type="tertiary">
-          仅保存在当前设备。Agent 调用联网工具时，搜索词或目标网址会发送给 Jina AI。
+          配置保存在服务器数据目录。Agent 调用联网工具时，搜索词或目标网址会发送给 Jina AI。
         </Text>
       </label>
       <div className="web-search-settings__footer">
@@ -255,8 +266,11 @@ function WebSearchSettings() {
 export function SettingsPage() {
   const configs = useLearningStore((state) => state.openAIConfigs);
   const addConfig = useLearningStore((state) => state.addOpenAIConfig);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('models');
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const add = () => {
     const timestamp = Date.now();
@@ -273,12 +287,81 @@ export function SettingsPage() {
     setEditingConfigId(id);
   };
 
+  const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    try {
+      const result = await uploadApiKeys(file);
+      await refreshServerState();
+      await useLearningStore.persist.rehydrate();
+      const details = [
+        result.imported.added ? `新增 ${result.imported.added} 个模型配置` : '',
+        result.imported.updated ? `更新 ${result.imported.updated} 个模型 Key` : '',
+        result.imported.webSearch ? '更新联网搜索 Key' : '',
+      ].filter(Boolean).join('，');
+      Toast.success(details ? `API Key 已导入：${details}` : '导入文件中没有可更新的 API Key');
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : 'API Key 导入失败');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const confirmExport = () => {
+    confirmDialog({
+      title: '导出 API Key？',
+      content: '导出的 JSON 文件包含明文 API Key，请仅保存在可信设备并妥善保管。',
+      icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
+      okText: '导出',
+      cancelText: '取消',
+      onOk: async () => {
+        setExporting(true);
+        try {
+          await downloadApiKeys();
+          Toast.success('API Key 已导出');
+        } catch (error) {
+          Toast.error(error instanceof Error ? error.message : 'API Key 导出失败');
+          throw error;
+        } finally {
+          setExporting(false);
+        }
+      },
+    });
+  };
+
   return (
     <main className="settings-page">
       <header className="settings-header">
         <div>
           <Title heading={4}>设置</Title>
           <Text type="tertiary">管理 AI 模型与联网搜索</Text>
+        </div>
+        <div className="settings-header__actions">
+          <input
+            ref={importInputRef}
+            className="settings-import-input"
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImport}
+          />
+          <Button
+            icon={<IconImport />}
+            loading={importing}
+            disabled={exporting}
+            onClick={() => importInputRef.current?.click()}
+          >
+            导入 API Key
+          </Button>
+          <Button
+            icon={<IconDownload />}
+            loading={exporting}
+            disabled={importing}
+            onClick={confirmExport}
+          >
+            导出 API Key
+          </Button>
         </div>
       </header>
 
@@ -294,9 +377,9 @@ export function SettingsPage() {
             <Button icon={<IconPlus />} theme="solid" type="primary" onClick={add}>添加模型</Button>
           </div>
           <section className="settings-notice" aria-label="模型 API Key 存储说明">
-            <Text strong>仅保存在此设备</Text>
+            <Text strong>保存在服务器数据目录</Text>
             <Text size="small" type="tertiary">
-              API Key 会写入当前浏览器的本地存储，并由浏览器直接请求你配置的地址。该地址需要允许浏览器跨域访问；请勿在公共设备上保存密钥。
+              API Key 会写入服务器数据目录，并由浏览器直接请求你配置的地址。该地址需要允许浏览器跨域访问；远程模式请务必启用访问认证和 HTTPS。
             </Text>
           </section>
           <section className="api-config-list" aria-label="AI 模型配置列表">
@@ -317,7 +400,7 @@ export function SettingsPage() {
           <section className="settings-notice" aria-label="联网搜索说明">
             <Text strong>按需连接第三方搜索服务</Text>
             <Text size="small" type="tertiary">
-              配置后，Agent 可以调用联网搜索和网页读取工具。搜索词或目标网址会发送给 Jina AI，API Key 只保存在当前设备。
+              配置后，Agent 可以调用联网搜索和网页读取工具。搜索词或目标网址会发送给 Jina AI，API Key 保存在服务器数据目录。
             </Text>
           </section>
           <WebSearchSettings />

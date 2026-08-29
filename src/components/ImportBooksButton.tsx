@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Button, Toast } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
-import { requestPersistentStorage, saveEpubFile } from '../lib/epubStorage';
+import { saveEpubFile } from '../lib/epubStorage';
 import { useLearningStore } from '../store/useLearningStore';
 
 export function ImportBooksButton() {
@@ -16,7 +16,6 @@ export function ImportBooksButton() {
     const failed: string[] = [];
 
     try {
-      await requestPersistentStorage();
       const { parseEpubFile } = await import('../lib/parseEpub');
       for (const file of Array.from(files)) {
         if (!file.name.toLowerCase().endsWith('.epub')) {
@@ -33,7 +32,7 @@ export function ImportBooksButton() {
       }
       if (imported.length) {
         addBooks(imported);
-        Toast.success(`已导入 ${imported.length} 本书，文件保存在此设备`);
+        Toast.success(`已导入 ${imported.length} 本书，文件保存在服务器数据目录`);
       }
       if (failed.length) {
         Toast.error(`有 ${failed.length} 个文件无法导入，请确认是有效的 EPUB`);

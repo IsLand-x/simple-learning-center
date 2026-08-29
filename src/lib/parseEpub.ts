@@ -11,24 +11,23 @@ function mapToc(items: NavItem[]): TocItem[] {
   }));
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error('封面读取失败'));
-    reader.readAsDataURL(blob);
-  });
-}
-
 async function readCover(book: ReturnType<typeof ePub>) {
   try {
-    const coverUrl = await book.coverUrl();
-    if (!coverUrl) return undefined;
-    const response = await fetch(coverUrl);
-    if (!response.ok) return undefined;
-    return await blobToDataUrl(await response.blob());
+    const coverPath = await book.loaded.cover;
+    if (!coverPath) return undefined;
+    return await book.archive.getBase64(coverPath);
   } catch {
     return undefined;
+  }
+}
+
+export async function readEpubCover(data: ArrayBuffer) {
+  const book = ePub(data);
+  try {
+    await book.ready;
+    return await readCover(book);
+  } finally {
+    book.destroy();
   }
 }
 
@@ -55,7 +54,7 @@ export async function parseEpubFile(file: File): Promise<{ item: BookItem; data:
         author: metadata.creator?.trim() || '未知作者',
         fileName: file.name,
         fileSize: file.size,
-        coverDataUrl,
+        coverDataUrl: coverDataUrl ?? '',
         createdAt: Date.now(),
         updatedAt: Date.now(),
         progress: 0,

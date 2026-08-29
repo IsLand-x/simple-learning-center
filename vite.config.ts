@@ -79,6 +79,11 @@ function foliateSrcdocCompatibility(): Plugin {
 }
 
 export default defineConfig({
+  server: {
+    proxy: {
+      '/api': 'http://127.0.0.1:8787',
+    },
+  },
   plugins: [
     foliateSrcdocCompatibility(),
     react(),
@@ -96,7 +101,6 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         display: 'standalone',
-        display_override: ['window-controls-overlay'],
         related_applications: [
           {
             platform: 'webapp',
