@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type Ref,
+} from 'react';
 import { IconComment } from '@douyinfe/semi-icons';
 import { Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import type {
@@ -7,7 +16,7 @@ import type {
   FoliateTocItem,
   View as FoliateView,
 } from 'foliate-js/view.js';
-import type { FoliateOverlayRect } from 'foliate-js/overlayer.js';
+import type { FoliateOverlayRect, Overlayer as FoliateOverlayer } from 'foliate-js/overlayer.js';
 import { loadEpubFile } from '../lib/epubStorage';
 import {
   applyFoliateReaderLayout,
@@ -15,6 +24,7 @@ import {
   configureFoliateReader,
   createFoliateAnnotation,
   createFoliateView,
+  drawFoliateActiveSelection,
   drawFoliateHighlight,
   expandFoliateHighlightRects,
   getFoliateContents,
@@ -65,6 +75,430 @@ interface TrackpadState {
   velocityY: number;
   snapping: boolean;
   snapTimer: number | null;
+}
+
+interface SelectionBoundary {
+  node: Node;
+  offset: number;
+}
+
+type MobileSelectionHandleEndpoint = 'start' | 'end';
+
+interface MobileSelectionHandlePoint {
+  left: number;
+  top: number;
+}
+
+interface MobileSelectionHandlesState {
+  start: MobileSelectionHandlePoint | null;
+  end: MobileSelectionHandlePoint | null;
+  dragging: MobileSelectionHandleEndpoint | null;
+}
+
+interface MobileSelectionSession {
+  doc: Document;
+  index: number;
+  range: Range;
+  overlayer: FoliateOverlayer;
+  activeBoundary: MobileSelectionHandleEndpoint;
+}
+
+interface MobileSelectionController {
+  clear: () => void;
+  refresh: () => void;
+  startDrag: (endpoint: MobileSelectionHandleEndpoint) => void;
+  moveDrag: (endpoint: MobileSelectionHandleEndpoint, clientX: number, clientY: number) => void;
+  endDrag: (endpoint: MobileSelectionHandleEndpoint, clientX: number, clientY: number) => void;
+  cancelDrag: () => void;
+}
+
+const MOBILE_CUSTOM_HIGHLIGHT_NAME = 'learning-center-mobile-selection';
+const MOBILE_CUSTOM_SELECTION_CLASS = 'learning-center-custom-mobile-selection';
+const MOBILE_CUSTOM_SELECTION_SLOP_PX = 10;
+const MOBILE_SELECTION_HANDLE_ANCHOR_OFFSET_Y = 22;
+const MOBILE_SELECTION_PAGE_EDGE_HOLD_MS = 2_000;
+const MOBILE_SELECTION_PAGE_EDGE_MIN_PX = 44;
+const MOBILE_SELECTION_PAGE_EDGE_MAX_PX = 72;
+
+type MobileSelectionPageDirection = 'prev' | 'next';
+
+function cloneSelectionBoundary(node: Node, offset: number): SelectionBoundary {
+  return { node, offset };
+}
+
+function getCaretBoundaryAtPoint(doc: Document, x: number, y: number): SelectionBoundary | null {
+  const caretDocument = doc as Document & {
+    caretRangeFromPoint?: (clientX: number, clientY: number) => Range | null;
+  };
+  const range = caretDocument.caretRangeFromPoint?.(x, y);
+  if (range) return cloneSelectionBoundary(range.startContainer, range.startOffset);
+  const position = caretDocument.caretPositionFromPoint?.(x, y);
+  return position ? cloneSelectionBoundary(position.offsetNode, position.offset) : null;
+}
+
+function compareSelectionBoundaries(
+  doc: Document,
+  left: SelectionBoundary,
+  right: SelectionBoundary,
+) {
+  if (left.node === right.node) return left.offset - right.offset;
+  try {
+    const leftRange = doc.createRange();
+    leftRange.setStart(left.node, left.offset);
+    leftRange.collapse(true);
+    const rightRange = doc.createRange();
+    rightRange.setStart(right.node, right.offset);
+    rightRange.collapse(true);
+    return leftRange.compareBoundaryPoints(Range.START_TO_START, rightRange);
+  } catch {
+    return 0;
+  }
+}
+
+function createRangeBetweenBoundaries(
+  doc: Document,
+  left: SelectionBoundary,
+  right: SelectionBoundary,
+) {
+  const range = doc.createRange();
+  const [start, end] = compareSelectionBoundaries(doc, left, right) <= 0
+    ? [left, right]
+    : [right, left];
+  range.setStart(start.node, start.offset);
+  range.setEnd(end.node, end.offset);
+  return range;
+}
+
+function createWordRangeAtBoundary(doc: Document, boundary: SelectionBoundary) {
+  if (boundary.node.nodeType !== Node.TEXT_NODE) return null;
+  const text = boundary.node.nodeValue ?? '';
+  if (!text) return null;
+  const offset = Math.max(0, Math.min(boundary.offset, text.length));
+  const probeOffset = Math.min(offset, text.length - 1);
+  let start = probeOffset;
+  let end = Math.min(text.length, start + 1);
+
+  try {
+    const segments = new Intl.Segmenter(undefined, { granularity: 'word' }).segment(text);
+    for (const segment of segments) {
+      const segmentStart = segment.index;
+      const segmentEnd = segmentStart + segment.segment.length;
+      if (
+        probeOffset < segmentStart
+        || probeOffset >= segmentEnd
+        || !segment.segment.trim()
+        || ('isWordLike' in segment && segment.isWordLike === false)
+      ) continue;
+      start = segmentStart;
+      end = segmentEnd;
+      break;
+    }
+  } catch {
+    // Fall through to a grapheme-safe character range below.
+  }
+
+  if (start === probeOffset && end === Math.min(text.length, start + 1)) {
+    try {
+      const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text);
+      for (const grapheme of graphemes) {
+        const graphemeStart = grapheme.index;
+        const graphemeEnd = graphemeStart + grapheme.segment.length;
+        if (probeOffset < graphemeStart || probeOffset >= graphemeEnd) continue;
+        start = graphemeStart;
+        end = graphemeEnd;
+        break;
+      }
+    } catch {
+      const codePoint = text.codePointAt(probeOffset);
+      if (codePoint !== undefined && codePoint > 0xFFFF) end = Math.min(text.length, start + 2);
+    }
+  }
+
+  const range = doc.createRange();
+  range.setStart(boundary.node, start);
+  range.setEnd(boundary.node, end);
+  return range;
+}
+
+function createWordRangeAtPoint(
+  doc: Document,
+  boundary: SelectionBoundary,
+  clientX: number,
+  clientY: number,
+) {
+  const candidateBoundaries = [boundary];
+  if (boundary.node.nodeType === Node.TEXT_NODE && boundary.offset > 0) {
+    candidateBoundaries.push(cloneSelectionBoundary(boundary.node, boundary.offset - 1));
+  }
+  const candidates = candidateBoundaries
+    .map((candidate) => createWordRangeAtBoundary(doc, candidate))
+    .filter((range): range is Range => Boolean(range))
+    .filter((range) => Boolean(range.toString().trim()))
+    .filter((range, rangeIndex, ranges) => ranges.findIndex((candidate) => (
+      candidate.startContainer === range.startContainer
+      && candidate.startOffset === range.startOffset
+      && candidate.endContainer === range.endContainer
+      && candidate.endOffset === range.endOffset
+    )) === rangeIndex);
+  return candidates.reduce<{ range: Range; score: number } | null>((best, range) => {
+    const score = Array.from(range.getClientRects())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+      .reduce((closest, rect) => {
+        const outsideX = clientX < rect.left
+          ? rect.left - clientX
+          : clientX > rect.right ? clientX - rect.right : 0;
+        const outsideY = clientY < rect.top
+          ? rect.top - clientY
+          : clientY > rect.bottom ? clientY - rect.bottom : 0;
+        const centerX = clientX - (rect.left + rect.width / 2);
+        const centerY = clientY - (rect.top + rect.height / 2);
+        const candidateScore = (outsideX ** 2 + outsideY ** 2) * 1_000_000
+          + centerX ** 2 + centerY ** 2;
+        return Math.min(closest, candidateScore);
+      }, Number.POSITIVE_INFINITY);
+    return !best || score < best.score ? { range, score } : best;
+  }, null)?.range ?? null;
+}
+
+function constrainRangeToVisibleRange(
+  doc: Document,
+  range: Range,
+  visibleRange: Range | null,
+) {
+  if (!visibleRange || visibleRange.startContainer.ownerDocument !== doc) return range.cloneRange();
+  const rangeStart = cloneSelectionBoundary(range.startContainer, range.startOffset);
+  const rangeEnd = cloneSelectionBoundary(range.endContainer, range.endOffset);
+  const visibleStart = cloneSelectionBoundary(visibleRange.startContainer, visibleRange.startOffset);
+  const visibleEnd = cloneSelectionBoundary(visibleRange.endContainer, visibleRange.endOffset);
+  const start = compareSelectionBoundaries(doc, rangeStart, visibleStart) < 0
+    ? visibleStart
+    : rangeStart;
+  const end = compareSelectionBoundaries(doc, rangeEnd, visibleEnd) > 0
+    ? visibleEnd
+    : rangeEnd;
+  if (compareSelectionBoundaries(doc, start, end) >= 0) return null;
+  return createRangeBetweenBoundaries(doc, start, end);
+}
+
+function getInclusiveVisiblePageBoundary(
+  doc: Document,
+  visibleRange: Range,
+  direction: MobileSelectionPageDirection,
+): SelectionBoundary {
+  const fallback = direction === 'next'
+    ? cloneSelectionBoundary(visibleRange.startContainer, visibleRange.startOffset)
+    : cloneSelectionBoundary(visibleRange.endContainer, visibleRange.endOffset);
+  const root = doc.body;
+  if (!root) return fallback;
+  const nodes: Text[] = [];
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const textNode = node as Text;
+    const parent = textNode.parentElement;
+    const parentStyle = parent ? doc.defaultView?.getComputedStyle(parent) : null;
+    if (
+      !textNode.nodeValue
+      || !visibleRange.intersectsNode(textNode)
+      || parent?.closest('script, style, [hidden]')
+      || parentStyle?.display === 'none'
+      || parentStyle?.visibility === 'hidden'
+    ) continue;
+    nodes.push(textNode);
+  }
+  if (direction === 'prev') nodes.reverse();
+
+  const isVisibleGrapheme = (node: Text, start: number, end: number) => {
+    const probe = doc.createRange();
+    probe.setStart(node, start);
+    probe.setEnd(node, end);
+    const clipped = constrainRangeToVisibleRange(doc, probe, visibleRange);
+    return Boolean(clipped && !clipped.collapsed)
+      && Array.from(probe.getClientRects()).some((rect) => rect.width > 0 && rect.height > 0);
+  };
+
+  for (const node of nodes) {
+    const text = node.nodeValue ?? '';
+    const start = node === visibleRange.startContainer ? visibleRange.startOffset : 0;
+    const end = node === visibleRange.endContainer ? visibleRange.endOffset : text.length;
+    if (end <= start) continue;
+    try {
+      const segments = Array.from(
+        new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text.slice(start, end)),
+      ).filter((segment) => segment.segment.trim());
+      if (direction === 'prev') segments.reverse();
+      for (const segment of segments) {
+        const segmentStart = start + segment.index;
+        const segmentEnd = segmentStart + segment.segment.length;
+        if (!isVisibleGrapheme(node, segmentStart, segmentEnd)) continue;
+        return cloneSelectionBoundary(
+          node,
+          direction === 'next' ? segmentEnd : segmentStart,
+        );
+      }
+    } catch {
+      if (direction === 'next') {
+        for (let offset = start; offset < end;) {
+          const codePoint = text.codePointAt(offset);
+          const length = codePoint !== undefined && codePoint > 0xFFFF ? 2 : 1;
+          if (
+            text.slice(offset, offset + length).trim()
+            && isVisibleGrapheme(node, offset, Math.min(end, offset + length))
+          ) {
+            return cloneSelectionBoundary(node, Math.min(end, offset + length));
+          }
+          offset += length;
+        }
+      } else {
+        for (let offset = end; offset > start;) {
+          const codePoint = text.codePointAt(offset - 1);
+          const length = codePoint !== undefined && codePoint >= 0xDC00 && codePoint <= 0xDFFF ? 2 : 1;
+          const segmentStart = Math.max(start, offset - length);
+          if (
+            text.slice(segmentStart, offset).trim()
+            && isVisibleGrapheme(node, segmentStart, offset)
+          ) {
+            return cloneSelectionBoundary(node, segmentStart);
+          }
+          offset = segmentStart;
+        }
+      }
+    }
+  }
+  return fallback;
+}
+
+function shouldUseCustomMobileSelection(doc: Document) {
+  const userAgent = doc.defaultView?.navigator.userAgent ?? '';
+  return /Android/i.test(userAgent)
+    && /(Chrome|Chromium|EdgA|; wv\))/i.test(userAgent)
+    && !/(Firefox|FxiOS)/i.test(userAgent);
+}
+
+function getBoundaryProbeRect(
+  doc: Document,
+  boundary: SelectionBoundary,
+  direction: 'after' | 'before',
+) {
+  const probe = doc.createRange();
+  try {
+    if (boundary.node.nodeType === Node.TEXT_NODE) {
+      const length = boundary.node.nodeValue?.length ?? 0;
+      if (!length) return null;
+      if (direction === 'after' && boundary.offset < length) {
+        probe.setStart(boundary.node, boundary.offset);
+        probe.setEnd(boundary.node, Math.min(length, boundary.offset + 1));
+      } else if (boundary.offset > 0) {
+        probe.setStart(boundary.node, boundary.offset - 1);
+        probe.setEnd(boundary.node, boundary.offset);
+      } else {
+        probe.setStart(boundary.node, 0);
+        probe.setEnd(boundary.node, Math.min(length, 1));
+      }
+    } else {
+      const childIndex = direction === 'after' ? boundary.offset : boundary.offset - 1;
+      const child = boundary.node.childNodes[Math.max(0, childIndex)];
+      if (!child) return null;
+      probe.selectNode(child);
+    }
+  } catch {
+    return null;
+  }
+  return Array.from(probe.getClientRects())
+    .find((rect) => rect.width > 0 && rect.height > 0) ?? null;
+}
+
+function rectsIntersect(left: DOMRect | DOMRectReadOnly, right: DOMRect | DOMRectReadOnly) {
+  return left.right > right.left + 1
+    && left.left < right.right - 1
+    && left.bottom > right.top + 1
+    && left.top < right.bottom - 1;
+}
+
+function getMobileSelectionPageEdgeDirection(
+  clientY: number,
+  top: number,
+  bottom: number,
+): MobileSelectionPageDirection | null {
+  const height = Math.max(0, bottom - top);
+  if (!height) return null;
+  const edgeSize = Math.min(
+    MOBILE_SELECTION_PAGE_EDGE_MAX_PX,
+    Math.max(MOBILE_SELECTION_PAGE_EDGE_MIN_PX, height * 0.08),
+  );
+  if (clientY <= top + edgeSize) return 'prev';
+  if (clientY >= bottom - edgeSize) return 'next';
+  return null;
+}
+
+function getMobileSelectionBoundaryViewportRect(
+  range: Range,
+  endpoint: MobileSelectionHandleEndpoint,
+) {
+  const doc = range.startContainer.nodeType === Node.DOCUMENT_NODE
+    ? range.startContainer as Document
+    : range.startContainer.ownerDocument;
+  if (!doc) return null;
+  const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+  const boundary = endpoint === 'start'
+    ? cloneSelectionBoundary(range.startContainer, range.startOffset)
+    : cloneSelectionBoundary(range.endContainer, range.endOffset);
+  const rect = getBoundaryProbeRect(doc, boundary, endpoint === 'start' ? 'after' : 'before');
+  if (!frameRect || !rect) return null;
+  return new DOMRect(
+    frameRect.left + rect.left,
+    frameRect.top + rect.top,
+    rect.width,
+    rect.height,
+  );
+}
+
+function getMobileSelectionHandlePositions(
+  range: Range,
+  surface: HTMLElement,
+): MobileSelectionHandlesState | null {
+  const doc = range.startContainer.nodeType === Node.DOCUMENT_NODE
+    ? range.startContainer as Document
+    : range.startContainer.ownerDocument;
+  if (!doc) return null;
+  const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+  if (!frameRect) return null;
+  const surfaceRect = surface.getBoundingClientRect();
+  const startRect = getBoundaryProbeRect(
+    doc,
+    cloneSelectionBoundary(range.startContainer, range.startOffset),
+    'after',
+  );
+  const endRect = getBoundaryProbeRect(
+    doc,
+    cloneSelectionBoundary(range.endContainer, range.endOffset),
+    'before',
+  );
+  const toOuterRect = (rect: DOMRect | DOMRectReadOnly) => new DOMRect(
+    frameRect.left + rect.left,
+    frameRect.top + rect.top,
+    rect.width,
+    rect.height,
+  );
+  const outerStartRect = startRect ? toOuterRect(startRect) : null;
+  const outerEndRect = endRect ? toOuterRect(endRect) : null;
+  const start = outerStartRect && rectsIntersect(outerStartRect, surfaceRect)
+    ? {
+      left: outerStartRect.left - surfaceRect.left,
+      top: outerStartRect.bottom - surfaceRect.top,
+    }
+    : null;
+  const end = outerEndRect && rectsIntersect(outerEndRect, surfaceRect)
+    ? {
+      left: outerEndRect.right - surfaceRect.left,
+      top: outerEndRect.bottom - surfaceRect.top,
+    }
+    : null;
+  if (!start && !end) return null;
+  return {
+    start,
+    end,
+    dragging: null,
+  } satisfies MobileSelectionHandlesState;
 }
 
 function flattenFoliateToc(items: FoliateTocItem[]): FoliateTocItem[] {
@@ -258,6 +692,7 @@ export function FoliateEpubReader({
   controllerRef,
 }: ReaderSurfaceProps & { controllerRef: Ref<ReaderSurfaceHandle> }) {
   const readerStyle = resolveReaderStyle(preferences);
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateView | null>(null);
   const navigationQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -271,8 +706,19 @@ export function FoliateEpubReader({
   const onHighlightClickRef = useRef(onHighlightClick);
   const onContentInteractionRef = useRef(onContentInteraction);
   const onCenterTapRef = useRef(onCenterTap);
+  const touchPagingSelectionLockedRef = useRef(false);
+  const hasCustomMobileSelectionRef = useRef(false);
+  const clearMobileSelectionRef = useRef<() => void>(() => undefined);
+  const mobileSelectionControllerRef = useRef<MobileSelectionController | null>(null);
+  const mobileSelectionPointerDragRef = useRef<{
+    pointerId: number;
+    endpoint: MobileSelectionHandleEndpoint;
+    grabOffsetX: number;
+    grabOffsetY: number;
+  } | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('请返回书架后重新导入这个 EPUB');
+  const [mobileSelectionHandles, setMobileSelectionHandles] = useState<MobileSelectionHandlesState | null>(null);
 
   useEffect(() => { highlightsRef.current = highlights; }, [highlights]);
   useEffect(() => { compactLayoutRef.current = compactLayout; }, [compactLayout]);
@@ -282,6 +728,12 @@ export function FoliateEpubReader({
   useEffect(() => { onHighlightClickRef.current = onHighlightClick; }, [onHighlightClick]);
   useEffect(() => { onContentInteractionRef.current = onContentInteraction; }, [onContentInteraction]);
   useEffect(() => { onCenterTapRef.current = onCenterTap; }, [onCenterTap]);
+
+  useEffect(() => {
+    const refreshMobileSelectionHandles = () => mobileSelectionControllerRef.current?.refresh();
+    window.addEventListener('resize', refreshMobileSelectionHandles);
+    return () => window.removeEventListener('resize', refreshMobileSelectionHandles);
+  }, []);
 
   const syncVisibleAnnotations = useCallback(async (view: FoliateView, sectionIndex: number) => {
     const desired = new Map<string, { highlight: HighlightItem; signature: string }>();
@@ -322,6 +774,9 @@ export function FoliateEpubReader({
   }, []);
 
   const turnPage = useCallback((direction: 'next' | 'prev') => {
+    clearMobileSelectionRef.current();
+    touchPagingSelectionLockedRef.current = false;
+    viewRef.current?.renderer.setTouchPagingBlocked?.(false);
     viewRef.current?.deselect();
     onSelectionRef.current(null);
     const message = direction === 'next'
@@ -336,6 +791,9 @@ export function FoliateEpubReader({
     next: () => turnPage('next'),
     prev: () => turnPage('prev'),
     display: (target, label) => {
+      clearMobileSelectionRef.current();
+      touchPagingSelectionLockedRef.current = false;
+      viewRef.current?.renderer.setTouchPagingBlocked?.(false);
       viewRef.current?.deselect();
       onSelectionRef.current(null);
       enqueueNavigation(async (view) => {
@@ -345,7 +803,12 @@ export function FoliateEpubReader({
         }
       }, '无法定位到所选内容');
     },
-    clearSelection: () => viewRef.current?.deselect(),
+    clearSelection: () => {
+      clearMobileSelectionRef.current();
+      touchPagingSelectionLockedRef.current = false;
+      viewRef.current?.renderer.setTouchPagingBlocked?.(false);
+      viewRef.current?.deselect();
+    },
     getCurrentText: () => getFoliateContents(viewRef.current)
       .map((content) => content.doc.body?.innerText ?? '')
       .filter(Boolean)
@@ -356,6 +819,7 @@ export function FoliateEpubReader({
     let disposed = false;
     let ownedView: FoliateView | null = null;
     let selectionFrame = 0;
+    let selectionReportGeneration = 0;
     const documentCleanups = new Map<Document, () => void>();
     const trackpad: TrackpadState = {
       lastEventAt: 0,
@@ -365,30 +829,57 @@ export function FoliateEpubReader({
       snapTimer: null,
     };
 
-    const reportSelection = (view: FoliateView, doc: Document, index: number) => {
+    const reportSelectionRange = (
+      view: FoliateView,
+      doc: Document,
+      index: number,
+      sourceRange: Range | null,
+      sourceRect?: DOMRect | null,
+    ) => {
       window.cancelAnimationFrame(selectionFrame);
+      const generation = ++selectionReportGeneration;
+      const range = sourceRange?.cloneRange() ?? null;
+      const rect = sourceRect
+        ? new DOMRect(sourceRect.left, sourceRect.top, sourceRect.width, sourceRect.height)
+        : null;
       selectionFrame = window.requestAnimationFrame(() => {
-        const selection = doc.defaultView?.getSelection();
-        const selectedText = selection?.toString().trim() ?? '';
-        if (!selection || !hasActiveTextSelection(selection) || !selectedText) {
+        selectionFrame = 0;
+        if (disposed || generation !== selectionReportGeneration) return;
+        const selectedText = range?.toString().trim() ?? '';
+        if (!range || range.collapsed || !selectedText) {
           onSelectionRef.current(null);
           return;
         }
-        const range = selection.getRangeAt(0).cloneRange();
         try {
           onSelectionRef.current({
             text: selectedText.slice(0, 600),
             cfi: view.getCFI(index, range),
-            rect: rangeToViewportRect(range),
+            rect: rect ?? rangeToViewportRect(range),
           });
         } catch {
           onSelectionRef.current(null);
         }
       });
     };
+    const clearReportedSelection = (notify = true) => {
+      selectionReportGeneration += 1;
+      window.cancelAnimationFrame(selectionFrame);
+      selectionFrame = 0;
+      if (notify) onSelectionRef.current(null);
+    };
+    const reportSelection = (view: FoliateView, doc: Document, index: number) => {
+      const selection = doc.defaultView?.getSelection();
+      reportSelectionRange(
+        view,
+        doc,
+        index,
+        hasActiveTextSelection(selection) ? selection!.getRangeAt(0) : null,
+      );
+    };
 
     const handleWheel = (event: WheelEvent) => {
       if (event.ctrlKey || isBlockedInteractionTarget(event.target)) return;
+      if (hasCustomMobileSelectionRef.current || touchPagingSelectionLockedRef.current) return;
       const selection = (event.target as Node | null)?.ownerDocument?.defaultView?.getSelection();
       if (hasActiveTextSelection(selection)) return;
       const { x, y } = normalizedWheelDelta(event);
@@ -424,16 +915,102 @@ export function FoliateEpubReader({
       if (!view) return;
       const { doc, index } = (event as CustomEvent<FoliateLoadDetail>).detail;
       if (documentCleanups.has(doc)) return;
+      let replacedDocument = false;
+      for (const [loadedDocument, cleanup] of documentCleanups) {
+        if (loadedDocument === doc) continue;
+        cleanup();
+        documentCleanups.delete(loadedDocument);
+        replacedDocument = true;
+      }
+      if (replacedDocument) {
+        clearReportedSelection();
+        touchPagingSelectionLockedRef.current = false;
+        view.renderer.setTouchPagingBlocked?.(false);
+      }
+      // Foliate dispatches `load` before it creates and attaches the document
+      // overlayer. Only decide whether this document needs custom selection
+      // here; resolve the overlayer lazily when the long press actually fires.
+      const customMobileSelectionEnabled = shouldUseCustomMobileSelection(doc);
+      if (customMobileSelectionEnabled) {
+        doc.documentElement.classList.add(MOBILE_CUSTOM_SELECTION_CLASS);
+      }
 
       let touchSelectionGesture: MobileTouchGesture | null = null;
       let touchSelectionTimer: number | null = null;
+      let customSelectionHoldCanceled = false;
+      let touchPagingUnlockTimer: number | null = null;
       let touchStartContainerPosition: number | null = null;
-      let mobileSelectionLocked = false;
+      let pendingPress: {
+        boundary: SelectionBoundary;
+        clientX: number;
+        clientY: number;
+        touchIdentifier: number;
+      } | null = null;
+      let mobileSelectionSession: MobileSelectionSession | null = null;
+      let mobileSelectionProgrammatic = false;
+      let mobileSelectionProgrammaticTimer: number | null = null;
+      let mobileSelectionScrubFrame = 0;
+      let mobileSelectionDragFrame = 0;
+      let mobileSelectionDragEndpoint: MobileSelectionHandleEndpoint | null = null;
+      let mobileSelectionDragFixedBoundary: SelectionBoundary | null = null;
+      let mobileSelectionTouchPivot: Range | null = null;
+      let mobileSelectionDragPoint: {
+        endpoint: MobileSelectionHandleEndpoint;
+        clientX: number;
+        clientY: number;
+      } | null = null;
+      let mobileSelectionPageTurnTimer: number | null = null;
+      let mobileSelectionPageTurnDirection: MobileSelectionPageDirection | null = null;
+      let mobileSelectionPageTurnInFlight = false;
+      let mobileSelectionPageTurnNeedsRearm = false;
+      let mobileSelectionEdgeContinuationDirection: MobileSelectionPageDirection | null = null;
+      let mobileSelectionLatestEdgeDrag: {
+        endpoint: MobileSelectionHandleEndpoint;
+        direction: MobileSelectionPageDirection;
+      } | null = null;
       let suppressCenterTapUntil = 0;
-      const hasDocumentSelection = () => hasActiveTextSelection(doc.defaultView?.getSelection());
+      const hasDocumentSelection = () => Boolean(mobileSelectionSession)
+        || hasActiveTextSelection(doc.defaultView?.getSelection());
       const clearTouchSelectionTimer = () => {
         if (touchSelectionTimer !== null) window.clearTimeout(touchSelectionTimer);
         touchSelectionTimer = null;
+      };
+      const clearTouchPagingUnlockTimer = () => {
+        if (touchPagingUnlockTimer !== null) window.clearTimeout(touchPagingUnlockTimer);
+        touchPagingUnlockTimer = null;
+      };
+      const clearMobileSelectionProgrammaticTimer = () => {
+        if (mobileSelectionProgrammaticTimer !== null) {
+          window.clearTimeout(mobileSelectionProgrammaticTimer);
+        }
+        mobileSelectionProgrammaticTimer = null;
+      };
+      const clearMobileSelectionScrubFrame = () => {
+        window.cancelAnimationFrame(mobileSelectionScrubFrame);
+        mobileSelectionScrubFrame = 0;
+      };
+      const guardMobileSelectionChange = () => {
+        clearMobileSelectionProgrammaticTimer();
+        mobileSelectionProgrammatic = true;
+        mobileSelectionProgrammaticTimer = window.setTimeout(() => {
+          mobileSelectionProgrammatic = false;
+          mobileSelectionProgrammaticTimer = null;
+        }, 150);
+      };
+      const removeNativeSelection = () => {
+        const selection = doc.defaultView?.getSelection();
+        if (!selection?.rangeCount) return;
+        guardMobileSelectionChange();
+        selection.removeAllRanges();
+      };
+      const scrubNativeSelection = (remainingFrames = 2) => {
+        clearMobileSelectionScrubFrame();
+        removeNativeSelection();
+        if (!mobileSelectionSession || remainingFrames <= 0) return;
+        mobileSelectionScrubFrame = window.requestAnimationFrame(() => {
+          mobileSelectionScrubFrame = 0;
+          if (mobileSelectionSession) scrubNativeSelection(remainingFrames - 1);
+        });
       };
       const restoreTouchStartPosition = () => {
         if (view.renderer.cancelTouchPaging) view.renderer.cancelTouchPaging();
@@ -442,20 +1019,565 @@ export function FoliateEpubReader({
           view.renderer.containerPosition = touchStartContainerPosition;
         }
       };
+      const lockTouchPagingForSelection = () => {
+        clearTouchPagingUnlockTimer();
+        if (touchPagingSelectionLockedRef.current) return;
+        touchPagingSelectionLockedRef.current = true;
+        view.renderer.setTouchPagingBlocked?.(true);
+        restoreTouchStartPosition();
+      };
+      const unlockTouchPagingForSelection = () => {
+        clearTouchPagingUnlockTimer();
+        touchPagingSelectionLockedRef.current = false;
+        view.renderer.setTouchPagingBlocked?.(false);
+      };
+      const scheduleTouchPagingUnlock = () => {
+        clearTouchPagingUnlockTimer();
+        touchPagingUnlockTimer = window.setTimeout(() => {
+          touchPagingUnlockTimer = null;
+          if (!touchSelectionGesture && !hasDocumentSelection()) {
+            unlockTouchPagingForSelection();
+          }
+        }, 80);
+      };
+      const clearMobileSelectionPageTurnTimer = () => {
+        if (mobileSelectionPageTurnTimer !== null) {
+          window.clearTimeout(mobileSelectionPageTurnTimer);
+        }
+        mobileSelectionPageTurnTimer = null;
+        mobileSelectionPageTurnDirection = null;
+      };
+      const resetMobileSelectionPageTurnState = () => {
+        clearMobileSelectionPageTurnTimer();
+        mobileSelectionPageTurnNeedsRearm = false;
+        mobileSelectionEdgeContinuationDirection = null;
+        mobileSelectionLatestEdgeDrag = null;
+      };
+      const getVisibleRange = () => {
+        const visibleRange = view.lastLocation?.range;
+        if (!visibleRange) return null;
+        const visibleDocument = visibleRange.startContainer.nodeType === Node.DOCUMENT_NODE
+          ? visibleRange.startContainer as Document
+          : visibleRange.startContainer.ownerDocument;
+        return visibleDocument === doc ? visibleRange : null;
+      };
+      const clampBoundaryToVisibleRange = (boundary: SelectionBoundary) => {
+        const visibleRange = getVisibleRange();
+        if (!visibleRange) return boundary;
+        const visibleStart = cloneSelectionBoundary(
+          visibleRange.startContainer,
+          visibleRange.startOffset,
+        );
+        const visibleEnd = cloneSelectionBoundary(
+          visibleRange.endContainer,
+          visibleRange.endOffset,
+        );
+        if (compareSelectionBoundaries(doc, boundary, visibleStart) < 0) return visibleStart;
+        if (compareSelectionBoundaries(doc, boundary, visibleEnd) > 0) return visibleEnd;
+        return boundary;
+      };
+      const getBoundaryAtDocumentPoint = (clientX: number, clientY: number) => {
+        const boundary = getCaretBoundaryAtPoint(doc, clientX, clientY);
+        if (!boundary || boundary.node.ownerDocument !== doc) return null;
+        return clampBoundaryToVisibleRange(boundary);
+      };
+      const getBoundaryAtOuterPoint = (clientX: number, clientY: number) => {
+        const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+        const surfaceRect = surfaceRef.current?.getBoundingClientRect();
+        if (!frameRect || !surfaceRect) return null;
+        const left = Math.max(frameRect.left, surfaceRect.left) + 2;
+        const right = Math.min(frameRect.right, surfaceRect.right) - 2;
+        const top = Math.max(frameRect.top, surfaceRect.top) + 2;
+        const bottom = Math.min(frameRect.bottom, surfaceRect.bottom) - 2;
+        if (right <= left || bottom <= top) return null;
+        const x = Math.max(left, Math.min(right, clientX));
+        const y = Math.max(top, Math.min(bottom, clientY));
+        return getBoundaryAtDocumentPoint(x - frameRect.left, y - frameRect.top);
+      };
+      const getDocumentPageEdgeDirection = (clientY: number) => {
+        const height = doc.defaultView?.innerHeight ?? doc.documentElement.clientHeight;
+        return getMobileSelectionPageEdgeDirection(clientY, 0, height);
+      };
+      const getOuterPageEdgeDirection = (clientY: number) => {
+        const frameRect = doc.defaultView?.frameElement?.getBoundingClientRect();
+        const surfaceRect = surfaceRef.current?.getBoundingClientRect();
+        if (!frameRect || !surfaceRect) return null;
+        return getMobileSelectionPageEdgeDirection(
+          clientY,
+          Math.max(frameRect.top, surfaceRect.top),
+          Math.min(frameRect.bottom, surfaceRect.bottom),
+        );
+      };
+      const paintMobileSelection = () => {
+        const session = mobileSelectionSession;
+        if (!session) return false;
+        try {
+          session.overlayer.add(
+            MOBILE_CUSTOM_HIGHLIGHT_NAME,
+            session.range,
+            (rects) => drawFoliateActiveSelection({
+              rects,
+              preferences: preferencesRef.current,
+            }),
+          );
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      const alignMobileSelectionHandlesToActiveDrag = (
+        positions: MobileSelectionHandlesState,
+        session: MobileSelectionSession,
+      ) => {
+        const dragEndpoint = mobileSelectionDragEndpoint;
+        if (!dragEndpoint) {
+          positions.dragging = null;
+          return positions;
+        }
+        if (session.activeBoundary !== dragEndpoint) {
+          positions[dragEndpoint] = positions[session.activeBoundary];
+          positions[session.activeBoundary] = null;
+        }
+        positions.dragging = dragEndpoint;
+        return positions;
+      };
+      const syncMobileSelectionHandles = () => {
+        const session = mobileSelectionSession;
+        const surface = surfaceRef.current;
+        const positions = session && surface
+          ? getMobileSelectionHandlePositions(session.range, surface)
+          : null;
+        setMobileSelectionHandles(
+          positions && session
+            ? alignMobileSelectionHandlesToActiveDrag(positions, session)
+            : null,
+        );
+      };
+      const refreshMobileSelection = () => {
+        if (mobileSelectionPageTurnInFlight) return;
+        paintMobileSelection();
+        syncMobileSelectionHandles();
+      };
+      const clearMobileSelectionDragFrame = () => {
+        window.cancelAnimationFrame(mobileSelectionDragFrame);
+        mobileSelectionDragFrame = 0;
+        mobileSelectionDragPoint = null;
+      };
+      const clearMobileSelection = (notify = true) => {
+        clearMobileSelectionDragFrame();
+        resetMobileSelectionPageTurnState();
+        clearMobileSelectionScrubFrame();
+        mobileSelectionDragEndpoint = null;
+        mobileSelectionDragFixedBoundary = null;
+        mobileSelectionTouchPivot = null;
+        pendingPress = null;
+        mobileSelectionPointerDragRef.current = null;
+        const session = mobileSelectionSession;
+        mobileSelectionSession = null;
+        hasCustomMobileSelectionRef.current = false;
+        if (session) session.overlayer.remove(MOBILE_CUSTOM_HIGHLIGHT_NAME);
+        setMobileSelectionHandles(null);
+        removeNativeSelection();
+        clearReportedSelection(notify);
+      };
+      const reportMobileSelection = () => {
+        const session = mobileSelectionSession;
+        if (!session) return;
+        reportSelectionRange(
+          view,
+          doc,
+          session.index,
+          session.range,
+          getMobileSelectionBoundaryViewportRect(session.range, session.activeBoundary),
+        );
+      };
+      const applyMobileSelectionBoundary = (
+        endpoint: MobileSelectionHandleEndpoint,
+        movingBoundary: SelectionBoundary,
+        commit: boolean,
+        visualPoint?: { clientX: number; clientY: number },
+      ) => {
+        const session = mobileSelectionSession;
+        const fixedBoundary = mobileSelectionDragFixedBoundary;
+        if (!session || !fixedBoundary) return;
+        try {
+          const nextRange = createRangeBetweenBoundaries(doc, fixedBoundary, movingBoundary);
+          if (nextRange.collapsed || !nextRange.toString().trim()) return;
+          session.range = nextRange;
+          session.activeBoundary = compareSelectionBoundaries(
+            doc,
+            movingBoundary,
+            fixedBoundary,
+          ) < 0 ? 'start' : 'end';
+          paintMobileSelection();
+          reportMobileSelection();
+          const surface = surfaceRef.current;
+          const positions = surface && getMobileSelectionHandlePositions(nextRange, surface);
+          if (positions) {
+            const nextHandles = commit
+              ? positions
+              : alignMobileSelectionHandlesToActiveDrag(positions, session);
+            nextHandles.dragging = commit ? null : endpoint;
+            if (!commit && visualPoint && surface) {
+              const surfaceRect = surface.getBoundingClientRect();
+              nextHandles[endpoint] = {
+                left: Math.max(0, Math.min(surfaceRect.width, visualPoint.clientX - surfaceRect.left)),
+                top: Math.max(0, Math.min(surfaceRect.height, visualPoint.clientY - surfaceRect.top)),
+              };
+            }
+            setMobileSelectionHandles(nextHandles);
+          }
+        } catch {
+          // A section reload can invalidate an endpoint during cleanup.
+        }
+      };
+      const canTurnMobileSelectionPage = (direction: MobileSelectionPageDirection) => {
+        const { page, pages } = view.renderer;
+        if (
+          typeof page !== 'number'
+          || typeof pages !== 'number'
+          || !Number.isFinite(page)
+          || !Number.isFinite(pages)
+        ) return false;
+        return direction === 'next' ? page < pages - 2 : page > 1;
+      };
+      const performMobileSelectionPageTurn = async (
+        direction: MobileSelectionPageDirection,
+        endpoint: MobileSelectionHandleEndpoint,
+      ) => {
+        const session = mobileSelectionSession;
+        const fixedBoundary = mobileSelectionDragFixedBoundary;
+        const pageBeforeTurn = view.renderer.page;
+        if (
+          !session
+          || !fixedBoundary
+          || mobileSelectionPageTurnInFlight
+          || !canTurnMobileSelectionPage(direction)
+        ) {
+          clearMobileSelectionPageTurnTimer();
+          mobileSelectionLatestEdgeDrag = null;
+          return;
+        }
+        const contentBeforeTurn = getFoliateContents(view)
+          .find((content) => content.doc === session.doc && content.index === session.index);
+        if (!contentBeforeTurn) return;
+
+        clearMobileSelectionPageTurnTimer();
+        clearMobileSelectionDragFrame();
+        mobileSelectionLatestEdgeDrag = null;
+        mobileSelectionPageTurnInFlight = true;
+        view.renderer.setTouchPagingBlocked?.(false);
+        try {
+          await (direction === 'next' ? view.next() : view.prev());
+          if (disposed || mobileSelectionSession !== session) return;
+          const pageAfterTurn = view.renderer.page;
+          if (
+            typeof pageBeforeTurn !== 'number'
+            || typeof pageAfterTurn !== 'number'
+            || pageAfterTurn !== pageBeforeTurn + (direction === 'next' ? 1 : -1)
+          ) return;
+          const contentAfterTurn = getFoliateContents(view)
+            .find((content) => content.doc === session.doc && content.index === session.index);
+          const visibleRange = getVisibleRange();
+          if (!contentAfterTurn || !visibleRange) return;
+          const movingBoundary = getInclusiveVisiblePageBoundary(doc, visibleRange, direction);
+          const nextRange = createRangeBetweenBoundaries(doc, fixedBoundary, movingBoundary);
+          if (nextRange.collapsed || !nextRange.toString().trim()) return;
+
+          session.range = nextRange;
+          session.activeBoundary = compareSelectionBoundaries(
+            doc,
+            movingBoundary,
+            fixedBoundary,
+          ) < 0 ? 'start' : 'end';
+          paintMobileSelection();
+          reportMobileSelection();
+          const dragStillActive = mobileSelectionDragEndpoint === endpoint;
+          mobileSelectionEdgeContinuationDirection = dragStillActive ? direction : null;
+          mobileSelectionPageTurnNeedsRearm = dragStillActive;
+          mobileSelectionLatestEdgeDrag = null;
+          syncMobileSelectionHandles();
+        } catch {
+          // Keep the last valid selection if Foliate rejects a page turn.
+        } finally {
+          mobileSelectionPageTurnInFlight = false;
+          if (
+            !disposed
+            && mobileSelectionSession === session
+            && touchPagingSelectionLockedRef.current
+          ) view.renderer.setTouchPagingBlocked?.(true);
+        }
+      };
+      const updateMobileSelectionPageTurnHold = (
+        endpoint: MobileSelectionHandleEndpoint,
+        direction: MobileSelectionPageDirection | null,
+      ) => {
+        if (!direction) {
+          clearMobileSelectionPageTurnTimer();
+          mobileSelectionLatestEdgeDrag = null;
+          mobileSelectionPageTurnNeedsRearm = false;
+          mobileSelectionEdgeContinuationDirection = null;
+          return;
+        }
+        mobileSelectionLatestEdgeDrag = { endpoint, direction };
+        if (mobileSelectionPageTurnNeedsRearm || mobileSelectionPageTurnInFlight) {
+          clearMobileSelectionPageTurnTimer();
+          return;
+        }
+        if (
+          mobileSelectionPageTurnTimer !== null
+          && mobileSelectionPageTurnDirection === direction
+        ) return;
+        clearMobileSelectionPageTurnTimer();
+        if (!canTurnMobileSelectionPage(direction)) return;
+        mobileSelectionPageTurnDirection = direction;
+        mobileSelectionPageTurnTimer = window.setTimeout(() => {
+          mobileSelectionPageTurnTimer = null;
+          mobileSelectionPageTurnDirection = null;
+          const latest = mobileSelectionLatestEdgeDrag;
+          if (
+            latest?.endpoint === endpoint
+            && latest.direction === direction
+            && mobileSelectionDragEndpoint === endpoint
+          ) void performMobileSelectionPageTurn(direction, endpoint);
+        }, MOBILE_SELECTION_PAGE_EDGE_HOLD_MS);
+      };
+      const updateMobileSelectionFromOuterPoint = (
+        endpoint: MobileSelectionHandleEndpoint,
+        clientX: number,
+        clientY: number,
+        commit: boolean,
+      ) => {
+        if (mobileSelectionPageTurnInFlight) return;
+        const edgeDirection = getOuterPageEdgeDirection(clientY);
+        const continueFromTurn = Boolean(
+          edgeDirection
+          && mobileSelectionEdgeContinuationDirection === edgeDirection,
+        );
+        if (!continueFromTurn) {
+          mobileSelectionEdgeContinuationDirection = null;
+          const boundary = getBoundaryAtOuterPoint(clientX, clientY);
+          if (boundary) applyMobileSelectionBoundary(
+            endpoint,
+            boundary,
+            commit,
+            { clientX, clientY },
+          );
+        }
+        if (commit) {
+          resetMobileSelectionPageTurnState();
+        } else {
+          updateMobileSelectionPageTurnHold(endpoint, edgeDirection);
+        }
+      };
+      const startMobileSelectionDrag = (endpoint: MobileSelectionHandleEndpoint) => {
+        const session = mobileSelectionSession;
+        if (!session) return;
+        clearMobileSelectionDragFrame();
+        resetMobileSelectionPageTurnState();
+        mobileSelectionTouchPivot = null;
+        mobileSelectionDragEndpoint = endpoint;
+        mobileSelectionDragFixedBoundary = endpoint === 'start'
+          ? cloneSelectionBoundary(session.range.endContainer, session.range.endOffset)
+          : cloneSelectionBoundary(session.range.startContainer, session.range.startOffset);
+        setMobileSelectionHandles((current) => current ? { ...current, dragging: endpoint } : current);
+        lockTouchPagingForSelection();
+        suppressCenterTapUntil = performance.now() + 450;
+      };
+      const moveMobileSelectionDrag = (
+        endpoint: MobileSelectionHandleEndpoint,
+        clientX: number,
+        clientY: number,
+      ) => {
+        if (
+          !mobileSelectionSession
+          || mobileSelectionPageTurnInFlight
+          || mobileSelectionDragEndpoint !== endpoint
+          || !mobileSelectionDragFixedBoundary
+        ) return;
+        mobileSelectionDragPoint = { endpoint, clientX, clientY };
+        if (mobileSelectionDragFrame) return;
+        mobileSelectionDragFrame = window.requestAnimationFrame(() => {
+          mobileSelectionDragFrame = 0;
+          const point = mobileSelectionDragPoint;
+          mobileSelectionDragPoint = null;
+          if (point) updateMobileSelectionFromOuterPoint(
+            point.endpoint,
+            point.clientX,
+            point.clientY,
+            false,
+          );
+        });
+      };
+      const endMobileSelectionDrag = (
+        endpoint: MobileSelectionHandleEndpoint,
+        clientX: number,
+        clientY: number,
+      ) => {
+        if (mobileSelectionDragEndpoint !== endpoint) return;
+        clearMobileSelectionDragFrame();
+        updateMobileSelectionFromOuterPoint(endpoint, clientX, clientY, true);
+        resetMobileSelectionPageTurnState();
+        mobileSelectionDragEndpoint = null;
+        mobileSelectionDragFixedBoundary = null;
+        syncMobileSelectionHandles();
+      };
+      const cancelMobileSelectionDrag = () => {
+        clearMobileSelectionDragFrame();
+        resetMobileSelectionPageTurnState();
+        mobileSelectionDragEndpoint = null;
+        mobileSelectionDragFixedBoundary = null;
+        syncMobileSelectionHandles();
+      };
+      const clearThisDocumentMobileSelection = () => {
+        clearMobileSelection();
+        unlockTouchPagingForSelection();
+      };
+      const mobileSelectionController: MobileSelectionController = {
+        clear: clearThisDocumentMobileSelection,
+        refresh: refreshMobileSelection,
+        startDrag: startMobileSelectionDrag,
+        moveDrag: moveMobileSelectionDrag,
+        endDrag: endMobileSelectionDrag,
+        cancelDrag: cancelMobileSelectionDrag,
+      };
+      clearMobileSelectionRef.current = clearThisDocumentMobileSelection;
+      mobileSelectionControllerRef.current = mobileSelectionController;
+
+      const beginCustomMobileSelection = () => {
+        if (mobileSelectionSession || !pendingPress) return false;
+        const customMobileSelectionOverlayer = getFoliateContents(view)
+          .find((content) => content.doc === doc)?.overlayer;
+        if (!customMobileSelectionOverlayer) return false;
+        const wordRange = createWordRangeAtPoint(
+          doc,
+          pendingPress.boundary,
+          pendingPress.clientX,
+          pendingPress.clientY,
+        );
+        if (!wordRange) return false;
+        const range = constrainRangeToVisibleRange(doc, wordRange, getVisibleRange());
+        if (!range || range.collapsed || !range.toString().trim()) return false;
+        mobileSelectionSession = {
+          doc,
+          index,
+          range,
+          overlayer: customMobileSelectionOverlayer,
+          activeBoundary: 'end',
+        };
+        hasCustomMobileSelectionRef.current = true;
+        mobileSelectionTouchPivot = range.cloneRange();
+        mobileSelectionDragEndpoint = null;
+        mobileSelectionDragFixedBoundary = null;
+        if (!paintMobileSelection()) {
+          mobileSelectionSession = null;
+          mobileSelectionTouchPivot = null;
+          hasCustomMobileSelectionRef.current = false;
+          return false;
+        }
+        syncMobileSelectionHandles();
+        lockTouchPagingForSelection();
+        markMobileTouchSelection(touchSelectionGesture);
+        scrubNativeSelection();
+        reportMobileSelection();
+        return true;
+      };
+      const updateCustomMobileSelectionFromTouch = (touch: Touch, commit: boolean) => {
+        if (mobileSelectionPageTurnInFlight) return;
+        const session = mobileSelectionSession;
+        const pivot = mobileSelectionTouchPivot;
+        const edgeDirection = getDocumentPageEdgeDirection(touch.clientY);
+        const visibleRange = getVisibleRange();
+        const movingBoundary = getBoundaryAtDocumentPoint(touch.clientX, touch.clientY)
+          ?? (visibleRange && edgeDirection
+            ? cloneSelectionBoundary(
+              edgeDirection === 'prev' ? visibleRange.startContainer : visibleRange.endContainer,
+              edgeDirection === 'prev' ? visibleRange.startOffset : visibleRange.endOffset,
+            )
+            : null);
+        if (!session || !pivot || !movingBoundary) return;
+        const pivotStart = cloneSelectionBoundary(pivot.startContainer, pivot.startOffset);
+        const pivotEnd = cloneSelectionBoundary(pivot.endContainer, pivot.endOffset);
+        const beforePivot = compareSelectionBoundaries(doc, movingBoundary, pivotStart) < 0;
+        const afterPivot = compareSelectionBoundaries(doc, movingBoundary, pivotEnd) > 0;
+        if (!beforePivot && !afterPivot) {
+          resetMobileSelectionPageTurnState();
+          session.range = pivot.cloneRange();
+          session.activeBoundary = 'end';
+          paintMobileSelection();
+          reportMobileSelection();
+          const surface = surfaceRef.current;
+          const positions = surface && getMobileSelectionHandlePositions(session.range, surface);
+          if (positions) setMobileSelectionHandles(positions);
+          mobileSelectionDragEndpoint = null;
+          mobileSelectionDragFixedBoundary = null;
+          return;
+        }
+        const endpoint: MobileSelectionHandleEndpoint = beforePivot ? 'start' : 'end';
+        mobileSelectionDragEndpoint = endpoint;
+        mobileSelectionDragFixedBoundary = beforePivot ? pivotEnd : pivotStart;
+        const continueFromTurn = Boolean(
+          edgeDirection
+          && mobileSelectionEdgeContinuationDirection === edgeDirection,
+        );
+        if (!continueFromTurn) {
+          mobileSelectionEdgeContinuationDirection = null;
+          applyMobileSelectionBoundary(endpoint, movingBoundary, commit);
+        }
+        if (commit) {
+          resetMobileSelectionPageTurnState();
+        } else {
+          updateMobileSelectionPageTurnHold(endpoint, edgeDirection);
+        }
+      };
+      const finishCustomMobileTouchSelection = () => {
+        clearMobileSelectionDragFrame();
+        resetMobileSelectionPageTurnState();
+        mobileSelectionTouchPivot = null;
+        mobileSelectionDragEndpoint = null;
+        mobileSelectionDragFixedBoundary = null;
+        syncMobileSelectionHandles();
+        reportMobileSelection();
+      };
       const handleTouchStartCapture = (touchEvent: TouchEvent) => {
         clearTouchSelectionTimer();
-        const touch = touchEvent.touches[0];
+        customSelectionHoldCanceled = false;
+        const touch = touchEvent.touches.length === 1 ? touchEvent.touches[0] : null;
+        if (mobileSelectionSession) {
+          clearThisDocumentMobileSelection();
+          suppressCenterTapUntil = performance.now() + 450;
+        }
         const selectionActive = hasDocumentSelection();
-        mobileSelectionLocked = selectionActive;
-        touchStartContainerPosition = touchEvent.touches.length === 1
+        pendingPress = customMobileSelectionEnabled && touch && !selectionActive
+          ? (() => {
+            const boundary = getBoundaryAtDocumentPoint(touch.clientX, touch.clientY);
+            return boundary ? {
+              boundary,
+              clientX: touch.clientX,
+              clientY: touch.clientY,
+              touchIdentifier: touch.identifier,
+            } : null;
+          })()
+          : null;
+        if (selectionActive) {
+          clearTouchPagingUnlockTimer();
+          lockTouchPagingForSelection();
+        } else if (touchPagingUnlockTimer !== null) {
+          // A collapsed selection used to leave mobile paging locked until the
+          // debounce expired. A new gesture is definitive user intent, so make
+          // that gesture eligible for paging immediately.
+          unlockTouchPagingForSelection();
+        }
+        const selectionPagingLocked = touchPagingSelectionLockedRef.current;
+        touchStartContainerPosition = touch
           ? view.renderer.containerPosition
           : null;
-        touchSelectionGesture = touchEvent.touches.length === 1 && touch
+        touchSelectionGesture = touch
           ? createMobileTouchGesture({
             startedAt: performance.now(),
             startX: touch.clientX,
             startY: touch.clientY,
-            hasSelection: selectionActive,
+            hasSelection: selectionActive || selectionPagingLocked,
           })
           : null;
         if (touchSelectionGesture?.intent === 'selection') {
@@ -463,18 +1585,42 @@ export function FoliateEpubReader({
           return;
         }
         if (touchSelectionGesture) {
+          const pendingGesture = touchSelectionGesture;
           touchSelectionTimer = window.setTimeout(() => {
-            if (touchSelectionGesture?.intent === 'pending') {
-              markMobileTouchSelection(touchSelectionGesture);
+            const customHoldReady = customMobileSelectionEnabled && !customSelectionHoldCanceled;
+            if (
+              touchSelectionGesture === pendingGesture
+              && (pendingGesture.intent === 'pending' || customHoldReady)
+            ) {
+              if (!customMobileSelectionEnabled || (customHoldReady && beginCustomMobileSelection())) {
+                markMobileTouchSelection(pendingGesture);
+                // Foliate enters its paging state on touchstart. Restore the
+                // exact page as soon as the long press becomes our selection.
+                lockTouchPagingForSelection();
+                suppressCenterTapUntil = performance.now() + 450;
+              } else {
+                touchSelectionGesture = null;
+                pendingPress = null;
+                scheduleTouchPagingUnlock();
+              }
             }
             touchSelectionTimer = null;
           }, MOBILE_TEXT_SELECTION_HOLD_MS);
         }
       };
       const handleSelectStartCapture = (selectionEvent: Event) => {
+        if (customMobileSelectionEnabled) {
+          if (selectionEvent.cancelable) selectionEvent.preventDefault();
+          if (!mobileSelectionSession) beginCustomMobileSelection();
+          scrubNativeSelection();
+          markMobileTouchSelection(touchSelectionGesture);
+          clearTouchSelectionTimer();
+          suppressCenterTapUntil = performance.now() + 450;
+          selectionEvent.stopImmediatePropagation();
+          return;
+        }
         if (compactLayoutRef.current || touchSelectionGesture) {
-          mobileSelectionLocked = true;
-          restoreTouchStartPosition();
+          lockTouchPagingForSelection();
           selectionEvent.stopImmediatePropagation();
         }
         markMobileTouchSelection(touchSelectionGesture);
@@ -482,88 +1628,203 @@ export function FoliateEpubReader({
       };
       const handleTouchMoveCapture = (touchEvent: TouchEvent) => {
         const gesture = touchSelectionGesture;
-        const touch = touchEvent.touches[0];
+        const touch = pendingPress
+          ? Array.from(touchEvent.touches)
+            .find((candidate) => candidate.identifier === pendingPress?.touchIdentifier)
+          : touchEvent.touches[0];
         if (!gesture || !touch) return;
+        if (mobileSelectionSession) {
+          clearTouchSelectionTimer();
+          markMobileTouchSelection(gesture);
+          lockTouchPagingForSelection();
+          updateCustomMobileSelectionFromTouch(touch, false);
+          suppressCenterTapUntil = performance.now() + 450;
+          if (touchEvent.cancelable) touchEvent.preventDefault();
+          touchEvent.stopImmediatePropagation();
+          return;
+        }
+        const elapsed = performance.now() - gesture.startedAt;
+        const distance = Math.hypot(
+          touch.clientX - gesture.startX,
+          touch.clientY - gesture.startY,
+        );
+        if (
+          customMobileSelectionEnabled
+          && gesture.intent === 'pending'
+          && elapsed < MOBILE_TEXT_SELECTION_HOLD_MS
+          && distance >= MOBILE_CUSTOM_SELECTION_SLOP_PX
+        ) {
+          customSelectionHoldCanceled = true;
+          clearTouchSelectionTimer();
+          pendingPress = null;
+          touchSelectionGesture = null;
+          return;
+        }
         const previousIntent = gesture.intent;
         const intent = resolveMobileTouchMove({
           gesture,
           currentX: touch.clientX,
           currentY: touch.clientY,
           currentTime: performance.now(),
-          hasSelection: hasDocumentSelection() || mobileSelectionLocked,
+          hasSelection: hasDocumentSelection() || touchPagingSelectionLockedRef.current,
         });
         if (intent === 'selection' && previousIntent !== 'selection') {
-          mobileSelectionLocked = true;
-          restoreTouchStartPosition();
+          lockTouchPagingForSelection();
+        }
+        if (
+          customMobileSelectionEnabled
+          && intent === 'selection'
+          && elapsed >= MOBILE_TEXT_SELECTION_HOLD_MS
+          && beginCustomMobileSelection()
+        ) {
+          updateCustomMobileSelectionFromTouch(touch, false);
+          clearTouchSelectionTimer();
+          if (touchEvent.cancelable) touchEvent.preventDefault();
+          touchEvent.stopImmediatePropagation();
+          return;
         }
         if (
           Math.abs(touch.clientX - gesture.startX) >= 8
           || Math.abs(touch.clientY - gesture.startY) >= 8
         ) suppressCenterTapUntil = performance.now() + 450;
         if (intent !== 'pending') suppressCenterTapUntil = performance.now() + 450;
-        if (intent !== 'pending') clearTouchSelectionTimer();
+        if (intent !== 'pending' && !customMobileSelectionEnabled) clearTouchSelectionTimer();
         if (intent !== 'page-turn') {
+          if (customMobileSelectionEnabled && touchEvent.cancelable) touchEvent.preventDefault();
           touchEvent.stopImmediatePropagation();
         }
       };
       const handleTouchEndCapture = (touchEvent: TouchEvent) => {
         const gesture = touchSelectionGesture;
+        const endedTouch = pendingPress
+          ? Array.from(touchEvent.changedTouches)
+            .find((candidate) => candidate.identifier === pendingPress?.touchIdentifier)
+          : touchEvent.changedTouches[0];
+        if (
+          customMobileSelectionEnabled
+          && !mobileSelectionSession
+          && gesture
+          && !customSelectionHoldCanceled
+          && performance.now() - gesture.startedAt >= MOBILE_TEXT_SELECTION_HOLD_MS
+        ) beginCustomMobileSelection();
+        if (mobileSelectionSession) {
+          if (endedTouch) updateCustomMobileSelectionFromTouch(endedTouch, true);
+          finishCustomMobileTouchSelection();
+          touchSelectionGesture = null;
+          touchStartContainerPosition = null;
+          pendingPress = null;
+          clearTouchSelectionTimer();
+          lockTouchPagingForSelection();
+          suppressCenterTapUntil = performance.now() + 450;
+          if (touchEvent.cancelable) touchEvent.preventDefault();
+          touchEvent.stopImmediatePropagation();
+          return;
+        }
         const shouldKeepSelection = shouldPreserveMobileTextSelection({
           gesture,
           currentTime: performance.now(),
-          hasSelection: hasDocumentSelection() || mobileSelectionLocked,
+          hasSelection: hasDocumentSelection() || touchPagingSelectionLockedRef.current,
         });
         if (gesture?.intent !== 'pending' || shouldKeepSelection) {
           suppressCenterTapUntil = performance.now() + 450;
         }
         if (shouldKeepSelection) {
-          mobileSelectionLocked = true;
-          restoreTouchStartPosition();
+          lockTouchPagingForSelection();
         }
         touchSelectionGesture = null;
         touchStartContainerPosition = null;
+        pendingPress = null;
         clearTouchSelectionTimer();
+        if (!hasDocumentSelection()) scheduleTouchPagingUnlock();
         if (shouldKeepSelection) touchEvent.stopImmediatePropagation();
       };
       const handleTouchCancelCapture = (touchEvent: TouchEvent) => {
-        const selectionActive = mobileSelectionLocked || hasDocumentSelection();
-        const shouldRebound = touchSelectionGesture?.intent === 'page-turn' && !selectionActive;
-        if (touchSelectionGesture?.intent !== 'pending') {
+        const gesture = touchSelectionGesture;
+        if (mobileSelectionSession) {
+          finishCustomMobileTouchSelection();
+          touchSelectionGesture = null;
+          touchStartContainerPosition = null;
+          pendingPress = null;
+          clearTouchSelectionTimer();
+          lockTouchPagingForSelection();
           suppressCenterTapUntil = performance.now() + 450;
+          if (touchEvent.cancelable) touchEvent.preventDefault();
+          touchEvent.stopImmediatePropagation();
+          return;
         }
-        if (selectionActive) restoreTouchStartPosition();
+        const selectionActive = touchPagingSelectionLockedRef.current || hasDocumentSelection();
+        // Mobile WebKit can emit touchcancel before exposing the native text
+        // selection. Since the browser cancelled the gesture, pagination must
+        // never settle on an adjacent page, even if early movement briefly
+        // looked like a horizontal page turn.
+        const shouldCancelPaging = Boolean(gesture) || selectionActive;
+        if (shouldCancelPaging) {
+          suppressCenterTapUntil = performance.now() + 450;
+          if (selectionActive || gesture?.intent !== 'page-turn') {
+            lockTouchPagingForSelection();
+          } else {
+            restoreTouchStartPosition();
+          }
+        }
         touchSelectionGesture = null;
         touchStartContainerPosition = null;
+        pendingPress = null;
         clearTouchSelectionTimer();
-        if (selectionActive) touchEvent.stopImmediatePropagation();
-        if (shouldRebound) {
-          window.requestAnimationFrame(() => view.renderer?.snap?.(0, 0));
-        }
+        if (!hasDocumentSelection()) scheduleTouchPagingUnlock();
+        if (shouldCancelPaging) touchEvent.stopImmediatePropagation();
       };
-      const handleContextMenu = (contextMenuEvent: Event) => contextMenuEvent.preventDefault();
+      const handleContextMenu = (contextMenuEvent: Event) => {
+        contextMenuEvent.preventDefault();
+        if (customMobileSelectionEnabled) {
+          beginCustomMobileSelection();
+          scrubNativeSelection();
+          markMobileTouchSelection(touchSelectionGesture);
+          clearTouchSelectionTimer();
+          suppressCenterTapUntil = performance.now() + 450;
+          contextMenuEvent.stopImmediatePropagation();
+          return;
+        }
+        if (!compactLayoutRef.current) return;
+        // Android Chrome may announce a native long press through contextmenu
+        // before its Selection is observable. Treat it as selection intent so
+        // a synthetic mouse pointer cannot settle or auto-turn the page.
+        lockTouchPagingForSelection();
+        markMobileTouchSelection(touchSelectionGesture);
+        clearTouchSelectionTimer();
+        suppressCenterTapUntil = performance.now() + 450;
+        contextMenuEvent.stopImmediatePropagation();
+      };
 
-      const handleSelectionChange = (selectionEvent: Event) => {
-        const selectionActive = hasDocumentSelection();
+      const handleSelectionChange = () => {
+        const selection = doc.defaultView?.getSelection();
+        if (mobileSelectionSession) {
+          if (selection?.rangeCount) removeNativeSelection();
+          reportMobileSelection();
+          return;
+        }
+        if (customMobileSelectionEnabled) {
+          if (selection?.rangeCount) {
+            beginCustomMobileSelection();
+            removeNativeSelection();
+          }
+          if (mobileSelectionSession) reportMobileSelection();
+          return;
+        }
+        if (mobileSelectionProgrammatic) return;
+        const selectionActive = hasActiveTextSelection(selection);
         const mobileSelectionActive = compactLayoutRef.current
-          || mobileSelectionLocked
+          || touchPagingSelectionLockedRef.current
           || touchSelectionGesture !== null;
         if (selectionActive) {
           if (mobileSelectionActive) {
-            mobileSelectionLocked = true;
-            restoreTouchStartPosition();
+            lockTouchPagingForSelection();
           }
           markMobileTouchSelection(touchSelectionGesture);
           clearTouchSelectionTimer();
-        } else if (!touchSelectionGesture || touchSelectionGesture.intent !== 'selection') {
-          mobileSelectionLocked = false;
+        } else if (!touchSelectionGesture) {
+          scheduleTouchPagingUnlock();
         }
         reportSelection(view, doc, index);
-        if (mobileSelectionActive && selectionActive) {
-          // Foliate schedules an automatic prev/next when a selection crosses the
-          // visible column. Keep every mobile selectionchange away from that
-          // listener, including the delayed events emitted after touchend.
-          selectionEvent.stopImmediatePropagation();
-        }
       };
       const handlePointerDown = () => onContentInteractionRef.current();
       const handleClick = (mouseEvent: MouseEvent) => {
@@ -617,9 +1878,9 @@ export function FoliateEpubReader({
       doc.addEventListener('selectionchange', handleSelectionChange, true);
       doc.addEventListener('selectstart', handleSelectStartCapture, true);
       doc.addEventListener('touchstart', handleTouchStartCapture, { capture: true, passive: true });
-      doc.addEventListener('touchmove', handleTouchMoveCapture, { capture: true, passive: true });
-      doc.addEventListener('touchend', handleTouchEndCapture, { capture: true, passive: true });
-      doc.addEventListener('touchcancel', handleTouchCancelCapture, { capture: true, passive: true });
+      doc.addEventListener('touchmove', handleTouchMoveCapture, { capture: true, passive: false });
+      doc.addEventListener('touchend', handleTouchEndCapture, { capture: true, passive: false });
+      doc.addEventListener('touchcancel', handleTouchCancelCapture, { capture: true, passive: false });
       doc.addEventListener('contextmenu', handleContextMenu);
       doc.addEventListener('pointerdown', handlePointerDown);
       doc.addEventListener('click', handleClick);
@@ -627,6 +1888,18 @@ export function FoliateEpubReader({
       doc.addEventListener('wheel', handleWheel, { passive: false });
       documentCleanups.set(doc, () => {
         clearTouchSelectionTimer();
+        clearTouchPagingUnlockTimer();
+        clearMobileSelection(false);
+        clearMobileSelectionScrubFrame();
+        clearMobileSelectionProgrammaticTimer();
+        mobileSelectionProgrammatic = false;
+        doc.documentElement.classList.remove(MOBILE_CUSTOM_SELECTION_CLASS);
+        if (clearMobileSelectionRef.current === clearThisDocumentMobileSelection) {
+          clearMobileSelectionRef.current = () => undefined;
+        }
+        if (mobileSelectionControllerRef.current === mobileSelectionController) {
+          mobileSelectionControllerRef.current = null;
+        }
         doc.removeEventListener('selectionchange', handleSelectionChange, true);
         doc.removeEventListener('selectstart', handleSelectStartCapture, true);
         doc.removeEventListener('touchstart', handleTouchStartCapture, true);
@@ -665,6 +1938,7 @@ export function FoliateEpubReader({
         page: detail.location ? detail.location.current + 1 : undefined,
         totalPages: detail.location?.total,
       });
+      window.requestAnimationFrame(() => mobileSelectionControllerRef.current?.refresh());
       if (!disposed) setStatus('ready');
     };
 
@@ -697,6 +1971,7 @@ export function FoliateEpubReader({
     };
 
     const setup = async () => {
+      touchPagingSelectionLockedRef.current = false;
       setStatus('loading');
       setErrorMessage('请返回书架后重新导入这个 EPUB');
       appliedAnnotationsRef.current.clear();
@@ -771,12 +2046,18 @@ export function FoliateEpubReader({
 
     return () => {
       disposed = true;
+      selectionReportGeneration += 1;
       window.cancelAnimationFrame(selectionFrame);
+      selectionFrame = 0;
+      hasCustomMobileSelectionRef.current = false;
+      mobileSelectionPointerDragRef.current = null;
       if (trackpad.snapTimer) window.clearTimeout(trackpad.snapTimer);
       documentCleanups.forEach((cleanup) => cleanup());
       documentCleanups.clear();
       const view = ownedView;
       if (view) {
+        touchPagingSelectionLockedRef.current = false;
+        view.renderer?.setTouchPagingBlocked?.(false);
         view.removeEventListener('load', handleLoad);
         view.removeEventListener('relocate', handleRelocate);
         view.removeEventListener('create-overlay', handleCreateOverlay);
@@ -809,6 +2090,7 @@ export function FoliateEpubReader({
     if (!view?.renderer || status === 'loading') return;
     applyFoliateReaderLayout(view, compactLayout);
     applyFoliateReaderStyle(view, preferences, compactLayout);
+    window.requestAnimationFrame(() => mobileSelectionControllerRef.current?.refresh());
     const selectedFont = resolveReaderStyle(preferences).fontFamily;
     void Promise.all(getFoliateContents(view).map(async ({ doc }) => {
       await ensureReaderFontStylesheet(doc, selectedFont);
@@ -816,6 +2098,7 @@ export function FoliateEpubReader({
     })).then(() => {
       if (viewRef.current !== view) return;
       applyFoliateReaderStyle(view, preferencesRef.current, compactLayoutRef.current);
+      window.requestAnimationFrame(() => mobileSelectionControllerRef.current?.refresh());
     });
     appliedAnnotationsRef.current.clear();
     const sectionIndex = getFoliateContents(view)[0]?.index;
@@ -828,6 +2111,74 @@ export function FoliateEpubReader({
     const sectionIndex = getFoliateContents(view)[0]?.index;
     if (sectionIndex !== undefined) void syncVisibleAnnotations(view, sectionIndex);
   }, [highlights, status, syncVisibleAnnotations]);
+
+  const handleMobileSelectionPointerDown = (
+    endpoint: MobileSelectionHandleEndpoint,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    mobileSelectionControllerRef.current?.cancelDrag();
+    const rect = event.currentTarget.getBoundingClientRect();
+    mobileSelectionPointerDragRef.current = {
+      pointerId: event.pointerId,
+      endpoint,
+      grabOffsetX: event.clientX - (rect.left + rect.width / 2),
+      grabOffsetY: event.clientY - (rect.top + MOBILE_SELECTION_HANDLE_ANCHOR_OFFSET_Y),
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    mobileSelectionControllerRef.current?.startDrag(endpoint);
+  };
+
+  const handleMobileSelectionPointerMove = (
+    endpoint: MobileSelectionHandleEndpoint,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const drag = mobileSelectionPointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || drag.endpoint !== endpoint) return;
+    event.preventDefault();
+    event.stopPropagation();
+    mobileSelectionControllerRef.current?.moveDrag(
+      endpoint,
+      event.clientX - drag.grabOffsetX,
+      event.clientY - drag.grabOffsetY,
+    );
+  };
+
+  const handleMobileSelectionPointerUp = (
+    endpoint: MobileSelectionHandleEndpoint,
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const drag = mobileSelectionPointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || drag.endpoint !== endpoint) return;
+    event.preventDefault();
+    event.stopPropagation();
+    mobileSelectionControllerRef.current?.endDrag(
+      endpoint,
+      event.clientX - drag.grabOffsetX,
+      event.clientY - drag.grabOffsetY,
+    );
+    mobileSelectionPointerDragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleMobileSelectionPointerCancel = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    mobileSelectionPointerDragRef.current = null;
+    mobileSelectionControllerRef.current?.cancelDrag();
+  };
+
+  const handleMobileSelectionLostPointerCapture = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const drag = mobileSelectionPointerDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    mobileSelectionPointerDragRef.current = null;
+    mobileSelectionControllerRef.current?.cancelDrag();
+  };
 
   const texture = getReaderTextureStyle(readerStyle.texture, readerStyle.isDark);
   const surfaceStyle = {
@@ -842,7 +2193,7 @@ export function FoliateEpubReader({
   } as CSSProperties;
 
   return (
-    <div className="foliate-reader-wrap" style={surfaceStyle} onPointerDown={onContentInteraction}>
+    <div ref={surfaceRef} className="foliate-reader-wrap" style={surfaceStyle} onPointerDown={onContentInteraction}>
       <span ref={commentIconTemplateRef} className="reader-comment-icon-template" aria-hidden="true">
         <IconComment size="large" />
       </span>
@@ -853,6 +2204,54 @@ export function FoliateEpubReader({
         <div className="reader-status"><Empty title="无法打开这本书" description={errorMessage} /></div>
       )}
       <div ref={hostRef} className="foliate-reader-host" />
+      {mobileSelectionHandles && (
+        <div className="mobile-selection-handles" aria-label="调整文本选区">
+          {mobileSelectionHandles.start
+            && (!mobileSelectionHandles.dragging || mobileSelectionHandles.dragging === 'start') && (
+            <button
+              aria-label="拖动选区开头"
+              className="mobile-selection-handle mobile-selection-handle--start"
+              style={{
+                left: mobileSelectionHandles.start.left,
+                top: mobileSelectionHandles.start.top,
+              }}
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onContextMenu={(event) => event.preventDefault()}
+              onLostPointerCapture={handleMobileSelectionLostPointerCapture}
+              onPointerCancel={handleMobileSelectionPointerCancel}
+              onPointerDown={(event) => handleMobileSelectionPointerDown('start', event)}
+              onPointerMove={(event) => handleMobileSelectionPointerMove('start', event)}
+              onPointerUp={(event) => handleMobileSelectionPointerUp('start', event)}
+            />
+          )}
+          {mobileSelectionHandles.end
+            && (!mobileSelectionHandles.dragging || mobileSelectionHandles.dragging === 'end') && (
+            <button
+              aria-label="拖动选区结尾"
+              className="mobile-selection-handle mobile-selection-handle--end"
+              style={{
+                left: mobileSelectionHandles.end.left,
+                top: mobileSelectionHandles.end.top,
+              }}
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onContextMenu={(event) => event.preventDefault()}
+              onLostPointerCapture={handleMobileSelectionLostPointerCapture}
+              onPointerCancel={handleMobileSelectionPointerCancel}
+              onPointerDown={(event) => handleMobileSelectionPointerDown('end', event)}
+              onPointerMove={(event) => handleMobileSelectionPointerMove('end', event)}
+              onPointerUp={(event) => handleMobileSelectionPointerUp('end', event)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

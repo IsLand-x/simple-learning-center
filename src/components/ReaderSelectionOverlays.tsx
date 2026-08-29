@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Button, ButtonGroup, TextArea, Tooltip } from '@douyinfe/semi-ui';
 import { IconAIStrokedLevel1, IconBookmark, IconComment, IconDeleteStroked } from '@douyinfe/semi-icons';
 import { clamp } from '../lib/format';
@@ -21,6 +22,23 @@ interface ReaderSelectionOverlaysProps {
   onViewHighlight: () => void;
 }
 
+interface VisualViewportBounds {
+  height: number;
+  offsetLeft: number;
+  offsetTop: number;
+  width: number;
+}
+
+function readVisualViewport(): VisualViewportBounds {
+  const viewport = window.visualViewport;
+  return {
+    height: viewport?.height ?? window.innerHeight,
+    offsetLeft: viewport?.offsetLeft ?? 0,
+    offsetTop: viewport?.offsetTop ?? 0,
+    width: viewport?.width ?? window.innerWidth,
+  };
+}
+
 export function ReaderSelectionOverlays({
   activeHighlight,
   activeHighlightTarget,
@@ -38,7 +56,22 @@ export function ReaderSelectionOverlays({
   onSaveHighlightComment,
   onViewHighlight,
 }: ReaderSelectionOverlaysProps) {
+  const [visualViewport, setVisualViewport] = useState(readVisualViewport);
   const commentTargetRect = pendingCommentSelection?.rect ?? activeHighlightTarget?.rect;
+  const keyboardVisible = visualViewport.height < window.innerHeight - 120;
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const syncViewport = () => setVisualViewport(readVisualViewport());
+    window.addEventListener('resize', syncViewport);
+    viewport?.addEventListener('resize', syncViewport);
+    viewport?.addEventListener('scroll', syncViewport);
+    return () => {
+      window.removeEventListener('resize', syncViewport);
+      viewport?.removeEventListener('resize', syncViewport);
+      viewport?.removeEventListener('scroll', syncViewport);
+    };
+  }, []);
 
   return (
     <>
@@ -75,17 +108,21 @@ export function ReaderSelectionOverlays({
         && commentingHighlightId === activeHighlight.id
       )) && commentTargetRect && (
         <form
-          className={`highlight-comment-editor${commentTargetRect.top < 210 ? ' highlight-comment-editor--below' : ''}`}
+          className={`highlight-comment-editor${!keyboardVisible && commentTargetRect.top < 210 ? ' highlight-comment-editor--below' : ''}`}
           aria-label={`评论高亮：${pendingCommentSelection?.text ?? activeHighlight?.text ?? ''}`}
           style={{
-            left: clamp(
-              commentTargetRect.left + commentTargetRect.width / 2,
-              166,
-              window.innerWidth - 166,
-            ),
-            top: commentTargetRect.top < 210
-              ? commentTargetRect.top + commentTargetRect.height + 8
-              : commentTargetRect.top - 8,
+            left: keyboardVisible
+              ? visualViewport.offsetLeft + visualViewport.width / 2
+              : clamp(
+                commentTargetRect.left + commentTargetRect.width / 2,
+                166,
+                window.innerWidth - 166,
+              ),
+            top: keyboardVisible
+              ? visualViewport.offsetTop + visualViewport.height - 8
+              : commentTargetRect.top < 210
+                ? commentTargetRect.top + commentTargetRect.height + 8
+                : commentTargetRect.top - 8,
           }}
           onSubmit={(event) => {
             event.preventDefault();

@@ -242,6 +242,10 @@ export function ReaderPage() {
 
   useEffect(() => {
     if (!activeHighlightTarget && !pendingCommentSelection) return undefined;
+    // Opening the mobile keyboard resizes the visual viewport. A comment
+    // editor is intentional persistent UI, so that resize must not be treated
+    // as an external interaction that closes it.
+    if (pendingCommentSelection || commentingHighlightId) return undefined;
     const closeHighlightActions = () => {
       setActiveHighlightTarget(null);
       setCommentingHighlightId(null);
@@ -253,7 +257,7 @@ export function ReaderPage() {
       window.removeEventListener('resize', closeHighlightActions);
       document.removeEventListener('scroll', closeHighlightActions, true);
     };
-  }, [activeHighlightTarget, pendingCommentSelection]);
+  }, [activeHighlightTarget, commentingHighlightId, pendingCommentSelection]);
 
   useEffect(() => {
     if (activeHighlightTarget && !activeHighlight) {

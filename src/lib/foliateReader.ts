@@ -173,6 +173,16 @@ export function createFoliateReaderStyles(preferences: ReaderPreferences, compac
       -webkit-user-select: text;
       user-select: text;
     }
+    html.learning-center-custom-mobile-selection,
+    html.learning-center-custom-mobile-selection body {
+      touch-action: none !important;
+    }
+    html.learning-center-custom-mobile-selection body,
+    html.learning-center-custom-mobile-selection body * {
+      -webkit-user-select: none !important;
+      user-select: none !important;
+      -webkit-touch-callout: none !important;
+    }
     ${mobileSelectionStyles}
     body {
       box-sizing: border-box !important;
@@ -292,19 +302,40 @@ export function drawFoliateHighlight({
   preferences: ReaderPreferences;
   iconTemplate: HTMLElement | null;
 }) {
+  const { group, expandedRects } = drawExpandedFoliateHighlight(rects, preferences);
+  group.classList.add('reader-highlight');
+  group.setAttribute('data-highlight-id', annotation.highlightId);
+  const style = resolveReaderStyle(preferences);
+  group.style.setProperty('--reader-highlight-color', style.highlightColor);
+  group.style.setProperty('--reader-highlight-icon-color', style.textColor);
+  if (annotation.comment?.trim()) appendCommentBadge(group, expandedRects, iconTemplate);
+  return group;
+}
+
+function drawExpandedFoliateHighlight(
+  rects: FoliateOverlayRect[],
+  preferences: ReaderPreferences,
+) {
   const style = resolveReaderStyle(preferences);
   const expandedRects = expandFoliateHighlightRects(
     rects,
     style.fontSize * style.density.lineHeight,
   );
   const group = Overlayer.highlight(expandedRects, { color: style.highlightColor });
-  group.classList.add('reader-highlight');
-  group.setAttribute('data-highlight-id', annotation.highlightId);
   group.style.setProperty('--overlayer-highlight-opacity', '0.48');
   group.style.setProperty('--overlayer-highlight-blend-mode', style.isDark ? 'screen' : 'multiply');
-  group.style.setProperty('--reader-highlight-color', style.highlightColor);
-  group.style.setProperty('--reader-highlight-icon-color', style.textColor);
-  if (annotation.comment?.trim()) appendCommentBadge(group, expandedRects, iconTemplate);
+  return { group, expandedRects };
+}
+
+export function drawFoliateActiveSelection({
+  rects,
+  preferences,
+}: {
+  rects: FoliateOverlayRect[];
+  preferences: ReaderPreferences;
+}) {
+  const { group } = drawExpandedFoliateHighlight(rects, preferences);
+  group.classList.add('reader-active-selection');
   return group;
 }
 

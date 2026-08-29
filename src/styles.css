@@ -1414,6 +1414,66 @@ button,
   background-color: transparent;
 }
 
+.mobile-selection-handles {
+  position: absolute;
+  z-index: 24;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mobile-selection-handle {
+  position: absolute;
+  width: 42px;
+  height: 46px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--semi-color-primary);
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+  transform: translate(-50%, -22px);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-selection-handle:active {
+  cursor: grabbing;
+}
+
+.mobile-selection-handle::before,
+.mobile-selection-handle::after {
+  position: absolute;
+  left: 50%;
+  display: block;
+  content: '';
+  background: currentcolor;
+  transform: translateX(-50%);
+}
+
+.mobile-selection-handle::before {
+  top: 20px;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.mobile-selection-handle::after {
+  top: 29px;
+  width: 17px;
+  height: 17px;
+  border: 2px solid color-mix(in srgb, white 72%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 24%);
+}
+
+.mobile-selection-handle:focus-visible::after {
+  outline: 2px solid var(--semi-color-focus-border);
+  outline-offset: 2px;
+}
+
 .reader-status {
   position: absolute;
   inset: 0;

@@ -29,11 +29,13 @@ declare module 'foliate-js/view.js' {
   export interface FoliateRendererContent {
     index: number;
     doc: Document;
-    overlayer?: unknown;
+    overlayer?: import('foliate-js/overlayer.js').Overlayer;
   }
 
   export interface FoliateRenderer extends HTMLElement {
     containerPosition: number;
+    page?: number;
+    pages?: number;
     getContents: () => FoliateRendererContent[];
     setStyles?: (styles: string | [string, string]) => void;
     render?: () => void;
@@ -41,6 +43,7 @@ declare module 'foliate-js/view.js' {
     snap?: (velocityX: number, velocityY: number) => void;
     cancelTouchScroll?: () => void;
     cancelTouchPaging?: () => void;
+    setTouchPagingBlocked?: (blocked: boolean) => void;
     focusView?: () => void;
   }
 
@@ -107,6 +110,14 @@ declare module 'foliate-js/overlayer.js' {
   ) => SVGElement;
 
   export class Overlayer {
+    add: (
+      key: string,
+      range: Range,
+      draw: FoliateOverlayDraw,
+      options?: Record<string, unknown>,
+    ) => void;
+    remove: (key: string) => void;
+    redraw: () => void;
     static highlight: FoliateOverlayDraw;
   }
 }
