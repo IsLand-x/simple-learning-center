@@ -1898,9 +1898,16 @@ button,
 
 .semi-chat-area {
   position: relative;
+  min-width: 0;
   min-height: 120px;
   flex: 1;
   overflow: hidden;
+}
+
+.semi-chat-area .semi-ai-chat-dialogue-list {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .semi-chat-area--with-turn-nav .semi-ai-chat-dialogue-list {
@@ -1967,8 +1974,19 @@ button,
 }
 
 .semi-chat-area .semi-ai-chat-dialogue-wrapper {
+  min-width: 0;
+  max-width: 100%;
   margin-top: 0;
   padding: 4px 2px;
+}
+
+.semi-chat-area .semi-ai-chat-dialogue-container,
+.semi-chat-area .semi-ai-chat-dialogue-inner,
+.semi-chat-area .semi-ai-chat-dialogue-content,
+.semi-chat-area .semi-ai-chat-dialogue-content-wrapper,
+.semi-chat-area .semi-ai-chat-dialogue-content-inner {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .semi-chat-area .semi-ai-chat-dialogue-container {
@@ -1982,9 +2000,51 @@ button,
 
 .semi-chat-area .semi-ai-chat-dialogue-content-bubble,
 .semi-chat-area .semi-ai-chat-dialogue-content-userBubble {
+  min-width: 0;
+  max-width: 100%;
   margin-top: 0;
+  overflow-x: hidden;
   padding: 8px;
   border-radius: var(--semi-border-radius-medium);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.semi-chat-area .semi-markdownRender {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.semi-chat-area .semi-markdownRender pre {
+  max-width: 100%;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.semi-chat-area .semi-markdownRender pre code {
+  white-space: inherit;
+}
+
+.semi-chat-area .semi-markdownRender table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+}
+
+.semi-chat-area .semi-markdownRender th,
+.semi-chat-area .semi-markdownRender td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.semi-chat-area .semi-markdownRender img,
+.semi-chat-area .semi-markdownRender video {
+  max-width: 100%;
+  height: auto;
 }
 
 .semi-chat-area .semi-ai-chat-dialogue-content-bubble .semi-markdownRender > :last-child,

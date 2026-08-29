@@ -1,9 +1,9 @@
-import ePub from 'epubjs';
+import { makeBook } from 'foliate-js/view.js?learning-center-srcdoc-v1';
 import { demoChapterContent } from '../data/demo';
 import type { BookItem, TocItem } from '../types';
 import { loadBookSearchIndex, loadEpubFile, saveBookSearchIndex } from './epubStorage';
 
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 2;
 const CHUNK_LENGTH = 1_200;
 const CHUNK_OVERLAP = 180;
 
@@ -124,6 +124,17 @@ function passagesForSection({
   }));
 }
 
+function extractDocumentText(document: Document) {
+  const root = document.body ?? document.documentElement;
+  if (!root) return '';
+  const clone = root.cloneNode(true) as Element;
+  clone.querySelectorAll('script, style, noscript, template').forEach((element) => element.remove());
+  clone.querySelectorAll('br').forEach((element) => element.replaceWith('\n'));
+  clone.querySelectorAll('h1, h2, h3, h4, h5, h6, p, div, li, blockquote, pre, dt, dd, figcaption, tr')
+    .forEach((element) => element.append('\n'));
+  return clone.textContent ?? '';
+}
+
 function buildDemoPassages(book: BookItem) {
   return flattenToc(book.toc).flatMap((entry, sectionIndex) => {
     const content = demoChapterContent[normalizeHref(entry.href)];
@@ -140,32 +151,38 @@ function buildDemoPassages(book: BookItem) {
 async function buildEpubPassages(book: BookItem) {
   const data = await loadEpubFile(book.id);
   if (!data) throw new Error('本地 EPUB 文件不存在，无法建立书籍搜索索引');
-  const epub = ePub(data);
+  const file = new File([data], book.fileName || `${book.title}.epub`, {
+    type: 'application/epub+zip',
+  });
+  const epub = await makeBook(file);
   const tocEntries = flattenToc(book.toc);
   try {
-    await epub.ready;
-    const spineItems = await epub.loaded.spine;
     const passages: BookPassage[] = [];
-    for (let sectionIndex = 0; sectionIndex < spineItems.length; sectionIndex += 1) {
-      const section = epub.section(sectionIndex);
-      if (!section?.href) continue;
+    for (let sectionIndex = 0; sectionIndex < epub.sections.length; sectionIndex += 1) {
+      const section = epub.sections[sectionIndex];
+      if (!section?.id || !section.createDocument) continue;
       try {
-        const document = await Promise.resolve(section.load(epub.load.bind(epub))) as unknown as Document;
-        const text = document.body?.innerText || document.documentElement?.textContent || '';
+        const document = await section.createDocument();
+        const text = extractDocumentText(document);
         if (!normalizeText(text)) continue;
         passages.push(...passagesForSection({
           text,
-          chapter: chapterForHref(tocEntries, section.href, `第 ${sectionIndex + 1} 节`),
-          href: section.href,
+          chapter: chapterForHref(tocEntries, section.id, `第 ${sectionIndex + 1} 节`),
+          href: section.id,
           sectionIndex,
         }));
+      } catch {
+        // Image-only or malformed spine items have no searchable text; keep indexing the remaining book.
       } finally {
-        section.unload();
+        section.unload?.();
       }
+    }
+    if (!passages.length) {
+      throw new Error('未能从 EPUB 中提取可搜索正文，请确认书籍包含可选择的文字内容');
     }
     return passages;
   } finally {
-    epub.destroy();
+    epub.destroy?.();
   }
 }
 
@@ -176,6 +193,7 @@ async function loadOrBuildIndex(book: BookItem) {
     && stored.bookId === book.id
     && stored.fileSize === book.fileSize
     && Array.isArray(stored.passages)
+    && stored.passages.length > 0
   ) {
     return stored.passages;
   }

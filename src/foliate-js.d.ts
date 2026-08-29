@@ -82,6 +82,12 @@ declare module 'foliate-js/view.js' {
   export function makeBook(file: string | File | Blob): Promise<FoliateBook>;
 }
 
+declare module 'foliate-js/view.js?learning-center-srcdoc-v1' {
+  import type { FoliateBook } from 'foliate-js/view.js';
+
+  export function makeBook(file: string | File | Blob): Promise<FoliateBook>;
+}
+
 declare module 'foliate-js/overlayer.js' {
   export interface FoliateOverlayRect {
     left: number;
