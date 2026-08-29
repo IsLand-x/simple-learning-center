@@ -28,7 +28,8 @@ export async function serverRequest(path: string, init?: RequestInit) {
       credentials: 'same-origin',
       ...init,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw error;
     throw new ServerApiError('无法连接学习中心服务，请确认服务已经启动', 0);
   }
   if (!response.ok) {

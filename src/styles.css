@@ -2220,25 +2220,13 @@ button,
   margin-bottom: 0;
 }
 
-.csp-chat-content {
-  min-width: 0;
-  max-width: 100%;
-  padding: 8px;
-  border-radius: var(--semi-border-radius-medium);
-  color: var(--semi-color-text-0);
-  background: var(--semi-color-fill-0);
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.csp-chat-content--user {
-  color: var(--semi-color-primary);
-  background: var(--semi-color-primary-light-default);
-}
-
 .csp-chat-markdown {
   min-width: 0;
   max-width: 100%;
+}
+
+.semi-chat-area .semi-ai-chat-dialogue-content-bubble.csp-chat-markdown {
+  color: var(--semi-color-text-0);
 }
 
 .csp-chat-markdown > :first-child {
@@ -2288,49 +2276,22 @@ button,
   color: var(--semi-color-link);
 }
 
-.csp-chat-reasoning {
-  margin-bottom: 8px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-fill-0);
-}
-
-.csp-chat-reasoning summary {
-  display: flex;
-  min-height: 30px;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 8px;
-  color: var(--semi-color-text-1);
-  cursor: pointer;
+.csp-chat-reasoning > summary {
   list-style: none;
 }
 
-.csp-chat-reasoning summary::-webkit-details-marker {
+.csp-chat-reasoning > summary::-webkit-details-marker {
   display: none;
 }
 
-.csp-chat-reasoning[open] summary .semi-icon {
+.csp-chat-reasoning[open] .semi-ai-chat-dialogue-reasoning-header-suffix .semi-icon {
   transform: rotate(180deg);
 }
 
-.csp-chat-reasoning .csp-chat-markdown {
-  padding: 0 8px 8px;
-  color: var(--semi-color-text-1);
-  font-size: 13px;
-}
-
 .csp-chat-tool {
-  display: flex;
   min-width: 0;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 6px;
-  padding: 6px 8px;
-  border-radius: var(--semi-border-radius-small);
-  color: var(--semi-color-text-1);
-  background: var(--semi-color-fill-0);
-  font-size: 13px;
+  max-width: 100%;
+  justify-content: flex-start;
 }
 
 .csp-chat-tool > code {
@@ -2342,13 +2303,8 @@ button,
   white-space: nowrap;
 }
 
-.csp-chat-tool--failed,
-.csp-chat-error {
+.csp-chat-tool--failed {
   color: var(--semi-color-danger);
-}
-
-.csp-chat-loading {
-  color: var(--semi-color-text-2);
 }
 
 .semi-chat-area .semi-ai-chat-dialogue-container-right .semi-ai-chat-dialogue-content-bubble {

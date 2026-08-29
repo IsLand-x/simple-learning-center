@@ -26,10 +26,14 @@ const READER_FONT_STYLESHEETS: Partial<Record<ReaderFont, string>> = {
   pingfang: 'https://cdn.jsdelivr.net/npm/@fontsource/noto-sans-sc@5.3.0/400.css',
 };
 
+export function getReaderFontStylesheet(font: ReaderFont) {
+  return READER_FONT_STYLESHEETS[font];
+}
+
 const fontLoads = new WeakMap<Document, Map<ReaderFont, Promise<void>>>();
 
 export function ensureReaderFontStylesheet(targetDocument: Document, font: ReaderFont) {
-  const stylesheet = READER_FONT_STYLESHEETS[font];
+  const stylesheet = getReaderFontStylesheet(font);
   if (!stylesheet || !targetDocument.head) return Promise.resolve();
 
   let documentLoads = fontLoads.get(targetDocument);

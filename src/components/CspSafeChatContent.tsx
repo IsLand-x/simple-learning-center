@@ -1,4 +1,4 @@
-import { IconChevronDown, IconWrench } from '@douyinfe/semi-icons';
+import { IconAISearchLevel2, IconAlertCircle, IconChevronDown, IconWrench } from '@douyinfe/semi-icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -13,10 +13,10 @@ function textValue(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
-function markdown(text: string, key: string) {
+function markdown(text: string, key: string, className = '') {
   if (!text) return null;
   return (
-    <div className="csp-chat-markdown" key={key}>
+    <div className={`${className} csp-chat-markdown`.trim()} key={key}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -56,27 +56,32 @@ function reasoningText(item: Record<string, unknown>) {
     .join('\n\n');
 }
 
-function renderItem(item: unknown, index: number) {
+function renderItem(item: unknown, index: number, bubbleClassName: string) {
   if (!item || typeof item !== 'object') return null;
   const value = item as Record<string, unknown>;
   const type = textValue(value.type);
   if (type === 'message' || !type) {
-    return markdown(messageText(value), `message-${index}`);
+    return markdown(messageText(value), `message-${index}`, bubbleClassName);
   }
   if (type === 'reasoning') {
     const text = reasoningText(value);
     if (!text) return null;
     return (
       <details
-        className="csp-chat-reasoning"
+        className="semi-ai-chat-dialogue-reasoning-wrapper csp-chat-reasoning"
         key={`reasoning-${index}`}
         open={value.status === 'in_progress'}
       >
-        <summary>
-          <IconChevronDown />
-          {value.status === 'in_progress' ? '正在思考' : '思考过程'}
+        <summary className="semi-ai-chat-dialogue-reasoning-header">
+          <span className="semi-ai-chat-dialogue-reasoning-header-prefix"><IconAISearchLevel2 /></span>
+          <span className="semi-ai-chat-dialogue-reasoning-header-title">
+            {value.status === 'in_progress' ? '正在思考' : '思考过程'}
+          </span>
+          <span className="semi-ai-chat-dialogue-reasoning-header-suffix"><IconChevronDown /></span>
         </summary>
-        {markdown(text, `reasoning-text-${index}`)}
+        <div className="semi-ai-chat-dialogue-reasoning-content">
+          {markdown(text, `reasoning-text-${index}`)}
+        </div>
       </details>
     );
   }
@@ -84,7 +89,10 @@ function renderItem(item: unknown, index: number) {
     const name = textValue(value.name) || '工具';
     const argumentsText = textValue(value.arguments);
     return (
-      <div className={`csp-chat-tool csp-chat-tool--${textValue(value.status)}`} key={`tool-${index}`}>
+      <div
+        className={`semi-ai-chat-dialogue-content-tool-call csp-chat-tool csp-chat-tool--${textValue(value.status)}`}
+        key={`tool-${index}`}
+      >
         <IconWrench />
         <span>{value.status === 'failed' ? '调用失败' : value.status === 'in_progress' ? '正在调用' : '已调用'} {name}</span>
         {argumentsText && <code title={argumentsText}>{argumentsText}</code>}
@@ -94,19 +102,35 @@ function renderItem(item: unknown, index: number) {
   return null;
 }
 
-export function CspSafeChatContent({ message }: { message?: ChatRenderMessage }) {
+export function CspSafeChatContent({
+  message,
+  bubbleClassName = '',
+}: {
+  message?: ChatRenderMessage;
+  bubbleClassName?: string;
+}) {
   const content = message?.content;
   const children = typeof content === 'string'
-    ? markdown(content, 'content')
+    ? markdown(content, 'content', bubbleClassName)
     : Array.isArray(content)
-      ? content.map(renderItem)
-      : markdown(message?.output_text ?? '', 'output');
+      ? content.map((item, index) => renderItem(item, index, bubbleClassName)).filter(Boolean)
+      : markdown(message?.output_text ?? '', 'output', bubbleClassName);
+  const hasContent = Array.isArray(children) ? children.length > 0 : Boolean(children);
+  const loading = ['queued', 'in_progress'].includes(message?.status ?? '') && !hasContent;
   return (
-    <div className={`csp-chat-content csp-chat-content--${message?.role ?? 'assistant'}`}>
-      {message?.status === 'failed' && <span className="csp-chat-error">生成失败</span>}
-      {children}
-      {['queued', 'in_progress'].includes(message?.status ?? '') && !children && (
-        <span className="csp-chat-loading">服务端正在生成…</span>
+    <div className="semi-ai-chat-dialogue-content">
+      <div className="semi-ai-chat-dialogue-content-wrapper">
+        {message?.status === 'failed' && (
+          <div className="semi-ai-chat-dialogue-content-failed"><IconAlertCircle /></div>
+        )}
+        <div className="semi-ai-chat-dialogue-content-inner">{children}</div>
+      </div>
+      {loading && (
+        <div className="semi-ai-chat-dialogue-content-loading" aria-label="正在生成">
+          <span className="semi-ai-chat-dialogue-content-loading-item" />
+          <span className="semi-ai-chat-dialogue-content-loading-item" />
+          <span className="semi-ai-chat-dialogue-content-loading-item" />
+        </div>
       )}
     </div>
   );

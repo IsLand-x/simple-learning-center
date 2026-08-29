@@ -17,7 +17,14 @@ import {
   IconSearch,
 } from '@douyinfe/semi-icons';
 import { confirmDialog } from '../lib/confirmDialog';
-import { cancelAiJob, getAiJob, listAiJobs, startAiJob, type AiJob } from '../lib/aiJobs';
+import {
+  cancelAiJob,
+  getAiJob,
+  listAiJobs,
+  startAiJob,
+  watchAiJob,
+  type AiJob,
+} from '../lib/aiJobs';
 import { getBookPassages } from '../lib/bookSearch';
 import { formatRelativeTime } from '../lib/format';
 import { markdownNoteExcerpt, markdownNoteTitle } from '../lib/markdownNotes';
@@ -251,7 +258,7 @@ function AiPanel({
         createdAt: job.createdAt,
       });
       setStatus('generating');
-      setStatusMessage('服务端正在生成，关闭页面也不会中断');
+      setStatusMessage('');
       return;
     }
     setActiveJobId(null);
@@ -308,13 +315,17 @@ function AiPanel({
     if (!activeJobId) return undefined;
     let disposed = false;
     let timer = 0;
+    let polling = false;
+    let animationFrame = 0;
+    let latestStreamedJob: AiJob | undefined;
+    const controller = new AbortController();
     const poll = async () => {
       try {
         const job = await getAiJob(activeJobId);
         if (disposed) return;
         applyJob(job);
         if (job.status === 'queued' || job.status === 'running') {
-          timer = window.setTimeout(poll, 800);
+          timer = window.setTimeout(poll, 250);
         }
       } catch (error) {
         if (disposed) return;
@@ -323,10 +334,32 @@ function AiPanel({
         setStatusMessage(error instanceof Error ? error.message : '无法读取服务端任务');
       }
     };
-    void poll();
+    const startPolling = () => {
+      if (disposed || polling) return;
+      polling = true;
+      void poll();
+    };
+    const applyStreamedJob = (job: AiJob) => {
+      latestStreamedJob = job;
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = 0;
+        const latestJob = latestStreamedJob;
+        latestStreamedJob = undefined;
+        if (!disposed && latestJob) applyJob(latestJob);
+      });
+    };
+    void watchAiJob(activeJobId, (job) => {
+      if (!disposed) applyStreamedJob(job);
+    }, controller.signal).catch((error) => {
+      if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
+      startPolling();
+    });
     return () => {
       disposed = true;
+      controller.abort();
       window.clearTimeout(timer);
+      window.cancelAnimationFrame(animationFrame);
     };
   }, [activeJobId, applyJob]);
 
@@ -406,7 +439,7 @@ function AiPanel({
       createdAt,
     });
     setStatus('generating');
-    setStatusMessage('正在准备书内索引…');
+    setStatusMessage('');
     try {
       await getBookPassages(book);
       await waitForServerStateWrites();
@@ -514,7 +547,9 @@ function AiPanel({
               renderDialogueAvatar: () => null,
               renderDialogueTitle: () => null,
               renderDialogueAction: () => null,
-              renderDialogueContent: ({ message }) => <CspSafeChatContent message={message} />,
+              renderDialogueContent: ({ message, className }) => (
+                <CspSafeChatContent message={message} bubbleClassName={className} />
+              ),
             }}
           />
         ) : <Empty title="开始新的对话" description="Agent 会按需检索整本书、学习记录与联网资料" />}

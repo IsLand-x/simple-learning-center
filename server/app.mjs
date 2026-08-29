@@ -2,6 +2,7 @@ import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
+import { streamSSE } from 'hono/streaming';
 import { rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { createApiKeyExport, importApiKeys, parseApiKeyImport } from './apiKeys.mjs';
@@ -43,6 +44,7 @@ const MIME_TYPES = new Map([
   ['.epub', 'application/epub+zip'],
   ['.json', 'application/json; charset=utf-8'],
 ]);
+const AI_STREAM_UPDATE_INTERVAL_MS = 32;
 
 function noContent(c) {
   return c.body(null, 204);
@@ -240,6 +242,49 @@ export function createApp({
       conversationId: c.req.query('conversationId'),
     }),
   }));
+  app.get('/api/ai/jobs/:jobId/events', (c) => {
+    const jobId = c.req.param('jobId');
+    aiJobs.get(jobId);
+    c.header('X-Accel-Buffering', 'no');
+    return streamSSE(c, async (stream) => {
+      let latestJob;
+      let wake;
+      let stopped = false;
+      const notify = () => {
+        wake?.();
+        wake = undefined;
+      };
+      const unsubscribe = aiJobs.subscribe(jobId, (job) => {
+        latestJob = job;
+        notify();
+      });
+      stream.onAbort(() => {
+        stopped = true;
+        notify();
+      });
+      try {
+        while (!stopped) {
+          if (!latestJob) {
+            await new Promise((resolve) => {
+              wake = resolve;
+            });
+          }
+          const job = latestJob;
+          latestJob = undefined;
+          if (!job || stopped) continue;
+          await stream.writeSSE({
+            event: 'job',
+            id: String(job.revision),
+            data: JSON.stringify(job),
+          });
+          if (!['queued', 'running'].includes(job.status)) return;
+          await stream.sleep(AI_STREAM_UPDATE_INTERVAL_MS);
+        }
+      } finally {
+        unsubscribe();
+      }
+    });
+  });
   app.get('/api/ai/jobs/:jobId', (c) => c.json(aiJobs.get(c.req.param('jobId'))));
   app.delete('/api/ai/jobs/:jobId', (c) => c.json(aiJobs.cancel(c.req.param('jobId'))));
   app.all('/api/ai/jobs', methodNotAllowed);

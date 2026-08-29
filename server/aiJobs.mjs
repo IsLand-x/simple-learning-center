@@ -64,6 +64,27 @@ function normalizedMessage(message) {
 
 export function createAiJobManager({ runChat = runServerAiChat } = {}) {
   const jobs = new Map();
+  const subscribers = new Map();
+
+  function publishJob(job) {
+    const listeners = subscribers.get(job.id);
+    if (!listeners?.size) return;
+    const snapshot = publicJob(job);
+    for (const listener of [...listeners]) listener(snapshot);
+  }
+
+  function subscribe(id, listener) {
+    const job = jobs.get(id);
+    if (!job) throw statusError(404, 'AI 任务不存在或已过期');
+    const listeners = subscribers.get(id) ?? new Set();
+    listeners.add(listener);
+    subscribers.set(id, listeners);
+    listener(publicJob(job));
+    return () => {
+      listeners.delete(listener);
+      if (!listeners.size) subscribers.delete(id);
+    };
+  }
 
   function pruneJobs() {
     const now = Date.now();
@@ -114,6 +135,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     job.status = 'running';
     job.updatedAt = Date.now();
     job.revision += 1;
+    publishJob(job);
     try {
       const result = await runChat({
         ...context,
@@ -124,6 +146,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
           job.dialogueContent = structuredClone(progress.dialogueContent);
           job.updatedAt = Date.now();
           job.revision += 1;
+          publishJob(job);
         },
       });
       if (job.controller.signal.aborted || job.status === 'cancelled') return;
@@ -135,6 +158,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       job.completedAt = Date.now();
       job.updatedAt = job.completedAt;
       job.revision += 1;
+      publishJob(job);
     } catch (error) {
       if (job.controller.signal.aborted || job.status === 'cancelled' || error?.name === 'AbortError') {
         job.status = 'cancelled';
@@ -147,6 +171,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       job.completedAt = Date.now();
       job.updatedAt = job.completedAt;
       job.revision += 1;
+      publishJob(job);
     } finally {
       pruneJobs();
     }
@@ -296,6 +321,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       job.completedAt = Date.now();
       job.updatedAt = job.completedAt;
       job.revision += 1;
+      publishJob(job);
     }
     return publicJob(job);
   }
@@ -329,5 +355,5 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     return persistedState;
   }
 
-  return { start, get, list, cancel, protectPersistedState };
+  return { start, get, list, cancel, subscribe, protectPersistedState };
 }

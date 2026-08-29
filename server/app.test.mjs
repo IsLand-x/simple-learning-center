@@ -181,6 +181,17 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(acceptedResponse.status, 202);
     const acceptedJob = await acceptedResponse.json();
 
+    const eventsResponse = await aiApp.request(`/api/ai/jobs/${acceptedJob.id}/events`);
+    assert.match(eventsResponse.headers.get('content-type'), /^text\/event-stream/);
+    assert.equal(eventsResponse.headers.get('x-accel-buffering'), 'no');
+    const streamedJobs = (await eventsResponse.text())
+      .split('\n\n')
+      .map((event) => event.split('\n').find((line) => line.startsWith('data: ')))
+      .filter(Boolean)
+      .map((line) => JSON.parse(line.slice('data: '.length)));
+    assert.ok(streamedJobs.some((job) => job.status === 'running' && job.content === '正在生成'));
+    assert.equal(streamedJobs.at(-1).status, 'completed');
+
     let completedJob;
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const response = await aiApp.request(`/api/ai/jobs/${acceptedJob.id}`);

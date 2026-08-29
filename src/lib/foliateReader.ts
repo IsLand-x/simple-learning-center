@@ -1,7 +1,7 @@
 import 'foliate-js/view.js?learning-center-srcdoc-v1';
 import { Overlayer, type FoliateOverlayRect } from 'foliate-js/overlayer.js';
 import type { FoliateAnnotation, FoliateBook, FoliateRendererContent, View as FoliateView } from 'foliate-js/view.js';
-import { READER_FONT_STACKS } from './readerFonts';
+import { getReaderFontStylesheet, READER_FONT_STACKS } from './readerFonts';
 import { getReaderTextureStyle, resolveReaderStyle } from './readerThemes';
 import type { HighlightItem, ReaderPreferences } from '../types';
 
@@ -147,11 +147,13 @@ export function createFoliateReaderStyles(preferences: ReaderPreferences, compac
   const style = resolveReaderStyle(preferences);
   const texture = getReaderTextureStyle(style.texture, style.isDark);
   const fontFamily = READER_FONT_STACKS[style.fontFamily];
+  const fontStylesheet = getReaderFontStylesheet(style.fontFamily);
   const pagePadding = compactLayout ? 'clamp(12px, 4vw, 18px)' : style.density.pagePadding;
   const mobileSelectionStyles = compactLayout
     ? `html, body, body * { -webkit-touch-callout: none !important; }`
     : '';
   return `
+    ${fontStylesheet ? `@import url("${fontStylesheet}");` : ''}
     @namespace epub "http://www.idpf.org/2007/ops";
     :root {
       color-scheme: ${style.isDark ? 'dark' : 'light'};
