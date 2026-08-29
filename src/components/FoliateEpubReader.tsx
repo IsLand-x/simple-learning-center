@@ -10,6 +10,7 @@ import type {
 import type { FoliateOverlayRect } from 'foliate-js/overlayer.js';
 import { loadEpubFile } from '../lib/epubStorage';
 import {
+  applyFoliateReaderLayout,
   applyFoliateReaderStyle,
   configureFoliateReader,
   createFoliateAnnotation,
@@ -22,6 +23,7 @@ import {
   type ReaderFoliateAnnotation,
 } from '../lib/foliateReader';
 import { ensureReaderFontStylesheet } from '../lib/readerFonts';
+import { isTextSelectionHold } from '../lib/readerGestures';
 import { getReaderTextureStyle, resolveReaderStyle } from '../lib/readerThemes';
 import type { HighlightItem, ReaderPreferences } from '../types';
 import type { ReaderSurfaceHandle, ReaderSurfaceProps } from './ReaderSurface';
@@ -237,6 +239,7 @@ function annotationSignature(highlight: HighlightItem, preferences: ReaderPrefer
 
 export function FoliateEpubReader({
   book,
+  compactLayout,
   preferences,
   highlights,
   onLocationChange,
@@ -252,6 +255,7 @@ export function FoliateEpubReader({
   const commentIconTemplateRef = useRef<HTMLSpanElement>(null);
   const appliedAnnotationsRef = useRef<Map<string, string>>(new Map());
   const highlightsRef = useRef(highlights);
+  const compactLayoutRef = useRef(compactLayout);
   const preferencesRef = useRef(preferences);
   const onLocationRef = useRef(onLocationChange);
   const onSelectionRef = useRef(onSelection);
@@ -261,6 +265,7 @@ export function FoliateEpubReader({
   const [errorMessage, setErrorMessage] = useState('请返回书架后重新导入这个 EPUB');
 
   useEffect(() => { highlightsRef.current = highlights; }, [highlights]);
+  useEffect(() => { compactLayoutRef.current = compactLayout; }, [compactLayout]);
   useEffect(() => { preferencesRef.current = preferences; }, [preferences]);
   useEffect(() => { onLocationRef.current = onLocationChange; }, [onLocationChange]);
   useEffect(() => { onSelectionRef.current = onSelection; }, [onSelection]);
@@ -407,6 +412,42 @@ export function FoliateEpubReader({
       const { doc, index } = (event as CustomEvent<FoliateLoadDetail>).detail;
       if (documentCleanups.has(doc)) return;
 
+      let touchSelectionGesture: { startedAt: number; selectionIntent: boolean } | null = null;
+      const hasDocumentSelection = () => hasActiveTextSelection(doc.defaultView?.getSelection());
+      const handleTouchStartCapture = (touchEvent: TouchEvent) => {
+        const selectionIntent = hasDocumentSelection();
+        touchSelectionGesture = touchEvent.touches.length === 1
+          ? { startedAt: touchEvent.timeStamp, selectionIntent }
+          : null;
+        if (selectionIntent) touchEvent.stopImmediatePropagation();
+      };
+      const handleSelectStartCapture = () => {
+        if (touchSelectionGesture) touchSelectionGesture.selectionIntent = true;
+      };
+      const handleTouchMoveCapture = (touchEvent: TouchEvent) => {
+        const gesture = touchSelectionGesture;
+        if (!gesture) return;
+        if (hasDocumentSelection() || isTextSelectionHold(gesture.startedAt, touchEvent.timeStamp)) {
+          gesture.selectionIntent = true;
+        }
+        if (gesture.selectionIntent) touchEvent.stopImmediatePropagation();
+      };
+      const handleTouchEndCapture = (touchEvent: TouchEvent) => {
+        const gesture = touchSelectionGesture;
+        const shouldKeepSelection = Boolean(
+          gesture
+          && (gesture.selectionIntent
+            || hasDocumentSelection()
+            || isTextSelectionHold(gesture.startedAt, touchEvent.timeStamp)),
+        );
+        touchSelectionGesture = null;
+        if (shouldKeepSelection) touchEvent.stopImmediatePropagation();
+      };
+      const handleTouchCancelCapture = () => {
+        touchSelectionGesture = null;
+      };
+      const handleContextMenu = (contextMenuEvent: Event) => contextMenuEvent.preventDefault();
+
       const handleSelectionChange = () => reportSelection(view, doc, index);
       const handlePointerDown = () => onContentInteractionRef.current();
       const handleClick = (mouseEvent: MouseEvent) => {
@@ -446,12 +487,24 @@ export function FoliateEpubReader({
         }
       };
       doc.addEventListener('selectionchange', handleSelectionChange);
+      doc.addEventListener('selectstart', handleSelectStartCapture, true);
+      doc.addEventListener('touchstart', handleTouchStartCapture, { capture: true, passive: true });
+      doc.addEventListener('touchmove', handleTouchMoveCapture, { capture: true, passive: true });
+      doc.addEventListener('touchend', handleTouchEndCapture, { capture: true, passive: true });
+      doc.addEventListener('touchcancel', handleTouchCancelCapture, { capture: true, passive: true });
+      doc.addEventListener('contextmenu', handleContextMenu);
       doc.addEventListener('pointerdown', handlePointerDown);
       doc.addEventListener('click', handleClick);
       doc.addEventListener('keyup', handleKeyUp);
       doc.addEventListener('wheel', handleWheel, { passive: false });
       documentCleanups.set(doc, () => {
         doc.removeEventListener('selectionchange', handleSelectionChange);
+        doc.removeEventListener('selectstart', handleSelectStartCapture, true);
+        doc.removeEventListener('touchstart', handleTouchStartCapture, true);
+        doc.removeEventListener('touchmove', handleTouchMoveCapture, true);
+        doc.removeEventListener('touchend', handleTouchEndCapture, true);
+        doc.removeEventListener('touchcancel', handleTouchCancelCapture, true);
+        doc.removeEventListener('contextmenu', handleContextMenu);
         doc.removeEventListener('pointerdown', handlePointerDown);
         doc.removeEventListener('click', handleClick);
         doc.removeEventListener('keyup', handleKeyUp);
@@ -463,7 +516,7 @@ export function FoliateEpubReader({
         .then(() => doc.fonts?.ready)
         .then(() => {
           if (disposed || resolveReaderStyle(preferencesRef.current).fontFamily !== selectedFont) return;
-          applyFoliateReaderStyle(view, preferencesRef.current);
+          applyFoliateReaderStyle(view, preferencesRef.current, compactLayoutRef.current);
         });
     };
 
@@ -541,7 +594,7 @@ export function FoliateEpubReader({
       await view.open(file);
       if (disposed) return;
       prepareFoliateBookForBrowser(view);
-      configureFoliateReader(view, preferencesRef.current);
+      configureFoliateReader(view, preferencesRef.current, compactLayoutRef.current);
 
       let displayed = false;
       if (book.currentCfi && canNavigateTo(view, book.currentCfi)) {
@@ -622,19 +675,20 @@ export function FoliateEpubReader({
   useEffect(() => {
     const view = viewRef.current;
     if (!view?.renderer || status === 'loading') return;
-    applyFoliateReaderStyle(view, preferences);
+    applyFoliateReaderLayout(view, compactLayout);
+    applyFoliateReaderStyle(view, preferences, compactLayout);
     const selectedFont = resolveReaderStyle(preferences).fontFamily;
     void Promise.all(getFoliateContents(view).map(async ({ doc }) => {
       await ensureReaderFontStylesheet(doc, selectedFont);
       await doc.fonts?.ready;
     })).then(() => {
       if (viewRef.current !== view) return;
-      applyFoliateReaderStyle(view, preferencesRef.current);
+      applyFoliateReaderStyle(view, preferencesRef.current, compactLayoutRef.current);
     });
     appliedAnnotationsRef.current.clear();
     const sectionIndex = getFoliateContents(view)[0]?.index;
     if (sectionIndex !== undefined) void syncVisibleAnnotations(view, sectionIndex);
-  }, [preferences, status, syncVisibleAnnotations]);
+  }, [compactLayout, preferences, status, syncVisibleAnnotations]);
 
   useEffect(() => {
     const view = viewRef.current;

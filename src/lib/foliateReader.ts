@@ -110,11 +110,20 @@ export function prepareFoliateBookForBrowser(view: FoliateView) {
   });
 }
 
-export function configureFoliateReader(view: FoliateView, preferences: ReaderPreferences) {
+export function applyFoliateReaderLayout(view: FoliateView, compactLayout: boolean) {
+  const renderer = view.renderer;
+  renderer.setAttribute('gap', compactLayout ? '3%' : '7%');
+  renderer.setAttribute('margin', compactLayout ? '14px' : '28px');
+}
+
+export function configureFoliateReader(
+  view: FoliateView,
+  preferences: ReaderPreferences,
+  compactLayout: boolean,
+) {
   const renderer = view.renderer;
   renderer.setAttribute('flow', 'paginated');
-  renderer.setAttribute('gap', '7%');
-  renderer.setAttribute('margin', '28px');
+  applyFoliateReaderLayout(view, compactLayout);
   renderer.setAttribute('max-inline-size', '880px');
   renderer.setAttribute('max-block-size', '1440px');
   renderer.setAttribute('max-column-count', '1');
@@ -123,17 +132,25 @@ export function configureFoliateReader(view: FoliateView, preferences: ReaderPre
   } else {
     renderer.setAttribute('animated', '');
   }
-  applyFoliateReaderStyle(view, preferences);
+  applyFoliateReaderStyle(view, preferences, compactLayout);
 }
 
-export function applyFoliateReaderStyle(view: FoliateView, preferences: ReaderPreferences) {
-  view.renderer.setStyles?.(createFoliateReaderStyles(preferences));
+export function applyFoliateReaderStyle(
+  view: FoliateView,
+  preferences: ReaderPreferences,
+  compactLayout: boolean,
+) {
+  view.renderer.setStyles?.(createFoliateReaderStyles(preferences, compactLayout));
 }
 
-export function createFoliateReaderStyles(preferences: ReaderPreferences) {
+export function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout: boolean) {
   const style = resolveReaderStyle(preferences);
   const texture = getReaderTextureStyle(style.texture, style.isDark);
   const fontFamily = READER_FONT_STACKS[style.fontFamily];
+  const pagePadding = compactLayout ? 'clamp(12px, 4vw, 18px)' : style.density.pagePadding;
+  const mobileSelectionStyles = compactLayout
+    ? `html, body, body * { -webkit-touch-callout: none !important; }`
+    : '';
   return `
     @namespace epub "http://www.idpf.org/2007/ops";
     :root {
@@ -154,9 +171,10 @@ export function createFoliateReaderStyles(preferences: ReaderPreferences) {
       -webkit-user-select: text;
       user-select: text;
     }
+    ${mobileSelectionStyles}
     body {
       box-sizing: border-box !important;
-      padding-inline: ${style.density.pagePadding} !important;
+      padding-inline: ${pagePadding} !important;
       font-family: ${fontFamily} !important;
       font-size: ${style.fontSize}px !important;
       line-height: ${style.density.lineHeight} !important;

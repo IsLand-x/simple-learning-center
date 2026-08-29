@@ -588,6 +588,7 @@ export function ReaderPage() {
         <ReaderSurface
           ref={readerRef}
           book={book}
+          compactLayout={mobileReader}
           preferences={preferences}
           themeMode={themeMode}
           highlights={readerHighlights}

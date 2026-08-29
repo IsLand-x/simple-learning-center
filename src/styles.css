@@ -2788,6 +2788,7 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   .mobile-main-nav {
     z-index: 40;
     display: grid;
+    height: calc(var(--mobile-main-nav-height) + env(safe-area-inset-bottom));
     min-height: calc(var(--mobile-main-nav-height) + env(safe-area-inset-bottom));
     grid-template-columns: repeat(2, minmax(0, 1fr));
     order: 2;
@@ -2795,6 +2796,8 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
     padding: 4px max(16px, env(safe-area-inset-left)) max(4px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
     border-top: 1px solid var(--semi-color-border);
     background: var(--semi-color-bg-1);
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   .mobile-main-nav .semi-button {
@@ -3033,6 +3036,19 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
     padding-bottom: calc(var(--mobile-reader-toolbar-height) + env(safe-area-inset-bottom));
   }
 
+  .demo-reader article {
+    width: 100%;
+    max-width: none;
+    padding-top: 24px;
+    padding-bottom: 48px;
+  }
+
+  .demo-reader,
+  .demo-reader article,
+  .demo-reader article * {
+    -webkit-touch-callout: none;
+  }
+
   .reader-header {
     height: 58px;
     min-height: 58px;
@@ -3075,6 +3091,8 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
     display: block;
     width: 100%;
     min-width: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   .reader-toolbar--mobile {
@@ -3087,6 +3105,8 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
     padding: 3px max(8px, env(safe-area-inset-left)) max(3px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-right));
     border-top: 1px solid var(--semi-color-border);
     background: var(--semi-color-bg-1);
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   .reader-toolbar--mobile > .semi-button,
@@ -3094,7 +3114,7 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   .reader-toolbar--mobile > .semi-popover-wrapper > .semi-button {
     width: 100%;
     min-width: 0;
-    height: 52px;
+    height: 50px;
   }
 
   .reader-toolbar--mobile .semi-button {
@@ -3251,14 +3271,19 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 
   .mobile-panel-tabs {
     display: flex;
-    min-height: 52px;
+    height: calc(53px + env(safe-area-inset-bottom));
+    min-height: calc(53px + env(safe-area-inset-bottom));
     flex: 0 0 auto;
     gap: 2px;
     padding: 4px 8px calc(4px + env(safe-area-inset-bottom));
     overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: none;
     border-top: 1px solid var(--semi-color-border);
     background: var(--semi-color-bg-1);
     scrollbar-width: none;
+    touch-action: pan-x;
   }
 
   .mobile-panel-tabs::-webkit-scrollbar {

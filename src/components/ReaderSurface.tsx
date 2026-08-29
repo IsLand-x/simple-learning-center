@@ -15,6 +15,7 @@ import { IconComment } from '@douyinfe/semi-icons';
 import { Typography } from '@douyinfe/semi-ui';
 import { getDemoContent } from '../data/demo';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
+import { isTextSelectionHold } from '../lib/readerGestures';
 import { getReaderTextureStyle, resolveReaderStyle } from '../lib/readerThemes';
 import type { BookItem, HighlightItem, ReaderHighlightTarget, ReaderPreferences, ReaderSelection, ThemeMode, TocItem } from '../types';
 import { FoliateEpubReader } from './FoliateEpubReader';
@@ -40,6 +41,7 @@ export interface ReaderSurfaceHandle {
 
 export interface ReaderSurfaceProps {
   book: BookItem;
+  compactLayout: boolean;
   preferences: ReaderPreferences;
   highlights: HighlightItem[];
   themeMode: ThemeMode;
@@ -92,6 +94,7 @@ function hasActiveTextSelection(selection: Selection | null | undefined) {
 type PageTurnDirection = 'next' | 'prev';
 interface SwipeStart {
   pointerId: number;
+  pointerType: string;
   x: number;
   y: number;
   startedAt: number;
@@ -133,7 +136,9 @@ function getSwipePageTurn(start: SwipeStart, endX: number, endY: number): PageTu
   const horizontalDistance = endX - start.x;
   const verticalDistance = endY - start.y;
   if (
-    performance.now() - start.startedAt > 1200
+    (start.pointerType === 'touch'
+      ? isTextSelectionHold(start.startedAt, performance.now())
+      : performance.now() - start.startedAt > 1200)
     || Math.abs(horizontalDistance) < 56
     || Math.abs(horizontalDistance) < Math.abs(verticalDistance) * 1.35
   ) return null;
@@ -321,6 +326,7 @@ function renderDemoHighlightedText(
 
 function DemoReader({
   book,
+  compactLayout,
   preferences,
   highlights,
   onSelection,
@@ -385,6 +391,7 @@ function DemoReader({
   useEffect(() => {
     let selectionFrame = 0;
     const handleSelectionChange = () => {
+      if (hasActiveTextSelection(window.getSelection())) swipeStartRef.current = null;
       window.cancelAnimationFrame(selectionFrame);
       selectionFrame = window.requestAnimationFrame(() => reportCurrentSelection());
     };
@@ -479,12 +486,18 @@ function DemoReader({
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     onContentInteraction();
-    if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0) || isSwipeBlockedTarget(event.target)) {
+    if (
+      !event.isPrimary
+      || (event.pointerType === 'mouse' && event.button !== 0)
+      || isSwipeBlockedTarget(event.target)
+      || hasActiveTextSelection(window.getSelection())
+    ) {
       swipeStartRef.current = null;
       return;
     }
     swipeStartRef.current = {
       pointerId: event.pointerId,
+      pointerType: event.pointerType,
       x: event.clientX,
       y: event.clientY,
       startedAt: performance.now(),
@@ -525,7 +538,11 @@ function DemoReader({
         ...readerTextureStyle,
       }}
       onMouseUp={handleMouseUp}
+      onContextMenu={(event) => event.preventDefault()}
       onPointerDown={handlePointerDown}
+      onPointerMove={() => {
+        if (hasActiveTextSelection(window.getSelection())) swipeStartRef.current = null;
+      }}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => { swipeStartRef.current = null; }}
     >
@@ -534,8 +551,8 @@ function DemoReader({
         lineHeight: readerStyle.density.lineHeight,
         letterSpacing: readerStyle.density.letterSpacing,
         fontFamily: READER_FONT_STACKS[readerStyle.fontFamily],
-        paddingLeft: readerStyle.density.pagePadding,
-        paddingRight: readerStyle.density.pagePadding,
+        paddingLeft: compactLayout ? 'clamp(14px, 4vw, 20px)' : readerStyle.density.pagePadding,
+        paddingRight: compactLayout ? 'clamp(14px, 4vw, 20px)' : readerStyle.density.pagePadding,
       }}>
         <Text className="reader-eyebrow">{content.eyebrow}</Text>
         <h1>{content.heading}</h1>
