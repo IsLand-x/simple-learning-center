@@ -427,21 +427,33 @@ export function FoliateEpubReader({
 
       let touchSelectionGesture: MobileTouchGesture | null = null;
       let touchSelectionTimer: number | null = null;
+      let touchStartContainerPosition: number | null = null;
+      let mobileSelectionLocked = false;
       let suppressCenterTapUntil = 0;
       const hasDocumentSelection = () => hasActiveTextSelection(doc.defaultView?.getSelection());
       const clearTouchSelectionTimer = () => {
         if (touchSelectionTimer !== null) window.clearTimeout(touchSelectionTimer);
         touchSelectionTimer = null;
       };
+      const restoreTouchStartPosition = () => {
+        if (touchStartContainerPosition === null) return;
+        view.renderer.cancelTouchScroll?.();
+        view.renderer.containerPosition = touchStartContainerPosition;
+      };
       const handleTouchStartCapture = (touchEvent: TouchEvent) => {
         clearTouchSelectionTimer();
         const touch = touchEvent.touches[0];
+        const selectionActive = hasDocumentSelection();
+        mobileSelectionLocked = selectionActive;
+        touchStartContainerPosition = touchEvent.touches.length === 1
+          ? view.renderer.containerPosition
+          : null;
         touchSelectionGesture = touchEvent.touches.length === 1 && touch
           ? createMobileTouchGesture({
             startedAt: performance.now(),
             startX: touch.clientX,
             startY: touch.clientY,
-            hasSelection: hasDocumentSelection(),
+            hasSelection: selectionActive,
           })
           : null;
         if (touchSelectionGesture?.intent === 'selection') {
@@ -457,7 +469,12 @@ export function FoliateEpubReader({
           }, MOBILE_TEXT_SELECTION_HOLD_MS);
         }
       };
-      const handleSelectStartCapture = () => {
+      const handleSelectStartCapture = (selectionEvent: Event) => {
+        if (compactLayoutRef.current || touchSelectionGesture) {
+          mobileSelectionLocked = true;
+          restoreTouchStartPosition();
+          selectionEvent.stopImmediatePropagation();
+        }
         markMobileTouchSelection(touchSelectionGesture);
         clearTouchSelectionTimer();
       };
@@ -465,13 +482,18 @@ export function FoliateEpubReader({
         const gesture = touchSelectionGesture;
         const touch = touchEvent.touches[0];
         if (!gesture || !touch) return;
+        const previousIntent = gesture.intent;
         const intent = resolveMobileTouchMove({
           gesture,
           currentX: touch.clientX,
           currentY: touch.clientY,
           currentTime: performance.now(),
-          hasSelection: hasDocumentSelection(),
+          hasSelection: hasDocumentSelection() || mobileSelectionLocked,
         });
+        if (intent === 'selection' && previousIntent !== 'selection') {
+          mobileSelectionLocked = true;
+          restoreTouchStartPosition();
+        }
         if (
           Math.abs(touch.clientX - gesture.startX) >= 8
           || Math.abs(touch.clientY - gesture.startY) >= 8
@@ -487,22 +509,31 @@ export function FoliateEpubReader({
         const shouldKeepSelection = shouldPreserveMobileTextSelection({
           gesture,
           currentTime: performance.now(),
-          hasSelection: hasDocumentSelection(),
+          hasSelection: hasDocumentSelection() || mobileSelectionLocked,
         });
         if (gesture?.intent !== 'pending' || shouldKeepSelection) {
           suppressCenterTapUntil = performance.now() + 450;
         }
+        if (shouldKeepSelection) {
+          mobileSelectionLocked = true;
+          restoreTouchStartPosition();
+        }
         touchSelectionGesture = null;
+        touchStartContainerPosition = null;
         clearTouchSelectionTimer();
         if (shouldKeepSelection) touchEvent.stopImmediatePropagation();
       };
-      const handleTouchCancelCapture = () => {
-        const shouldRebound = touchSelectionGesture?.intent === 'page-turn';
+      const handleTouchCancelCapture = (touchEvent: TouchEvent) => {
+        const selectionActive = mobileSelectionLocked || hasDocumentSelection();
+        const shouldRebound = touchSelectionGesture?.intent === 'page-turn' && !selectionActive;
         if (touchSelectionGesture?.intent !== 'pending') {
           suppressCenterTapUntil = performance.now() + 450;
         }
+        if (selectionActive) restoreTouchStartPosition();
         touchSelectionGesture = null;
+        touchStartContainerPosition = null;
         clearTouchSelectionTimer();
+        if (selectionActive) touchEvent.stopImmediatePropagation();
         if (shouldRebound) {
           window.requestAnimationFrame(() => view.renderer?.snap?.(0, 0));
         }
@@ -511,15 +542,24 @@ export function FoliateEpubReader({
 
       const handleSelectionChange = (selectionEvent: Event) => {
         const selectionActive = hasDocumentSelection();
-        const touchSelectionActive = touchSelectionGesture !== null && selectionActive;
+        const mobileSelectionActive = compactLayoutRef.current
+          || mobileSelectionLocked
+          || touchSelectionGesture !== null;
         if (selectionActive) {
+          if (mobileSelectionActive) {
+            mobileSelectionLocked = true;
+            restoreTouchStartPosition();
+          }
           markMobileTouchSelection(touchSelectionGesture);
           clearTouchSelectionTimer();
+        } else if (!touchSelectionGesture || touchSelectionGesture.intent !== 'selection') {
+          mobileSelectionLocked = false;
         }
         reportSelection(view, doc, index);
-        if (touchSelectionActive) {
-          // Foliate auto-turns pages when a pointer selection crosses the visible range.
-          // Mobile selection handles must stay on the current page instead.
+        if (mobileSelectionActive && selectionActive) {
+          // Foliate schedules an automatic prev/next when a selection crosses the
+          // visible column. Keep every mobile selectionchange away from that
+          // listener, including the delayed events emitted after touchend.
           selectionEvent.stopImmediatePropagation();
         }
       };

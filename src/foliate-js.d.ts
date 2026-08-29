@@ -33,11 +33,13 @@ declare module 'foliate-js/view.js' {
   }
 
   export interface FoliateRenderer extends HTMLElement {
+    containerPosition: number;
     getContents: () => FoliateRendererContent[];
     setStyles?: (styles: string | [string, string]) => void;
     render?: () => void;
     scrollBy?: (deltaX: number, deltaY: number) => void;
     snap?: (velocityX: number, velocityY: number) => void;
+    cancelTouchScroll?: () => void;
     focusView?: () => void;
   }
 

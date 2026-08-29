@@ -90,6 +90,8 @@ export function ReaderMobileChrome({
         onCancel={onCloseToc}
       >
         <TableOfContents
+          activeItemAlignment="center"
+          activeItemVisible={compactTocOpen}
           items={book.toc}
           activeHref={activeHref}
           progress={book.progress}

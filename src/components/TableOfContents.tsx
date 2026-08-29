@@ -6,6 +6,8 @@ import type { TocItem } from '../types';
 const { Text } = Typography;
 
 interface TableOfContentsProps {
+  activeItemAlignment?: 'center' | 'nearest';
+  activeItemVisible?: boolean;
   items: TocItem[];
   activeHref?: string;
   progress: number;
@@ -42,11 +44,6 @@ function TocRow({
   onSelect: (item: TocItem) => void;
 }) {
   const selected = hrefsMatch(item.href, activeHref);
-  const rowRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [selected]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -58,7 +55,6 @@ function TocRow({
     <>
       <Tooltip content={item.label} position="right" mouseEnterDelay={500}>
         <div
-          ref={rowRef}
           className={`toc-item${selected ? ' toc-item--selected' : ''}`}
           style={{ paddingLeft: 8 + depth * 16 }}
           role="button"
@@ -77,8 +73,41 @@ function TocRow({
   );
 }
 
-export function TableOfContents({ items, activeHref, progress, onSelect }: TableOfContentsProps) {
+export function TableOfContents({
+  activeItemAlignment = 'nearest',
+  activeItemVisible = true,
+  items,
+  activeHref,
+  progress,
+  onSelect,
+}: TableOfContentsProps) {
+  const listRef = useRef<HTMLElement>(null);
   const safeProgress = Math.max(0, Math.min(100, progress));
+
+  useEffect(() => {
+    if (!activeItemVisible || !activeHref) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const list = listRef.current;
+      const activeItem = list?.querySelector<HTMLElement>('.toc-item--selected');
+      if (!list || !activeItem) return;
+      if (activeItemAlignment === 'nearest') {
+        activeItem.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      const listRect = list.getBoundingClientRect();
+      const activeItemRect = activeItem.getBoundingClientRect();
+      const centeredScrollTop = list.scrollTop
+        + activeItemRect.top
+        - listRect.top
+        - (list.clientHeight - activeItemRect.height) / 2;
+      list.scrollTop = Math.max(
+        0,
+        Math.min(list.scrollHeight - list.clientHeight, centeredScrollTop),
+      );
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeHref, activeItemAlignment, activeItemVisible, items]);
+
   return (
     <aside className="toc-panel">
       <div className="panel-titlebar">
@@ -96,7 +125,7 @@ export function TableOfContents({ items, activeHref, progress, onSelect }: Table
           {Math.round(safeProgress)}% · {items.length} 章
         </Text>
       </div>
-      <nav className="toc-list" aria-label="书籍目录">
+      <nav ref={listRef} className="toc-list" aria-label="书籍目录">
         {items.map((item) => (
           <TocRow key={item.id || item.href} item={item} depth={0} activeHref={activeHref} onSelect={onSelect} />
         ))}
