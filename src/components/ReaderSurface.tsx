@@ -15,7 +15,7 @@ import { IconComment } from '@douyinfe/semi-icons';
 import { Typography } from '@douyinfe/semi-ui';
 import { getDemoContent } from '../data/demo';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
-import { isTextSelectionHold } from '../lib/readerGestures';
+import { isReaderCenterTap, isTextSelectionHold } from '../lib/readerGestures';
 import { getReaderTextureStyle, resolveReaderStyle } from '../lib/readerThemes';
 import type { BookItem, HighlightItem, ReaderHighlightTarget, ReaderPreferences, ReaderSelection, ThemeMode, TocItem } from '../types';
 import { FoliateEpubReader } from './FoliateEpubReader';
@@ -49,6 +49,7 @@ export interface ReaderSurfaceProps {
   onSelection: (selection: ReaderSelection | null) => void;
   onHighlightClick: (target: ReaderHighlightTarget) => void;
   onContentInteraction: () => void;
+  onCenterTap: () => void;
 }
 
 function flattenToc(items: TocItem[]): TocItem[] {
@@ -88,7 +89,7 @@ function getDemoScrollRatio(cfi: string | undefined, href: string | undefined) {
 }
 
 function hasActiveTextSelection(selection: Selection | null | undefined) {
-  return Boolean(selection && !selection.isCollapsed && selection.toString().trim().length >= 2);
+  return Boolean(selection && selection.rangeCount > 0 && !selection.isCollapsed);
 }
 
 type PageTurnDirection = 'next' | 'prev';
@@ -332,6 +333,7 @@ function DemoReader({
   onSelection,
   onHighlightClick,
   onContentInteraction,
+  onCenterTap,
   controllerRef,
   onLocationChange,
 }: ReaderSurfaceProps & { controllerRef: React.Ref<ReaderSurfaceHandle> }) {
@@ -350,6 +352,7 @@ function DemoReader({
   const readerStyle = resolveReaderStyle(preferences);
   const lastLocationCfiRef = useRef(book.currentCfi);
   const swipeStartRef = useRef<SwipeStart | null>(null);
+  const suppressCenterTapUntilRef = useRef(0);
   const wheelSwipeRef = useRef<WheelSwipeState>(createWheelSwipeState());
 
   const reportCurrentSelection = useCallback((fallbackX = 0, fallbackY = 0) => {
@@ -510,7 +513,40 @@ function DemoReader({
     swipeStartRef.current = null;
     if (hasActiveTextSelection(window.getSelection())) return;
     const direction = getSwipePageTurn(start, event.clientX, event.clientY);
-    if (direction) turnDemoPage(direction);
+    if (direction) {
+      suppressCenterTapUntilRef.current = performance.now() + 450;
+      turnDemoPage(direction);
+    }
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (hasActiveTextSelection(window.getSelection())) {
+      swipeStartRef.current = null;
+      suppressCenterTapUntilRef.current = performance.now() + 450;
+      return;
+    }
+    const start = swipeStartRef.current;
+    if (
+      start
+      && start.pointerId === event.pointerId
+      && (Math.abs(event.clientX - start.x) >= 8 || Math.abs(event.clientY - start.y) >= 8)
+    ) suppressCenterTapUntilRef.current = performance.now() + 450;
+  };
+
+  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (
+      !compactLayout
+      || performance.now() < suppressCenterTapUntilRef.current
+      || isSwipeBlockedTarget(event.target)
+      || hasActiveTextSelection(window.getSelection())
+    ) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (isReaderCenterTap({
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+      width: rect.width,
+      height: rect.height,
+    })) onCenterTap();
   };
 
   const readerCssVariables = {
@@ -538,11 +574,10 @@ function DemoReader({
         ...readerTextureStyle,
       }}
       onMouseUp={handleMouseUp}
+      onClick={handleClick}
       onContextMenu={(event) => event.preventDefault()}
       onPointerDown={handlePointerDown}
-      onPointerMove={() => {
-        if (hasActiveTextSelection(window.getSelection())) swipeStartRef.current = null;
-      }}
+      onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => { swipeStartRef.current = null; }}
     >

@@ -49,6 +49,7 @@ export function ReaderPage() {
   const [activePanel, setActivePanel] = useState<MobileReaderPanel | null>(null);
   const [compactReader, setCompactReader] = useState(() => window.innerWidth < 900);
   const [mobileReader, setMobileReader] = useState(() => window.matchMedia('(max-width: 800px)').matches);
+  const [mobileChromeVisible, setMobileChromeVisible] = useState(true);
   const [compactTocOpen, setCompactTocOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string>(() => crypto.randomUUID());
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
@@ -95,6 +96,7 @@ export function ReaderPage() {
     const media = window.matchMedia('(max-width: 800px)');
     const update = () => {
       setMobileReader(media.matches);
+      if (!media.matches) setMobileChromeVisible(true);
       if (!media.matches) setActivePanel((panel) => panel === 'style' ? null : panel);
     };
     update();
@@ -126,6 +128,10 @@ export function ReaderPage() {
       mobileOverlayHistoryActiveRef.current = false;
       window.history.back();
     }
+  }, [mobileOverlayOpen]);
+
+  useEffect(() => {
+    if (mobileOverlayOpen) setMobileChromeVisible(true);
   }, [mobileOverlayOpen]);
 
   useEffect(() => {
@@ -177,6 +183,7 @@ export function ReaderPage() {
     setFocusedHighlightId(null);
     setPanelQuote(null);
     setCompactTocOpen(false);
+    setMobileChromeVisible(true);
     setConversationId(crypto.randomUUID());
   }, [book?.id]);
 
@@ -491,8 +498,11 @@ export function ReaderPage() {
   }
 
   return (
-    <main className="reader-page">
-      <header className="reader-header">
+    <main className={`reader-page${mobileReader && !mobileChromeVisible ? ' reader-page--mobile-immersive' : ''}`}>
+      <header
+        aria-hidden={mobileReader && !mobileChromeVisible}
+        className="reader-header"
+      >
         <div className="reader-header__identity">
           <Tooltip content={mobileOverlayOpen ? '关闭当前浮层' : '返回书架'} position="bottomLeft">
             <Button
@@ -601,6 +611,10 @@ export function ReaderPage() {
             setCommentingHighlightId(null);
             setPendingCommentSelection(null);
           }}
+          onCenterTap={() => {
+            if (!mobileReader || mobileOverlayOpen) return;
+            setMobileChromeVisible((visible) => !visible);
+          }}
         />
         <ReaderSelectionOverlays
           activeHighlight={activeHighlight}
@@ -631,6 +645,7 @@ export function ReaderPage() {
           panelQuote={panelQuote}
           preferences={preferences}
           readerRef={readerRef}
+          visible={mobileChromeVisible}
           onChangePanel={changeActivePanel}
           onClearSelectedText={() => setPanelQuote(null)}
           onCloseToc={() => setCompactTocOpen(false)}

@@ -23,6 +23,7 @@ interface ReaderMobileChromeProps {
   panelQuote?: string | null;
   preferences: ReaderPreferences;
   readerRef: RefObject<ReaderSurfaceHandle>;
+  visible: boolean;
   onChangePanel: (panel: MobileReaderPanel | null) => void;
   onClearSelectedText: () => void;
   onCloseToc: () => void;
@@ -46,6 +47,7 @@ export function ReaderMobileChrome({
   panelQuote,
   preferences,
   readerRef,
+  visible,
   onChangePanel,
   onClearSelectedText,
   onCloseToc,
@@ -60,7 +62,10 @@ export function ReaderMobileChrome({
 }: ReaderMobileChromeProps) {
   return (
     <div className="reader-mobile-chrome">
-      <div className="reader-mobile-chrome__toolbar">
+      <div
+        aria-hidden={!visible}
+        className={`reader-mobile-chrome__toolbar${visible ? '' : ' reader-mobile-chrome__toolbar--hidden'}`}
+      >
         <ReaderMobileToolbar
           tocCollapsed={!compactTocOpen}
           moreOpen={Boolean(activePanel)}

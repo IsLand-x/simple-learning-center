@@ -25,10 +25,11 @@ import {
 import { ensureReaderFontStylesheet } from '../lib/readerFonts';
 import {
   createMobileTouchGesture,
-  isTextSelectionHold,
+  isReaderCenterTap,
   markMobileTouchSelection,
   MOBILE_TEXT_SELECTION_HOLD_MS,
   resolveMobileTouchMove,
+  shouldPreserveMobileTextSelection,
   type MobileTouchGesture,
 } from '../lib/readerGestures';
 import { getReaderTextureStyle, resolveReaderStyle } from '../lib/readerThemes';
@@ -157,7 +158,7 @@ async function navigateToFoliateTarget(view: FoliateView, target: string) {
 }
 
 function hasActiveTextSelection(selection: Selection | null | undefined) {
-  return Boolean(selection && !selection.isCollapsed && selection.toString().trim().length >= 2);
+  return Boolean(selection && selection.rangeCount > 0 && !selection.isCollapsed);
 }
 
 function findFoliateHighlightAtPoint({
@@ -253,6 +254,7 @@ export function FoliateEpubReader({
   onSelection,
   onHighlightClick,
   onContentInteraction,
+  onCenterTap,
   controllerRef,
 }: ReaderSurfaceProps & { controllerRef: Ref<ReaderSurfaceHandle> }) {
   const readerStyle = resolveReaderStyle(preferences);
@@ -268,6 +270,7 @@ export function FoliateEpubReader({
   const onSelectionRef = useRef(onSelection);
   const onHighlightClickRef = useRef(onHighlightClick);
   const onContentInteractionRef = useRef(onContentInteraction);
+  const onCenterTapRef = useRef(onCenterTap);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState('请返回书架后重新导入这个 EPUB');
 
@@ -278,6 +281,7 @@ export function FoliateEpubReader({
   useEffect(() => { onSelectionRef.current = onSelection; }, [onSelection]);
   useEffect(() => { onHighlightClickRef.current = onHighlightClick; }, [onHighlightClick]);
   useEffect(() => { onContentInteractionRef.current = onContentInteraction; }, [onContentInteraction]);
+  useEffect(() => { onCenterTapRef.current = onCenterTap; }, [onCenterTap]);
 
   const syncVisibleAnnotations = useCallback(async (view: FoliateView, sectionIndex: number) => {
     const desired = new Map<string, { highlight: HighlightItem; signature: string }>();
@@ -365,14 +369,15 @@ export function FoliateEpubReader({
       window.cancelAnimationFrame(selectionFrame);
       selectionFrame = window.requestAnimationFrame(() => {
         const selection = doc.defaultView?.getSelection();
-        if (!hasActiveTextSelection(selection) || !selection?.rangeCount) {
+        const selectedText = selection?.toString().trim() ?? '';
+        if (!selection || !hasActiveTextSelection(selection) || !selectedText) {
           onSelectionRef.current(null);
           return;
         }
         const range = selection.getRangeAt(0).cloneRange();
         try {
           onSelectionRef.current({
-            text: selection.toString().trim().slice(0, 600),
+            text: selectedText.slice(0, 600),
             cfi: view.getCFI(index, range),
             rect: rangeToViewportRect(range),
           });
@@ -422,6 +427,7 @@ export function FoliateEpubReader({
 
       let touchSelectionGesture: MobileTouchGesture | null = null;
       let touchSelectionTimer: number | null = null;
+      let suppressCenterTapUntil = 0;
       const hasDocumentSelection = () => hasActiveTextSelection(doc.defaultView?.getSelection());
       const clearTouchSelectionTimer = () => {
         if (touchSelectionTimer !== null) window.clearTimeout(touchSelectionTimer);
@@ -466,6 +472,11 @@ export function FoliateEpubReader({
           currentTime: performance.now(),
           hasSelection: hasDocumentSelection(),
         });
+        if (
+          Math.abs(touch.clientX - gesture.startX) >= 8
+          || Math.abs(touch.clientY - gesture.startY) >= 8
+        ) suppressCenterTapUntil = performance.now() + 450;
+        if (intent !== 'pending') suppressCenterTapUntil = performance.now() + 450;
         if (intent !== 'pending') clearTouchSelectionTimer();
         if (intent !== 'page-turn') {
           touchEvent.stopImmediatePropagation();
@@ -473,33 +484,50 @@ export function FoliateEpubReader({
       };
       const handleTouchEndCapture = (touchEvent: TouchEvent) => {
         const gesture = touchSelectionGesture;
-        const shouldKeepSelection = Boolean(
-          gesture
-          && (gesture.intent === 'selection'
-            || hasDocumentSelection()
-            || isTextSelectionHold(gesture.startedAt, performance.now())),
-        );
+        const shouldKeepSelection = shouldPreserveMobileTextSelection({
+          gesture,
+          currentTime: performance.now(),
+          hasSelection: hasDocumentSelection(),
+        });
+        if (gesture?.intent !== 'pending' || shouldKeepSelection) {
+          suppressCenterTapUntil = performance.now() + 450;
+        }
         touchSelectionGesture = null;
         clearTouchSelectionTimer();
         if (shouldKeepSelection) touchEvent.stopImmediatePropagation();
       };
       const handleTouchCancelCapture = () => {
+        const shouldRebound = touchSelectionGesture?.intent === 'page-turn';
+        if (touchSelectionGesture?.intent !== 'pending') {
+          suppressCenterTapUntil = performance.now() + 450;
+        }
         touchSelectionGesture = null;
         clearTouchSelectionTimer();
+        if (shouldRebound) {
+          window.requestAnimationFrame(() => view.renderer?.snap?.(0, 0));
+        }
       };
       const handleContextMenu = (contextMenuEvent: Event) => contextMenuEvent.preventDefault();
 
-      const handleSelectionChange = () => {
-        if (hasDocumentSelection()) {
+      const handleSelectionChange = (selectionEvent: Event) => {
+        const selectionActive = hasDocumentSelection();
+        const touchSelectionActive = touchSelectionGesture !== null && selectionActive;
+        if (selectionActive) {
           markMobileTouchSelection(touchSelectionGesture);
           clearTouchSelectionTimer();
         }
         reportSelection(view, doc, index);
+        if (touchSelectionActive) {
+          // Foliate auto-turns pages when a pointer selection crosses the visible range.
+          // Mobile selection handles must stay on the current page instead.
+          selectionEvent.stopImmediatePropagation();
+        }
       };
       const handlePointerDown = () => onContentInteractionRef.current();
       const handleClick = (mouseEvent: MouseEvent) => {
         if (
-          isBlockedInteractionTarget(mouseEvent.target)
+          performance.now() < suppressCenterTapUntil
+          || isBlockedInteractionTarget(mouseEvent.target)
           || hasActiveTextSelection(doc.defaultView?.getSelection())
         ) return;
         const match = findFoliateHighlightAtPoint({
@@ -511,11 +539,22 @@ export function FoliateEpubReader({
           x: mouseEvent.clientX,
           y: mouseEvent.clientY,
         });
-        if (!match) return;
-        onHighlightClickRef.current({
-          highlightId: match.highlight.id,
-          rect: rangeToViewportRect(match.range),
-        });
+        if (match) {
+          onHighlightClickRef.current({
+            highlightId: match.highlight.id,
+            rect: rangeToViewportRect(match.range),
+          });
+          return;
+        }
+        if (!compactLayoutRef.current) return;
+        const width = doc.defaultView?.innerWidth ?? doc.documentElement.clientWidth;
+        const height = doc.defaultView?.innerHeight ?? doc.documentElement.clientHeight;
+        if (isReaderCenterTap({
+          x: mouseEvent.clientX,
+          y: mouseEvent.clientY,
+          width,
+          height,
+        })) onCenterTapRef.current();
       };
       const handleKeyUp = (keyboardEvent: KeyboardEvent) => {
         if (
@@ -533,7 +572,7 @@ export function FoliateEpubReader({
           turnPage('next');
         }
       };
-      doc.addEventListener('selectionchange', handleSelectionChange);
+      doc.addEventListener('selectionchange', handleSelectionChange, true);
       doc.addEventListener('selectstart', handleSelectStartCapture, true);
       doc.addEventListener('touchstart', handleTouchStartCapture, { capture: true, passive: true });
       doc.addEventListener('touchmove', handleTouchMoveCapture, { capture: true, passive: true });
@@ -546,7 +585,7 @@ export function FoliateEpubReader({
       doc.addEventListener('wheel', handleWheel, { passive: false });
       documentCleanups.set(doc, () => {
         clearTouchSelectionTimer();
-        doc.removeEventListener('selectionchange', handleSelectionChange);
+        doc.removeEventListener('selectionchange', handleSelectionChange, true);
         doc.removeEventListener('selectstart', handleSelectStartCapture, true);
         doc.removeEventListener('touchstart', handleTouchStartCapture, true);
         doc.removeEventListener('touchmove', handleTouchMoveCapture, true);
