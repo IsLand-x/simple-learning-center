@@ -27,6 +27,7 @@ import {
   USERNAME,
 } from './config.mjs';
 import { statusError } from './errors.mjs';
+import { readiumManifest, readiumResource } from './readiumPublication.mjs';
 import {
   atomicWrite,
   bookPath,
@@ -310,6 +311,23 @@ export function createApp({
     return noContent(c);
   });
   app.all(bookRoute, methodNotAllowed);
+
+  const readiumManifestRoute = '/api/readium/books/:bookId/manifest.json';
+  app.get(readiumManifestRoute, async (c) => c.json(await readiumManifest(c.req.param('bookId'))));
+  app.all(readiumManifestRoute, methodNotAllowed);
+
+  const readiumResourceRoute = '/api/readium/books/:bookId/resources/*';
+  app.on(['GET', 'HEAD'], readiumResourceRoute, async (c) => {
+    const resourcePath = c.req.param('*')
+      || c.req.path.split('/resources/').slice(1).join('/resources/');
+    const resource = await readiumResource(c.req.param('bookId'), resourcePath);
+    const headers = {
+      'Content-Length': String(resource.body.byteLength),
+      'Content-Type': resource.type,
+    };
+    return c.req.method === 'HEAD' ? c.body(null, 200, headers) : c.body(resource.body, 200, headers);
+  });
+  app.all(readiumResourceRoute, methodNotAllowed);
 
   const searchIndexRoute = '/api/search-indexes/:bookId';
   app.get(searchIndexRoute, async (c) => {

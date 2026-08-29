@@ -40,6 +40,7 @@ export interface BookItem {
   updatedAt: number;
   progress: number;
   currentCfi?: string;
+  currentLocator?: string;
   currentChapter: string;
   currentPage?: number;
   totalPages?: number;
@@ -52,6 +53,7 @@ export interface HighlightItem {
   kind?: 'highlight' | 'comment';
   text: string;
   cfi: string;
+  locator?: string;
   chapter: string;
   page?: number;
   comment?: string;
@@ -150,6 +152,7 @@ export interface ReaderCustomStyle {
 export interface ReaderSelection {
   text: string;
   cfi: string;
+  locator?: string;
   rect: {
     left: number;
     top: number;

@@ -286,6 +286,7 @@ export function FoliateEpubReader({
   const syncVisibleAnnotations = useCallback(async (view: FoliateView, sectionIndex: number) => {
     const desired = new Map<string, { highlight: HighlightItem; signature: string }>();
     highlightsRef.current.forEach((highlight) => {
+      if (highlight.locator) return;
       const target = view.resolveNavigation(highlight.cfi);
       if (target?.index !== sectionIndex) return;
       desired.set(highlight.cfi, {

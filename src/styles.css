@@ -1264,7 +1264,9 @@ button,
 .demo-reader,
 .foliate-reader-wrap,
 .foliate-reader-host,
-.foliate-reader {
+.foliate-reader,
+.readium-reader-wrap,
+.readium-reader-host {
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -1384,6 +1386,34 @@ button,
   background-position: var(--reader-texture-position, 0 0);
   background-size: var(--reader-texture-size, auto);
   background-blend-mode: var(--reader-texture-blend-mode, normal);
+}
+
+.readium-reader-wrap {
+  position: relative;
+  overflow: hidden;
+  color-scheme: var(--reader-color-scheme, light);
+  background-color: var(--reader-paper-color, var(--semi-color-bg-0));
+  background-image: var(--reader-texture-image, none);
+  background-position: var(--reader-texture-position, 0 0);
+  background-size: var(--reader-texture-size, auto);
+  background-blend-mode: var(--reader-texture-blend-mode, normal);
+}
+
+.readium-reader-host {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  contain: layout paint style;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.readium-reader-host > .readium-navigator-iframe {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
 }
 
 .foliate-reader-host {

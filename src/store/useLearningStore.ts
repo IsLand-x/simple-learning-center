@@ -252,7 +252,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 12,
+      version: 13,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -409,6 +409,13 @@ export const useLearningStore = create<LearningState>()(
               ...migrated.readerPreferences,
               customStyle: normalizeStoredCustomStyle(migrated.readerPreferences?.customStyle),
             },
+          };
+        }
+        if (version < 13) {
+          migrated = {
+            ...migrated,
+            books: (migrated.books ?? []).map((book) => ({ ...book })),
+            highlights: (migrated.highlights ?? []).map((highlight) => ({ ...highlight })),
           };
         }
         return migrated;

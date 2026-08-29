@@ -1,5 +1,7 @@
 import {
   forwardRef,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -12,7 +14,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { IconComment } from '@douyinfe/semi-icons';
-import { Typography } from '@douyinfe/semi-ui';
+import { Spin, Typography } from '@douyinfe/semi-ui';
 import { getDemoContent } from '../data/demo';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import { isReaderCenterTap, isTextSelectionHold } from '../lib/readerGestures';
@@ -20,11 +22,16 @@ import { getReaderTextureStyle, resolveReaderStyle } from '../lib/readerThemes';
 import type { BookItem, HighlightItem, ReaderHighlightTarget, ReaderPreferences, ReaderSelection, ThemeMode, TocItem } from '../types';
 import { FoliateEpubReader } from './FoliateEpubReader';
 
+const ReadiumEpubReader = lazy(() => import('./ReadiumEpubReader').then((module) => ({
+  default: module.ReadiumEpubReader,
+})));
+
 const { Text } = Typography;
 const COMMENT_INDICATOR_SIZE = 20;
 
 export interface ReaderLocationUpdate {
   cfi?: string;
+  locator?: string;
   href?: string;
   progress?: number;
   page?: number;
@@ -609,6 +616,13 @@ export const ReaderSurface = forwardRef<ReaderSurfaceHandle, ReaderSurfaceProps>
   function ReaderSurface(props, ref) {
     if (props.book.kind === 'demo') {
       return <DemoReader {...props} controllerRef={ref} />;
+    }
+    if (new URLSearchParams(window.location.search).get('reader') === 'readium') {
+      return (
+        <Suspense fallback={<div className="reader-status"><Spin size="large" /></div>}>
+          <ReadiumEpubReader {...props} controllerRef={ref} />
+        </Suspense>
+      );
     }
     return <FoliateEpubReader {...props} controllerRef={ref} />;
   },

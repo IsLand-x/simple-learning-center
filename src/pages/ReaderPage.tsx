@@ -328,7 +328,8 @@ export function ReaderPage() {
       : Math.round(location.progress * 10) / 10;
     const hasChanged =
       Math.abs(current.progress - roundedProgress) >= 0.1 ||
-      current.currentCfi !== location.cfi ||
+      (location.cfi !== undefined && current.currentCfi !== location.cfi) ||
+      (location.locator !== undefined && current.currentLocator !== location.locator) ||
       current.currentChapter !== chapter ||
       current.currentPage !== location.page ||
       current.totalPages !== location.totalPages;
@@ -336,6 +337,7 @@ export function ReaderPage() {
     const changes: Partial<BookItem> = {
       progress: roundedProgress,
       currentCfi: location.cfi ?? current.currentCfi,
+      currentLocator: location.locator ?? current.currentLocator,
       currentChapter: chapter,
       currentPage: location.page ?? current.currentPage,
       totalPages: location.totalPages ?? current.totalPages,
@@ -359,6 +361,7 @@ export function ReaderPage() {
         kind: 'comment',
         text: pendingCommentSelection.text,
         cfi: pendingCommentSelection.cfi,
+        locator: pendingCommentSelection.locator,
         chapter: currentChapter,
         page: book.currentPage,
         createdAt: 0,
@@ -409,6 +412,7 @@ export function ReaderPage() {
       kind: 'highlight',
       text: selection.text,
       cfi: selection.cfi,
+      locator: selection.locator,
       chapter: currentChapter,
       page: book.currentPage,
       createdAt: Date.now(),
@@ -488,6 +492,7 @@ export function ReaderPage() {
         kind: 'comment',
         text: pendingCommentSelection.text,
         cfi: pendingCommentSelection.cfi,
+        locator: pendingCommentSelection.locator,
         chapter: currentChapter,
         page: book.currentPage,
         comment,
@@ -520,7 +525,7 @@ export function ReaderPage() {
   };
 
   const jumpToHighlight = (highlight: HighlightItem) => {
-    readerRef.current?.display(highlight.cfi);
+    readerRef.current?.display(highlight.locator ?? highlight.cfi);
   };
 
   const startNewConversation = () => {

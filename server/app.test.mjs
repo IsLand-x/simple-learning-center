@@ -3,12 +3,13 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
+import JSZip from 'jszip';
 
 const testDataDirectory = await mkdtemp(join(tmpdir(), 'learning-center-test-'));
 process.env.LEARNING_CENTER_DATA_DIR = testDataDirectory;
 process.env.LEARNING_CENTER_MODE = 'local';
 
-const [{ createApp }, { initializeDataDirectories }] = await Promise.all([
+const [{ createApp }, { atomicWrite, bookPath, initializeDataDirectories }] = await Promise.all([
   import('./app.mjs'),
   import('./storage.mjs'),
 ]);
@@ -92,6 +93,59 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify({ format: 'unknown', version: 1, openAIConfigs: [] }),
     });
     assert.equal(importResponse.status, 400);
+  });
+
+  await t.test('提供 Readium Publication 与 EPUB 章节资源', async () => {
+    const zip = new JSZip();
+    zip.file('mimetype', 'application/epub+zip');
+    zip.file('META-INF/container.xml', `<?xml version="1.0"?>
+      <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+        <rootfiles><rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles>
+      </container>`);
+    zip.file('OPS/package.opf', `<?xml version="1.0"?>
+      <package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="book-id">
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <dc:identifier id="book-id">test-readium-id</dc:identifier>
+          <dc:title>Readium 测试书籍</dc:title>
+          <dc:creator>测试作者</dc:creator>
+          <dc:language>zh-CN</dc:language>
+        </metadata>
+        <manifest>
+          <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+          <item id="style" href="style.css" media-type="text/css"/>
+          <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+        </manifest>
+        <spine toc="ncx"><itemref idref="chapter"/></spine>
+      </package>`);
+    zip.file('OPS/toc.ncx', `<?xml version="1.0"?>
+      <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
+        <navMap><navPoint id="chapter-1"><navLabel><text>第一章</text></navLabel><content src="chapter.xhtml"/></navPoint></navMap>
+      </ncx>`);
+    zip.file('OPS/chapter.xhtml', `<?xml version="1.0"?>
+      <html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" href="style.css"/></head>
+      <body><h1>第一章</h1><p>这是用于验证 Readium 资源接口的正文。</p></body></html>`);
+    zip.file('OPS/style.css', 'body { color: #222; }');
+    await atomicWrite(bookPath('readium-book'), await zip.generateAsync({ type: 'nodebuffer' }));
+
+    const manifestResponse = await app.request('/api/readium/books/readium-book/manifest.json');
+    assert.equal(manifestResponse.status, 200);
+    const manifest = await manifestResponse.json();
+    assert.equal(manifest.metadata.title, 'Readium 测试书籍');
+    assert.deepEqual(manifest.metadata.author, ['测试作者']);
+    assert.equal(manifest.readingOrder[0].href, 'resources/OPS/chapter.xhtml');
+    assert.equal(manifest.toc[0].title, '第一章');
+
+    const chapterResponse = await app.request('/api/readium/books/readium-book/resources/OPS/chapter.xhtml');
+    assert.equal(chapterResponse.status, 200);
+    assert.equal(chapterResponse.headers.get('content-type'), 'application/xhtml+xml');
+    assert.match(await chapterResponse.text(), /用于验证 Readium 资源接口/);
+
+    const headResponse = await app.request('/api/readium/books/readium-book/resources/OPS/style.css', {
+      method: 'HEAD',
+    });
+    assert.equal(headResponse.status, 200);
+    assert.equal(headResponse.headers.get('content-type'), 'text/css');
+    assert.equal(Number(headResponse.headers.get('content-length')), 'body { color: #222; }'.length);
   });
 
   await t.test('AI 任务在服务端运行并持久化对话', async () => {
