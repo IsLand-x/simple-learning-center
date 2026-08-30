@@ -117,7 +117,7 @@ git diff --check
 
 - 应用界面颜色必须来自 Semi Design 语义变量。正文、次级信息、弱化元信息分别使用 `--semi-color-text-0`、`--semi-color-text-1`、`--semi-color-text-2`；主操作和选中态使用 `--semi-color-primary` 及对应的 `primary-light-*` 变量。
 - 除阅读主题预设、透明遮罩、阴影和必要的 `color-mix()` 外，不新增硬编码黑白色、灰阶或品牌色，也不要创建一套与 Semi 并行的应用配色 token。
-- 浅色和深色模式通过 Semi token 与 `body[theme-mode]` 适配；新增颜色、图标、输入框、图表和浮层必须同时验证两种模式。禁止写死黑色图标、白色浮层文字或只在单一主题可见的边框。
+- 浅色和深色模式通过 Semi token 与 `body[theme-mode]` 适配；新增颜色、图标、输入框、图表和浮层必须同时验证两种模式。禁止写死黑色图标、白色浮层文字或只在单一主题可见的边框。状态与 loading 文案必须显式使用对应表面的语义文字色；阅读纸张内优先使用 `--reader-muted-color` 或功能内等价的 reader token，不能继承应用暗色主题的白色文字后显示在浅色阅读背景上。
 - 应用主题与阅读纸张主题相互独立。阅读颜色由 `resolveReaderStyle` 统一解析并注入；现有 CSS token 包括 `--reader-paper-color`、`--reader-muted-color`、`--reader-accent-color`、`--reader-highlight-color`、`--reader-callout-color` 等，不能把应用的浅色/暗色模式强行同步给阅读预设。
 - 应用界面使用现有中文无衬线本机栈：`"PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif`。按钮、输入框和正文继承该字体；代码、版本号和技术值使用 Semi 的 code/monospace token。不要为应用外壳引入新的 Web 字体。
 - 页面和区块标题优先使用 Semi `Typography` 的既有 `Title heading={4|5}` 层级，不另造大标题。密集元信息和底部导航通常为 `10–12px`，卡片标签和列表标题为 `13–14px`，常规正文、编辑器和聊天为 `14px`，长文正文与移动端输入为 `16px`。

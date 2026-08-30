@@ -188,6 +188,13 @@ export function protectServerRssState(incomingPersistedState, currentPersistedSt
       Array.isArray(current.rssDigestRuns) ? current.rssDigestRuns : [],
     );
   }
+  if (
+    Number(currentPersistedState.version || 0) >= 21
+    && Number(incomingPersistedState.version || 0) < 21
+  ) {
+    incoming.rssDigestSettings = structuredClone(current.rssDigestSettings || {});
+    incomingPersistedState.version = currentPersistedState.version;
+  }
   return incomingPersistedState;
 }
 

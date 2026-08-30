@@ -25,6 +25,7 @@ let stateWriteQueue = Promise.resolve();
 const RSS_STATE_VERSION = 16;
 const RSS_DIGEST_STATE_VERSION = 19;
 const RSS_DIGEST_RUN_STATE_VERSION = 20;
+const RSS_DIGEST_ALL_ITEMS_STATE_VERSION = 21;
 const VIDEO_STATE_VERSION = 18;
 
 export function encodedId(value) {
@@ -226,7 +227,11 @@ function protectRssStateFromOlderClient(persistedState, currentPersistedState) {
   const protectDigests = currentVersion >= RSS_DIGEST_STATE_VERSION && incomingVersion < RSS_DIGEST_STATE_VERSION;
   const protectDigestRuns = currentVersion >= RSS_DIGEST_RUN_STATE_VERSION
     && incomingVersion < RSS_DIGEST_RUN_STATE_VERSION;
-  if (!protectCoreRss && !protectDigests && !protectDigestRuns) return persistedState;
+  const protectAllItemsDigestSettings = currentVersion >= RSS_DIGEST_ALL_ITEMS_STATE_VERSION
+    && incomingVersion < RSS_DIGEST_ALL_ITEMS_STATE_VERSION;
+  if (!protectCoreRss && !protectDigests && !protectDigestRuns && !protectAllItemsDigestSettings) {
+    return persistedState;
+  }
   const protectedState = structuredClone(persistedState);
   protectedState.version = currentVersion;
   if (protectCoreRss) {
@@ -246,7 +251,7 @@ function protectRssStateFromOlderClient(persistedState, currentPersistedState) {
       ? currentPersistedState.state.rssPanelWidth
       : 380;
   }
-  if (protectDigests) {
+  if (protectDigests || protectAllItemsDigestSettings) {
     protectedState.state.rssDailyDigests = structuredClone(
       Array.isArray(currentPersistedState.state.rssDailyDigests) ? currentPersistedState.state.rssDailyDigests : [],
     );

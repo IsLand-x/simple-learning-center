@@ -299,6 +299,25 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal((await response.json()).title, '测试视频');
   });
 
+  await t.test('YouTube 受控上游错误会返回可操作提示', async () => {
+    const videoApp = createApp({
+      serveFrontend: false,
+      youtubeVideoFetcher: async () => {
+        throw Object.assign(new Error('服务端连接 YouTube 超时，请配置代理'), {
+          status: 504,
+          expose: true,
+        });
+      },
+    });
+    const response = await videoApp.request('/api/videos/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }),
+    });
+    assert.equal(response.status, 504);
+    assert.deepEqual(await response.json(), { error: '服务端连接 YouTube 超时，请配置代理' });
+  });
+
   await t.test('解析并通过服务端获取 RSS 与 Atom 订阅源', async () => {
     const parsed = parseRssFeed(`<?xml version="1.0" encoding="UTF-8"?>
       <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
@@ -520,6 +539,15 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       publishedAt: 100,
       fetchedAt: 100,
       contentText: 'RSS 正文',
+    }, {
+      id: 'rss-item-read',
+      feedId: 'rss-feed-1',
+      title: 'RSS 已读测试内容',
+      link: 'https://example.com/posts/read',
+      publishedAt: 150,
+      fetchedAt: 150,
+      contentText: '这篇文章已经读过，但仍应进入当天日报',
+      readAt: 200,
     }];
     await aiApp.request('/api/state', {
       method: 'PUT',
@@ -555,8 +583,9 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     }
     const rssStateResponse = await aiApp.request('/api/state');
     const rssState = await rssStateResponse.json();
-    assert.equal(rssState.state.rssItems[0].aiSummary, '服务端回答');
-    assert.equal(rssState.state.rssItems[0].aiSummaryVersion, 2);
+    const summarizedRssItem = rssState.state.rssItems.find((item) => item.id === 'rss-item-1');
+    assert.equal(summarizedRssItem.aiSummary, '服务端回答');
+    assert.equal(summarizedRssItem.aiSummaryVersion, 2);
 
     const translationJobResponse = await aiApp.request('/api/ai/jobs', {
       method: 'POST',
@@ -586,7 +615,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       await new Promise((resolve) => setTimeout(resolve, 5));
     }
     const translatedState = await (await aiApp.request('/api/state')).json();
-    assert.equal(translatedState.state.rssItems[0].aiTranslation, '服务端回答');
+    assert.equal(
+      translatedState.state.rssItems.find((item) => item.id === 'rss-item-1').aiTranslation,
+      '服务端回答',
+    );
 
     translatedState.state.rssDigestSettings = {
       enabled: true,
@@ -597,7 +629,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       times: [],
     };
     translatedState.state.rssDigestRuns = [];
-    translatedState.version = 20;
+    translatedState.version = 21;
     await aiApp.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -618,10 +650,13 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const digestState = await (await aiApp.request('/api/state')).json();
     assert.equal(digestState.state.rssDailyDigests[0].date, '1970-01-01');
     assert.equal(digestState.state.rssDailyDigests[0].content, '服务端回答');
-    assert.deepEqual(digestState.state.rssDailyDigests[0].sourceItemIds, ['rss-item-1']);
+    assert.deepEqual(
+      [...digestState.state.rssDailyDigests[0].sourceItemIds].sort(),
+      ['rss-item-1', 'rss-item-read'],
+    );
     assert.equal(digestState.state.rssDigestRuns[0].status, 'completed');
     assert.equal(digestState.state.rssDigestRuns[0].trigger, 'manual');
-    assert.equal(digestState.state.rssDigestRuns[0].itemCount, 1);
+    assert.equal(digestState.state.rssDigestRuns[0].itemCount, 2);
     assert.equal(digestState.state.rssDigestRuns[0].model, 'test-model');
 
     const skippedDigestResponse = await aiApp.request('/api/rss/digests/run', {
@@ -633,15 +668,16 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal((await skippedDigestResponse.json()).skipped, true);
     const skippedDigestState = await (await aiApp.request('/api/state')).json();
     assert.equal(skippedDigestState.state.rssDigestRuns[0].status, 'skipped');
-    assert.equal(skippedDigestState.state.rssDigestRuns[0].message, '没有新的未读内容');
+    assert.equal(skippedDigestState.state.rssDigestRuns[0].message, '没有新的内容');
 
     const staleRssState = structuredClone(rssState);
     staleRssState.state.chatSessions = staleRssState.state.chatSessions
       .filter((session) => session.id !== 'rss-summary:rss-item-1');
     staleRssState.state.chats = staleRssState.state.chats
       .filter((message) => message.conversationId !== 'rss-summary:rss-item-1');
-    delete staleRssState.state.rssItems[0].aiSummary;
-    delete staleRssState.state.rssItems[0].aiTranslation;
+    const staleRssItem = staleRssState.state.rssItems.find((item) => item.id === 'rss-item-1');
+    delete staleRssItem.aiSummary;
+    delete staleRssItem.aiTranslation;
     delete staleRssState.state.rssDailyDigests;
     delete staleRssState.state.rssDigestRuns;
     await aiApp.request('/api/state', {
@@ -650,9 +686,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify(staleRssState),
     });
     const protectedRssState = await (await aiApp.request('/api/state')).json();
-    assert.equal(protectedRssState.state.rssItems[0].aiSummary, '服务端回答');
-    assert.equal(protectedRssState.state.rssItems[0].aiSummaryVersion, 2);
-    assert.equal(protectedRssState.state.rssItems[0].aiTranslation, '服务端回答');
+    const protectedRssItem = protectedRssState.state.rssItems.find((item) => item.id === 'rss-item-1');
+    assert.equal(protectedRssItem.aiSummary, '服务端回答');
+    assert.equal(protectedRssItem.aiSummaryVersion, 2);
+    assert.equal(protectedRssItem.aiTranslation, '服务端回答');
     assert.equal(protectedRssState.state.rssDailyDigests[0].content, '服务端回答');
     assert.equal(protectedRssState.state.rssDigestRuns.length, 2);
     assert.ok(protectedRssState.state.rssDigestRuns.some((run) => run.status === 'completed'));

@@ -96,6 +96,11 @@ type RssSidePanel = 'ai' | 'timeline' | 'comments' | null;
 type SummaryStatus = 'idle' | 'unavailable' | 'generating' | 'ready' | 'error';
 type TranslationStatus = 'idle' | 'unavailable' | 'generating' | 'ready' | 'error';
 
+interface TranslationTaskState {
+  status: TranslationStatus;
+  error: string;
+}
+
 interface RssReaderSelection extends ReaderSelection {
   startOffset: number;
   endOffset: number;
@@ -355,7 +360,7 @@ function RssDigestArticle({
         {generating && (
           <div className="rss-digest-status" aria-live="polite">
             <Spin size="small" />
-            <Text size="small" type="tertiary">正在读取未读内容、合并来源并去重…</Text>
+            <Text size="small" type="tertiary">正在读取当天全部内容、合并来源并去重…</Text>
           </div>
         )}
         {error && <div className="rss-digest-status"><Text size="small" type="danger">{error}</Text></div>}
@@ -634,8 +639,7 @@ export function RssPage() {
   const [fetchingArticleIds, setFetchingArticleIds] = useState<Set<string>>(new Set());
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>('idle');
   const [summaryError, setSummaryError] = useState('');
-  const [translationStatus, setTranslationStatus] = useState<TranslationStatus>('idle');
-  const [translationError, setTranslationError] = useState('');
+  const [translationTasks, setTranslationTasks] = useState<Record<string, TranslationTaskState>>({});
   const [translationVisible, setTranslationVisible] = useState(false);
   const [digestSettingsVisible, setDigestSettingsVisible] = useState(false);
   const [digestGenerating, setDigestGenerating] = useState(false);
@@ -779,6 +783,12 @@ export function RssPage() {
     ? requestedDigest ?? (mobileLayout ? undefined : digestList[0])
     : undefined;
   const selectedItemId = selectedItem?.id ?? null;
+  const selectedItemIdRef = useRef(selectedItemId);
+  selectedItemIdRef.current = selectedItemId;
+  const selectedTranslationTask = selectedItemId ? translationTasks[selectedItemId] : undefined;
+  const translationStatus = selectedTranslationTask?.status
+    ?? (selectedItem?.aiTranslation ? 'ready' : 'idle');
+  const translationError = selectedTranslationTask?.error ?? '';
   const selectedItemIndex = selectedItem
     ? filteredItems.findIndex((item) => item.id === selectedItem.id)
     : -1;
@@ -809,6 +819,7 @@ export function RssPage() {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('source', sourceId);
+      if (sourceId !== 'daily') next.set('range', 'all');
       if (RSS_SMART_SOURCE_IDS.has(sourceId)) next.delete('feed');
       else next.set('feed', sourceId);
       next.delete('item');
@@ -929,8 +940,6 @@ export function RssPage() {
     setCommentDraft('');
     setAiQuote(undefined);
     setTranslationVisible(false);
-    setTranslationStatus(selectedItem?.aiTranslation ? 'ready' : 'idle');
-    setTranslationError('');
   }, [selectedItem?.id]);
 
   useLayoutEffect(() => {
@@ -1090,12 +1099,14 @@ export function RssPage() {
         aiTranslationUpdatedAt: undefined,
         aiTranslationSourceFetchedAt: undefined,
       });
-      Toast.success(item.fullContentFetchedAt ? '原文已重新抓取' : '原文已抓取');
+      if (selectedItemIdRef.current === item.id) {
+        Toast.success(item.fullContentFetchedAt ? '原文已重新抓取' : '原文已抓取');
+      }
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : '原文抓取失败';
       updateRssItem(item.id, { fullContentError: message });
-      Toast.error(message);
+      if (selectedItemIdRef.current === item.id) Toast.error(message);
       return false;
     } finally {
       setFetchingArticleIds((current) => {
@@ -1225,8 +1236,20 @@ export function RssPage() {
 
   const translateCurrentPage = useCallback(async () => {
     if (!selectedItem) return;
-    if (selectedItem.aiTranslation) {
-      setTranslationStatus('ready');
+    const item = selectedItem;
+    const itemId = item.id;
+    const updateTranslationTask = (changes: Partial<TranslationTaskState>) => {
+      setTranslationTasks((current) => ({
+        ...current,
+        [itemId]: {
+          status: current[itemId]?.status ?? 'idle',
+          error: current[itemId]?.error ?? '',
+          ...changes,
+        },
+      }));
+    };
+    if (item.aiTranslation) {
+      updateTranslationTask({ status: 'ready', error: '' });
       setTranslationVisible((current) => !current);
       return;
     }
@@ -1234,33 +1257,29 @@ export function RssPage() {
     const config = provider ? configs.find((item) => provider === `api:${item.id}`) : configs[0];
     const model = config?.models.includes(aiPreferences.model) ? aiPreferences.model : config?.models[0];
     if (!config || !model) {
-      setTranslationStatus('unavailable');
-      setTranslationError('请先在设置页添加并选择模型');
+      updateTranslationTask({ status: 'unavailable', error: '请先在设置页添加并选择模型' });
       Toast.warning('请先在设置页添加并选择模型');
       return;
     }
-    const resourceId = `rss:${selectedItem.id}`;
-    const conversationId = `rss-translation-v1:${selectedItem.id}`;
-    setTranslationStatus('generating');
-    setTranslationError('');
+    const resourceId = `rss:${itemId}`;
+    const conversationId = `rss-translation-v1:${itemId}`;
+    updateTranslationTask({ status: 'generating', error: '' });
     setTranslationVisible(true);
     const applyTranslationJob = (job: AiJob) => {
       if (job.status === 'queued' || job.status === 'running') {
-        setTranslationStatus('generating');
+        updateTranslationTask({ status: 'generating', error: '' });
         return;
       }
-      translationStartPromises.delete(selectedItem.id);
+      translationStartPromises.delete(itemId);
       if (job.status === 'completed') {
-        updateRssItem(selectedItem.id, {
+        updateRssItem(itemId, {
           aiTranslation: job.content,
           aiTranslationUpdatedAt: Date.now(),
-          aiTranslationSourceFetchedAt: Number(selectedItem.fullContentFetchedAt || selectedItem.fetchedAt || 0),
+          aiTranslationSourceFetchedAt: Number(item.fullContentFetchedAt || item.fetchedAt || 0),
         });
-        setTranslationStatus('ready');
-        setTranslationError('');
+        updateTranslationTask({ status: 'ready', error: '' });
       } else if (job.status === 'failed') {
-        setTranslationStatus('error');
-        setTranslationError(job.error || '页面翻译失败');
+        updateTranslationTask({ status: 'error', error: job.error || '页面翻译失败' });
       }
     };
     try {
@@ -1269,7 +1288,7 @@ export function RssPage() {
       ));
       let job = existing;
       if (!job) {
-        let pending = translationStartPromises.get(selectedItem.id);
+        let pending = translationStartPromises.get(itemId);
         if (!pending) {
           pending = (async () => {
             await waitForServerStateWrites();
@@ -1279,7 +1298,7 @@ export function RssPage() {
               model,
               bookId: resourceId,
               resourceType: 'rss',
-              rssItemId: selectedItem.id,
+              rssItemId: itemId,
               purpose: 'translation',
               conversationId,
               userMessage: {
@@ -1287,11 +1306,11 @@ export function RssPage() {
                 content: '请读取当前 RSS 正文并完整翻译成简体中文。保留标题、段落、列表、小标题、链接文字和引用关系，使用清晰的 Markdown 输出；不要总结、删减、补写或解释。原文已经是中文时，忠实整理为可读的简体中文。',
                 createdAt,
               },
-              session: { title: `页面翻译：${selectedItem.title}`.slice(0, 100), createdAt },
+              session: { title: `页面翻译：${item.title}`.slice(0, 100), createdAt },
               currentText: '',
             });
           })();
-          translationStartPromises.set(selectedItem.id, pending);
+          translationStartPromises.set(itemId, pending);
         }
         job = await pending;
       }
@@ -1310,11 +1329,10 @@ export function RssPage() {
         }
       }
     } catch (error) {
-      translationStartPromises.delete(selectedItem.id);
+      translationStartPromises.delete(itemId);
       const message = error instanceof Error ? error.message : '页面翻译失败';
-      setTranslationStatus('error');
-      setTranslationError(message);
-      Toast.error(message);
+      updateTranslationTask({ status: 'error', error: message });
+      if (selectedItemIdRef.current === itemId) Toast.error(message);
     }
   }, [aiPreferences.model, aiPreferences.provider, configs, selectedItem, updateRssItem]);
 
@@ -1504,6 +1522,7 @@ export function RssPage() {
       const next = new URLSearchParams(current);
       next.set('source', sourceId);
       next.set('view', 'items');
+      if (sourceId !== 'daily') next.set('range', 'all');
       next.delete('item');
       next.delete('digest');
       next.delete('panel');
@@ -2048,7 +2067,7 @@ export function RssPage() {
           >
             <span className="rss-item-row__title">{isToday ? '[正在产出中] ' : ''}{digestDateLabel(digest.date)}日报</span>
             <span className="rss-item-row__excerpt">
-              {digest.content ? digest.content.replace(/[#*_>`\[\]()]/g, '').replace(/\s+/g, ' ').slice(0, 92) : isToday && todayItems.length ? '等待 AI 整理今天的未读内容' : '这一天还没有可展示的日报'}
+              {digest.content ? digest.content.replace(/[#*_>`\[\]()]/g, '').replace(/\s+/g, ' ').slice(0, 92) : isToday && todayItems.length ? '等待 AI 整理今天的全部内容' : '这一天还没有可展示的日报'}
             </span>
             <span className="rss-item-row__meta">
               <span>{digest.itemCount} 条内容 · {digest.sourceFeedIds.length} 个来源</span>
@@ -2168,7 +2187,11 @@ export function RssPage() {
         ) : <Empty title="订阅源没有提供正文" description="可以打开原文，或让 AI 根据已有摘要和页面链接继续了解" />}
       </div>
     </article>
-  ) : <Empty title="选择一条订阅内容" description="内容详情、收藏和 AI 摘要会显示在这里" />;
+  ) : (
+    <div className="rss-article-empty">
+      <Empty title="选择一条订阅内容" description="内容详情、收藏和 AI 摘要会显示在这里" />
+    </div>
+  );
 
   return (
     <main className="rss-page">
@@ -2196,7 +2219,7 @@ export function RssPage() {
                 onClick={() => updateRssItem(selectedItem.id, { bookmarkedAt: selectedItem.bookmarkedAt ? undefined : Date.now() })}
               />
               <Button aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'} disabled={!selectedItem.link} icon={<IconGlobeStroked />} loading={fetchingArticleIds.has(selectedItem.id)} theme="borderless" type="tertiary" onClick={() => void fetchArticleContent(selectedItem)} />
-              <Button aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
+              <Button aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
               {selectedItem.link && <Button aria-label="打开原文" icon={<IconExternalOpen />} theme="borderless" type="tertiary" onClick={() => window.open(selectedItem.link, '_blank', 'noopener,noreferrer')} />}
             </>
           ) : undefined}
@@ -2380,7 +2403,7 @@ export function RssPage() {
                               icon={<IconLanguage />}
                               loading={translationStatus === 'generating'}
                               size="small"
-                              theme={translationVisible ? 'solid' : 'borderless'}
+                              theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'}
                               type="tertiary"
                               onClick={() => void translateCurrentPage()}
                             />

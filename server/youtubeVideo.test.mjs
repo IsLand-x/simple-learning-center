@@ -64,3 +64,43 @@ test('导入视频元数据、原文字幕与简体中文翻译', async () => {
   assert.equal(result.captions.chinese[0].text, '你好，世界');
   assert.deepEqual(requestedLanguages, [null, 'zh-Hans']);
 });
+
+test('元数据客户端不可用时按 MWEB、WEB 顺序回退', async () => {
+  const clients = [];
+  const result = await fetchYouTubeVideo('dQw4w9WgXcQ', {
+    getClient: async () => ({
+      getBasicInfo: async (_videoId, { client }) => {
+        clients.push(client);
+        if (client === 'MWEB') {
+          return { playability_status: { status: 'UNPLAYABLE', reason: '客户端暂不可用' } };
+        }
+        return {
+          basic_info: {
+            title: '回退成功',
+            duration: 30,
+            channel: { id: 'channel-2', name: '测试频道' },
+          },
+        };
+      },
+    }),
+  });
+  assert.deepEqual(clients, ['MWEB', 'WEB']);
+  assert.equal(result.title, '回退成功');
+});
+
+test('服务端连接 YouTube 超时时返回可操作的代理提示', async () => {
+  const cause = Object.assign(new Error('Connect Timeout Error'), { code: 'UND_ERR_CONNECT_TIMEOUT' });
+  await assert.rejects(
+    fetchYouTubeVideo('dQw4w9WgXcQ', {
+      getClient: async () => {
+        throw new TypeError('fetch failed', { cause });
+      },
+    }),
+    (error) => {
+      assert.equal(error.status, 504);
+      assert.equal(error.expose, true);
+      assert.match(error.message, /LEARNING_CENTER_YOUTUBE_PROXY/);
+      return true;
+    },
+  );
+});

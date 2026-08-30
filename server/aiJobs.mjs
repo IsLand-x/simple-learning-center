@@ -588,23 +588,23 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     const dayEnd = new Date(`${digestDate}T23:59:59.999`).getTime();
     if (!Number.isFinite(dayStart) || !Number.isFinite(dayEnd)) throw statusError(400, '日报日期不正确');
     const allItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-    const unreadItems = allItems.filter((item) => (
-      item.publishedAt >= dayStart && item.publishedAt <= dayEnd && !item.readAt
+    const dayItems = allItems.filter((item) => (
+      item.publishedAt >= dayStart && item.publishedAt <= dayEnd
     ));
     const previous = (Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [])
       .find((digest) => digest.date === digestDate);
     const previousIds = new Set(previous?.sourceItemIds || []);
-    const newUnreadItems = unreadItems.filter((item) => !previousIds.has(item.id));
-    if (!force && previous && !newUnreadItems.length) {
-      await persistAttempt({ status: 'skipped', message: '没有新的未读内容', model });
+    const newItems = dayItems.filter((item) => !previousIds.has(item.id));
+    if (!force && previous && !newItems.length) {
+      await persistAttempt({ status: 'skipped', message: '没有新的内容', model });
       return { skipped: true };
     }
-    const includedIds = new Set([...(previous?.sourceItemIds || []), ...unreadItems.map((item) => item.id)]);
+    const includedIds = new Set([...(previous?.sourceItemIds || []), ...dayItems.map((item) => item.id)]);
     const digestItems = allItems
       .filter((item) => includedIds.has(item.id))
       .sort((left, right) => right.publishedAt - left.publishedAt);
     if (!digestItems.length) {
-      const message = '这一天还没有可整理的未读内容';
+      const message = '这一天还没有可整理的内容';
       if (digestTrigger === 'schedule') {
         await persistAttempt({ status: 'skipped', message, model });
         return { skipped: true };
@@ -621,8 +621,11 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         ...(scheduleKey ? { lastScheduledKey: scheduleKey } : {}),
       };
     });
-    const prompt = optionalString(settings.prompt, 12_000).trim()
-      || '请把当天尚未读过的 RSS 内容整理成一份中文日报，按主题去重并为每条信息附上订阅源名称与原文链接。';
+    const configuredPrompt = optionalString(settings.prompt, 12_000).trim();
+    const legacyDefaultPrompt = '请把当天尚未读过的 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
+    const prompt = configuredPrompt && configuredPrompt !== legacyDefaultPrompt
+      ? configuredPrompt
+      : '请把当天全部 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
     const createdAt = Date.now();
     try {
       const job = await start({
@@ -645,7 +648,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
             '',
             `日报日期：${digestDate}`,
             `本次触发方式：${digestTrigger === 'schedule' ? '定时任务' : '手动生成'}`,
-            '先读取全部条目与上一版日报，再输出可直接阅读的完整日报。',
+            '先读取当天全部条目与上一版日报，再输出可直接阅读的完整日报。',
           ].join('\n'),
           createdAt,
         },

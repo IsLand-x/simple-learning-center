@@ -27,6 +27,14 @@ export const RSS_REFRESH_INITIAL_DELAY_MS = Number.parseInt(
   process.env.LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS || '15000',
   10,
 );
+export const YOUTUBE_PROXY = process.env.LEARNING_CENTER_YOUTUBE_PROXY?.trim() || '';
+export const YOUTUBE_ENV_PROXY_CONFIGURED = Boolean(
+  process.env.HTTPS_PROXY
+  || process.env.HTTP_PROXY
+  || process.env.https_proxy
+  || process.env.http_proxy,
+);
+export const YOUTUBE_PROXY_CONFIGURED = Boolean(YOUTUBE_PROXY || YOUTUBE_ENV_PROXY_CONFIGURED);
 
 export const MAX_STATE_BYTES = 64 * 1024 * 1024;
 export const MAX_INDEX_BYTES = 256 * 1024 * 1024;
@@ -50,5 +58,16 @@ export function validateServerConfig() {
     || RSS_REFRESH_INITIAL_DELAY_MS > RSS_REFRESH_INTERVAL_MS
   ) {
     throw new Error('LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS 必须是刷新周期内的非负整数');
+  }
+  if (YOUTUBE_PROXY) {
+    let proxyUrl;
+    try {
+      proxyUrl = new URL(YOUTUBE_PROXY);
+    } catch {
+      throw new Error('LEARNING_CENTER_YOUTUBE_PROXY 必须是有效的代理 URL');
+    }
+    if (!['http:', 'https:', 'socks5:'].includes(proxyUrl.protocol)) {
+      throw new Error('LEARNING_CENTER_YOUTUBE_PROXY 仅支持 http、https 或 socks5 代理');
+    }
   }
 }

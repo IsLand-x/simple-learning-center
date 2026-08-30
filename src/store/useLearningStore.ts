@@ -51,7 +51,9 @@ const defaultAiPreferences: AiPreferences = {
   model: '',
 };
 
-export const DEFAULT_RSS_DIGEST_PROMPT = '请把当天尚未读过的 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
+const LEGACY_RSS_DIGEST_PROMPT = '请把当天尚未读过的 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
+
+export const DEFAULT_RSS_DIGEST_PROMPT = '请把当天全部 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
 
 const defaultRssDigestSettings: RssDigestSettings = {
   enabled: false,
@@ -538,7 +540,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 20,
+      version: 21,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -754,6 +756,19 @@ export const useLearningStore = create<LearningState>()(
           migrated = {
             ...migrated,
             rssDigestRuns: [],
+          };
+        }
+        if (version < 21) {
+          const digestSettings = migrated.rssDigestSettings;
+          migrated = {
+            ...migrated,
+            rssDigestSettings: {
+              ...defaultRssDigestSettings,
+              ...digestSettings,
+              prompt: !digestSettings?.prompt || digestSettings.prompt === LEGACY_RSS_DIGEST_PROMPT
+                ? DEFAULT_RSS_DIGEST_PROMPT
+                : digestSettings.prompt,
+            },
           };
         }
         return migrated;

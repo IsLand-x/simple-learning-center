@@ -1,8 +1,18 @@
 import { Innertube } from 'youtubei.js';
+import {
+  EnvHttpProxyAgent,
+  ProxyAgent,
+  Socks5ProxyAgent,
+} from 'undici';
+import {
+  YOUTUBE_ENV_PROXY_CONFIGURED,
+  YOUTUBE_PROXY,
+} from './config.mjs';
 import { statusError } from './errors.mjs';
 
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_CAPTION_BYTES = 16 * 1024 * 1024;
+const METADATA_CLIENTS = ['MWEB', 'WEB', 'ANDROID'];
 const YOUTUBE_HOSTS = new Set([
   'youtube.com',
   'www.youtube.com',
@@ -13,6 +23,8 @@ const YOUTUBE_HOSTS = new Set([
 ]);
 
 let innertubePromise;
+let youtubeDispatcher;
+let youtubeDispatcherInitialized = false;
 
 function cleanText(value, maxLength = 20_000) {
   return String(value ?? '')
@@ -21,6 +33,93 @@ function cleanText(value, maxLength = 20_000) {
     .replace(/\n{3,}/g, '\n\n')
     .trim()
     .slice(0, maxLength);
+}
+
+function getYouTubeDispatcher() {
+  if (youtubeDispatcherInitialized) return youtubeDispatcher;
+  youtubeDispatcherInitialized = true;
+  if (YOUTUBE_PROXY) {
+    const proxyUrl = new URL(YOUTUBE_PROXY);
+    youtubeDispatcher = proxyUrl.protocol === 'socks5:'
+      ? new Socks5ProxyAgent(proxyUrl)
+      : new ProxyAgent(proxyUrl.toString());
+  } else if (YOUTUBE_ENV_PROXY_CONFIGURED) {
+    youtubeDispatcher = new EnvHttpProxyAgent();
+  }
+  return youtubeDispatcher;
+}
+
+function youtubeFetch(input, init = {}) {
+  const dispatcher = getYouTubeDispatcher();
+  return globalThis.fetch(input, dispatcher ? { ...init, dispatcher } : init);
+}
+
+function errorChain(error) {
+  const chain = [];
+  const seen = new Set();
+  let current = error;
+  while (current && typeof current === 'object' && !seen.has(current) && chain.length < 8) {
+    chain.push(current);
+    seen.add(current);
+    current = current.cause;
+  }
+  return chain;
+}
+
+function transportErrorCode(error) {
+  return errorChain(error)
+    .map((entry) => typeof entry.code === 'string' ? entry.code : '')
+    .find(Boolean) || '';
+}
+
+function youtubeTransportError(error) {
+  if (Number.isInteger(error?.status)) return null;
+  const chain = errorChain(error);
+  const code = transportErrorCode(error);
+  const message = chain
+    .map((entry) => entry instanceof Error ? entry.message : '')
+    .filter(Boolean)
+    .join(' ');
+  const timedOut = code === 'UND_ERR_CONNECT_TIMEOUT'
+    || code === 'UND_ERR_HEADERS_TIMEOUT'
+    || code === 'ETIMEDOUT'
+    || chain.some((entry) => entry?.name === 'TimeoutError')
+    || /timed?\s*out|timeout/i.test(message);
+  const isTransportFailure = timedOut
+    || code.startsWith('UND_ERR_')
+    || ['ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH', 'ENOTFOUND'].includes(code)
+    || /fetch failed|network|socket|connect/i.test(message);
+  if (!isTransportFailure) return null;
+  return statusError(
+    timedOut ? 504 : 502,
+    timedOut
+      ? '服务端连接 YouTube 超时。浏览器中的 VPN 不一定会被 Node 服务继承，请配置 LEARNING_CENTER_YOUTUBE_PROXY'
+      : '服务端无法连接 YouTube，请检查服务器网络或代理配置',
+    { expose: true },
+  );
+}
+
+function playabilityError(info) {
+  const status = cleanText(info?.playability_status?.status, 80).toUpperCase();
+  const reason = cleanText(info?.playability_status?.reason, 300);
+  if (status === 'LOGIN_REQUIRED') {
+    return statusError(422, '该视频需要登录 YouTube 后才能读取', { expose: true });
+  }
+  if (/does not exist|removed by (?:the )?uploader/i.test(reason)) {
+    return statusError(404, `该 YouTube 视频已不存在或被删除${reason ? `：${reason}` : ''}`);
+  }
+  if (status || reason) {
+    return statusError(
+      422,
+      `YouTube 当前不允许服务器读取该视频${reason ? `：${reason}` : ''}`,
+      { expose: true },
+    );
+  }
+  return statusError(
+    502,
+    'YouTube 返回的视频信息不完整，请稍后重试',
+    { expose: true },
+  );
 }
 
 export function parseYouTubeVideoId(input) {
@@ -139,6 +238,7 @@ function getInnertube() {
       location: 'US',
       retrieve_player: false,
       generate_session_locally: true,
+      fetch: youtubeFetch,
     }).catch((error) => {
       innertubePromise = undefined;
       throw error;
@@ -148,21 +248,50 @@ function getInnertube() {
 }
 
 export async function fetchYouTubeVideo(input, {
-  fetchImpl = fetch,
+  fetchImpl = youtubeFetch,
   getClient = getInnertube,
 } = {}) {
   const videoId = parseYouTubeVideoId(input);
   let info;
   try {
     const youtube = await getClient();
-    info = await youtube.getBasicInfo(videoId, { client: 'WEB' });
+    let lastIncompleteInfo;
+    for (const client of METADATA_CLIENTS) {
+      try {
+        const candidate = await youtube.getBasicInfo(videoId, { client });
+        if (cleanText(candidate?.basic_info?.title, 500)) {
+          info = candidate;
+          break;
+        }
+        lastIncompleteInfo = candidate;
+        console.warn('YouTube metadata response was incomplete', {
+          client,
+          playabilityStatus: cleanText(candidate?.playability_status?.status, 80),
+        });
+      } catch (error) {
+        const transportFailure = youtubeTransportError(error);
+        if (transportFailure) throw transportFailure;
+        console.warn('YouTube metadata client failed', {
+          client,
+          code: transportErrorCode(error),
+          error: error instanceof Error ? error.name : typeof error,
+        });
+      }
+    }
+    if (!info) throw playabilityError(lastIncompleteInfo);
   } catch (error) {
-    console.warn('YouTube metadata request failed', error instanceof Error ? error.message : error);
-    throw statusError(502, '暂时无法读取 YouTube 视频，请稍后重试');
+    if (Number.isInteger(error?.status)) throw error;
+    const transportFailure = youtubeTransportError(error);
+    if (transportFailure) throw transportFailure;
+    console.warn('YouTube metadata request failed', {
+      code: transportErrorCode(error),
+      error: error instanceof Error ? error.name : typeof error,
+    });
+    throw statusError(502, '暂时无法读取 YouTube 视频，请稍后重试', { expose: true });
   }
 
   const title = cleanText(info?.basic_info?.title, 500);
-  if (!title) throw statusError(404, '找不到该 YouTube 视频，或视频当前不可访问');
+  if (!title) throw playabilityError(info);
   const channel = info.basic_info.channel;
   const tracks = Array.isArray(info.captions?.caption_tracks) ? info.captions.caption_tracks : [];
   const track = chooseCaptionTrack(tracks);
@@ -183,7 +312,9 @@ export async function fetchYouTubeVideo(input, {
         chineseCues = await fetchCaptionTrack(track, 'zh-Hans', fetchImpl);
       }
     } catch (error) {
-      captionError = error instanceof Error ? error.message : '字幕读取失败';
+      const transportFailure = youtubeTransportError(error);
+      captionError = transportFailure?.message
+        || (error instanceof Error ? error.message : '字幕读取失败');
     }
   } else {
     captionError = '该视频没有可用字幕';

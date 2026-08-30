@@ -7,6 +7,7 @@ import {
   PASSWORD,
   PORT,
   RSS_REFRESH_INTERVAL_MS,
+  YOUTUBE_PROXY_CONFIGURED,
   validateServerConfig,
 } from './config.mjs';
 import { createRssScheduler } from './rssScheduler.mjs';
@@ -35,6 +36,7 @@ const server = serve({
   rssScheduler.start();
   rssDigestScheduler.start();
   console.log(`RSS 服务端刷新周期：${Math.round(RSS_REFRESH_INTERVAL_MS / 60_000)} 分钟（错峰执行）`);
+  console.log(`YouTube 服务端请求：${YOUTUBE_PROXY_CONFIGURED ? '使用已配置代理' : '直接连接（不会自动继承浏览器代理）'}`);
 });
 
 function shutdown() {
