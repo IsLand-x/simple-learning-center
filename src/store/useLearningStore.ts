@@ -22,6 +22,10 @@ import type {
   ReaderPreferences,
   ReaderTheme,
   ReadingSession,
+  RssFeed,
+  RssFolder,
+  RssItem,
+  RssAnnotation,
   ThemeMode,
   WebSearchConfig,
 } from '../types';
@@ -84,6 +88,11 @@ interface LearningState {
   chats: ChatMessage[];
   chatSessions: ChatSession[];
   readingSessions: ReadingSession[];
+  rssFolders: RssFolder[];
+  rssFeeds: RssFeed[];
+  rssItems: RssItem[];
+  rssAnnotations: RssAnnotation[];
+  rssPanelWidth: number;
   openAIConfigs: OpenAICompatibleConfig[];
   webSearchConfig: WebSearchConfig;
   aiPreferences: AiPreferences;
@@ -106,6 +115,22 @@ interface LearningState {
   addChatMessage: (message: ChatMessage) => void;
   clearBookChats: (bookId: string) => void;
   upsertReadingSession: (session: ReadingSession) => void;
+  addRssFolder: (folder: RssFolder) => void;
+  updateRssFolder: (folderId: string, changes: Partial<Pick<RssFolder, 'name'>>) => void;
+  moveRssFolder: (folderId: string, beforeFolderId?: string) => void;
+  deleteRssFolder: (folderId: string) => void;
+  upsertRssFeed: (feed: RssFeed) => void;
+  updateRssFeed: (feedId: string, changes: Partial<RssFeed>) => void;
+  moveRssFeed: (feedId: string, folderId?: string, beforeFeedId?: string) => void;
+  deleteRssFeed: (feedId: string) => void;
+  mergeRssItems: (feedId: string, items: RssItem[]) => void;
+  updateRssItem: (itemId: string, changes: Partial<RssItem>) => void;
+  addRssAnnotation: (annotation: RssAnnotation) => void;
+  updateRssAnnotation: (annotationId: string, changes: Partial<Pick<RssAnnotation, 'comment' | 'commentUpdatedAt'>>) => void;
+  deleteRssAnnotation: (annotationId: string) => void;
+  markRssItemsRead: (itemIds?: string[]) => void;
+  markRssItemsUnread: (itemIds?: string[]) => void;
+  setRssPanelWidth: (width: number) => void;
   addOpenAIConfig: (config: OpenAICompatibleConfig) => void;
   updateOpenAIConfig: (configId: string, changes: Partial<OpenAICompatibleConfig>) => void;
   deleteOpenAIConfig: (configId: string) => void;
@@ -125,6 +150,11 @@ export const useLearningStore = create<LearningState>()(
       chats: [],
       chatSessions: [],
       readingSessions: [],
+      rssFolders: [],
+      rssFeeds: [],
+      rssItems: [],
+      rssAnnotations: [],
+      rssPanelWidth: 380,
       openAIConfigs: [],
       webSearchConfig: defaultWebSearchConfig,
       aiPreferences: defaultAiPreferences,
@@ -219,6 +249,156 @@ export const useLearningStore = create<LearningState>()(
               : [session, ...state.readingSessions],
           };
         }),
+      addRssFolder: (folder) =>
+        set((state) => ({
+          rssFolders: [folder, ...state.rssFolders.filter((item) => item.id !== folder.id)],
+        })),
+      updateRssFolder: (folderId, changes) =>
+        set((state) => ({
+          rssFolders: state.rssFolders.map((folder) => (
+            folder.id === folderId ? { ...folder, ...changes, updatedAt: Date.now() } : folder
+          )),
+        })),
+      moveRssFolder: (folderId, beforeFolderId) =>
+        set((state) => {
+          if (folderId === beforeFolderId) return state;
+          const folder = state.rssFolders.find((item) => item.id === folderId);
+          if (!folder) return state;
+          const remaining = state.rssFolders.filter((item) => item.id !== folderId);
+          const targetIndex = beforeFolderId
+            ? remaining.findIndex((item) => item.id === beforeFolderId)
+            : remaining.length;
+          if (targetIndex < 0) return state;
+          remaining.splice(targetIndex, 0, folder);
+          return { rssFolders: remaining };
+        }),
+      deleteRssFolder: (folderId) =>
+        set((state) => ({
+          rssFolders: state.rssFolders.filter((folder) => folder.id !== folderId),
+          rssFeeds: state.rssFeeds.map((feed) => {
+            if (feed.folderId !== folderId) return feed;
+            const { folderId: _folderId, ...withoutFolder } = feed;
+            return { ...withoutFolder, updatedAt: Date.now() };
+          }),
+        })),
+      upsertRssFeed: (feed) =>
+        set((state) => ({
+          rssFeeds: [feed, ...state.rssFeeds.filter((item) => item.id !== feed.id)],
+        })),
+      updateRssFeed: (feedId, changes) =>
+        set((state) => ({
+          rssFeeds: state.rssFeeds.map((feed) => (
+            feed.id === feedId ? { ...feed, ...changes, updatedAt: changes.updatedAt ?? Date.now() } : feed
+          )),
+        })),
+      moveRssFeed: (feedId, folderId, beforeFeedId) =>
+        set((state) => {
+          if (feedId === beforeFeedId) return state;
+          const feed = state.rssFeeds.find((item) => item.id === feedId);
+          if (!feed) return state;
+          const movedFeed = { ...feed, folderId, updatedAt: Date.now() };
+          const remaining = state.rssFeeds.filter((item) => item.id !== feedId);
+          let targetIndex = beforeFeedId
+            ? remaining.findIndex((item) => item.id === beforeFeedId)
+            : -1;
+          if (targetIndex < 0) {
+            const folderKey = folderId ?? '';
+            let lastFolderFeedIndex = -1;
+            remaining.forEach((item, index) => {
+              if ((item.folderId ?? '') === folderKey) lastFolderFeedIndex = index;
+            });
+            targetIndex = lastFolderFeedIndex >= 0 ? lastFolderFeedIndex + 1 : remaining.length;
+          }
+          remaining.splice(targetIndex, 0, movedFeed);
+          return { rssFeeds: remaining };
+        }),
+      deleteRssFeed: (feedId) =>
+        set((state) => {
+          const removedRssItemIds = new Set(
+            state.rssItems.filter((item) => item.feedId === feedId).map((item) => item.id),
+          );
+          const removedItemIds = new Set(
+            Array.from(removedRssItemIds, (itemId) => `rss:${itemId}`),
+          );
+          return {
+            rssFeeds: state.rssFeeds.filter((feed) => feed.id !== feedId),
+            rssItems: state.rssItems.filter((item) => item.feedId !== feedId),
+            rssAnnotations: state.rssAnnotations.filter((annotation) => !removedRssItemIds.has(annotation.itemId)),
+            chats: state.chats.filter((message) => !removedItemIds.has(message.bookId)),
+            chatSessions: state.chatSessions.filter((session) => !removedItemIds.has(session.bookId)),
+          };
+        }),
+      mergeRssItems: (feedId, items) =>
+        set((state) => {
+          const existing = new Map(
+            state.rssItems.filter((item) => item.feedId === feedId).map((item) => [item.id, item]),
+          );
+          const merged = items.map((item) => {
+            const previous = existing.get(item.id);
+            if (!previous) return item;
+            return {
+              ...item,
+              ...(previous.readAt ? { readAt: previous.readAt } : {}),
+              ...(previous.bookmarkedAt ? { bookmarkedAt: previous.bookmarkedAt } : {}),
+              ...(previous.aiSummary ? {
+                aiSummary: previous.aiSummary,
+                aiSummaryUpdatedAt: previous.aiSummaryUpdatedAt,
+                aiSummaryVersion: previous.aiSummaryVersion,
+              } : {}),
+            };
+          });
+          const mergedIds = new Set(merged.map((item) => item.id));
+          const feedItems = [
+            ...merged,
+            ...Array.from(existing.values()).filter((item) => !mergedIds.has(item.id)),
+          ].sort((left, right) => right.publishedAt - left.publishedAt);
+          return {
+            rssItems: [
+              ...state.rssItems.filter((item) => item.feedId !== feedId),
+              ...feedItems,
+            ],
+          };
+        }),
+      updateRssItem: (itemId, changes) =>
+        set((state) => ({
+          rssItems: state.rssItems.map((item) => item.id === itemId ? { ...item, ...changes } : item),
+        })),
+      addRssAnnotation: (annotation) =>
+        set((state) => ({
+          rssAnnotations: [annotation, ...state.rssAnnotations.filter((item) => item.id !== annotation.id)],
+        })),
+      updateRssAnnotation: (annotationId, changes) =>
+        set((state) => ({
+          rssAnnotations: state.rssAnnotations.map((annotation) => (
+            annotation.id === annotationId ? { ...annotation, ...changes } : annotation
+          )),
+        })),
+      deleteRssAnnotation: (annotationId) =>
+        set((state) => ({
+          rssAnnotations: state.rssAnnotations.filter((annotation) => annotation.id !== annotationId),
+        })),
+      markRssItemsRead: (itemIds) =>
+        set((state) => {
+          const selectedIds = itemIds ? new Set(itemIds) : null;
+          const readAt = Date.now();
+          return {
+            rssItems: state.rssItems.map((item) => (
+              !item.readAt && (!selectedIds || selectedIds.has(item.id)) ? { ...item, readAt } : item
+            )),
+          };
+        }),
+      markRssItemsUnread: (itemIds) =>
+        set((state) => {
+          const selectedIds = itemIds ? new Set(itemIds) : null;
+          return {
+            rssItems: state.rssItems.map((item) => {
+              if (!item.readAt || (selectedIds && !selectedIds.has(item.id))) return item;
+              const { readAt: _readAt, ...unreadItem } = item;
+              return unreadItem;
+            }),
+          };
+        }),
+      setRssPanelWidth: (width) => set({ rssPanelWidth: Math.min(720, Math.max(280, width)) }),
       addOpenAIConfig: (config) =>
         set((state) => ({
           openAIConfigs: [config, ...state.openAIConfigs.filter((item) => item.id !== config.id)],
@@ -252,7 +432,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 12,
+      version: 16,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -411,6 +591,35 @@ export const useLearningStore = create<LearningState>()(
             },
           };
         }
+        if (version < 13) {
+          migrated = {
+            ...migrated,
+            rssFolders: [],
+            rssFeeds: [],
+            rssItems: [],
+          };
+        }
+        if (version < 14) {
+          migrated = {
+            ...migrated,
+            rssPanelWidth: 380,
+          };
+        }
+        if (version < 15) {
+          migrated = {
+            ...migrated,
+            rssItems: (migrated.rssItems ?? []).map((item) => ({
+              ...item,
+              ...(item.aiSummary && !item.aiSummaryVersion ? { aiSummaryVersion: 1 } : {}),
+            })),
+          };
+        }
+        if (version < 16) {
+          migrated = {
+            ...migrated,
+            rssAnnotations: [],
+          };
+        }
         return migrated;
       },
       merge: (persistedState, currentState) => {
@@ -418,6 +627,11 @@ export const useLearningStore = create<LearningState>()(
         return {
           ...currentState,
           ...persisted,
+          rssFolders: Array.isArray(persisted.rssFolders) ? persisted.rssFolders : [],
+          rssFeeds: Array.isArray(persisted.rssFeeds) ? persisted.rssFeeds : [],
+          rssItems: Array.isArray(persisted.rssItems) ? persisted.rssItems : [],
+          rssAnnotations: Array.isArray(persisted.rssAnnotations) ? persisted.rssAnnotations : [],
+          rssPanelWidth: typeof persisted.rssPanelWidth === 'number' ? persisted.rssPanelWidth : 380,
           readerPreferences: {
             ...defaultReaderPreferences,
             ...persisted.readerPreferences,

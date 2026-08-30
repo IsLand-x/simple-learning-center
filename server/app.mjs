@@ -7,6 +7,8 @@ import { rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { createApiKeyExport, importApiKeys, parseApiKeyImport } from './apiKeys.mjs';
 import { createAiJobManager } from './aiJobs.mjs';
+import { fetchRssFeed } from './rss.mjs';
+import { protectServerRssState } from './rssScheduler.mjs';
 import {
   createAuthService,
   SESSION_COOKIE_NAME,
@@ -20,6 +22,7 @@ import {
   MAX_API_KEY_IMPORT_BYTES,
   MAX_BOOK_BYTES,
   MAX_INDEX_BYTES,
+  MAX_RSS_REQUEST_BYTES,
   MAX_STATE_BYTES,
   MODE,
   PASSWORD,
@@ -108,6 +111,7 @@ export function createApp({
   serveFrontend = true,
   authFile = AUTH_FILE,
   aiJobRunner,
+  rssFetcher = fetchRssFeed,
 } = {}) {
   const app = new Hono();
   const auth = createAuthService({
@@ -208,7 +212,10 @@ export function createApp({
     await writePersistedState(
       state,
       initializeOnly,
-      initializeOnly ? undefined : aiJobs.protectPersistedState,
+      initializeOnly ? undefined : async (incomingState, currentState) => protectServerRssState(
+        await aiJobs.protectPersistedState(incomingState),
+        currentState,
+      ),
     );
     return noContent(c);
   });
@@ -231,6 +238,12 @@ export function createApp({
   });
   app.all('/api/api-keys/export', methodNotAllowed);
   app.all('/api/api-keys/import', methodNotAllowed);
+
+  app.post('/api/rss/fetch', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_RSS_REQUEST_BYTES);
+    return c.json(await rssFetcher(payload?.url));
+  });
+  app.all('/api/rss/fetch', methodNotAllowed);
 
   app.post('/api/ai/jobs', async (c) => {
     const payload = await readJsonRequest(c.req.raw, MAX_AI_JOB_REQUEST_BYTES);

@@ -1,6 +1,7 @@
 import ePub from 'epubjs';
 import type { NavItem } from 'epubjs';
 import type { BookItem, TocItem } from '../types';
+import { createUuid } from './uuid';
 
 function mapToc(items: NavItem[]): TocItem[] {
   return items.map((item, index) => ({
@@ -43,7 +44,7 @@ export async function parseEpubFile(file: File): Promise<{ item: BookItem; data:
       readCover(book),
     ]);
     const firstChapter = navigation.toc[0]?.label?.trim() || '开始阅读';
-    const id = crypto.randomUUID();
+    const id = createUuid();
 
     return {
       data,

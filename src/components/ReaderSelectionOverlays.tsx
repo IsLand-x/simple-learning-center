@@ -4,8 +4,10 @@ import { IconAIStrokedLevel1, IconBookmark, IconComment, IconDeleteStroked } fro
 import { clamp } from '../lib/format';
 import type { HighlightItem, ReaderHighlightTarget, ReaderSelection } from '../types';
 
+type SelectionAnnotation = Pick<HighlightItem, 'id' | 'kind' | 'text' | 'comment'>;
+
 interface ReaderSelectionOverlaysProps {
-  activeHighlight?: HighlightItem;
+  activeHighlight?: SelectionAnnotation;
   activeHighlightTarget: ReaderHighlightTarget | null;
   commentDraft: string;
   commentingHighlightId: string | null;
@@ -20,6 +22,7 @@ interface ReaderSelectionOverlaysProps {
   onSaveHighlight: () => void;
   onSaveHighlightComment: () => void;
   onViewHighlight: () => void;
+  showViewHighlight?: boolean;
 }
 
 interface VisualViewportBounds {
@@ -55,6 +58,7 @@ export function ReaderSelectionOverlays({
   onSaveHighlight,
   onSaveHighlightComment,
   onViewHighlight,
+  showViewHighlight = true,
 }: ReaderSelectionOverlaysProps) {
   const [visualViewport, setVisualViewport] = useState(readVisualViewport);
   const commentTargetRect = pendingCommentSelection?.rect ?? activeHighlightTarget?.rect;
@@ -191,7 +195,7 @@ export function ReaderSelectionOverlays({
             type="tertiary"
           >
             <Button icon={<IconDeleteStroked />} onClick={onCancelHighlight}>取消高亮</Button>
-            {activeHighlight.kind !== 'comment' && (
+            {showViewHighlight && activeHighlight.kind !== 'comment' && (
               <Button icon={<IconBookmark />} onClick={onViewHighlight}>在高亮中查看</Button>
             )}
             <Button icon={<IconComment />} onClick={onEditHighlightComment}>

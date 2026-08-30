@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AIChatDialogue, AIChatInput, Button, Cascader, Dropdown, Empty, Input, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { AIChatInput, Button, Dropdown, Empty, Input, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   IconAIStrokedLevel1,
   IconAlertTriangle,
@@ -29,9 +29,11 @@ import { getBookPassages } from '../lib/bookSearch';
 import { formatRelativeTime } from '../lib/format';
 import { markdownNoteExcerpt, markdownNoteTitle } from '../lib/markdownNotes';
 import { waitForServerStateWrites } from '../lib/serverStateStorage';
+import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
 import type { AiDialogueContentItem, AiProvider, BookItem, ChatSession, HighlightItem, NoteItem, OpenAICompatibleConfig, RightPanel } from '../types';
-import { CspSafeChatContent } from './CspSafeChatContent';
+import { AiConversationDialogue, AiModelSelector } from './AiConversationPrimitives';
+import { ActivityRailButton } from './ActivityRailButton';
 import { MarkdownNoteEditor } from './MarkdownNoteEditor';
 
 const { Text } = Typography;
@@ -139,23 +141,7 @@ function ActivityButton({
   const ariaLabel = panel === 'ai'
     ? active ? '收起 AI 助手' : '打开 AI 助手并继续当前对话'
     : active ? `收起${meta.label}` : `打开${meta.label}`;
-  return (
-    <Tooltip content={tooltip} position="left">
-      <Button
-        aria-label={ariaLabel}
-        aria-pressed={active}
-        className={`activity-button${active ? ' activity-button--active' : ''}`}
-        contentClassName="activity-button__content"
-        icon={<PanelIcon className="panel-tool-icon" />}
-        size="small"
-        theme="borderless"
-        type="tertiary"
-        onClick={onClick}
-      >
-        {activityLabel(panel)}
-      </Button>
-    </Tooltip>
-  );
+  return <ActivityRailButton active={active} ariaLabel={ariaLabel} icon={<PanelIcon className="panel-tool-icon" />} label={activityLabel(panel)} tooltip={tooltip} onClick={onClick} />;
 }
 
 function extractInputText(inputContents?: Array<Record<string, unknown>>) {
@@ -212,11 +198,6 @@ function AiPanel({
   const model = selectedConfig?.models.includes(aiPreferences.model)
     ? aiPreferences.model
     : selectedConfig?.models[0] ?? '';
-  const modelTreeData = useMemo(() => configs.map((config) => ({
-    label: config.name,
-    value: `api:${config.id}`,
-    children: config.models.map((item) => ({ label: item, value: item })),
-  })), [configs]);
   const [status, setStatus] = useState<AiStatus>(() => selectedConfig && model ? 'ready' : 'unavailable');
   const [statusMessage, setStatusMessage] = useState('');
   const [quote, setQuote] = useState<{ text: string; chapter: string } | null>(null);
@@ -417,7 +398,7 @@ function AiPanel({
     const quoteForMessage = quote;
     ensureSession(question);
     const createdAt = Date.now();
-    const userMessageId = crypto.randomUUID();
+    const userMessageId = createUuid();
     addChatMessage({
       id: userMessageId,
       bookId: book.id,
@@ -537,22 +518,12 @@ function AiPanel({
             })}
           </nav>
         )}
-        {dialogueMessages.length ? (
-          <AIChatDialogue
-            chats={dialogueMessages}
-            align="leftRight"
-            mode="bubble"
-            roleConfig={{ user: { name: '你' }, assistant: { name: providerLabel(provider ?? undefined, configs) } }}
-            dialogueRenderConfig={{
-              renderDialogueAvatar: () => null,
-              renderDialogueTitle: () => null,
-              renderDialogueAction: () => null,
-              renderDialogueContent: ({ message, className }) => (
-                <CspSafeChatContent message={message} bubbleClassName={className} />
-              ),
-            }}
-          />
-        ) : <Empty title="开始新的对话" description="Agent 会按需检索整本书、学习记录与联网资料" />}
+        <AiConversationDialogue
+          chats={dialogueMessages}
+          assistantName={providerLabel(provider ?? undefined, configs)}
+          emptyTitle="开始新的对话"
+          emptyDescription="Agent 会按需检索整本书、学习记录与联网资料"
+        />
       </div>
 
       <AIChatInput
@@ -591,19 +562,7 @@ function AiPanel({
           </div>
         )}
         renderConfigureArea={() => (
-          <Cascader
-            aria-label="选择 AI 供应商和模型"
-            size="small"
-            treeData={modelTreeData}
-            value={provider && model ? [provider, model] : []}
-            placeholder="选择供应商 / 模型"
-            disabled={status === 'generating'}
-            showNext="hover"
-            changeOnSelect={false}
-            displayRender={(labels) => Array.isArray(labels) ? labels.at(-1) ?? '' : ''}
-            onChange={chooseModel}
-            className="ai-composer-model-cascader"
-          />
+          <AiModelSelector configs={configs} provider={provider} model={model} disabled={status === 'generating'} onChange={chooseModel} />
         )}
         className="reader-ai-input"
       />
@@ -787,7 +746,7 @@ function NotesPanel({
 
   const createNote = () => {
     const timestamp = Date.now();
-    const id = crypto.randomUUID();
+    const id = createUuid();
     addNote({
       id,
       bookId,

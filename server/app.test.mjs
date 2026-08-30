@@ -8,9 +8,11 @@ const testDataDirectory = await mkdtemp(join(tmpdir(), 'learning-center-test-'))
 process.env.LEARNING_CENTER_DATA_DIR = testDataDirectory;
 process.env.LEARNING_CENTER_MODE = 'local';
 
-const [{ createApp }, { initializeDataDirectories }] = await Promise.all([
+const [{ createApp }, { initializeDataDirectories }, { parseRssFeed }, { refreshPersistedRssFeed }] = await Promise.all([
   import('./app.mjs'),
   import('./storage.mjs'),
+  import('./rss.mjs'),
+  import('./rssScheduler.mjs'),
 ]);
 
 before(async () => {
@@ -77,6 +79,124 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(state.state.openAIConfigs[0].apiKey, 'test-key-2');
   });
 
+  await t.test('旧标签页不会覆盖新版 RSS 状态', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    currentState.version = 16;
+    currentState.state.rssFolders = [];
+    currentState.state.rssFeeds = [{
+      id: 'protected-feed',
+      title: '受保护订阅',
+      url: 'https://example.com/protected.xml',
+      type: 'article',
+      createdAt: 1,
+      updatedAt: 1,
+    }];
+    currentState.state.rssItems = [{
+      id: 'protected-item',
+      feedId: 'protected-feed',
+      title: '受保护内容',
+      publishedAt: 1,
+      fetchedAt: 1,
+      contentText: '正文',
+    }];
+    currentState.state.rssAnnotations = [{
+      id: 'protected-annotation',
+      itemId: 'protected-item',
+      kind: 'highlight',
+      text: '正文',
+      startOffset: 0,
+      endOffset: 2,
+      createdAt: 1,
+    }];
+    currentState.state.rssPanelWidth = 420;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+
+    const staleState = structuredClone(currentState);
+    staleState.version = 15;
+    staleState.state.themeMode = 'dark';
+    staleState.state.rssFeeds = [];
+    staleState.state.rssItems = [];
+    staleState.state.rssAnnotations = [];
+    delete staleState.state.rssPanelWidth;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleState),
+    });
+
+    const protectedState = await (await app.request('/api/state')).json();
+    assert.equal(protectedState.version, 16);
+    assert.equal(protectedState.state.themeMode, 'dark');
+    assert.equal(protectedState.state.rssFeeds[0].title, '受保护订阅');
+    assert.equal(protectedState.state.rssItems[0].title, '受保护内容');
+    assert.equal(protectedState.state.rssAnnotations[0].text, '正文');
+    assert.equal(protectedState.state.rssPanelWidth, 420);
+  });
+
+  await t.test('服务端定时刷新持久化历史内容并防止旧快照覆盖新条目', async () => {
+    const stateBeforeRefresh = await (await app.request('/api/state')).json();
+    stateBeforeRefresh.version = 16;
+    stateBeforeRefresh.state.rssFeeds = [{
+      id: 'scheduled-feed',
+      title: '定时订阅',
+      url: 'https://example.com/scheduled.xml',
+      type: 'article',
+      createdAt: 1,
+      updatedAt: 1,
+    }];
+    stateBeforeRefresh.state.rssItems = [{
+      id: 'scheduled-feed:existing',
+      feedId: 'scheduled-feed',
+      title: '已有内容',
+      link: 'https://example.com/existing',
+      publishedAt: 1,
+      fetchedAt: 1,
+      contentText: '旧正文',
+      readAt: 2,
+    }];
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stateBeforeRefresh),
+    });
+    const staleBrowserSnapshot = structuredClone(stateBeforeRefresh);
+
+    const result = await refreshPersistedRssFeed('scheduled-feed', {
+      fetchFeed: async (url) => ({
+        title: '定时订阅',
+        description: '服务端刷新结果',
+        siteUrl: 'https://example.com/',
+        feedUrl: url,
+        fetchedAt: 100,
+        items: [{
+          id: 'fresh',
+          title: '新内容',
+          link: 'https://example.com/fresh',
+          author: '',
+          publishedAt: 100,
+          contentText: '新正文',
+        }],
+      }),
+      logger: { warn() {} },
+    });
+    assert.equal(result.status, 'refreshed');
+
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleBrowserSnapshot),
+    });
+    const refreshedState = await (await app.request('/api/state')).json();
+    assert.equal(refreshedState.state.rssFeeds[0].lastFetchedAt, 100);
+    assert.equal(refreshedState.state.rssFeeds[0].description, '服务端刷新结果');
+    assert.ok(refreshedState.state.rssItems.some((item) => item.id === 'scheduled-feed:fresh'));
+    assert.ok(refreshedState.state.rssItems.some((item) => item.id === 'scheduled-feed:existing' && item.readAt === 2));
+  });
+
   await t.test('错误输入返回客户端错误', async () => {
     const malformedResponse = await app.request('/api/state', {
       method: 'PUT',
@@ -92,6 +212,61 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify({ format: 'unknown', version: 1, openAIConfigs: [] }),
     });
     assert.equal(importResponse.status, 400);
+  });
+
+  await t.test('解析并通过服务端获取 RSS 与 Atom 订阅源', async () => {
+    const parsed = parseRssFeed(`<?xml version="1.0" encoding="UTF-8"?>
+      <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+        <channel>
+          <title>测试订阅</title>
+          <link>https://example.com/</link>
+          <description>用于测试的订阅源</description>
+          <item>
+            <guid>item-1</guid>
+            <title>第一篇文章</title>
+            <link>/posts/1</link>
+            <pubDate>Sun, 30 Aug 2026 02:00:00 GMT</pubDate>
+            <content:encoded><![CDATA[<p>正文 <strong>内容</strong></p><img src="/images/cover.jpg" /><img data-src="https://cdn.example.com/detail.png" />]]></content:encoded>
+          </item>
+        </channel>
+      </rss>`, 'https://example.com/feed.xml', 100);
+    assert.equal(parsed.title, '测试订阅');
+    assert.equal(parsed.siteUrl, 'https://example.com/');
+    assert.equal(parsed.items[0].link, 'https://example.com/posts/1');
+    assert.equal(parsed.items[0].contentText, '正文 内容');
+    assert.match(parsed.items[0].contentHtml, /<p>正文 <strong>内容<\/strong><\/p>/);
+    assert.equal(parsed.items[0].imageUrl, 'https://example.com/images/cover.jpg');
+    assert.deepEqual(parsed.items[0].imageUrls, [
+      'https://example.com/images/cover.jpg',
+      'https://cdn.example.com/detail.png',
+    ]);
+
+    const atom = parseRssFeed(`<?xml version="1.0"?>
+      <feed xmlns="http://www.w3.org/2005/Atom">
+        <title>Atom 测试</title>
+        <link rel="alternate" href="https://example.com/atom" />
+        <entry>
+          <id>tag:example.com,2026:2</id>
+          <title>Atom 内容</title>
+          <link href="https://example.com/atom/2" />
+          <updated>2026-08-30T03:00:00Z</updated>
+          <summary type="html">&lt;p&gt;Atom 摘要&lt;/p&gt;</summary>
+        </entry>
+      </feed>`, 'https://example.com/atom.xml', 100);
+    assert.equal(atom.items[0].title, 'Atom 内容');
+    assert.equal(atom.items[0].contentText, 'Atom 摘要');
+
+    const rssApp = createApp({
+      serveFrontend: false,
+      rssFetcher: async (url) => ({ ...parsed, feedUrl: url }),
+    });
+    const response = await rssApp.request('/api/rss/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com/feed.xml' }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).items[0].title, '第一篇文章');
   });
 
   await t.test('AI 任务在服务端运行并持久化对话', async () => {
@@ -221,6 +396,76 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const protectedStateResponse = await aiApp.request('/api/state');
     const protectedState = await protectedStateResponse.json();
     assert.equal(protectedState.state.chats.at(-1).content, '服务端回答');
+
+    protectedState.state.rssFeeds = [{
+      id: 'rss-feed-1',
+      title: '测试订阅',
+      url: 'https://example.com/feed.xml',
+      type: 'article',
+      createdAt: 1,
+      updatedAt: 1,
+    }];
+    protectedState.state.rssItems = [{
+      id: 'rss-item-1',
+      feedId: 'rss-feed-1',
+      title: 'RSS 测试内容',
+      link: 'https://example.com/posts/1',
+      publishedAt: 100,
+      fetchedAt: 100,
+      contentText: 'RSS 正文',
+    }];
+    await aiApp.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(protectedState),
+    });
+    const rssJobResponse = await aiApp.request('/api/ai/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        configId: 'provider-1',
+        model: 'test-model',
+        bookId: 'rss:rss-item-1',
+        resourceType: 'rss',
+        rssItemId: 'rss-item-1',
+        purpose: 'summary',
+        conversationId: 'rss-summary:rss-item-1',
+        userMessage: {
+          id: 'rss-user-message-1',
+          content: '请总结当前内容',
+          createdAt: 200,
+        },
+        session: { title: 'RSS 自动摘要', createdAt: 200 },
+        currentText: '',
+      }),
+    });
+    assert.equal(rssJobResponse.status, 202);
+    const rssJob = await rssJobResponse.json();
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const response = await aiApp.request(`/api/ai/jobs/${rssJob.id}`);
+      if ((await response.json()).status === 'completed') break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    const rssStateResponse = await aiApp.request('/api/state');
+    const rssState = await rssStateResponse.json();
+    assert.equal(rssState.state.rssItems[0].aiSummary, '服务端回答');
+    assert.equal(rssState.state.rssItems[0].aiSummaryVersion, 2);
+
+    const staleRssState = structuredClone(rssState);
+    staleRssState.state.chatSessions = staleRssState.state.chatSessions
+      .filter((session) => session.id !== 'rss-summary:rss-item-1');
+    staleRssState.state.chats = staleRssState.state.chats
+      .filter((message) => message.conversationId !== 'rss-summary:rss-item-1');
+    delete staleRssState.state.rssItems[0].aiSummary;
+    await aiApp.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleRssState),
+    });
+    const protectedRssState = await (await aiApp.request('/api/state')).json();
+    assert.equal(protectedRssState.state.rssItems[0].aiSummary, '服务端回答');
+    assert.equal(protectedRssState.state.rssItems[0].aiSummaryVersion, 2);
+    assert.ok(protectedRssState.state.chatSessions.some((session) => session.id === 'rss-summary:rss-item-1'));
   });
 
   await t.test('远程模式保护页面与 API', async () => {

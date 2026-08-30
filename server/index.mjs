@@ -6,12 +6,15 @@ import {
   MODE,
   PASSWORD,
   PORT,
+  RSS_REFRESH_INTERVAL_MS,
   validateServerConfig,
 } from './config.mjs';
+import { createRssScheduler } from './rssScheduler.mjs';
 import { initializeDataDirectories } from './storage.mjs';
 
 validateServerConfig();
 await initializeDataDirectories();
+const rssScheduler = createRssScheduler();
 
 const server = serve({
   fetch: createApp().fetch,
@@ -25,9 +28,12 @@ const server = serve({
   if (MODE === 'remote' && PASSWORD === 'password') {
     console.warn('安全提示：当前使用默认登录密码，请登录后立即在设置页修改');
   }
+  rssScheduler.start();
+  console.log(`RSS 服务端刷新周期：${Math.round(RSS_REFRESH_INTERVAL_MS / 60_000)} 分钟（错峰执行）`);
 });
 
 function shutdown() {
+  rssScheduler.stop();
   server.close((error) => {
     if (error) {
       console.error(error);

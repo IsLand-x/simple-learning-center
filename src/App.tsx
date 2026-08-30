@@ -7,6 +7,7 @@ import { LibraryPage } from './pages/LibraryPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 const ReaderPage = lazy(() => import('./pages/ReaderPage').then((module) => ({ default: module.ReaderPage })));
+const RssPage = lazy(() => import('./pages/RssPage').then((module) => ({ default: module.RssPage })));
 
 export function App() {
   return (
@@ -16,6 +17,14 @@ export function App() {
         <Routes>
           <Route path="/" element={<LibraryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route
+            path="/rss"
+            element={(
+              <Suspense fallback={<div className="route-loading"><Spin size="large" /></div>}>
+                <RssPage />
+              </Suspense>
+            )}
+          />
           <Route
             path="/books/:bookId"
             element={(
