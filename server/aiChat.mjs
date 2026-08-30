@@ -68,7 +68,7 @@ function createAgentTools({
           type: rssFeed?.type || 'article',
           publishedAt: new Date(rssItem.publishedAt).toISOString(),
           link: rssItem.link,
-          content: rssItem.contentText.slice(0, 30_000),
+          content: (rssItem.fullContentText || rssItem.contentText).slice(0, 30_000),
         }),
       }),
       read_related_feed_items: tool({
@@ -80,7 +80,7 @@ function createAgentTools({
           title: item.title,
           publishedAt: new Date(item.publishedAt).toISOString(),
           link: item.link,
-          excerpt: item.contentText.slice(0, 800),
+          excerpt: (item.fullContentText || item.contentText).slice(0, 800),
         })),
       }),
       ...webTools,

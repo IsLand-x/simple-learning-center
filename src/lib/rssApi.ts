@@ -22,6 +22,16 @@ export interface FetchedRssFeed {
   items: FetchedRssItem[];
 }
 
+export interface FetchedRssArticle {
+  title: string;
+  byline: string;
+  excerpt: string;
+  contentHtml: string;
+  contentText: string;
+  url: string;
+  fetchedAt: number;
+}
+
 export async function fetchRssFeed(url: string) {
   const response = await serverRequest('/api/rss/fetch', {
     method: 'POST',
@@ -29,6 +39,15 @@ export async function fetchRssFeed(url: string) {
     body: JSON.stringify({ url }),
   });
   return response.json() as Promise<FetchedRssFeed>;
+}
+
+export async function fetchRssArticle(url: string) {
+  const response = await serverRequest('/api/rss/article', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  return response.json() as Promise<FetchedRssArticle>;
 }
 
 export function fetchedItemsForFeed(feedId: string, result: FetchedRssFeed): RssItem[] {

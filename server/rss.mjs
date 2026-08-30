@@ -248,7 +248,7 @@ function isPrivateAddress(address) {
     || normalized.startsWith('ff');
 }
 
-async function validateRemoteUrl(value) {
+export async function validateRemoteUrl(value) {
   let url;
   try {
     url = new URL(value);

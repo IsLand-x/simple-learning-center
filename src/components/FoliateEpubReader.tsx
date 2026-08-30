@@ -35,7 +35,6 @@ import {
 import { ensureReaderFontStylesheet } from '../lib/readerFonts';
 import {
   createMobileTouchGesture,
-  isReaderCenterTap,
   markMobileTouchSelection,
   MOBILE_TEXT_SELECTION_HOLD_MS,
   resolveMobileTouchMove,
@@ -1850,14 +1849,7 @@ export function FoliateEpubReader({
           return;
         }
         if (!compactLayoutRef.current) return;
-        const width = doc.defaultView?.innerWidth ?? doc.documentElement.clientWidth;
-        const height = doc.defaultView?.innerHeight ?? doc.documentElement.clientHeight;
-        if (isReaderCenterTap({
-          x: mouseEvent.clientX,
-          y: mouseEvent.clientY,
-          width,
-          height,
-        })) onCenterTapRef.current();
+        onCenterTapRef.current();
       };
       const handleKeyUp = (keyboardEvent: KeyboardEvent) => {
         if (

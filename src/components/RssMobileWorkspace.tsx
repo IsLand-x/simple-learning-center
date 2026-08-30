@@ -6,8 +6,11 @@ import {
   IconCalendarClock,
   IconCheckList,
   IconChevronLeft,
+  IconChevronRight,
   IconColorPalette,
   IconExternalOpen,
+  IconGlobeStroked,
+  IconMore,
   IconPlus,
   IconSearch,
 } from '@douyinfe/semi-icons';
@@ -19,11 +22,15 @@ export type RssMobilePanel = 'style' | 'ai' | 'timeline' | null;
 
 interface RssMobileWorkspaceProps {
   activePanel: RssMobilePanel;
+  articleFetching: boolean;
   bookmarked: boolean;
+  canFetchArticle: boolean;
   detailContent: ReactNode;
   detailStatus: string;
   detailTitle?: string;
   hasOriginalLink: boolean;
+  hasNextItem: boolean;
+  hasPreviousItem: boolean;
   itemCount: number;
   itemsContent: ReactNode;
   panelContent: ReactNode;
@@ -39,8 +46,11 @@ interface RssMobileWorkspaceProps {
   onBackToSources: () => void;
   onChangePanel: (panel: RssMobilePanel) => void;
   onChangeQuery: (query: string) => void;
+  onFetchArticle: () => void;
   onMarkVisibleRead: () => void;
+  onOpenNextItem: () => void;
   onOpenOriginal: () => void;
+  onOpenPreviousItem: () => void;
   onToggleBookmark: () => void;
 }
 
@@ -52,11 +62,15 @@ const panelLabels: Record<Exclude<RssMobilePanel, null>, string> = {
 
 export function RssMobileWorkspace({
   activePanel,
+  articleFetching,
   bookmarked,
+  canFetchArticle,
   detailContent,
   detailStatus,
   detailTitle,
   hasOriginalLink,
+  hasNextItem,
+  hasPreviousItem,
   itemCount,
   itemsContent,
   panelContent,
@@ -72,8 +86,11 @@ export function RssMobileWorkspace({
   onBackToSources,
   onChangePanel,
   onChangeQuery,
+  onFetchArticle,
   onMarkVisibleRead,
+  onOpenNextItem,
   onOpenOriginal,
+  onOpenPreviousItem,
   onToggleBookmark,
 }: RssMobileWorkspaceProps) {
   const [searchOpen, setSearchOpen] = useState(Boolean(query));
@@ -177,43 +194,45 @@ export function RssMobileWorkspace({
                 type="tertiary"
                 onClick={onToggleBookmark}
               />
+              <Button
+                aria-label="爬取原文"
+                disabled={!canFetchArticle}
+                icon={<IconGlobeStroked />}
+                loading={articleFetching}
+                theme="borderless"
+                type="tertiary"
+                onClick={onFetchArticle}
+              />
               {hasOriginalLink && <Button aria-label="打开原文" icon={<IconExternalOpen />} theme="borderless" type="tertiary" onClick={onOpenOriginal} />}
             </div>
           </header>
           <div className="rss-mobile-screen__body">{detailContent}</div>
           <nav className="rss-mobile-reader-tools" aria-label="RSS 阅读工具">
             <Button
-              aria-pressed={activePanel === 'style'}
-              className={activePanel === 'style' ? 'rss-mobile-reader-tools__button--active' : ''}
-              icon={<IconColorPalette />}
+              aria-label="上一篇订阅内容"
+              disabled={!hasPreviousItem}
+              icon={<IconChevronLeft />}
               theme="borderless"
               type="tertiary"
-              onClick={() => onChangePanel(activePanel === 'style' ? null : 'style')}
-            >样式</Button>
+              onClick={onOpenPreviousItem}
+            >上一篇</Button>
             <Button
-              aria-pressed={bookmarked}
-              className={bookmarked ? 'rss-mobile-reader-tools__button--active' : ''}
-              icon={<IconBookmark />}
+              aria-label="下一篇订阅内容"
+              disabled={!hasNextItem}
+              icon={<IconChevronRight />}
               theme="borderless"
               type="tertiary"
-              onClick={onToggleBookmark}
-            >收藏</Button>
+              onClick={onOpenNextItem}
+            >下一篇</Button>
             <Button
-              aria-pressed={activePanel === 'ai'}
-              className={activePanel === 'ai' ? 'rss-mobile-reader-tools__button--active' : ''}
-              icon={<IconAIStrokedLevel1 />}
+              aria-label={activePanel ? '收起更多阅读工具' : '打开更多阅读工具'}
+              aria-pressed={Boolean(activePanel)}
+              className={activePanel ? 'rss-mobile-reader-tools__button--active' : ''}
+              icon={<IconMore />}
               theme="borderless"
               type="tertiary"
-              onClick={() => onChangePanel(activePanel === 'ai' ? null : 'ai')}
-            >AI</Button>
-            <Button
-              aria-pressed={activePanel === 'timeline'}
-              className={activePanel === 'timeline' ? 'rss-mobile-reader-tools__button--active' : ''}
-              icon={<IconCalendarClock />}
-              theme="borderless"
-              type="tertiary"
-              onClick={() => onChangePanel(activePanel === 'timeline' ? null : 'timeline')}
-            >时间线</Button>
+              onClick={() => onChangePanel(activePanel ? null : 'ai')}
+            >更多</Button>
           </nav>
         </section>
       )}
@@ -235,14 +254,6 @@ export function RssMobileWorkspace({
         <div className="rss-mobile-sheet__content">{panelContent}</div>
         <nav className="mobile-panel-tabs rss-mobile-panel-tabs" aria-label="RSS 辅助工具切换">
           <Button
-            aria-pressed={activePanel === 'style'}
-            className={activePanel === 'style' ? 'rss-mobile-panel-tabs__button--active' : ''}
-            icon={<IconColorPalette />}
-            theme="borderless"
-            type="tertiary"
-            onClick={() => onChangePanel('style')}
-          >样式</Button>
-          <Button
             aria-pressed={activePanel === 'ai'}
             className={activePanel === 'ai' ? 'rss-mobile-panel-tabs__button--active' : ''}
             icon={<IconAIStrokedLevel1 />}
@@ -250,6 +261,14 @@ export function RssMobileWorkspace({
             type="tertiary"
             onClick={() => onChangePanel('ai')}
           >AI</Button>
+          <Button
+            aria-pressed={activePanel === 'style'}
+            className={activePanel === 'style' ? 'rss-mobile-panel-tabs__button--active' : ''}
+            icon={<IconColorPalette />}
+            theme="borderless"
+            type="tertiary"
+            onClick={() => onChangePanel('style')}
+          >样式</Button>
           <Button
             aria-pressed={activePanel === 'timeline'}
             className={activePanel === 'timeline' ? 'rss-mobile-panel-tabs__button--active' : ''}

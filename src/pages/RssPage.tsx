@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -34,6 +35,7 @@ import {
   Select,
   SideSheet,
   Spin,
+  Switch,
   Toast,
   Tooltip,
   Typography,
@@ -47,6 +49,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconColorPalette,
+  IconComment,
   IconDeleteStroked,
   IconExport,
   IconExternalOpen,
@@ -72,10 +75,10 @@ import {
   type RssMobileView,
 } from '../components/RssMobileWorkspace';
 import { confirmDialog } from '../lib/confirmDialog';
-import { clamp } from '../lib/format';
+import { clamp, formatRelativeTime } from '../lib/format';
 import { listAiJobs, startAiJob, watchAiJob, getAiJob, type AiJob } from '../lib/aiJobs';
-import { fetchRssFeed, fetchedItemsForFeed, type FetchedRssFeed } from '../lib/rssApi';
-import { findRssSearchMatches, sanitizeRssContentHtml } from '../lib/rssContent';
+import { fetchRssArticle, fetchRssFeed, fetchedItemsForFeed, type FetchedRssFeed } from '../lib/rssApi';
+import { extractRssContentHeadings, findRssSearchMatches, sanitizeRssContentHtml, type RssContentHeading } from '../lib/rssContent';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import { getReaderTextureStyle, getReaderThemeName, resolveReaderStyle } from '../lib/readerThemes';
 import { refreshServerState, waitForServerStateWrites } from '../lib/serverStateStorage';
@@ -85,7 +88,7 @@ import type { ReaderHighlightTarget, ReaderSelection, RssAnnotation, RssFeed, Rs
 
 const { Text, Title } = Typography;
 type TimeRange = 'today' | 'seven-days' | 'all';
-type RssSidePanel = 'ai' | 'timeline' | null;
+type RssSidePanel = 'ai' | 'timeline' | 'comments' | null;
 type SummaryStatus = 'idle' | 'unavailable' | 'generating' | 'ready' | 'error';
 
 interface RssReaderSelection extends ReaderSelection {
@@ -105,6 +108,7 @@ const RSS_UNFILED_DROPPABLE_ID = 'rss-feeds:unfiled';
 const RSS_FOLDER_DRAG_PREFIX = 'rss-folder:';
 const RSS_FEED_DRAG_PREFIX = 'rss-feed:';
 const RSS_FOLDER_FEEDS_PREFIX = 'rss-feeds:folder:';
+const RSS_AUTO_ARTICLE_FETCH_LIMIT = 6;
 const RSS_SMART_SOURCE_IDS = new Set(['all', 'unread', 'bookmarked']);
 const feedTypeLabels: Record<RssFeedType, string> = {
   article: '文章',
@@ -136,8 +140,12 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   return <>{content}</>;
 }
 
+function rssItemContentText(item: RssItem) {
+  return item.fullContentText || item.contentText;
+}
+
 function rssSearchPreview(item: RssItem, query: string) {
-  const normalizedContent = item.contentText.replace(/\s+/g, ' ').trim();
+  const normalizedContent = rssItemContentText(item).replace(/\s+/g, ' ').trim();
   const [contentMatch] = findRssSearchMatches(normalizedContent, query);
   if (contentMatch) {
     const start = Math.max(0, contentMatch.start - 34);
@@ -175,7 +183,16 @@ function startOfToday() {
 }
 
 function itemTime(timestamp: number) {
-  return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(timestamp);
+  const date = new Date(timestamp);
+  const includeYear = date.getFullYear() !== new Date().getFullYear();
+  return new Intl.DateTimeFormat('zh-CN', {
+    ...(includeYear ? { year: 'numeric' } : {}),
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 }
 
 function itemDateTime(timestamp: number) {
@@ -204,7 +221,7 @@ function exportOpml(feeds: RssFeed[], folders: RssFolder[]) {
     const folder = feed.folderId ? folderById.get(feed.folderId) ?? '' : '';
     grouped.set(folder, [...(grouped.get(folder) ?? []), feed]);
   });
-  const outline = (feed: RssFeed) => `      <outline text="${escapeXml(feed.title)}" title="${escapeXml(feed.title)}" type="rss" xmlUrl="${escapeXml(feed.url)}" htmlUrl="${escapeXml(feed.siteUrl ?? '')}" learningCenterType="${feed.type}" />`;
+  const outline = (feed: RssFeed) => `      <outline text="${escapeXml(feed.title)}" title="${escapeXml(feed.title)}" type="rss" xmlUrl="${escapeXml(feed.url)}" htmlUrl="${escapeXml(feed.siteUrl ?? '')}" learningCenterType="${feed.type}" learningCenterFetchFullContent="${feed.fetchFullContent ? 'true' : 'false'}" />`;
   const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<opml version="2.0">', '  <head><title>个人学习中心 RSS 订阅</title></head>', '  <body>'];
   for (const [folder, items] of grouped) {
     if (folder) {
@@ -225,7 +242,14 @@ function exportOpml(feeds: RssFeed[], folders: RssFolder[]) {
   URL.revokeObjectURL(url);
 }
 
-function normalizedFeed(feedId: string, type: RssFeedType, folderId: string | undefined, result: FetchedRssFeed, title?: string): RssFeed {
+function normalizedFeed(
+  feedId: string,
+  type: RssFeedType,
+  folderId: string | undefined,
+  result: FetchedRssFeed,
+  title?: string,
+  fetchFullContent = false,
+): RssFeed {
   const timestamp = Date.now();
   return {
     id: feedId,
@@ -234,6 +258,7 @@ function normalizedFeed(feedId: string, type: RssFeedType, folderId: string | un
     siteUrl: result.siteUrl || undefined,
     description: result.description || undefined,
     type,
+    fetchFullContent,
     ...(folderId ? { folderId } : {}),
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -266,25 +291,102 @@ function TimelinePanel({ items, feeds, query }: { items: RssItem[]; feeds: RssFe
   );
 }
 
+function RssArticleToc({
+  activeHeadingId,
+  headings,
+  onSelect,
+}: {
+  activeHeadingId?: string;
+  headings: RssContentHeading[];
+  onSelect: (headingId: string) => void;
+}) {
+  if (!headings.length) return null;
+  const minimumLevel = Math.min(...headings.map((heading) => heading.level));
+  return (
+    <nav className="rss-article-toc" aria-label="文章目录">
+      <Text className="rss-article-toc__title" size="small" type="tertiary">目录</Text>
+      <div className="rss-article-toc__list">
+        {headings.map((heading) => (
+          <button
+            aria-current={activeHeadingId === heading.id ? 'location' : undefined}
+            className={`rss-article-toc__item${activeHeadingId === heading.id ? ' rss-article-toc__item--active' : ''}`}
+            key={heading.id}
+            style={{ '--rss-toc-depth': heading.level - minimumLevel } as CSSProperties}
+            title={heading.text}
+            type="button"
+            onClick={() => onSelect(heading.id)}
+          >
+            <span aria-hidden="true" className="rss-article-toc__indicator" />
+            <span>{heading.text}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+function RssCommentsPanel({
+  annotations,
+  onJumpAnnotation,
+}: {
+  annotations: RssAnnotation[];
+  onJumpAnnotation: (annotation: RssAnnotation) => void;
+}) {
+  const comments = annotations
+    .filter((annotation) => annotation.comment?.trim())
+    .sort((left, right) => (right.commentUpdatedAt ?? right.createdAt) - (left.commentUpdatedAt ?? left.createdAt));
+  return (
+    <div className="right-panel__body comments-panel rss-comments-panel">
+      {comments.length ? comments.map((annotation) => (
+        <article
+          className="comment-card"
+          key={annotation.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => onJumpAnnotation(annotation)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            onJumpAnnotation(annotation);
+          }}
+        >
+          <blockquote>{annotation.text}</blockquote>
+          <p>{annotation.comment}</p>
+          <div className="comment-card__footer">
+            <Text size="small" type="tertiary">文章评论</Text>
+            <Text size="small" type="tertiary">{formatRelativeTime(annotation.commentUpdatedAt ?? annotation.createdAt)}</Text>
+          </div>
+        </article>
+      )) : <Empty title="还没有评论" description="在正文中选择文字并添加评论后，会集中显示在这里" />}
+    </div>
+  );
+}
+
 function RssRightPanel({
   activePanel,
+  annotations = [],
   item,
   items,
   feeds,
   query,
   selectedText,
   onClearSelectedText,
+  onJumpAnnotation = () => undefined,
 }: {
   activePanel: Exclude<RssSidePanel, null>;
+  annotations?: RssAnnotation[];
   item?: RssItem;
   items: RssItem[];
   feeds: RssFeed[];
   query: string;
   selectedText?: string;
   onClearSelectedText?: () => void;
+  onJumpAnnotation?: (annotation: RssAnnotation) => void;
 }) {
-  const PanelIcon = activePanel === 'ai' ? IconAIStrokedLevel1 : IconCalendarClock;
-  const title = activePanel === 'ai' ? 'AI 助手' : '时间线';
+  const PanelIcon = activePanel === 'ai'
+    ? IconAIStrokedLevel1
+    : activePanel === 'comments' ? IconComment : IconCalendarClock;
+  const title = activePanel === 'ai' ? 'AI 助手' : activePanel === 'comments' ? '评论' : '时间线';
   return (
     <aside className={`right-panel${activePanel === 'ai' ? ' right-panel--ai' : ''}`} aria-label={title}>
       <div className="panel-titlebar">
@@ -295,7 +397,9 @@ function RssRightPanel({
       </div>
       {activePanel === 'ai'
         ? item ? <RssAiPanel item={item} selectedText={selectedText} onClearSelectedText={onClearSelectedText} /> : <div className="right-panel__body"><Empty title="选择一条订阅内容" description="选择内容后即可与 AI 对话" /></div>
-        : <TimelinePanel items={items} feeds={feeds} query={query} />}
+        : activePanel === 'comments'
+          ? item ? <RssCommentsPanel annotations={annotations} onJumpAnnotation={onJumpAnnotation} /> : <div className="right-panel__body"><Empty title="选择一条订阅内容" description="文章评论会显示在这里" /></div>
+          : <TimelinePanel items={items} feeds={feeds} query={query} />}
     </aside>
   );
 }
@@ -421,11 +525,13 @@ export function RssPage() {
   const [folderName, setFolderName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
+  const [fetchingArticleIds, setFetchingArticleIds] = useState<Set<string>>(new Set());
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>('idle');
   const [summaryError, setSummaryError] = useState('');
   const [sourceMenu, setSourceMenu] = useState<{ feed: RssFeed; x: number; y: number } | null>(null);
   const [itemMenu, setItemMenu] = useState<{ item: RssItem; x: number; y: number } | null>(null);
   const [showScrolledTitle, setShowScrolledTitle] = useState(false);
+  const [activeHeadingId, setActiveHeadingId] = useState<string>();
   const [stylePopoverVisible, setStylePopoverVisible] = useState(false);
   const [imageViewer, setImageViewer] = useState<RssImageViewerImage | null>(null);
   const [rssSelection, setRssSelection] = useState<RssReaderSelection | null>(null);
@@ -437,6 +543,7 @@ export function RssPage() {
   const [mobileLayout, setMobileLayout] = useState(() => window.matchMedia('(max-width: 800px)').matches);
   const [compactLayout, setCompactLayout] = useState(() => window.matchMedia('(max-width: 700px)').matches);
   const opmlInputRef = useRef<HTMLInputElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
   const articleBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -523,7 +630,7 @@ export function RssPage() {
         if (timeRange === 'seven-days' && item.publishedAt < sevenDaysAgo) return false;
         if (!normalizedQuery) return true;
         const feed = feedById.get(item.feedId);
-        return `${item.title} ${item.author ?? ''} ${item.contentText} ${feed?.title ?? ''}`
+        return `${item.title} ${item.author ?? ''} ${rssItemContentText(item)} ${feed?.title ?? ''}`
           .toLocaleLowerCase()
           .includes(normalizedQuery);
       })
@@ -538,13 +645,22 @@ export function RssPage() {
   );
   const selectedItem = requestedItemMatchesSource ? requestedItem : mobileLayout ? undefined : filteredItems[0];
   const selectedItemId = selectedItem?.id ?? null;
+  const selectedItemIndex = selectedItem
+    ? filteredItems.findIndex((item) => item.id === selectedItem.id)
+    : -1;
+  const previousItem = selectedItemIndex > 0 ? filteredItems[selectedItemIndex - 1] : undefined;
+  const nextItem = selectedItemIndex >= 0 && selectedItemIndex < filteredItems.length - 1
+    ? filteredItems[selectedItemIndex + 1]
+    : undefined;
   const selectedFeed = selectedItem ? feedById.get(selectedItem.feedId) : undefined;
   const requestedMobileView = searchParams.get('view');
   const inferredMobileView: RssMobileView = selectedItem ? 'detail' : 'sources';
   const mobileView: RssMobileView = isRssMobileView(requestedMobileView)
     ? requestedMobileView === 'detail' && !selectedItem ? 'items' : requestedMobileView
     : inferredMobileView;
-  const mobilePanel: RssMobilePanel = mobileStyleVisible ? 'style' : activePanel;
+  const mobilePanel: RssMobilePanel = mobileStyleVisible
+    ? 'style'
+    : activePanel === 'comments' ? null : activePanel;
   const selectedAnnotations = useMemo(
     () => annotations.filter((annotation) => annotation.itemId === selectedItemId),
     [annotations, selectedItemId],
@@ -606,12 +722,13 @@ export function RssPage() {
     '--rss-reader-text-color': readerStyle.textColor,
   } as CssVariables), [readerStyle]);
   const sanitizedContentHtml = useMemo(() => sanitizeRssContentHtml(
-    selectedItem?.contentHtml || selectedItem?.contentText,
-    selectedItem?.link || selectedFeed?.siteUrl || selectedFeed?.url || window.location.href,
+    selectedItem?.fullContentHtml || selectedItem?.contentHtml || selectedItem?.fullContentText || selectedItem?.contentText,
+    selectedItem?.fullContentUrl || selectedItem?.link || selectedFeed?.siteUrl || selectedFeed?.url || window.location.href,
     query,
     selectedAnnotations,
-  ), [query, selectedAnnotations, selectedFeed?.siteUrl, selectedFeed?.url, selectedItem?.contentHtml, selectedItem?.contentText, selectedItem?.link]);
+  ), [query, selectedAnnotations, selectedFeed?.siteUrl, selectedFeed?.url, selectedItem?.contentHtml, selectedItem?.contentText, selectedItem?.fullContentHtml, selectedItem?.fullContentText, selectedItem?.fullContentUrl, selectedItem?.link]);
   const sanitizedContentMarkup = useMemo(() => ({ __html: sanitizedContentHtml }), [sanitizedContentHtml]);
+  const articleHeadings = useMemo(() => extractRssContentHeadings(sanitizedContentHtml), [sanitizedContentHtml]);
 
   useEffect(() => {
     setExpandedFolders((current) => {
@@ -638,6 +755,7 @@ export function RssPage() {
 
   useEffect(() => {
     setShowScrolledTitle(false);
+    setActiveHeadingId(undefined);
     setImageViewer(null);
     setRssSelection(null);
     setPendingCommentSelection(null);
@@ -646,6 +764,18 @@ export function RssPage() {
     setCommentDraft('');
     setAiQuote(undefined);
   }, [selectedItem?.id]);
+
+  useLayoutEffect(() => {
+    if (!selectedItemId) return;
+    const article = articleRef.current;
+    if (!article) return;
+    article.scrollTop = 0;
+    article.scrollLeft = 0;
+  }, [selectedItemId]);
+
+  useEffect(() => {
+    setActiveHeadingId(articleHeadings[0]?.id);
+  }, [articleHeadings, selectedItemId]);
 
   useEffect(() => {
     const syncSelection = () => {
@@ -724,7 +854,32 @@ export function RssPage() {
     setRefreshingIds((current) => new Set(current).add(feed.id));
     try {
       const result = await fetchRssFeed(feed.url);
-      mergeRssItems(feed.id, fetchedItemsForFeed(feed.id, result));
+      const fetchedItems = fetchedItemsForFeed(feed.id, result);
+      if (feed.fetchFullContent) {
+        const existingItems = new Map(
+          useLearningStore.getState().rssItems
+            .filter((item) => item.feedId === feed.id)
+            .map((item) => [item.id, item]),
+        );
+        const candidates = fetchedItems
+          .filter((item) => item.link && !existingItems.get(item.id)?.fullContentFetchedAt)
+          .slice(0, RSS_AUTO_ARTICLE_FETCH_LIMIT);
+        for (const item of candidates) {
+          try {
+            const article = await fetchRssArticle(item.link);
+            Object.assign(item, {
+              fullContentHtml: article.contentHtml,
+              fullContentText: article.contentText,
+              fullContentUrl: article.url || item.link,
+              fullContentFetchedAt: article.fetchedAt,
+              fullContentError: undefined,
+            });
+          } catch (error) {
+            item.fullContentError = error instanceof Error ? error.message : '原文抓取失败';
+          }
+        }
+      }
+      mergeRssItems(feed.id, fetchedItems);
       updateRssFeed(feed.id, {
         title: feed.title || result.title,
         url: result.feedUrl,
@@ -745,6 +900,40 @@ export function RssPage() {
       });
     }
   }, [mergeRssItems, updateRssFeed]);
+
+  const fetchArticleContent = useCallback(async (item: RssItem) => {
+    if (!item.link) {
+      Toast.warning('这条内容没有可抓取的原文链接');
+      return false;
+    }
+    setFetchingArticleIds((current) => new Set(current).add(item.id));
+    try {
+      const article = await fetchRssArticle(item.link);
+      updateRssItem(item.id, {
+        fullContentHtml: article.contentHtml,
+        fullContentText: article.contentText,
+        fullContentUrl: article.url || item.link,
+        fullContentFetchedAt: article.fetchedAt,
+        fullContentError: undefined,
+        aiSummary: undefined,
+        aiSummaryUpdatedAt: undefined,
+        aiSummaryVersion: undefined,
+      });
+      Toast.success(item.fullContentFetchedAt ? '原文已重新抓取' : '原文已抓取');
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '原文抓取失败';
+      updateRssItem(item.id, { fullContentError: message });
+      Toast.error(message);
+      return false;
+    } finally {
+      setFetchingArticleIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }, [updateRssItem]);
 
   const refreshFeeds = useCallback(async (targets: RssFeed[], notify = true) => {
     if (!targets.length) {
@@ -973,11 +1162,12 @@ export function RssPage() {
         }
         const declaredType = outline.getAttribute('learningCenterType');
         const type: RssFeedType = declaredType === 'video' || declaredType === 'social' ? declaredType : 'article';
+        const fetchFullContent = outline.getAttribute('learningCenterFetchFullContent') === 'true';
         try {
           const result = await fetchRssFeed(url);
           const id = createUuid();
           const title = outline.getAttribute('title') || outline.getAttribute('text') || undefined;
-          useLearningStore.getState().upsertRssFeed(normalizedFeed(id, type, folderId, result, title));
+          useLearningStore.getState().upsertRssFeed(normalizedFeed(id, type, folderId, result, title, fetchFullContent));
           useLearningStore.getState().mergeRssItems(id, fetchedItemsForFeed(id, result));
           imported += 1;
         } catch {
@@ -1092,6 +1282,33 @@ export function RssPage() {
     return true;
   };
 
+  const syncActiveHeading = (article: HTMLElement) => {
+    const headings = Array.from(article.querySelectorAll<HTMLElement>('.rss-article__body h1[id], .rss-article__body h2[id], .rss-article__body h3[id]'));
+    if (!headings.length) return;
+    const articleTop = article.getBoundingClientRect().top + 96;
+    const active = headings.reduce((current, heading) => (
+      heading.getBoundingClientRect().top <= articleTop ? heading : current
+    ), headings[0]);
+    setActiveHeadingId((current) => current === active.id ? current : active.id);
+  };
+
+  const jumpToHeading = (headingId: string) => {
+    const heading = articleBodyRef.current?.querySelector<HTMLElement>(`#${headingId}`);
+    if (!heading) return;
+    setActiveHeadingId(headingId);
+    heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const jumpToAnnotation = (annotation: RssAnnotation) => {
+    const marker = articleBodyRef.current?.querySelector<HTMLElement>(`[data-rss-annotation-id="${annotation.id}"]`);
+    if (!marker) {
+      Toast.warning('原文内容发生变化，暂时无法定位这条评论');
+      return;
+    }
+    marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    marker.focus({ preventScroll: true });
+  };
+
   const handleArticleContentClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (openContentImage(event.target)) return;
     if (openAnnotationTarget(event.target)) return;
@@ -1156,6 +1373,7 @@ export function RssPage() {
       if (addSelectionAnnotation(pendingCommentSelection, 'comment', comment)) {
         setPendingCommentSelection(null);
         setCommentDraft('');
+        if (!mobileLayout) setActivePanel('comments');
         Toast.success('评论已保存');
       }
       return;
@@ -1175,6 +1393,7 @@ export function RssPage() {
     });
     setCommentingAnnotationId(null);
     setCommentDraft('');
+    if (comment && !mobileLayout) setActivePanel('comments');
     Toast.success(comment ? '评论已保存' : '评论已移除，高亮已保留');
   };
 
@@ -1503,43 +1722,48 @@ export function RssPage() {
 
   const articleContent = selectedItem ? (
     <article
+      ref={articleRef}
       className="rss-article"
       style={articleStyle}
       onScroll={(event) => {
         setRssSelection(null);
         setActiveAnnotationTarget(null);
+        syncActiveHeading(event.currentTarget);
         const title = event.currentTarget.querySelector<HTMLElement>('.rss-article__title');
         if (!title) return;
         setShowScrolledTitle(title.offsetTop + title.offsetHeight <= event.currentTarget.scrollTop + 12);
       }}
     >
-      <Text size="small" type="secondary"><HighlightedText text={selectedFeed?.title ?? '未知订阅源'} query={query} /> · {selectedFeed ? feedTypeLabels[selectedFeed.type] : '内容'}</Text>
-      <Title className="rss-article__title" heading={3}><HighlightedText text={selectedItem.title} query={query} /></Title>
-      <Text size="small" type="tertiary">
-        {itemDateTime(selectedItem.publishedAt)}
-        {selectedItem.author && <> · <HighlightedText text={selectedItem.author} query={query} /></>}
-      </Text>
-      <section className="rss-ai-summary" aria-live="polite">
-        <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 摘要</Text></div>
-        {selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2 ? (
-          <p>{selectedItem.aiSummary}</p>
-        ) : summaryStatus === 'generating' ? (
-          <div className="rss-ai-summary__loading"><Spin size="small" /><Text size="small" type="tertiary">正在阅读并总结当前内容…</Text></div>
-        ) : summaryStatus === 'unavailable' ? (
-          <Text size="small" type="tertiary">请先在设置页添加并选择模型，进入内容后会自动生成摘要。</Text>
-        ) : summaryStatus === 'error' ? (
-          <Text size="small" type="danger">{summaryError}</Text>
-        ) : null}
-      </section>
-      {sanitizedContentHtml ? (
-        <div
-          ref={articleBodyRef}
-          className="rss-article__body rss-article__body--rich"
-          dangerouslySetInnerHTML={sanitizedContentMarkup}
-          onClick={handleArticleContentClick}
-          onKeyDown={handleArticleContentKeyDown}
-        />
-      ) : <Empty title="订阅源没有提供正文" description="可以打开原文，或让 AI 根据已有摘要和页面链接继续了解" />}
+      <div className="rss-article__inner">
+        <Text size="small" type="secondary"><HighlightedText text={selectedFeed?.title ?? '未知订阅源'} query={query} /> · {selectedFeed ? feedTypeLabels[selectedFeed.type] : '内容'}</Text>
+        <Title className="rss-article__title" heading={3}><HighlightedText text={selectedItem.title} query={query} /></Title>
+        <Text size="small" type="tertiary">
+          {itemDateTime(selectedItem.publishedAt)}
+          {selectedItem.author && <> · <HighlightedText text={selectedItem.author} query={query} /></>}
+          {selectedItem.fullContentFetchedAt && <> · 已抓取原文</>}
+        </Text>
+        <section className="rss-ai-summary" aria-live="polite">
+          <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 摘要</Text></div>
+          {selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2 ? (
+            <p>{selectedItem.aiSummary}</p>
+          ) : summaryStatus === 'generating' ? (
+            <div className="rss-ai-summary__loading"><Spin size="small" /><Text size="small" type="tertiary">正在阅读并总结当前内容…</Text></div>
+          ) : summaryStatus === 'unavailable' ? (
+            <Text size="small" type="tertiary">请先在设置页添加并选择模型，进入内容后会自动生成摘要。</Text>
+          ) : summaryStatus === 'error' ? (
+            <Text size="small" type="danger">{summaryError}</Text>
+          ) : null}
+        </section>
+        {sanitizedContentHtml ? (
+          <div
+            ref={articleBodyRef}
+            className="rss-article__body rss-article__body--rich"
+            dangerouslySetInnerHTML={sanitizedContentMarkup}
+            onClick={handleArticleContentClick}
+            onKeyDown={handleArticleContentKeyDown}
+          />
+        ) : <Empty title="订阅源没有提供正文" description="可以打开原文，或让 AI 根据已有摘要和页面链接继续了解" />}
+      </div>
     </article>
   ) : <Empty title="选择一条订阅内容" description="内容详情、收藏和 AI 摘要会显示在这里" />;
 
@@ -1548,13 +1772,17 @@ export function RssPage() {
       {mobileLayout ? (
         <RssMobileWorkspace
           activePanel={mobilePanel}
+          articleFetching={Boolean(selectedItem && fetchingArticleIds.has(selectedItem.id))}
           bookmarked={Boolean(selectedItem?.bookmarkedAt)}
+          canFetchArticle={Boolean(selectedItem?.link)}
           detailContent={articleContent}
           detailStatus={selectedItem
             ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}`
             : '未选择内容'}
           detailTitle={selectedItem?.title}
           hasOriginalLink={Boolean(selectedItem?.link)}
+          hasNextItem={Boolean(nextItem)}
+          hasPreviousItem={Boolean(previousItem)}
           itemCount={filteredItems.length}
           itemsContent={itemsContent}
           panelContent={mobilePanel === 'style' ? (
@@ -1587,9 +1815,18 @@ export function RssPage() {
             setQuery(value);
             setSelectedItemId(null);
           }}
+          onFetchArticle={() => {
+            if (selectedItem) void fetchArticleContent(selectedItem);
+          }}
           onMarkVisibleRead={() => markRssItemsRead(unreadVisibleItems.map((item) => item.id))}
+          onOpenNextItem={() => {
+            if (nextItem) openItem(nextItem);
+          }}
           onOpenOriginal={() => {
             if (selectedItem?.link) window.open(selectedItem.link, '_blank', 'noopener,noreferrer');
+          }}
+          onOpenPreviousItem={() => {
+            if (previousItem) openItem(previousItem);
           }}
           onToggleBookmark={() => {
             if (selectedItem) updateRssItem(selectedItem.id, { bookmarkedAt: selectedItem.bookmarkedAt ? undefined : Date.now() });
@@ -1675,6 +1912,18 @@ export function RssPage() {
                       </div>
                       {selectedItem && (
                         <>
+                          <Tooltip content={selectedItem.fullContentFetchedAt ? '重新爬取原文' : '爬取原文'}>
+                            <Button
+                              aria-label={selectedItem.fullContentFetchedAt ? '重新爬取原文' : '爬取原文'}
+                              disabled={!selectedItem.link}
+                              icon={<IconGlobeStroked />}
+                              loading={fetchingArticleIds.has(selectedItem.id)}
+                              size="small"
+                              theme="borderless"
+                              type="tertiary"
+                              onClick={() => void fetchArticleContent(selectedItem)}
+                            />
+                          </Tooltip>
                           <Popover
                             content={<ReaderStylePanel preferences={readerPreferences} onChangePreferences={setReaderPreferences} />}
                             contentClassName="reader-style-popover"
@@ -1713,11 +1962,14 @@ export function RssPage() {
                         </>
                       )}
                     </div>
-                    {articleContent}
+                    <div className="rss-article-workspace">
+                      <RssArticleToc activeHeadingId={activeHeadingId} headings={articleHeadings} onSelect={jumpToHeading} />
+                      {articleContent}
+                    </div>
                   </div>
                 </Allotment.Pane>
                 <Allotment.Pane visible={Boolean(activePanel)} preferredSize={rssPanelWidth} minSize={compactLayout ? 280 : 320} maxSize={720}>
-                  {activePanel && <RssRightPanel activePanel={activePanel} item={selectedItem} items={filteredItems} feeds={feeds} query={query} selectedText={aiQuote} onClearSelectedText={clearAiQuote} />}
+                  {activePanel && <RssRightPanel activePanel={activePanel} annotations={selectedAnnotations} item={selectedItem} items={filteredItems} feeds={feeds} query={query} selectedText={aiQuote} onClearSelectedText={clearAiQuote} onJumpAnnotation={jumpToAnnotation} />}
                 </Allotment.Pane>
               </Allotment>
 
@@ -1737,6 +1989,14 @@ export function RssPage() {
                   label="时间线"
                   tooltip={activePanel === 'timeline' ? '收起时间线' : '打开时间线'}
                   onClick={() => setActivePanel((current) => current === 'timeline' ? null : 'timeline')}
+                />
+                <ActivityRailButton
+                  active={activePanel === 'comments'}
+                  ariaLabel={activePanel === 'comments' ? '收起评论' : '打开评论'}
+                  icon={<IconComment className="panel-tool-icon" />}
+                  label="评论"
+                  tooltip={activePanel === 'comments' ? '收起评论' : '打开评论'}
+                  onClick={() => setActivePanel((current) => current === 'comments' ? null : 'comments')}
                 />
               </nav>
             </section>
@@ -1779,7 +2039,36 @@ export function RssPage() {
       >
         <div className="rss-manage-dialog">
           <section><div className="rss-manage-dialog__heading"><Text strong>文件夹</Text><Button icon={<IconPlus />} size="small" theme="borderless" type="tertiary" onClick={() => { setManageVisible(false); setFolderVisible(true); }}>新建</Button></div>{folders.length ? folders.map((folder) => <div className="rss-manage-folder" key={folder.id}><Input defaultValue={folder.name} onBlur={(event) => { const name = event.target.value.trim(); if (name && name !== folder.name) updateRssFolder(folder.id, { name }); }} /><Button aria-label={`删除文件夹 ${folder.name}`} icon={<IconDeleteStroked />} theme="borderless" type="danger" onClick={() => confirmDeleteFolder(folder)} /></div>) : <Text type="tertiary">还没有文件夹</Text>}</section>
-          <section><Text strong>订阅源</Text>{feeds.length ? feeds.map((feed) => <div className="rss-manage-feed" key={feed.id}><div><Text strong>{feed.title}</Text><Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>{feed.url}</Text></div><Select size="small" value={feed.folderId || '__none__'} onChange={(value) => updateRssFeed(feed.id, { folderId: value === '__none__' ? undefined : String(value) })}><Select.Option value="__none__">未分类</Select.Option>{folders.map((folder) => <Select.Option key={folder.id} value={folder.id}>{folder.name}</Select.Option>)}</Select><Select size="small" value={feed.type} onChange={(value) => updateRssFeed(feed.id, { type: String(value) as RssFeedType })}><Select.Option value="article">文章</Select.Option><Select.Option value="video">视频</Select.Option><Select.Option value="social">社交媒体</Select.Option></Select><Button aria-label={`删除订阅源 ${feed.title}`} icon={<IconDeleteStroked />} theme="borderless" type="danger" onClick={() => confirmDeleteFeed(feed)} /></div>) : <Empty title="还没有订阅源" />}</section>
+          <section>
+            <Text strong>订阅源</Text>
+            {feeds.length ? feeds.map((feed) => (
+              <div className="rss-manage-feed" key={feed.id}>
+                <div>
+                  <Text strong>{feed.title}</Text>
+                  <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>{feed.url}</Text>
+                </div>
+                <Select size="small" value={feed.folderId || '__none__'} onChange={(value) => updateRssFeed(feed.id, { folderId: value === '__none__' ? undefined : String(value) })}>
+                  <Select.Option value="__none__">未分类</Select.Option>
+                  {folders.map((folder) => <Select.Option key={folder.id} value={folder.id}>{folder.name}</Select.Option>)}
+                </Select>
+                <Select size="small" value={feed.type} onChange={(value) => updateRssFeed(feed.id, { type: String(value) as RssFeedType })}>
+                  <Select.Option value="article">文章</Select.Option>
+                  <Select.Option value="video">视频</Select.Option>
+                  <Select.Option value="social">社交媒体</Select.Option>
+                </Select>
+                <label className="rss-manage-feed__full-content" title="刷新该订阅源时自动补抓原网页正文">
+                  <Switch
+                    aria-label={`${feed.title} 自动抓取原文`}
+                    checked={Boolean(feed.fetchFullContent)}
+                    size="small"
+                    onChange={(checked) => updateRssFeed(feed.id, { fetchFullContent: checked })}
+                  />
+                  <Text size="small">自动原文</Text>
+                </label>
+                <Button aria-label={`删除订阅源 ${feed.title}`} icon={<IconDeleteStroked />} theme="borderless" type="danger" onClick={() => confirmDeleteFeed(feed)} />
+              </div>
+            )) : <Empty title="还没有订阅源" />}
+          </section>
         </div>
       </SideSheet>
 

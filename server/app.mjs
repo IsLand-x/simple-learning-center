@@ -8,6 +8,7 @@ import { extname, join } from 'node:path';
 import { createApiKeyExport, importApiKeys, parseApiKeyImport } from './apiKeys.mjs';
 import { createAiJobManager } from './aiJobs.mjs';
 import { fetchRssFeed } from './rss.mjs';
+import { fetchRssArticle } from './rssArticle.mjs';
 import { protectServerRssState } from './rssScheduler.mjs';
 import {
   createAuthService,
@@ -112,6 +113,7 @@ export function createApp({
   authFile = AUTH_FILE,
   aiJobRunner,
   rssFetcher = fetchRssFeed,
+  rssArticleFetcher = fetchRssArticle,
 } = {}) {
   const app = new Hono();
   const auth = createAuthService({
@@ -244,6 +246,12 @@ export function createApp({
     return c.json(await rssFetcher(payload?.url));
   });
   app.all('/api/rss/fetch', methodNotAllowed);
+
+  app.post('/api/rss/article', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_RSS_REQUEST_BYTES);
+    return c.json(await rssArticleFetcher(payload?.url));
+  });
+  app.all('/api/rss/article', methodNotAllowed);
 
   app.post('/api/ai/jobs', async (c) => {
     const payload = await readJsonRequest(c.req.raw, MAX_AI_JOB_REQUEST_BYTES);

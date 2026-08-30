@@ -145,6 +145,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       title: '定时订阅',
       url: 'https://example.com/scheduled.xml',
       type: 'article',
+      fetchFullContent: true,
       createdAt: 1,
       updatedAt: 1,
     }];
@@ -181,6 +182,15 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
           contentText: '新正文',
         }],
       }),
+      fetchArticle: async (url) => ({
+        title: '新内容',
+        byline: '测试作者',
+        excerpt: '完整原文摘要',
+        contentHtml: '<article><h2>完整原文</h2><p>服务端补抓的正文</p></article>',
+        contentText: '完整原文\n服务端补抓的正文',
+        url,
+        fetchedAt: 101,
+      }),
       logger: { warn() {} },
     });
     assert.equal(result.status, 'refreshed');
@@ -194,6 +204,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(refreshedState.state.rssFeeds[0].lastFetchedAt, 100);
     assert.equal(refreshedState.state.rssFeeds[0].description, '服务端刷新结果');
     assert.ok(refreshedState.state.rssItems.some((item) => item.id === 'scheduled-feed:fresh'));
+    assert.equal(
+      refreshedState.state.rssItems.find((item) => item.id === 'scheduled-feed:fresh')?.fullContentText,
+      '完整原文\n服务端补抓的正文',
+    );
     assert.ok(refreshedState.state.rssItems.some((item) => item.id === 'scheduled-feed:existing' && item.readAt === 2));
   });
 
@@ -259,6 +273,15 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const rssApp = createApp({
       serveFrontend: false,
       rssFetcher: async (url) => ({ ...parsed, feedUrl: url }),
+      rssArticleFetcher: async (url) => ({
+        title: '第一篇文章',
+        byline: '测试作者',
+        excerpt: '原文摘要',
+        contentHtml: '<article><h2>原文标题</h2><p>完整正文</p></article>',
+        contentText: '原文标题\n完整正文',
+        url,
+        fetchedAt: 101,
+      }),
     });
     const response = await rssApp.request('/api/rss/fetch', {
       method: 'POST',
@@ -267,6 +290,14 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).items[0].title, '第一篇文章');
+
+    const articleResponse = await rssApp.request('/api/rss/article', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com/posts/1' }),
+    });
+    assert.equal(articleResponse.status, 200);
+    assert.equal((await articleResponse.json()).contentText, '原文标题\n完整正文');
   });
 
   await t.test('AI 任务在服务端运行并持久化对话', async () => {
