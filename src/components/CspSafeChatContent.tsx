@@ -31,6 +31,10 @@ function markdown(text: string, key: string, className = '') {
   );
 }
 
+export function CspSafeMarkdown({ content, className = '' }: { content: string; className?: string }) {
+  return markdown(content, 'standalone-markdown', className);
+}
+
 function messageText(item: Record<string, unknown>) {
   if (typeof item.content === 'string') return item.content;
   if (!Array.isArray(item.content)) return '';

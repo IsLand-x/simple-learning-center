@@ -23,6 +23,7 @@ import { statusError } from './errors.mjs';
 
 let stateWriteQueue = Promise.resolve();
 const RSS_STATE_VERSION = 16;
+const VIDEO_STATE_VERSION = 18;
 
 export function encodedId(value) {
   if (typeof value !== 'string' || !value || value.length > 200 || value.includes('\0')) {
@@ -244,10 +245,38 @@ function protectRssStateFromOlderClient(persistedState, currentPersistedState) {
   return protectedState;
 }
 
+function protectVideoStateFromOlderClient(persistedState, currentPersistedState) {
+  const incomingVersion = Number.isInteger(persistedState?.version) ? persistedState.version : 0;
+  const currentVersion = Number.isInteger(currentPersistedState?.version) ? currentPersistedState.version : 0;
+  if (
+    currentVersion < VIDEO_STATE_VERSION
+    || incomingVersion >= VIDEO_STATE_VERSION
+    || !persistedState?.state
+    || !currentPersistedState?.state
+  ) {
+    return persistedState;
+  }
+  const protectedState = structuredClone(persistedState);
+  protectedState.version = currentVersion;
+  protectedState.state.videoResources = structuredClone(
+    Array.isArray(currentPersistedState.state.videoResources) ? currentPersistedState.state.videoResources : [],
+  );
+  protectedState.state.videoTimestampNotes = structuredClone(
+    Array.isArray(currentPersistedState.state.videoTimestampNotes) ? currentPersistedState.state.videoTimestampNotes : [],
+  );
+  protectedState.state.videoPanelWidth = typeof currentPersistedState.state.videoPanelWidth === 'number'
+    ? currentPersistedState.state.videoPanelWidth
+    : 400;
+  return protectedState;
+}
+
 async function persistState(persistedState) {
   const currentPersistedState = await readPersistedStateFromDisk();
   const stateForDisk = await prepareStateForDisk(
-    protectRssStateFromOlderClient(persistedState, currentPersistedState),
+    protectVideoStateFromOlderClient(
+      protectRssStateFromOlderClient(persistedState, currentPersistedState),
+      currentPersistedState,
+    ),
   );
   await atomicWrite(STATE_FILE, `${JSON.stringify({
     formatVersion: 1,

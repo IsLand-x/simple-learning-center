@@ -26,13 +26,17 @@ interface RssMobileWorkspaceProps {
   bookmarked: boolean;
   canFetchArticle: boolean;
   detailContent: ReactNode;
+  detailActions?: ReactNode;
+  detailIsDigest?: boolean;
   detailStatus: string;
   detailTitle?: string;
   hasOriginalLink: boolean;
   hasNextItem: boolean;
   hasPreviousItem: boolean;
   itemCount: number;
+  itemCountUnit?: string;
   itemsContent: ReactNode;
+  itemsActions?: ReactNode;
   panelContent: ReactNode;
   query: string;
   sourceActions: ReactNode;
@@ -66,13 +70,17 @@ export function RssMobileWorkspace({
   bookmarked,
   canFetchArticle,
   detailContent,
+  detailActions,
+  detailIsDigest = false,
   detailStatus,
   detailTitle,
   hasOriginalLink,
   hasNextItem,
   hasPreviousItem,
   itemCount,
+  itemCountUnit = '条内容',
   itemsContent,
+  itemsActions,
   panelContent,
   query,
   sourceActions,
@@ -150,10 +158,10 @@ export function RssMobileWorkspace({
             <Button className="rss-mobile-topbar__back" aria-label="返回订阅源" icon={<IconChevronLeft />} theme="borderless" type="tertiary" onClick={onBackToSources} />
             <div className="rss-mobile-topbar__identity rss-mobile-topbar__identity--grow">
               <Text strong ellipsis={{ showTooltip: true }}>{sourceTitle}</Text>
-              <Text size="small" type="tertiary">{itemCount} 条内容</Text>
+              <Text size="small" type="tertiary">{itemCount} {itemCountUnit}</Text>
             </div>
             <div className="rss-mobile-topbar__actions">
-              <Button
+              {itemsActions ?? <><Button
                 aria-label={searchOpen ? '收起搜索' : '搜索当前订阅内容'}
                 aria-pressed={searchOpen}
                 icon={<IconSearch />}
@@ -168,7 +176,7 @@ export function RssMobileWorkspace({
                 theme="borderless"
                 type="tertiary"
                 onClick={onMarkVisibleRead}
-              />
+              /></>}
             </div>
           </header>
           {renderSearch()}
@@ -185,7 +193,7 @@ export function RssMobileWorkspace({
               <Text size="small" type="tertiary">{detailStatus}</Text>
             </div>
             <div className="rss-mobile-topbar__actions">
-              <Button
+              {detailActions ?? <><Button
                 aria-label={bookmarked ? '取消收藏' : '收藏'}
                 aria-pressed={bookmarked}
                 className={bookmarked ? 'rss-bookmark-button--active' : ''}
@@ -195,7 +203,7 @@ export function RssMobileWorkspace({
                 onClick={onToggleBookmark}
               />
               <Button
-                aria-label="爬取原文"
+                aria-label="读取原文"
                 disabled={!canFetchArticle}
                 icon={<IconGlobeStroked />}
                 loading={articleFetching}
@@ -204,10 +212,11 @@ export function RssMobileWorkspace({
                 onClick={onFetchArticle}
               />
               {hasOriginalLink && <Button aria-label="打开原文" icon={<IconExternalOpen />} theme="borderless" type="tertiary" onClick={onOpenOriginal} />}
+              </>}
             </div>
           </header>
           <div className="rss-mobile-screen__body">{detailContent}</div>
-          <nav className="rss-mobile-reader-tools" aria-label="RSS 阅读工具">
+          {!detailIsDigest && <nav className="rss-mobile-reader-tools" aria-label="RSS 阅读工具">
             <Button
               aria-label="上一篇订阅内容"
               disabled={!hasPreviousItem}
@@ -233,7 +242,7 @@ export function RssMobileWorkspace({
               type="tertiary"
               onClick={() => onChangePanel(activePanel ? null : 'ai')}
             >更多</Button>
-          </nav>
+          </nav>}
         </section>
       )}
 

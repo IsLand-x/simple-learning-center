@@ -82,3 +82,35 @@ export async function readWebPage(config, targetUrl, signal) {
     content: cleanText(document.content, 18_000),
   };
 }
+
+export async function readRenderedWebPageHtml(config, targetUrl, signal) {
+  requireApiKey(config);
+  let url;
+  try {
+    url = new URL(targetUrl);
+  } catch {
+    throw new Error('网页地址格式不正确');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('只支持读取 HTTP 或 HTTPS 网页');
+  }
+  const response = await fetch(`https://r.jina.ai/${url.href}`, {
+    headers: {
+      ...jinaHeaders(config, 60_000),
+      DNT: '1',
+      'X-Base': 'final',
+      'X-Return-Format': 'html',
+      'X-Timeout': '30',
+    },
+    signal,
+  });
+  const payload = await readJinaResponse(response);
+  const document = Array.isArray(payload.data) ? payload.data[0] : payload.data;
+  const content = String(document?.content ?? '').trim();
+  if (!document || !content) throw new Error('网页读取服务没有返回渲染后的正文');
+  return {
+    title: cleanText(document.title, 1_000) || url.hostname,
+    url: document.url || url.href,
+    content: content.slice(0, 1_200_000),
+  };
+}

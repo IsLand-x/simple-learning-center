@@ -9,6 +9,7 @@ import { createApiKeyExport, importApiKeys, parseApiKeyImport } from './apiKeys.
 import { createAiJobManager } from './aiJobs.mjs';
 import { fetchRssFeed } from './rss.mjs';
 import { fetchRssArticle } from './rssArticle.mjs';
+import { fetchYouTubeVideo } from './youtubeVideo.mjs';
 import { protectServerRssState } from './rssScheduler.mjs';
 import {
   createAuthService,
@@ -25,6 +26,7 @@ import {
   MAX_INDEX_BYTES,
   MAX_RSS_REQUEST_BYTES,
   MAX_STATE_BYTES,
+  MAX_VIDEO_REQUEST_BYTES,
   MODE,
   PASSWORD,
   STATE_FILE,
@@ -114,6 +116,8 @@ export function createApp({
   aiJobRunner,
   rssFetcher = fetchRssFeed,
   rssArticleFetcher = fetchRssArticle,
+  youtubeVideoFetcher = fetchYouTubeVideo,
+  aiJobManager,
 } = {}) {
   const app = new Hono();
   const auth = createAuthService({
@@ -122,7 +126,7 @@ export function createApp({
     defaultPassword: password,
   });
   const loginLimiter = createLoginLimiter();
-  const aiJobs = createAiJobManager({ runChat: aiJobRunner });
+  const aiJobs = aiJobManager || createAiJobManager({ runChat: aiJobRunner });
   const publicAuthPaths = new Set([
     '/api/auth/login',
     '/api/auth/logout',
@@ -249,9 +253,29 @@ export function createApp({
 
   app.post('/api/rss/article', async (c) => {
     const payload = await readJsonRequest(c.req.raw, MAX_RSS_REQUEST_BYTES);
-    return c.json(await rssArticleFetcher(payload?.url));
+    const persistedState = await readPersistedState();
+    return c.json(await rssArticleFetcher(payload?.url, {
+      readerConfig: persistedState?.state?.webSearchConfig,
+    }));
   });
   app.all('/api/rss/article', methodNotAllowed);
+
+  app.post('/api/rss/digests/run', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_RSS_REQUEST_BYTES);
+    const result = await aiJobs.startDigest({
+      date: payload?.date,
+      force: payload?.force !== false,
+      trigger: 'manual',
+    });
+    return c.json(result, result.job ? 202 : 200);
+  });
+  app.all('/api/rss/digests/run', methodNotAllowed);
+
+  app.post('/api/videos/import', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_VIDEO_REQUEST_BYTES);
+    return c.json(await youtubeVideoFetcher(payload?.url));
+  });
+  app.all('/api/videos/import', methodNotAllowed);
 
   app.post('/api/ai/jobs', async (c) => {
     const payload = await readJsonRequest(c.req.raw, MAX_AI_JOB_REQUEST_BYTES);

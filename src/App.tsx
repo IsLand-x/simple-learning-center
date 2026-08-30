@@ -8,6 +8,7 @@ import { SettingsPage } from './pages/SettingsPage';
 
 const ReaderPage = lazy(() => import('./pages/ReaderPage').then((module) => ({ default: module.ReaderPage })));
 const RssPage = lazy(() => import('./pages/RssPage').then((module) => ({ default: module.RssPage })));
+const VideoStudyPage = lazy(() => import('./pages/VideoStudyPage').then((module) => ({ default: module.VideoStudyPage })));
 
 export function App() {
   return (
@@ -22,6 +23,14 @@ export function App() {
             element={(
               <Suspense fallback={<div className="route-loading"><Spin size="large" /></div>}>
                 <RssPage />
+              </Suspense>
+            )}
+          />
+          <Route
+            path="/videos"
+            element={(
+              <Suspense fallback={<div className="route-loading"><Spin size="large" /></div>}>
+                <VideoStudyPage />
               </Suspense>
             )}
           />

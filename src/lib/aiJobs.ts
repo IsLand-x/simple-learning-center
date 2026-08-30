@@ -6,9 +6,11 @@ export type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cance
 export interface AiJob {
   id: string;
   bookId: string;
-  resourceType?: 'book' | 'rss';
+  resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
   rssItemId?: string;
-  purpose?: 'chat' | 'summary';
+  videoId?: string;
+  digestDate?: string;
+  purpose?: 'chat' | 'summary' | 'translation' | 'digest';
   conversationId: string;
   userMessageId: string;
   assistantMessageId: string;
@@ -26,9 +28,12 @@ export interface StartAiJobInput {
   configId: string;
   model: string;
   bookId: string;
-  resourceType?: 'book' | 'rss';
+  resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
   rssItemId?: string;
-  purpose?: 'chat' | 'summary';
+  videoId?: string;
+  digestDate?: string;
+  digestItemIds?: string[];
+  purpose?: 'chat' | 'summary' | 'translation' | 'digest';
   conversationId: string;
   userMessage: {
     id: string;

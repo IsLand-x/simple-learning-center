@@ -22,11 +22,15 @@ import type {
   ReaderPreferences,
   ReaderTheme,
   ReadingSession,
+  RssDailyDigest,
+  RssDigestSettings,
   RssFeed,
   RssFolder,
   RssItem,
   RssAnnotation,
   ThemeMode,
+  VideoResource,
+  VideoTimestampNote,
   WebSearchConfig,
 } from '../types';
 
@@ -44,6 +48,17 @@ const defaultReaderPreferences: ReaderPreferences = {
 const defaultAiPreferences: AiPreferences = {
   provider: null,
   model: '',
+};
+
+export const DEFAULT_RSS_DIGEST_PROMPT = '请把当天尚未读过的 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
+
+const defaultRssDigestSettings: RssDigestSettings = {
+  enabled: false,
+  provider: null,
+  model: '',
+  prompt: DEFAULT_RSS_DIGEST_PROMPT,
+  scheduleMode: 'every-4-hours',
+  times: ['08:00', '12:00', '18:00', '22:00'],
 };
 
 const defaultWebSearchConfig: WebSearchConfig = {
@@ -92,7 +107,12 @@ interface LearningState {
   rssFeeds: RssFeed[];
   rssItems: RssItem[];
   rssAnnotations: RssAnnotation[];
+  rssDailyDigests: RssDailyDigest[];
+  rssDigestSettings: RssDigestSettings;
   rssPanelWidth: number;
+  videoResources: VideoResource[];
+  videoTimestampNotes: VideoTimestampNote[];
+  videoPanelWidth: number;
   openAIConfigs: OpenAICompatibleConfig[];
   webSearchConfig: WebSearchConfig;
   aiPreferences: AiPreferences;
@@ -128,9 +148,18 @@ interface LearningState {
   addRssAnnotation: (annotation: RssAnnotation) => void;
   updateRssAnnotation: (annotationId: string, changes: Partial<Pick<RssAnnotation, 'comment' | 'commentUpdatedAt'>>) => void;
   deleteRssAnnotation: (annotationId: string) => void;
+  upsertRssDailyDigest: (digest: RssDailyDigest) => void;
+  setRssDigestSettings: (changes: Partial<RssDigestSettings>) => void;
   markRssItemsRead: (itemIds?: string[]) => void;
   markRssItemsUnread: (itemIds?: string[]) => void;
   setRssPanelWidth: (width: number) => void;
+  upsertVideoResource: (video: VideoResource) => void;
+  updateVideoResource: (videoId: string, changes: Partial<VideoResource>) => void;
+  deleteVideoResource: (videoId: string) => void;
+  addVideoTimestampNote: (note: VideoTimestampNote) => void;
+  updateVideoTimestampNote: (noteId: string, changes: Partial<Pick<VideoTimestampNote, 'content'>>) => void;
+  deleteVideoTimestampNote: (noteId: string) => void;
+  setVideoPanelWidth: (width: number) => void;
   addOpenAIConfig: (config: OpenAICompatibleConfig) => void;
   updateOpenAIConfig: (configId: string, changes: Partial<OpenAICompatibleConfig>) => void;
   deleteOpenAIConfig: (configId: string) => void;
@@ -154,7 +183,12 @@ export const useLearningStore = create<LearningState>()(
       rssFeeds: [],
       rssItems: [],
       rssAnnotations: [],
+      rssDailyDigests: [],
+      rssDigestSettings: defaultRssDigestSettings,
       rssPanelWidth: 380,
+      videoResources: [],
+      videoTimestampNotes: [],
+      videoPanelWidth: 400,
       openAIConfigs: [],
       webSearchConfig: defaultWebSearchConfig,
       aiPreferences: defaultAiPreferences,
@@ -324,6 +358,15 @@ export const useLearningStore = create<LearningState>()(
             rssFeeds: state.rssFeeds.filter((feed) => feed.id !== feedId),
             rssItems: state.rssItems.filter((item) => item.feedId !== feedId),
             rssAnnotations: state.rssAnnotations.filter((annotation) => !removedRssItemIds.has(annotation.itemId)),
+            rssDailyDigests: state.rssDailyDigests.map((digest) => {
+              const sourceItemIds = digest.sourceItemIds.filter((itemId) => !removedRssItemIds.has(itemId));
+              return {
+                ...digest,
+                sourceItemIds,
+                sourceFeedIds: digest.sourceFeedIds.filter((itemId) => itemId !== feedId),
+                itemCount: sourceItemIds.length,
+              };
+            }),
             chats: state.chats.filter((message) => !removedItemIds.has(message.bookId)),
             chatSessions: state.chatSessions.filter((session) => !removedItemIds.has(session.bookId)),
           };
@@ -345,6 +388,11 @@ export const useLearningStore = create<LearningState>()(
                 aiSummary: previous.aiSummary,
                 aiSummaryUpdatedAt: previous.aiSummaryUpdatedAt,
                 aiSummaryVersion: previous.aiSummaryVersion,
+              } : {}),
+              ...(!hasNewFullContent && previous.aiTranslation ? {
+                aiTranslation: previous.aiTranslation,
+                aiTranslationUpdatedAt: previous.aiTranslationUpdatedAt,
+                aiTranslationSourceFetchedAt: previous.aiTranslationSourceFetchedAt,
               } : {}),
               ...(Number(previous.fullContentFetchedAt || 0) > Number(item.fullContentFetchedAt || 0) ? {
                 fullContentHtml: previous.fullContentHtml,
@@ -385,6 +433,15 @@ export const useLearningStore = create<LearningState>()(
         set((state) => ({
           rssAnnotations: state.rssAnnotations.filter((annotation) => annotation.id !== annotationId),
         })),
+      upsertRssDailyDigest: (digest) =>
+        set((state) => ({
+          rssDailyDigests: [digest, ...state.rssDailyDigests.filter((item) => item.id !== digest.id)]
+            .sort((left, right) => right.date.localeCompare(left.date)),
+        })),
+      setRssDigestSettings: (changes) =>
+        set((state) => ({
+          rssDigestSettings: { ...state.rssDigestSettings, ...changes },
+        })),
       markRssItemsRead: (itemIds) =>
         set((state) => {
           const selectedIds = itemIds ? new Set(itemIds) : null;
@@ -407,6 +464,44 @@ export const useLearningStore = create<LearningState>()(
           };
         }),
       setRssPanelWidth: (width) => set({ rssPanelWidth: Math.min(720, Math.max(280, width)) }),
+      upsertVideoResource: (video) =>
+        set((state) => ({
+          videoResources: [video, ...state.videoResources.filter((item) => item.id !== video.id)],
+        })),
+      updateVideoResource: (videoId, changes) =>
+        set((state) => ({
+          videoResources: state.videoResources.map((video) => (
+            video.id === videoId
+              ? { ...video, ...changes, updatedAt: changes.updatedAt ?? Date.now() }
+              : video
+          )),
+        })),
+      deleteVideoResource: (videoId) =>
+        set((state) => {
+          const resourceId = `video:${videoId}`;
+          return {
+            videoResources: state.videoResources.filter((video) => video.id !== videoId),
+            videoTimestampNotes: state.videoTimestampNotes.filter((note) => note.videoId !== videoId),
+            notes: state.notes.filter((note) => note.bookId !== resourceId),
+            chats: state.chats.filter((message) => message.bookId !== resourceId),
+            chatSessions: state.chatSessions.filter((session) => session.bookId !== resourceId),
+          };
+        }),
+      addVideoTimestampNote: (note) =>
+        set((state) => ({
+          videoTimestampNotes: [note, ...state.videoTimestampNotes.filter((item) => item.id !== note.id)],
+        })),
+      updateVideoTimestampNote: (noteId, changes) =>
+        set((state) => ({
+          videoTimestampNotes: state.videoTimestampNotes.map((note) => (
+            note.id === noteId ? { ...note, ...changes, updatedAt: Date.now() } : note
+          )),
+        })),
+      deleteVideoTimestampNote: (noteId) =>
+        set((state) => ({
+          videoTimestampNotes: state.videoTimestampNotes.filter((note) => note.id !== noteId),
+        })),
+      setVideoPanelWidth: (width) => set({ videoPanelWidth: Math.min(720, Math.max(280, width)) }),
       addOpenAIConfig: (config) =>
         set((state) => ({
           openAIConfigs: [config, ...state.openAIConfigs.filter((item) => item.id !== config.id)],
@@ -440,7 +535,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 17,
+      version: 19,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -637,6 +732,21 @@ export const useLearningStore = create<LearningState>()(
             })),
           };
         }
+        if (version < 18) {
+          migrated = {
+            ...migrated,
+            videoResources: [],
+            videoTimestampNotes: [],
+            videoPanelWidth: 400,
+          };
+        }
+        if (version < 19) {
+          migrated = {
+            ...migrated,
+            rssDailyDigests: [],
+            rssDigestSettings: defaultRssDigestSettings,
+          };
+        }
         return migrated;
       },
       merge: (persistedState, currentState) => {
@@ -648,7 +758,18 @@ export const useLearningStore = create<LearningState>()(
           rssFeeds: Array.isArray(persisted.rssFeeds) ? persisted.rssFeeds : [],
           rssItems: Array.isArray(persisted.rssItems) ? persisted.rssItems : [],
           rssAnnotations: Array.isArray(persisted.rssAnnotations) ? persisted.rssAnnotations : [],
+          rssDailyDigests: Array.isArray(persisted.rssDailyDigests) ? persisted.rssDailyDigests : [],
+          rssDigestSettings: {
+            ...defaultRssDigestSettings,
+            ...persisted.rssDigestSettings,
+            times: Array.isArray(persisted.rssDigestSettings?.times)
+              ? persisted.rssDigestSettings.times
+              : defaultRssDigestSettings.times,
+          },
           rssPanelWidth: typeof persisted.rssPanelWidth === 'number' ? persisted.rssPanelWidth : 380,
+          videoResources: Array.isArray(persisted.videoResources) ? persisted.videoResources : [],
+          videoTimestampNotes: Array.isArray(persisted.videoTimestampNotes) ? persisted.videoTimestampNotes : [],
+          videoPanelWidth: typeof persisted.videoPanelWidth === 'number' ? persisted.videoPanelWidth : 400,
           readerPreferences: {
             ...defaultReaderPreferences,
             ...persisted.readerPreferences,

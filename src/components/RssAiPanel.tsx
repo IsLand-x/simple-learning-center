@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { AIChatInput, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { IconArticle } from '@douyinfe/semi-icons';
+import { IconArticle, IconVideo } from '@douyinfe/semi-icons';
 import {
   cancelAiJob,
   getAiJob,
@@ -12,7 +12,7 @@ import {
 import { waitForServerStateWrites } from '../lib/serverStateStorage';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
-import type { AiDialogueContentItem, AiProvider, RssItem } from '../types';
+import type { AiDialogueContentItem, AiProvider, RssItem, VideoResource } from '../types';
 import { AiConversationDialogue, AiModelSelector } from './AiConversationPrimitives';
 
 const { Text } = Typography;
@@ -36,17 +36,20 @@ function makeConversationTitle(content: string) {
   return title.replace(/\s+/g, ' ').slice(0, 32);
 }
 
-export function RssAiPanel({
-  item,
+function LearningResourceAiPanel({
+  resource,
   selectedText,
   onClearSelectedText,
 }: {
-  item: RssItem;
+  resource: { type: 'rss'; item: RssItem } | { type: 'video'; video: VideoResource };
   selectedText?: string;
   onClearSelectedText?: () => void;
 }) {
-  const resourceId = `rss:${item.id}`;
-  const conversationId = `rss-chat:${item.id}`;
+  const isVideo = resource.type === 'video';
+  const resourceTitle = isVideo ? resource.video.title : resource.item.title;
+  const rawResourceId = isVideo ? resource.video.id : resource.item.id;
+  const resourceId = `${resource.type}:${rawResourceId}`;
+  const conversationId = `${resource.type}-chat:${rawResourceId}`;
   const allChats = useLearningStore((state) => state.chats);
   const allSessions = useLearningStore((state) => state.chatSessions);
   const configs = useLearningStore((state) => state.openAIConfigs);
@@ -100,11 +103,11 @@ export function RssAiPanel({
   useEffect(() => {
     const text = selectedText?.trim();
     if (!text) return;
-    setQuote({ text, chapter: item.title });
+    setQuote({ text, chapter: resourceTitle });
     onClearSelectedText?.();
     const animationFrame = window.requestAnimationFrame(() => inputRef.current?.focusEditor('end'));
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [item.title, onClearSelectedText, selectedText]);
+  }, [onClearSelectedText, resourceTitle, selectedText]);
 
   const applyJob = useCallback((job: AiJob) => {
     if (job.status === 'queued' || job.status === 'running') {
@@ -260,8 +263,8 @@ export function RssAiPanel({
         configId: selectedConfig.id,
         model,
         bookId: resourceId,
-        resourceType: 'rss',
-        rssItemId: item.id,
+        resourceType: resource.type,
+        ...(resource.type === 'rss' ? { rssItemId: resource.item.id } : { videoId: resource.video.id }),
         purpose: 'chat',
         conversationId,
         userMessage: {
@@ -303,8 +306,8 @@ export function RssAiPanel({
         <AiConversationDialogue
           chats={dialogueMessages}
           assistantName={providerLabel(provider ?? undefined, configs)}
-          emptyTitle="询问当前内容"
-          emptyDescription="AI 可以读取正文、比较同一订阅源的近期内容，并按需联网核对"
+          emptyTitle={isVideo ? '询问当前视频' : '询问当前内容'}
+          emptyDescription={isVideo ? 'AI 可以读取字幕、结合时间点笔记总结和解释视频' : 'AI 可以读取正文、比较同一订阅源的近期内容，并按需联网核对'}
         />
       </div>
       <AIChatInput
@@ -312,12 +315,12 @@ export function RssAiPanel({
         references={quote ? [{
           id: 'rss-selection',
           type: 'text',
-          content: `文章引用 · ${item.title}：${quote.text}`,
+          content: `${isVideo ? '字幕引用' : '文章引用'} · ${resourceTitle}：${quote.text}`,
         }] : []}
         showReference
         onReferenceDelete={() => setQuote(null)}
         keepSkillAfterSend={false}
-        placeholder="询问这篇内容…"
+        placeholder={isVideo ? '询问这个视频…' : '询问这篇内容…'}
         canSend={canSend}
         generating={status === 'generating'}
         onMessageSend={({ inputContents }) => void send(extractInputText(inputContents as Array<Record<string, unknown>>))}
@@ -334,10 +337,10 @@ export function RssAiPanel({
         renderTopSlot={() => (
           <div className="ai-composer-context">
             <div className="ai-composer-context__row">
-              <Tooltip content="AI 可读取当前 RSS 正文与同一来源的近期内容" position="topLeft">
-                <div className="ai-book-context" aria-label={`当前 RSS 内容：${item.title}`}>
-                  <IconArticle size="small" />
-                  <Text size="small" ellipsis={{ showTooltip: true }}>{item.title}</Text>
+              <Tooltip content={isVideo ? 'AI 可读取当前视频字幕与时间点笔记' : 'AI 可读取当前 RSS 正文与同一来源的近期内容'} position="topLeft">
+                <div className="ai-book-context" aria-label={`当前${isVideo ? '视频' : ' RSS 内容'}：${resourceTitle}`}>
+                  {isVideo ? <IconVideo size="small" /> : <IconArticle size="small" />}
+                  <Text size="small" ellipsis={{ showTooltip: true }}>{resourceTitle}</Text>
                 </div>
               </Tooltip>
             </div>
@@ -355,4 +358,20 @@ export function RssAiPanel({
       />
     </div>
   );
+}
+
+export function RssAiPanel(props: {
+  item: RssItem;
+  selectedText?: string;
+  onClearSelectedText?: () => void;
+}) {
+  return <LearningResourceAiPanel resource={{ type: 'rss', item: props.item }} selectedText={props.selectedText} onClearSelectedText={props.onClearSelectedText} />;
+}
+
+export function VideoAiPanel(props: {
+  video: VideoResource;
+  selectedText?: string;
+  onClearSelectedText?: () => void;
+}) {
+  return <LearningResourceAiPanel resource={{ type: 'video', video: props.video }} selectedText={props.selectedText} onClearSelectedText={props.onClearSelectedText} />;
 }

@@ -50,6 +50,11 @@ function mergeFetchedItems(existingItems, feedId, incomingItems) {
         aiSummaryUpdatedAt: previous.aiSummaryUpdatedAt,
         aiSummaryVersion: previous.aiSummaryVersion,
       } : {}),
+      ...(!hasNewFullContent && previous.aiTranslation ? {
+        aiTranslation: previous.aiTranslation,
+        aiTranslationUpdatedAt: previous.aiTranslationUpdatedAt,
+        aiTranslationSourceFetchedAt: previous.aiTranslationSourceFetchedAt,
+      } : {}),
       ...(Number(previous.fullContentFetchedAt || 0) > Number(item.fullContentFetchedAt || 0) ? {
         fullContentHtml: previous.fullContentHtml,
         fullContentText: previous.fullContentText,
@@ -94,6 +99,14 @@ function mergeConcurrentItem(incomingItem, currentItem) {
   copyOptionalField(merged, summarySource, 'aiSummary');
   copyOptionalField(merged, summarySource, 'aiSummaryUpdatedAt');
   copyOptionalField(merged, summarySource, 'aiSummaryVersion');
+  const incomingTranslationAt = Number(incomingItem.aiTranslationUpdatedAt || 0);
+  const currentTranslationAt = Number(currentItem.aiTranslationUpdatedAt || 0);
+  const translationSource = incomingFullContentAt === currentFullContentAt
+    ? currentTranslationAt > incomingTranslationAt ? currentItem : incomingItem
+    : fullContentSource;
+  copyOptionalField(merged, translationSource, 'aiTranslation');
+  copyOptionalField(merged, translationSource, 'aiTranslationUpdatedAt');
+  copyOptionalField(merged, translationSource, 'aiTranslationSourceFetchedAt');
   return merged;
 }
 
@@ -144,6 +157,32 @@ export function protectServerRssState(incomingPersistedState, currentPersistedSt
       .filter((item) => item.feedId === feedId)
       .sort((left, right) => right.publishedAt - left.publishedAt)
   ));
+  const incomingSupportsDigests = Number(incomingPersistedState.version || 0) >= 19;
+  const incomingDigests = incomingSupportsDigests && Array.isArray(incoming.rssDailyDigests) ? incoming.rssDailyDigests : [];
+  const incomingDigestIds = new Set(incomingDigests.map((digest) => digest.id));
+  const currentDigests = Array.isArray(current.rssDailyDigests) ? current.rssDailyDigests : [];
+  incoming.rssDailyDigests = [
+    ...incomingDigests.map((digest) => {
+      const serverDigest = currentDigests.find((item) => item.id === digest.id);
+      return serverDigest && Number(serverDigest.updatedAt || 0) > Number(digest.updatedAt || 0)
+        ? serverDigest
+        : digest;
+    }),
+    ...currentDigests.filter((digest) => !incomingDigestIds.has(digest.id)),
+  ].sort((left, right) => right.date.localeCompare(left.date));
+  const incomingDigestSettings = incomingSupportsDigests ? incoming.rssDigestSettings || {} : current.rssDigestSettings || {};
+  const currentDigestSettings = current.rssDigestSettings || {};
+  incoming.rssDigestSettings = {
+    ...incomingDigestSettings,
+    ...(Number(currentDigestSettings.lastAttemptAt || 0) > Number(incomingDigestSettings.lastAttemptAt || 0) ? {
+      lastAttemptAt: currentDigestSettings.lastAttemptAt,
+      lastScheduledKey: currentDigestSettings.lastScheduledKey,
+    } : {}),
+    ...(Number(currentDigestSettings.lastCompletedAt || 0) > Number(incomingDigestSettings.lastCompletedAt || 0) ? {
+      lastCompletedAt: currentDigestSettings.lastCompletedAt,
+      lastError: currentDigestSettings.lastError,
+    } : {}),
+  };
   return incomingPersistedState;
 }
 
@@ -170,7 +209,9 @@ export async function refreshPersistedRssFeed(feedId, {
         .slice(0, MAX_AUTO_ARTICLE_FETCHES_PER_CYCLE);
       for (const item of candidates) {
         try {
-          const article = await fetchArticle(item.link);
+          const article = await fetchArticle(item.link, {
+            readerConfig: rssState(persistedState)?.webSearchConfig,
+          });
           Object.assign(item, {
             fullContentHtml: article.contentHtml,
             fullContentText: article.contentText,

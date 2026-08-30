@@ -137,6 +137,53 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(protectedState.state.rssPanelWidth, 420);
   });
 
+  await t.test('旧标签页不会覆盖视频资料与学习记录', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    currentState.version = 18;
+    currentState.state.videoResources = [{
+      id: 'protected-video',
+      youtubeVideoId: 'dQw4w9WgXcQ',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      title: '受保护视频',
+      channelTitle: '测试频道',
+      durationSeconds: 60,
+      captions: { originalLanguage: 'en', originalLanguageLabel: 'English', original: [], chinese: [] },
+      createdAt: 1,
+      updatedAt: 1,
+    }];
+    currentState.state.videoTimestampNotes = [{
+      id: 'protected-video-note',
+      videoId: 'protected-video',
+      timeSeconds: 12,
+      content: '受保护笔记',
+      createdAt: 1,
+      updatedAt: 1,
+    }];
+    currentState.state.videoPanelWidth = 440;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+
+    const staleState = structuredClone(currentState);
+    staleState.version = 17;
+    staleState.state.videoResources = [];
+    staleState.state.videoTimestampNotes = [];
+    delete staleState.state.videoPanelWidth;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleState),
+    });
+
+    const protectedState = await (await app.request('/api/state')).json();
+    assert.equal(protectedState.version, 18);
+    assert.equal(protectedState.state.videoResources[0].title, '受保护视频');
+    assert.equal(protectedState.state.videoTimestampNotes[0].content, '受保护笔记');
+    assert.equal(protectedState.state.videoPanelWidth, 440);
+  });
+
   await t.test('服务端定时刷新持久化历史内容并防止旧快照覆盖新条目', async () => {
     const stateBeforeRefresh = await (await app.request('/api/state')).json();
     stateBeforeRefresh.version = 16;
@@ -182,7 +229,9 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
           contentText: '新正文',
         }],
       }),
-      fetchArticle: async (url) => ({
+      fetchArticle: async (url, options) => {
+        assert.equal(options.readerConfig.apiKey, 'test-search-key');
+        return {
         title: '新内容',
         byline: '测试作者',
         excerpt: '完整原文摘要',
@@ -190,7 +239,8 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
         contentText: '完整原文\n服务端补抓的正文',
         url,
         fetchedAt: 101,
-      }),
+        };
+      },
       logger: { warn() {} },
     });
     assert.equal(result.status, 'refreshed');
@@ -226,6 +276,27 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify({ format: 'unknown', version: 1, openAIConfigs: [] }),
     });
     assert.equal(importResponse.status, 400);
+  });
+
+  await t.test('通过服务端导入 YouTube 视频元数据与字幕', async () => {
+    const videoApp = createApp({
+      serveFrontend: false,
+      youtubeVideoFetcher: async (url) => ({
+        youtubeVideoId: 'dQw4w9WgXcQ',
+        url,
+        title: '测试视频',
+        channelTitle: '测试频道',
+        durationSeconds: 120,
+        captions: { originalLanguage: 'en', originalLanguageLabel: 'English', original: [], chinese: [] },
+      }),
+    });
+    const response = await videoApp.request('/api/videos/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).title, '测试视频');
   });
 
   await t.test('解析并通过服务端获取 RSS 与 Atom 订阅源', async () => {
@@ -270,10 +341,13 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(atom.items[0].title, 'Atom 内容');
     assert.equal(atom.items[0].contentText, 'Atom 摘要');
 
+    let articleReaderConfig;
     const rssApp = createApp({
       serveFrontend: false,
       rssFetcher: async (url) => ({ ...parsed, feedUrl: url }),
-      rssArticleFetcher: async (url) => ({
+      rssArticleFetcher: async (url, options) => {
+        articleReaderConfig = options.readerConfig;
+        return {
         title: '第一篇文章',
         byline: '测试作者',
         excerpt: '原文摘要',
@@ -281,7 +355,8 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
         contentText: '原文标题\n完整正文',
         url,
         fetchedAt: 101,
-      }),
+        };
+      },
     });
     const response = await rssApp.request('/api/rss/fetch', {
       method: 'POST',
@@ -298,6 +373,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     });
     assert.equal(articleResponse.status, 200);
     assert.equal((await articleResponse.json()).contentText, '原文标题\n完整正文');
+    assert.equal(articleReaderConfig.apiKey, 'test-search-key');
   });
 
   await t.test('AI 任务在服务端运行并持久化对话', async () => {
@@ -482,12 +558,74 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(rssState.state.rssItems[0].aiSummary, '服务端回答');
     assert.equal(rssState.state.rssItems[0].aiSummaryVersion, 2);
 
+    const translationJobResponse = await aiApp.request('/api/ai/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        configId: 'provider-1',
+        model: 'test-model',
+        bookId: 'rss:rss-item-1',
+        resourceType: 'rss',
+        rssItemId: 'rss-item-1',
+        purpose: 'translation',
+        conversationId: 'rss-translation:rss-item-1',
+        userMessage: {
+          id: 'rss-translation-message-1',
+          content: '请翻译当前内容',
+          createdAt: 210,
+        },
+        session: { title: 'RSS 页面翻译', createdAt: 210 },
+        currentText: '',
+      }),
+    });
+    assert.equal(translationJobResponse.status, 202);
+    const translationJob = await translationJobResponse.json();
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const response = await aiApp.request(`/api/ai/jobs/${translationJob.id}`);
+      if ((await response.json()).status === 'completed') break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    const translatedState = await (await aiApp.request('/api/state')).json();
+    assert.equal(translatedState.state.rssItems[0].aiTranslation, '服务端回答');
+
+    translatedState.state.rssDigestSettings = {
+      enabled: true,
+      provider: 'api:provider-1',
+      model: 'test-model',
+      prompt: '整理测试日报',
+      scheduleMode: 'every-4-hours',
+      times: [],
+    };
+    await aiApp.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(translatedState),
+    });
+    const digestResponse = await aiApp.request('/api/rss/digests/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: '1970-01-01', force: true }),
+    });
+    assert.equal(digestResponse.status, 202);
+    const digestJob = (await digestResponse.json()).job;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const response = await aiApp.request(`/api/ai/jobs/${digestJob.id}`);
+      if ((await response.json()).status === 'completed') break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    const digestState = await (await aiApp.request('/api/state')).json();
+    assert.equal(digestState.state.rssDailyDigests[0].date, '1970-01-01');
+    assert.equal(digestState.state.rssDailyDigests[0].content, '服务端回答');
+    assert.deepEqual(digestState.state.rssDailyDigests[0].sourceItemIds, ['rss-item-1']);
+
     const staleRssState = structuredClone(rssState);
     staleRssState.state.chatSessions = staleRssState.state.chatSessions
       .filter((session) => session.id !== 'rss-summary:rss-item-1');
     staleRssState.state.chats = staleRssState.state.chats
       .filter((message) => message.conversationId !== 'rss-summary:rss-item-1');
     delete staleRssState.state.rssItems[0].aiSummary;
+    delete staleRssState.state.rssItems[0].aiTranslation;
+    delete staleRssState.state.rssDailyDigests;
     await aiApp.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -496,6 +634,8 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const protectedRssState = await (await aiApp.request('/api/state')).json();
     assert.equal(protectedRssState.state.rssItems[0].aiSummary, '服务端回答');
     assert.equal(protectedRssState.state.rssItems[0].aiSummaryVersion, 2);
+    assert.equal(protectedRssState.state.rssItems[0].aiTranslation, '服务端回答');
+    assert.equal(protectedRssState.state.rssDailyDigests[0].content, '服务端回答');
     assert.ok(protectedRssState.state.chatSessions.some((session) => session.id === 'rss-summary:rss-item-1'));
   });
 

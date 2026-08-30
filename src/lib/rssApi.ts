@@ -1,4 +1,5 @@
 import type { RssItem } from '../types';
+import type { AiJob } from './aiJobs';
 import { serverRequest } from './serverApi';
 
 export interface FetchedRssItem {
@@ -48,6 +49,15 @@ export async function fetchRssArticle(url: string) {
     body: JSON.stringify({ url }),
   });
   return response.json() as Promise<FetchedRssArticle>;
+}
+
+export async function generateRssDigest(date?: string, force = true) {
+  const response = await serverRequest('/api/rss/digests/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date, force }),
+  });
+  return response.json() as Promise<{ job?: AiJob; skipped?: boolean }>;
 }
 
 export function fetchedItemsForFeed(feedId: string, result: FetchedRssFeed): RssItem[] {

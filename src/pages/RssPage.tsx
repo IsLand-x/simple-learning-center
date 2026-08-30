@@ -57,15 +57,19 @@ import {
   IconGlobeStroked,
   IconImport,
   IconInbox,
+  IconLanguage,
   IconMailStroked,
   IconMinus,
   IconMore,
   IconPlus,
   IconRefresh,
   IconSearch,
+  IconSetting,
   IconVideo,
 } from '@douyinfe/semi-icons';
 import { RssAiPanel } from '../components/RssAiPanel';
+import { CspSafeMarkdown } from '../components/CspSafeChatContent';
+import { RssDigestSettingsSheet } from '../components/RssDigestSettingsSheet';
 import { ActivityRailButton } from '../components/ActivityRailButton';
 import { ReaderSelectionOverlays } from '../components/ReaderSelectionOverlays';
 import { ReaderStylePanel } from '../components/ReaderToolbar';
@@ -77,19 +81,20 @@ import {
 import { confirmDialog } from '../lib/confirmDialog';
 import { clamp, formatRelativeTime } from '../lib/format';
 import { listAiJobs, startAiJob, watchAiJob, getAiJob, type AiJob } from '../lib/aiJobs';
-import { fetchRssArticle, fetchRssFeed, fetchedItemsForFeed, type FetchedRssFeed } from '../lib/rssApi';
+import { fetchRssArticle, fetchRssFeed, fetchedItemsForFeed, generateRssDigest, type FetchedRssFeed } from '../lib/rssApi';
 import { extractRssContentHeadings, findRssSearchMatches, sanitizeRssContentHtml, type RssContentHeading } from '../lib/rssContent';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import { getReaderTextureStyle, getReaderThemeName, resolveReaderStyle } from '../lib/readerThemes';
 import { refreshServerState, waitForServerStateWrites } from '../lib/serverStateStorage';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
-import type { ReaderHighlightTarget, ReaderSelection, RssAnnotation, RssFeed, RssFeedType, RssFolder, RssItem } from '../types';
+import type { ReaderHighlightTarget, ReaderSelection, RssAnnotation, RssDailyDigest, RssFeed, RssFeedType, RssFolder, RssItem } from '../types';
 
 const { Text, Title } = Typography;
 type TimeRange = 'today' | 'seven-days' | 'all';
 type RssSidePanel = 'ai' | 'timeline' | 'comments' | null;
 type SummaryStatus = 'idle' | 'unavailable' | 'generating' | 'ready' | 'error';
+type TranslationStatus = 'idle' | 'unavailable' | 'generating' | 'ready' | 'error';
 
 interface RssReaderSelection extends ReaderSelection {
   startOffset: number;
@@ -99,6 +104,7 @@ interface RssReaderSelection extends ReaderSelection {
 }
 
 const summaryStartPromises = new Map<string, Promise<AiJob>>();
+const translationStartPromises = new Map<string, Promise<AiJob>>();
 const rssModalBodyStyle = { paddingBottom: 24 };
 const rssImageViewerBodyStyle = { padding: 0 };
 const RSS_FOLDER_DRAG_TYPE = 'rss-folder';
@@ -109,7 +115,7 @@ const RSS_FOLDER_DRAG_PREFIX = 'rss-folder:';
 const RSS_FEED_DRAG_PREFIX = 'rss-feed:';
 const RSS_FOLDER_FEEDS_PREFIX = 'rss-feeds:folder:';
 const RSS_AUTO_ARTICLE_FETCH_LIMIT = 6;
-const RSS_SMART_SOURCE_IDS = new Set(['all', 'unread', 'bookmarked']);
+const RSS_SMART_SOURCE_IDS = new Set(['daily', 'all', 'unread', 'bookmarked']);
 const feedTypeLabels: Record<RssFeedType, string> = {
   article: '文章',
   video: '视频',
@@ -180,6 +186,22 @@ function startOfToday() {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
   return date.getTime();
+}
+
+function localDateKey(timestamp = Date.now()) {
+  return new Date(timestamp).toLocaleDateString('en-CA');
+}
+
+function digestDateLabel(date: string) {
+  const timestamp = new Date(`${date}T00:00:00`).getTime();
+  if (!Number.isFinite(timestamp)) return date;
+  if (date === localDateKey()) return '今天';
+  return new Intl.DateTimeFormat('zh-CN', {
+    year: new Date(timestamp).getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'short',
+  }).format(timestamp);
 }
 
 function itemTime(timestamp: number) {
@@ -288,6 +310,79 @@ function TimelinePanel({ items, feeds, query }: { items: RssItem[]; feeds: RssFe
         )) : <Empty title="这个时间范围没有内容" />}
       </div>
     </div>
+  );
+}
+
+function RssDigestArticle({
+  date,
+  digest,
+  feeds,
+  items,
+  generating,
+  error,
+  style,
+  onGenerate,
+}: {
+  date: string;
+  digest?: RssDailyDigest;
+  feeds: RssFeed[];
+  items: RssItem[];
+  generating: boolean;
+  error: string;
+  style: CSSProperties;
+  onGenerate: () => void;
+}) {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const feedById = new Map(feeds.map((feed) => [feed.id, feed]));
+  const sources = (digest?.sourceItemIds ?? []).flatMap((itemId) => {
+    const item = itemById.get(itemId);
+    if (!item) return [];
+    return [{ item, feed: feedById.get(item.feedId) }];
+  });
+  return (
+    <article className="rss-article rss-digest-article" style={style}>
+      <div className="rss-article__inner rss-digest-article__inner">
+        <Text size="small" type="secondary">AI 整理 · {digest?.itemCount ?? 0} 条内容</Text>
+        <Title className="rss-article__title" heading={3}>{digestDateLabel(date)} RSS 日报</Title>
+        <Text size="small" type="tertiary">
+          {date === localDateKey() ? '[正在产出中] 今天的内容会随定时任务持续更新' : '已归档日报'}
+          {digest?.updatedAt && <> · 更新于 {itemDateTime(digest.updatedAt)}</>}
+        </Text>
+        {generating && (
+          <div className="rss-digest-status" aria-live="polite">
+            <Spin size="small" />
+            <Text size="small" type="tertiary">正在读取未读内容、合并来源并去重…</Text>
+          </div>
+        )}
+        {error && <div className="rss-digest-status"><Text size="small" type="danger">{error}</Text></div>}
+        {digest?.content ? (
+          <CspSafeMarkdown className="rss-digest-markdown" content={digest.content} />
+        ) : !generating ? (
+          <Empty
+            title="这一天还没有日报"
+            description="生成后会在这里显示按主题去重的摘要与来源"
+          >
+            <Button icon={<IconAIStrokedLevel1 />} theme="solid" type="primary" onClick={onGenerate}>立即生成</Button>
+          </Empty>
+        ) : null}
+        {sources.length > 0 && (
+          <section className="rss-digest-sources" aria-label="日报来源">
+            <div className="rss-digest-sources__heading">
+              <IconInbox />
+              <Text strong>来源</Text>
+            </div>
+            <div className="rss-digest-sources__list">
+              {sources.map(({ item, feed }) => (
+                <a href={item.link} key={item.id} rel="noreferrer" target="_blank">
+                  <span>{item.title}</span>
+                  <small>{feed?.title ?? '未知订阅源'} · {itemTime(item.publishedAt)}</small>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -489,6 +584,8 @@ export function RssPage() {
   const feeds = useLearningStore((state) => state.rssFeeds);
   const items = useLearningStore((state) => state.rssItems);
   const annotations = useLearningStore((state) => state.rssAnnotations);
+  const dailyDigests = useLearningStore((state) => state.rssDailyDigests);
+  const digestSettings = useLearningStore((state) => state.rssDigestSettings);
   const configs = useLearningStore((state) => state.openAIConfigs);
   const aiPreferences = useLearningStore((state) => state.aiPreferences);
   const readerPreferences = useLearningStore((state) => state.readerPreferences);
@@ -505,6 +602,7 @@ export function RssPage() {
   const addRssAnnotation = useLearningStore((state) => state.addRssAnnotation);
   const updateRssAnnotation = useLearningStore((state) => state.updateRssAnnotation);
   const deleteRssAnnotation = useLearningStore((state) => state.deleteRssAnnotation);
+  const setRssDigestSettings = useLearningStore((state) => state.setRssDigestSettings);
   const markRssItemsRead = useLearningStore((state) => state.markRssItemsRead);
   const markRssItemsUnread = useLearningStore((state) => state.markRssItemsUnread);
   const rssPanelWidth = useLearningStore((state) => state.rssPanelWidth);
@@ -528,6 +626,12 @@ export function RssPage() {
   const [fetchingArticleIds, setFetchingArticleIds] = useState<Set<string>>(new Set());
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>('idle');
   const [summaryError, setSummaryError] = useState('');
+  const [translationStatus, setTranslationStatus] = useState<TranslationStatus>('idle');
+  const [translationError, setTranslationError] = useState('');
+  const [translationVisible, setTranslationVisible] = useState(false);
+  const [digestSettingsVisible, setDigestSettingsVisible] = useState(false);
+  const [digestGenerating, setDigestGenerating] = useState(false);
+  const [digestError, setDigestError] = useState('');
   const [sourceMenu, setSourceMenu] = useState<{ feed: RssFeed; x: number; y: number } | null>(null);
   const [itemMenu, setItemMenu] = useState<{ item: RssItem; x: number; y: number } | null>(null);
   const [showScrolledTitle, setShowScrolledTitle] = useState(false);
@@ -597,6 +701,24 @@ export function RssPage() {
   }, [items]);
   const totalUnread = items.filter((item) => !item.readAt).length;
   const totalBookmarked = items.filter((item) => item.bookmarkedAt).length;
+  const todayKey = localDateKey();
+  const todayItems = items.filter((item) => localDateKey(item.publishedAt) === todayKey);
+  const digestList = useMemo(() => {
+    const sorted = [...dailyDigests].sort((left, right) => right.date.localeCompare(left.date));
+    return sorted.some((digest) => digest.date === todayKey)
+      ? sorted
+      : [{
+        id: `rss-digest:${todayKey}`,
+        date: todayKey,
+        content: '',
+        sourceItemIds: [],
+        sourceFeedIds: [],
+        itemCount: 0,
+        model: '',
+        generatedAt: Date.now(),
+        updatedAt: 0,
+      }, ...sorted];
+  }, [dailyDigests, todayKey]);
   const folderFeeds = useMemo(() => new Map(folders.map((folder) => [
     folder.id,
     feeds.filter((feed) => feed.folderId === folder.id),
@@ -640,10 +762,14 @@ export function RssPage() {
     query.trim() ? filteredItems.map((item) => [item.id, rssSearchPreview(item, query)]) : [],
   ), [filteredItems, query]);
   const requestedItem = items.find((item) => item.id === searchParams.get('item'));
-  const requestedItemMatchesSource = requestedItem && (
+  const requestedItemMatchesSource = selectedFeedId !== 'daily' && requestedItem && (
     RSS_SMART_SOURCE_IDS.has(selectedFeedId) || requestedItem.feedId === selectedFeedId
   );
   const selectedItem = requestedItemMatchesSource ? requestedItem : mobileLayout ? undefined : filteredItems[0];
+  const requestedDigest = digestList.find((digest) => digest.id === searchParams.get('digest'));
+  const selectedDigest = selectedFeedId === 'daily'
+    ? requestedDigest ?? (mobileLayout ? undefined : digestList[0])
+    : undefined;
   const selectedItemId = selectedItem?.id ?? null;
   const selectedItemIndex = selectedItem
     ? filteredItems.findIndex((item) => item.id === selectedItem.id)
@@ -654,9 +780,9 @@ export function RssPage() {
     : undefined;
   const selectedFeed = selectedItem ? feedById.get(selectedItem.feedId) : undefined;
   const requestedMobileView = searchParams.get('view');
-  const inferredMobileView: RssMobileView = selectedItem ? 'detail' : 'sources';
+  const inferredMobileView: RssMobileView = selectedItem || selectedDigest ? 'detail' : 'sources';
   const mobileView: RssMobileView = isRssMobileView(requestedMobileView)
-    ? requestedMobileView === 'detail' && !selectedItem ? 'items' : requestedMobileView
+    ? requestedMobileView === 'detail' && !selectedItem && !selectedDigest ? 'items' : requestedMobileView
     : inferredMobileView;
   const mobilePanel: RssMobilePanel = mobileStyleVisible
     ? 'style'
@@ -675,6 +801,7 @@ export function RssPage() {
       if (RSS_SMART_SOURCE_IDS.has(sourceId)) next.delete('feed');
       else next.set('feed', sourceId);
       next.delete('item');
+      next.delete('digest');
       return next;
     }, { replace: true });
   }, [setSearchParams]);
@@ -687,6 +814,7 @@ export function RssPage() {
         if (item) {
           next.set('feed', item.feedId);
           next.set('item', item.id);
+          next.delete('digest');
           return next;
         }
       }
@@ -696,11 +824,23 @@ export function RssPage() {
       return next;
     }, { replace: true });
   }, [feedById, items, selectedFeedId, setSearchParams]);
+  const setSelectedDigestId = useCallback((digestId: string | null) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('source', 'daily');
+      next.delete('feed');
+      next.delete('item');
+      if (digestId) next.set('digest', digestId);
+      else next.delete('digest');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const setTimeRange = useCallback((range: TimeRange) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('range', range);
       next.delete('item');
+      next.delete('digest');
       if (feedById.has(selectedFeedId)) next.set('feed', selectedFeedId);
       else next.delete('feed');
       return next;
@@ -742,16 +882,22 @@ export function RssPage() {
     const next = new URLSearchParams(searchParams);
     next.set('source', selectedFeedId);
     next.set('range', timeRange);
-    if (selectedItem && selectedItemId && (!mobileLayout || mobileView === 'detail')) {
+    if (selectedFeedId === 'daily' && selectedDigest && (!mobileLayout || mobileView === 'detail')) {
+      next.delete('feed');
+      next.delete('item');
+      next.set('digest', selectedDigest.id);
+    } else if (selectedItem && selectedItemId && (!mobileLayout || mobileView === 'detail')) {
       next.set('feed', selectedItem.feedId);
       next.set('item', selectedItemId);
+      next.delete('digest');
     } else {
       next.delete('item');
+      next.delete('digest');
       if (feedById.has(selectedFeedId)) next.set('feed', selectedFeedId);
       else next.delete('feed');
     }
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
-  }, [feedById, mobileLayout, mobileView, searchParams, selectedFeedId, selectedItem, selectedItemId, setSearchParams, timeRange]);
+  }, [feedById, mobileLayout, mobileView, searchParams, selectedDigest, selectedFeedId, selectedItem, selectedItemId, setSearchParams, timeRange]);
 
   useEffect(() => {
     setShowScrolledTitle(false);
@@ -763,6 +909,9 @@ export function RssPage() {
     setCommentingAnnotationId(null);
     setCommentDraft('');
     setAiQuote(undefined);
+    setTranslationVisible(false);
+    setTranslationStatus(selectedItem?.aiTranslation ? 'ready' : 'idle');
+    setTranslationError('');
   }, [selectedItem?.id]);
 
   useLayoutEffect(() => {
@@ -918,6 +1067,9 @@ export function RssPage() {
         aiSummary: undefined,
         aiSummaryUpdatedAt: undefined,
         aiSummaryVersion: undefined,
+        aiTranslation: undefined,
+        aiTranslationUpdatedAt: undefined,
+        aiTranslationSourceFetchedAt: undefined,
       });
       Toast.success(item.fullContentFetchedAt ? '原文已重新抓取' : '原文已抓取');
       return true;
@@ -1052,6 +1204,139 @@ export function RssPage() {
     };
   }, [aiPreferences.model, aiPreferences.provider, configs, selectedItem, updateRssItem]);
 
+  const translateCurrentPage = useCallback(async () => {
+    if (!selectedItem) return;
+    if (selectedItem.aiTranslation) {
+      setTranslationStatus('ready');
+      setTranslationVisible((current) => !current);
+      return;
+    }
+    const provider = aiPreferences.provider;
+    const config = provider ? configs.find((item) => provider === `api:${item.id}`) : configs[0];
+    const model = config?.models.includes(aiPreferences.model) ? aiPreferences.model : config?.models[0];
+    if (!config || !model) {
+      setTranslationStatus('unavailable');
+      setTranslationError('请先在设置页添加并选择模型');
+      Toast.warning('请先在设置页添加并选择模型');
+      return;
+    }
+    const resourceId = `rss:${selectedItem.id}`;
+    const conversationId = `rss-translation-v1:${selectedItem.id}`;
+    setTranslationStatus('generating');
+    setTranslationError('');
+    setTranslationVisible(true);
+    const applyTranslationJob = (job: AiJob) => {
+      if (job.status === 'queued' || job.status === 'running') {
+        setTranslationStatus('generating');
+        return;
+      }
+      translationStartPromises.delete(selectedItem.id);
+      if (job.status === 'completed') {
+        updateRssItem(selectedItem.id, {
+          aiTranslation: job.content,
+          aiTranslationUpdatedAt: Date.now(),
+          aiTranslationSourceFetchedAt: Number(selectedItem.fullContentFetchedAt || selectedItem.fetchedAt || 0),
+        });
+        setTranslationStatus('ready');
+        setTranslationError('');
+      } else if (job.status === 'failed') {
+        setTranslationStatus('error');
+        setTranslationError(job.error || '页面翻译失败');
+      }
+    };
+    try {
+      const existing = (await listAiJobs(resourceId, conversationId)).find((job) => (
+        job.status === 'queued' || job.status === 'running' || job.status === 'completed'
+      ));
+      let job = existing;
+      if (!job) {
+        let pending = translationStartPromises.get(selectedItem.id);
+        if (!pending) {
+          pending = (async () => {
+            await waitForServerStateWrites();
+            const createdAt = Date.now();
+            return startAiJob({
+              configId: config.id,
+              model,
+              bookId: resourceId,
+              resourceType: 'rss',
+              rssItemId: selectedItem.id,
+              purpose: 'translation',
+              conversationId,
+              userMessage: {
+                id: createUuid(),
+                content: '请读取当前 RSS 正文并完整翻译成简体中文。保留标题、段落、列表、小标题、链接文字和引用关系，使用清晰的 Markdown 输出；不要总结、删减、补写或解释。原文已经是中文时，忠实整理为可读的简体中文。',
+                createdAt,
+              },
+              session: { title: `页面翻译：${selectedItem.title}`.slice(0, 100), createdAt },
+              currentText: '',
+            });
+          })();
+          translationStartPromises.set(selectedItem.id, pending);
+        }
+        job = await pending;
+      }
+      applyTranslationJob(job);
+      if (job.status === 'queued' || job.status === 'running') {
+        const controller = new AbortController();
+        try {
+          await watchAiJob(job.id, applyTranslationJob, controller.signal);
+        } catch {
+          let latest = job;
+          while (latest.status === 'queued' || latest.status === 'running') {
+            await new Promise((resolve) => window.setTimeout(resolve, 350));
+            latest = await getAiJob(job.id);
+            applyTranslationJob(latest);
+          }
+        }
+      }
+    } catch (error) {
+      translationStartPromises.delete(selectedItem.id);
+      const message = error instanceof Error ? error.message : '页面翻译失败';
+      setTranslationStatus('error');
+      setTranslationError(message);
+      Toast.error(message);
+    }
+  }, [aiPreferences.model, aiPreferences.provider, configs, selectedItem, updateRssItem]);
+
+  const runDigest = useCallback(async (date = selectedDigest?.date ?? todayKey) => {
+    setDigestGenerating(true);
+    setDigestError('');
+    try {
+      await waitForServerStateWrites();
+      const result = await generateRssDigest(date, true);
+      if (!result.job) {
+        await refreshServerState();
+        return;
+      }
+      const applyDigestJob = async (job: AiJob) => {
+        if (job.status === 'queued' || job.status === 'running') return;
+        if (job.status === 'completed') {
+          await refreshServerState();
+          Toast.success('日报已更新');
+        } else if (job.status === 'failed') {
+          setDigestError(job.error || '日报生成失败');
+        }
+        setDigestGenerating(false);
+      };
+      try {
+        await watchAiJob(result.job.id, (job) => void applyDigestJob(job), new AbortController().signal);
+      } catch {
+        let latest = result.job;
+        while (latest.status === 'queued' || latest.status === 'running') {
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+          latest = await getAiJob(latest.id);
+        }
+        await applyDigestJob(latest);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '日报生成失败';
+      setDigestGenerating(false);
+      setDigestError(message);
+      Toast.error(message);
+    }
+  }, [selectedDigest?.date, todayKey]);
+
   const addSubscription = async (event: FormEvent) => {
     event.preventDefault();
     const url = feedUrl.trim();
@@ -1185,6 +1470,7 @@ export function RssPage() {
 
   const selectSource = (sourceId: string) => {
     if (!mobileLayout) {
+      if (sourceId === 'daily') setActivePanel(null);
       setSelectedFeedId(sourceId);
       return;
     }
@@ -1195,10 +1481,27 @@ export function RssPage() {
       next.set('source', sourceId);
       next.set('view', 'items');
       next.delete('item');
+      next.delete('digest');
       if (RSS_SMART_SOURCE_IDS.has(sourceId)) next.delete('feed');
       else next.set('feed', sourceId);
       return next;
     }, { replace: false });
+  };
+
+  const openDigest = (digest: RssDailyDigest) => {
+    if (mobileLayout) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set('source', 'daily');
+        next.set('digest', digest.id);
+        next.set('view', 'detail');
+        next.delete('feed');
+        next.delete('item');
+        return next;
+      }, { replace: false });
+      return;
+    }
+    setSelectedDigestId(digest.id);
   };
 
   const openItem = (item: RssItem) => {
@@ -1224,6 +1527,7 @@ export function RssPage() {
       const next = new URLSearchParams(current);
       next.set('view', 'sources');
       next.delete('item');
+      next.delete('digest');
       return next;
     }, { replace: true });
   };
@@ -1235,6 +1539,7 @@ export function RssPage() {
       const next = new URLSearchParams(current);
       next.set('view', 'items');
       next.delete('item');
+      next.delete('digest');
       return next;
     }, { replace: true });
   };
@@ -1501,8 +1806,10 @@ export function RssPage() {
     provided.announce(`已将订阅源“${feed.title}”放到“${destinationName}”的第 ${destination.index + 1} 位。`);
   };
 
-  const selectedSourceTitle = selectedFeedId === 'all'
-    ? '全部订阅'
+  const selectedSourceTitle = selectedFeedId === 'daily'
+    ? '日报'
+    : selectedFeedId === 'all'
+      ? '全部订阅'
     : selectedFeedId === 'unread'
       ? '未读内容'
       : selectedFeedId === 'bookmarked'
@@ -1572,6 +1879,11 @@ export function RssPage() {
     >
       <div className="rss-source-list">
         <div className="rss-smart-sources">
+          <button className={`rss-source-row rss-source-row--smart${selectedFeedId === 'daily' ? ' rss-source-row--active' : ''}`} type="button" onClick={() => selectSource('daily')}>
+            <span className="rss-source-row__icon"><IconCalendarClock /></span>
+            <span className="rss-source-row__name">日报</span>
+            <span className="rss-source-count">{dailyDigests.length}</span>
+          </button>
           <button className={`rss-source-row rss-source-row--smart${selectedFeedId === 'unread' ? ' rss-source-row--active' : ''}`} type="button" onClick={() => selectSource('unread')}>
             <span className="rss-source-row__icon"><IconMailStroked /></span>
             <span className="rss-source-row__name">未读</span>
@@ -1678,7 +1990,30 @@ export function RssPage() {
     </DragDropContext>
   );
 
-  const itemsContent = (
+  const itemsContent = selectedFeedId === 'daily' ? (
+    <div className="rss-item-list rss-digest-list">
+      {digestList.map((digest) => {
+        const isToday = digest.date === todayKey;
+        return (
+          <button
+            className={`rss-item-row rss-digest-row${selectedDigest?.id === digest.id ? ' rss-item-row--active' : ''}`}
+            key={digest.id}
+            type="button"
+            onClick={() => openDigest(digest)}
+          >
+            <span className="rss-item-row__title">{isToday ? '[正在产出中] ' : ''}{digestDateLabel(digest.date)}日报</span>
+            <span className="rss-item-row__excerpt">
+              {digest.content ? digest.content.replace(/[#*_>`\[\]()]/g, '').replace(/\s+/g, ' ').slice(0, 92) : isToday && todayItems.length ? '等待 AI 整理今天的未读内容' : '这一天还没有可展示的日报'}
+            </span>
+            <span className="rss-item-row__meta">
+              <span>{digest.itemCount} 条内容 · {digest.sourceFeedIds.length} 个来源</span>
+              {digest.updatedAt > 0 && <time>{itemTime(digest.updatedAt)}</time>}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  ) : (
     <>
       <div className="rss-time-filter">
         <ButtonGroup aria-label="时间范围">
@@ -1720,7 +2055,18 @@ export function RssPage() {
     </>
   );
 
-  const articleContent = selectedItem ? (
+  const articleContent = selectedDigest ? (
+    <RssDigestArticle
+      date={selectedDigest.date}
+      digest={selectedDigest.content ? selectedDigest : undefined}
+      error={digestError}
+      feeds={feeds}
+      generating={digestGenerating}
+      items={items}
+      style={articleStyle}
+      onGenerate={() => void runDigest(selectedDigest.date)}
+    />
+  ) : selectedItem ? (
     <article
       ref={articleRef}
       className="rss-article"
@@ -1740,7 +2086,7 @@ export function RssPage() {
         <Text size="small" type="tertiary">
           {itemDateTime(selectedItem.publishedAt)}
           {selectedItem.author && <> · <HighlightedText text={selectedItem.author} query={query} /></>}
-          {selectedItem.fullContentFetchedAt && <> · 已抓取原文</>}
+          {selectedItem.fullContentFetchedAt && <> · 已读取原文</>}
         </Text>
         <section className="rss-ai-summary" aria-live="polite">
           <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 摘要</Text></div>
@@ -1754,7 +2100,19 @@ export function RssPage() {
             <Text size="small" type="danger">{summaryError}</Text>
           ) : null}
         </section>
-        {sanitizedContentHtml ? (
+        {translationVisible && translationStatus === 'generating' ? (
+          <div className="rss-translation-status" aria-live="polite">
+            <Spin size="small" />
+            <Text type="tertiary">正在翻译当前页面…</Text>
+          </div>
+        ) : translationVisible && selectedItem.aiTranslation ? (
+          <section className="rss-translation" aria-label="当前页面中文翻译">
+            <div className="rss-translation__heading"><IconLanguage /><Text strong>中文翻译</Text></div>
+            <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation} />
+          </section>
+        ) : translationVisible && translationStatus === 'error' ? (
+          <div className="rss-translation-status"><Text type="danger">{translationError}</Text></div>
+        ) : sanitizedContentHtml ? (
           <div
             ref={articleBodyRef}
             className="rss-article__body rss-article__body--rich"
@@ -1776,15 +2134,46 @@ export function RssPage() {
           bookmarked={Boolean(selectedItem?.bookmarkedAt)}
           canFetchArticle={Boolean(selectedItem?.link)}
           detailContent={articleContent}
-          detailStatus={selectedItem
-            ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}`
-            : '未选择内容'}
-          detailTitle={selectedItem?.title}
+          detailActions={selectedDigest ? (
+            <>
+              <Button aria-label="重新生成这份日报" icon={<IconRefresh />} loading={digestGenerating} theme="borderless" type="tertiary" onClick={() => void runDigest(selectedDigest.date)} />
+              <Button aria-label="打开日报设置" icon={<IconSetting />} theme="borderless" type="tertiary" onClick={() => setDigestSettingsVisible(true)} />
+            </>
+          ) : selectedItem ? (
+            <>
+              <Button
+                aria-label={selectedItem.bookmarkedAt ? '取消收藏' : '收藏'}
+                aria-pressed={Boolean(selectedItem.bookmarkedAt)}
+                className={selectedItem.bookmarkedAt ? 'rss-bookmark-button--active' : ''}
+                icon={<IconBookmark className={selectedItem.bookmarkedAt ? 'rss-bookmark-icon--filled' : 'rss-bookmark-icon--empty'} />}
+                theme="borderless"
+                type="tertiary"
+                onClick={() => updateRssItem(selectedItem.id, { bookmarkedAt: selectedItem.bookmarkedAt ? undefined : Date.now() })}
+              />
+              <Button aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'} disabled={!selectedItem.link} icon={<IconGlobeStroked />} loading={fetchingArticleIds.has(selectedItem.id)} theme="borderless" type="tertiary" onClick={() => void fetchArticleContent(selectedItem)} />
+              <Button aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
+              {selectedItem.link && <Button aria-label="打开原文" icon={<IconExternalOpen />} theme="borderless" type="tertiary" onClick={() => window.open(selectedItem.link, '_blank', 'noopener,noreferrer')} />}
+            </>
+          ) : undefined}
+          detailIsDigest={Boolean(selectedDigest)}
+          detailStatus={selectedDigest
+            ? `${selectedDigest.date === todayKey ? '[正在产出中] ' : ''}${selectedDigest.itemCount} 条内容`
+            : selectedItem
+              ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}`
+              : '未选择内容'}
+          detailTitle={selectedDigest ? `${digestDateLabel(selectedDigest.date)}日报` : selectedItem?.title}
           hasOriginalLink={Boolean(selectedItem?.link)}
           hasNextItem={Boolean(nextItem)}
           hasPreviousItem={Boolean(previousItem)}
-          itemCount={filteredItems.length}
+          itemCount={selectedFeedId === 'daily' ? digestList.length : filteredItems.length}
+          itemCountUnit={selectedFeedId === 'daily' ? '天' : '条内容'}
           itemsContent={itemsContent}
+          itemsActions={selectedFeedId === 'daily' ? (
+            <>
+              <Button aria-label="立即更新今天的日报" icon={<IconRefresh />} loading={digestGenerating} theme="borderless" type="tertiary" onClick={() => void runDigest(todayKey)} />
+              <Button aria-label="打开日报设置" icon={<IconSetting />} theme="borderless" type="tertiary" onClick={() => setDigestSettingsVisible(true)} />
+            </>
+          ) : undefined}
           panelContent={mobilePanel === 'style' ? (
             <aside className="right-panel mobile-style-panel rss-mobile-style-panel" aria-label="阅读样式">
               <div className="panel-titlebar">
@@ -1872,18 +2261,29 @@ export function RssPage() {
             <section className="rss-items-pane" aria-label="订阅内容列表">
               <div className="rss-panel-header">
                 <Text strong ellipsis={{ showTooltip: true }}>{selectedSourceTitle}</Text>
-                <Text size="small" type="tertiary">{filteredItems.length} 条</Text>
-                <Tooltip content={unreadVisibleItems.length ? `将当前列表中的 ${unreadVisibleItems.length} 条内容设为已读` : '当前列表没有未读内容'}>
-                  <Button
-                    aria-label="当前列表一键已读"
-                    disabled={!unreadVisibleItems.length}
-                    icon={<IconCheckList />}
-                    size="small"
-                    theme="borderless"
-                    type="tertiary"
-                    onClick={() => markRssItemsRead(unreadVisibleItems.map((item) => item.id))}
-                  />
-                </Tooltip>
+                <Text size="small" type="tertiary">{selectedFeedId === 'daily' ? `${digestList.length} 天` : `${filteredItems.length} 条`}</Text>
+                {selectedFeedId === 'daily' ? (
+                  <>
+                    <Tooltip content="立即更新今天的日报">
+                      <Button aria-label="立即更新今天的日报" icon={<IconRefresh />} loading={digestGenerating} size="small" theme="borderless" type="tertiary" onClick={() => void runDigest(todayKey)} />
+                    </Tooltip>
+                    <Tooltip content="日报设置">
+                      <Button aria-label="打开日报设置" icon={<IconSetting />} size="small" theme="borderless" type="tertiary" onClick={() => setDigestSettingsVisible(true)} />
+                    </Tooltip>
+                  </>
+                ) : (
+                  <Tooltip content={unreadVisibleItems.length ? `将当前列表中的 ${unreadVisibleItems.length} 条内容设为已读` : '当前列表没有未读内容'}>
+                    <Button
+                      aria-label="当前列表一键已读"
+                      disabled={!unreadVisibleItems.length}
+                      icon={<IconCheckList />}
+                      size="small"
+                      theme="borderless"
+                      type="tertiary"
+                      onClick={() => markRssItemsRead(unreadVisibleItems.map((item) => item.id))}
+                    />
+                  </Tooltip>
+                )}
               </div>
               {itemsContent}
             </section>
@@ -1904,17 +2304,21 @@ export function RssPage() {
                     <div className="rss-detail-toolbar">
                       <div className={`rss-detail-toolbar__context${showScrolledTitle ? ' rss-detail-toolbar__context--title-visible' : ''}`}>
                         <Text className="rss-detail-toolbar__status" size="small" type="tertiary">
-                          {selectedItem ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}` : '未选择内容'}
+                          {selectedDigest
+                            ? `${selectedDigest.date === todayKey ? '[正在产出中] ' : ''}${selectedDigest.itemCount} 条内容 · ${selectedDigest.sourceFeedIds.length} 个来源`
+                            : selectedItem ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}` : '未选择内容'}
                         </Text>
-                        {selectedItem && (
-                          <Text className="rss-detail-toolbar__title" ellipsis strong title={selectedItem.title}><HighlightedText text={selectedItem.title} query={query} /></Text>
+                        {(selectedItem || selectedDigest) && (
+                          <Text className="rss-detail-toolbar__title" ellipsis strong title={selectedItem?.title ?? `${digestDateLabel(selectedDigest!.date)}日报`}>
+                            {selectedItem ? <HighlightedText text={selectedItem.title} query={query} /> : `${digestDateLabel(selectedDigest!.date)}日报`}
+                          </Text>
                         )}
                       </div>
                       {selectedItem && (
                         <>
-                          <Tooltip content={selectedItem.fullContentFetchedAt ? '重新爬取原文' : '爬取原文'}>
+                          <Tooltip content={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}>
                             <Button
-                              aria-label={selectedItem.fullContentFetchedAt ? '重新爬取原文' : '爬取原文'}
+                              aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}
                               disabled={!selectedItem.link}
                               icon={<IconGlobeStroked />}
                               loading={fetchingArticleIds.has(selectedItem.id)}
@@ -1922,6 +2326,18 @@ export function RssPage() {
                               theme="borderless"
                               type="tertiary"
                               onClick={() => void fetchArticleContent(selectedItem)}
+                            />
+                          </Tooltip>
+                          <Tooltip content={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}>
+                            <Button
+                              aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}
+                              aria-pressed={translationVisible}
+                              icon={<IconLanguage />}
+                              loading={translationStatus === 'generating'}
+                              size="small"
+                              theme={translationVisible ? 'solid' : 'borderless'}
+                              type="tertiary"
+                              onClick={() => void translateCurrentPage()}
                             />
                           </Tooltip>
                           <Popover
@@ -1961,9 +2377,19 @@ export function RssPage() {
                           )}
                         </>
                       )}
+                      {selectedDigest && (
+                        <>
+                          <Tooltip content="重新生成这份日报">
+                            <Button aria-label="重新生成这份日报" icon={<IconRefresh />} loading={digestGenerating} size="small" theme="borderless" type="tertiary" onClick={() => void runDigest(selectedDigest.date)} />
+                          </Tooltip>
+                          <Tooltip content="日报设置">
+                            <Button aria-label="打开日报设置" icon={<IconSetting />} size="small" theme="borderless" type="tertiary" onClick={() => setDigestSettingsVisible(true)} />
+                          </Tooltip>
+                        </>
+                      )}
                     </div>
                     <div className="rss-article-workspace">
-                      <RssArticleToc activeHeadingId={activeHeadingId} headings={articleHeadings} onSelect={jumpToHeading} />
+                      <RssArticleToc activeHeadingId={activeHeadingId} headings={translationVisible ? [] : articleHeadings} onSelect={jumpToHeading} />
                       {articleContent}
                     </div>
                   </div>
@@ -1973,7 +2399,7 @@ export function RssPage() {
                 </Allotment.Pane>
               </Allotment>
 
-              <nav className="activity-bar" aria-label="RSS 辅助功能">
+              {selectedItem && <nav className="activity-bar" aria-label="RSS 辅助功能">
                 <ActivityRailButton
                   active={activePanel === 'ai'}
                   ariaLabel={activePanel === 'ai' ? '收起 AI 助手' : '打开 AI 助手'}
@@ -1998,7 +2424,7 @@ export function RssPage() {
                   tooltip={activePanel === 'comments' ? '收起评论' : '打开评论'}
                   onClick={() => setActivePanel((current) => current === 'comments' ? null : 'comments')}
                 />
-              </nav>
+              </nav>}
             </section>
           </Allotment.Pane>
             </Allotment>
@@ -2007,6 +2433,18 @@ export function RssPage() {
       )}
 
       <input ref={opmlInputRef} className="visually-hidden" type="file" accept=".opml,.xml,text/xml" onChange={(event) => void importOpml(event)} />
+
+      <RssDigestSettingsSheet
+        configs={configs}
+        settings={digestSettings}
+        visible={digestSettingsVisible}
+        onCancel={() => setDigestSettingsVisible(false)}
+        onSave={(settings) => {
+          setRssDigestSettings(settings);
+          setDigestSettingsVisible(false);
+          Toast.success(settings.enabled ? '日报定时任务已开启' : '日报设置已保存');
+        }}
+      />
 
       <Modal bodyStyle={rssModalBodyStyle} closable={false} title="添加订阅源" visible={addVisible} footer={null} onCancel={() => setAddVisible(false)}>
         <form className="rss-dialog-form" onSubmit={(event) => void addSubscription(event)}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Nav, Toast, Tooltip } from '@douyinfe/semi-ui';
-import { IconArticle, IconBook, IconChevronLeft, IconChevronRight, IconDownload, IconMoon, IconSettingStroked, IconSun } from '@douyinfe/semi-icons';
+import { IconArticle, IconBook, IconChevronLeft, IconChevronRight, IconDownload, IconMoon, IconSettingStroked, IconSun, IconVideo } from '@douyinfe/semi-icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { applyAppTheme } from '../lib/appTheme';
 import { useLearningStore } from '../store/useLearningStore';
@@ -25,7 +25,9 @@ export function AppSidebar() {
   ));
   const activeSection = location.pathname === '/settings'
     ? 'settings'
-    : location.pathname.startsWith('/rss') ? 'rss' : 'books';
+    : location.pathname.startsWith('/rss')
+      ? 'rss'
+      : location.pathname.startsWith('/videos') ? 'videos' : 'books';
   const readingBook = location.pathname.startsWith('/books/');
   const rssSearchParams = location.pathname.startsWith('/rss')
     ? new URLSearchParams(location.search)
@@ -34,6 +36,8 @@ export function AppSidebar() {
   const readingRssItem = Boolean(
     rssView === 'detail' || (!rssView && rssSearchParams?.has('item')),
   );
+  const readingVideo = location.pathname.startsWith('/videos')
+    && new URLSearchParams(location.search).has('video');
 
   useEffect(() => {
     applyAppTheme(themeMode);
@@ -139,7 +143,7 @@ export function AppSidebar() {
         isCollapsed={navCollapsed}
         onCollapseChange={setNavCollapsed}
         selectedKeys={[activeSection]}
-        onClick={({ itemKey }) => navigate(itemKey === 'settings' ? '/settings' : itemKey === 'rss' ? '/rss' : '/')}
+        onClick={({ itemKey }) => navigate(itemKey === 'settings' ? '/settings' : itemKey === 'rss' ? '/rss' : itemKey === 'videos' ? '/videos' : '/')}
         items={[
           {
             itemKey: 'books',
@@ -152,6 +156,12 @@ export function AppSidebar() {
             text: 'RSS',
             icon: <IconArticle />,
             onClick: () => navigate('/rss'),
+          },
+          {
+            itemKey: 'videos',
+            text: '视频',
+            icon: <IconVideo />,
+            onClick: () => navigate('/videos'),
           },
           {
             itemKey: 'settings',
@@ -171,7 +181,7 @@ export function AppSidebar() {
           ),
         }}
       />
-      {!readingBook && !readingRssItem && (
+      {!readingBook && !readingRssItem && !readingVideo && (
         <nav className="mobile-main-nav" aria-label="主导航">
           <Button
             aria-current={activeSection === 'books' ? 'page' : undefined}
@@ -194,6 +204,17 @@ export function AppSidebar() {
             onClick={() => navigate('/rss')}
           >
             RSS
+          </Button>
+          <Button
+            aria-current={activeSection === 'videos' ? 'page' : undefined}
+            aria-label="打开视频学习"
+            className={activeSection === 'videos' ? 'mobile-main-nav__button--active' : ''}
+            icon={<IconVideo />}
+            theme="borderless"
+            type="tertiary"
+            onClick={() => navigate('/videos')}
+          >
+            视频
           </Button>
           <Button
             aria-current={activeSection === 'settings' ? 'page' : undefined}

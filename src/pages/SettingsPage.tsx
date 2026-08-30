@@ -231,7 +231,7 @@ function WebSearchSettings() {
           <IconGlobeStroked size="large" />
           <div>
             <Text id="web-search-settings-title" strong>联网搜索</Text>
-            <Text size="small" type="tertiary">通过 Jina Search 和 Reader 为 Agent 提供网页检索与正文读取</Text>
+            <Text size="small" type="tertiary">通过 Jina Search 和 Reader 提供网页检索与动态网页正文读取</Text>
           </div>
         </div>
         <Text size="small" type="tertiary">编辑联网搜索配置</Text>
@@ -246,7 +246,7 @@ function WebSearchSettings() {
           autoComplete="off"
         />
         <Text size="small" type="tertiary">
-          配置保存在服务器数据目录。Agent 调用联网工具时，搜索词或目标网址会发送给 Jina AI。
+          配置保存在服务器数据目录。Agent 调用联网工具，或 RSS 静态抓取无法读取动态网页时，搜索词或目标网址会发送给 Jina AI。
         </Text>
       </label>
       <div className="web-search-settings__footer">
