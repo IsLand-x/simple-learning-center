@@ -336,14 +336,22 @@ export const useLearningStore = create<LearningState>()(
           const merged = items.map((item) => {
             const previous = existing.get(item.id);
             if (!previous) return item;
+            const hasNewFullContent = Number(item.fullContentFetchedAt || 0) > Number(previous.fullContentFetchedAt || 0);
             return {
               ...item,
               ...(previous.readAt ? { readAt: previous.readAt } : {}),
               ...(previous.bookmarkedAt ? { bookmarkedAt: previous.bookmarkedAt } : {}),
-              ...(previous.aiSummary ? {
+              ...(!hasNewFullContent && previous.aiSummary ? {
                 aiSummary: previous.aiSummary,
                 aiSummaryUpdatedAt: previous.aiSummaryUpdatedAt,
                 aiSummaryVersion: previous.aiSummaryVersion,
+              } : {}),
+              ...(Number(previous.fullContentFetchedAt || 0) > Number(item.fullContentFetchedAt || 0) ? {
+                fullContentHtml: previous.fullContentHtml,
+                fullContentText: previous.fullContentText,
+                fullContentUrl: previous.fullContentUrl,
+                fullContentFetchedAt: previous.fullContentFetchedAt,
+                fullContentError: previous.fullContentError,
               } : {}),
             };
           });
@@ -432,7 +440,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 16,
+      version: 17,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -618,6 +626,15 @@ export const useLearningStore = create<LearningState>()(
           migrated = {
             ...migrated,
             rssAnnotations: [],
+          };
+        }
+        if (version < 17) {
+          migrated = {
+            ...migrated,
+            rssFeeds: (migrated.rssFeeds ?? []).map((feed) => ({
+              ...feed,
+              fetchFullContent: Boolean(feed.fetchFullContent),
+            })),
           };
         }
         return migrated;

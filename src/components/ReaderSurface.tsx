@@ -15,7 +15,7 @@ import { IconComment } from '@douyinfe/semi-icons';
 import { Typography } from '@douyinfe/semi-ui';
 import { getDemoContent } from '../data/demo';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
-import { isReaderCenterTap, isTextSelectionHold } from '../lib/readerGestures';
+import { isTextSelectionHold } from '../lib/readerGestures';
 import { getReaderTextureStyle, resolveReaderStyle } from '../lib/readerThemes';
 import type { BookItem, HighlightItem, ReaderHighlightTarget, ReaderPreferences, ReaderSelection, ThemeMode, TocItem } from '../types';
 import { FoliateEpubReader } from './FoliateEpubReader';
@@ -540,13 +540,7 @@ function DemoReader({
       || isSwipeBlockedTarget(event.target)
       || hasActiveTextSelection(window.getSelection())
     ) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    if (isReaderCenterTap({
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-      width: rect.width,
-      height: rect.height,
-    })) onCenterTap();
+    onCenterTap();
   };
 
   const readerCssVariables = {

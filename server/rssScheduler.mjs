@@ -1,8 +1,17 @@
 import { RSS_REFRESH_INITIAL_DELAY_MS, RSS_REFRESH_INTERVAL_MS } from './config.mjs';
 import { fetchRssFeed } from './rss.mjs';
+import { fetchRssArticle } from './rssArticle.mjs';
 import { mutatePersistedState, readPersistedState } from './storage.mjs';
 
 const MIN_FEED_SPACING_MS = 15_000;
+const MAX_AUTO_ARTICLE_FETCHES_PER_CYCLE = 6;
+const FULL_CONTENT_FIELDS = [
+  'fullContentHtml',
+  'fullContentText',
+  'fullContentUrl',
+  'fullContentFetchedAt',
+  'fullContentError',
+];
 
 function rssState(persistedState) {
   return persistedState?.state && typeof persistedState.state === 'object'
@@ -19,6 +28,11 @@ function fetchedItemsForFeed(feedId, result) {
   }));
 }
 
+function copyFullContent(target, source) {
+  FULL_CONTENT_FIELDS.forEach((field) => copyOptionalField(target, source, field));
+  return target;
+}
+
 function mergeFetchedItems(existingItems, feedId, incomingItems) {
   const existing = new Map(
     existingItems.filter((item) => item.feedId === feedId).map((item) => [item.id, item]),
@@ -26,14 +40,22 @@ function mergeFetchedItems(existingItems, feedId, incomingItems) {
   const merged = incomingItems.map((item) => {
     const previous = existing.get(item.id);
     if (!previous) return item;
+    const hasNewFullContent = Number(item.fullContentFetchedAt || 0) > Number(previous.fullContentFetchedAt || 0);
     return {
       ...item,
       ...(previous.readAt ? { readAt: previous.readAt } : {}),
       ...(previous.bookmarkedAt ? { bookmarkedAt: previous.bookmarkedAt } : {}),
-      ...(previous.aiSummary ? {
+      ...(!hasNewFullContent && previous.aiSummary ? {
         aiSummary: previous.aiSummary,
         aiSummaryUpdatedAt: previous.aiSummaryUpdatedAt,
         aiSummaryVersion: previous.aiSummaryVersion,
+      } : {}),
+      ...(Number(previous.fullContentFetchedAt || 0) > Number(item.fullContentFetchedAt || 0) ? {
+        fullContentHtml: previous.fullContentHtml,
+        fullContentText: previous.fullContentText,
+        fullContentUrl: previous.fullContentUrl,
+        fullContentFetchedAt: previous.fullContentFetchedAt,
+        fullContentError: previous.fullContentError,
       } : {}),
     };
   });
@@ -60,9 +82,15 @@ function mergeConcurrentItem(incomingItem, currentItem) {
     : { ...currentItem, ...incomingItem };
   copyOptionalField(merged, incomingItem, 'readAt');
   copyOptionalField(merged, incomingItem, 'bookmarkedAt');
+  const incomingFullContentAt = Number(incomingItem.fullContentFetchedAt || 0);
+  const currentFullContentAt = Number(currentItem.fullContentFetchedAt || 0);
+  const fullContentSource = currentFullContentAt > incomingFullContentAt ? currentItem : incomingItem;
+  copyFullContent(merged, fullContentSource);
   const incomingSummaryAt = Number(incomingItem.aiSummaryUpdatedAt || 0);
   const currentSummaryAt = Number(currentItem.aiSummaryUpdatedAt || 0);
-  const summarySource = currentSummaryAt > incomingSummaryAt ? currentItem : incomingItem;
+  const summarySource = incomingFullContentAt === currentFullContentAt
+    ? currentSummaryAt > incomingSummaryAt ? currentItem : incomingItem
+    : fullContentSource;
   copyOptionalField(merged, summarySource, 'aiSummary');
   copyOptionalField(merged, summarySource, 'aiSummaryUpdatedAt');
   copyOptionalField(merged, summarySource, 'aiSummaryVersion');
@@ -121,6 +149,7 @@ export function protectServerRssState(incomingPersistedState, currentPersistedSt
 
 export async function refreshPersistedRssFeed(feedId, {
   fetchFeed = fetchRssFeed,
+  fetchArticle = fetchRssArticle,
   logger = console,
 } = {}) {
   const persistedState = await readPersistedState();
@@ -129,6 +158,32 @@ export async function refreshPersistedRssFeed(feedId, {
 
   try {
     const result = await fetchFeed(feed.url);
+    const existingItems = new Map(
+      (rssState(persistedState)?.rssItems ?? [])
+        .filter((item) => item.feedId === feedId)
+        .map((item) => [item.id, item]),
+    );
+    const fetchedItems = fetchedItemsForFeed(feedId, result);
+    if (feed.fetchFullContent) {
+      const candidates = fetchedItems
+        .filter((item) => item.link && !existingItems.get(item.id)?.fullContentFetchedAt)
+        .slice(0, MAX_AUTO_ARTICLE_FETCHES_PER_CYCLE);
+      for (const item of candidates) {
+        try {
+          const article = await fetchArticle(item.link);
+          Object.assign(item, {
+            fullContentHtml: article.contentHtml,
+            fullContentText: article.contentText,
+            fullContentUrl: article.url || item.link,
+            fullContentFetchedAt: article.fetchedAt,
+            fullContentError: undefined,
+          });
+        } catch (error) {
+          item.fullContentError = error instanceof Error ? error.message : '原文抓取失败';
+          logger.warn?.(`RSS 原文抓取失败（${item.title}）：${item.fullContentError}`);
+        }
+      }
+    }
     await mutatePersistedState((nextPersistedState) => {
       const state = rssState(nextPersistedState);
       const currentFeed = state?.rssFeeds?.find((item) => item.id === feedId);
@@ -144,7 +199,7 @@ export async function refreshPersistedRssFeed(feedId, {
       state.rssItems = mergeFetchedItems(
         Array.isArray(state.rssItems) ? state.rssItems : [],
         feedId,
-        fetchedItemsForFeed(feedId, result),
+        fetchedItems,
       );
     });
     return { status: 'refreshed', feedId, itemCount: result.items.length };
@@ -172,6 +227,7 @@ function shuffled(values, random) {
 
 export function createRssScheduler({
   fetchFeed = fetchRssFeed,
+  fetchArticle = fetchRssArticle,
   initialDelayMs = RSS_REFRESH_INITIAL_DELAY_MS,
   intervalMs = RSS_REFRESH_INTERVAL_MS,
   logger = console,
@@ -209,7 +265,7 @@ export function createRssScheduler({
     feeds.forEach((feed, index) => {
       const timer = setTimeout(() => {
         feedTimers.delete(timer);
-        if (active) void refreshPersistedRssFeed(feed.id, { fetchFeed, logger });
+        if (active) void refreshPersistedRssFeed(feed.id, { fetchFeed, fetchArticle, logger });
       }, index * spacing);
       timer.unref?.();
       feedTimers.add(timer);
@@ -229,6 +285,6 @@ export function createRssScheduler({
       clearTimers();
     },
     runCycle,
-    refreshFeed: (feedId) => refreshPersistedRssFeed(feedId, { fetchFeed, logger }),
+    refreshFeed: (feedId) => refreshPersistedRssFeed(feedId, { fetchFeed, fetchArticle, logger }),
   };
 }

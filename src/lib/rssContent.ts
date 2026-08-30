@@ -102,6 +102,24 @@ export interface RssSearchMatch {
   end: number;
 }
 
+export interface RssContentHeading {
+  id: string;
+  level: number;
+  text: string;
+}
+
+export function extractRssContentHeadings(value: string): RssContentHeading[] {
+  if (!value) return [];
+  const document = new DOMParser().parseFromString(value, 'text/html');
+  return Array.from(document.body.querySelectorAll<HTMLElement>('h1[id], h2[id], h3[id]'))
+    .map((heading) => ({
+      id: heading.id,
+      level: Number(heading.tagName.slice(1)),
+      text: heading.textContent?.trim() ?? '',
+    }))
+    .filter((heading) => heading.text);
+}
+
 export function findRssSearchMatches(value: string, query: string): RssSearchMatch[] {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) return [];
@@ -279,6 +297,10 @@ export function sanitizeRssContentHtml(
       element.setAttribute('tabindex', '0');
       element.removeAttribute('data-src');
     }
+  });
+
+  Array.from(document.body.querySelectorAll<HTMLElement>('h1, h2, h3')).forEach((heading, index) => {
+    heading.id = `rss-section-${index + 1}`;
   });
 
   applyAnnotations(document, annotations);

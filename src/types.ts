@@ -36,6 +36,7 @@ export interface RssFeed {
   siteUrl?: string;
   description?: string;
   type: RssFeedType;
+  fetchFullContent?: boolean;
   folderId?: string;
   createdAt: number;
   updatedAt: number;
@@ -52,6 +53,11 @@ export interface RssItem {
   publishedAt: number;
   contentText: string;
   contentHtml?: string;
+  fullContentHtml?: string;
+  fullContentText?: string;
+  fullContentUrl?: string;
+  fullContentFetchedAt?: number;
+  fullContentError?: string;
   imageUrl?: string;
   imageUrls?: string[];
   fetchedAt: number;
