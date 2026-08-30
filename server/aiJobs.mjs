@@ -21,6 +21,9 @@ function publicJob(job) {
   return {
     id: job.id,
     bookId: job.bookId,
+    resourceType: job.resourceType,
+    rssItemId: job.rssItemId,
+    purpose: job.purpose,
     conversationId: job.conversationId,
     userMessageId: job.userMessageId,
     assistantMessageId: job.assistantMessageId,
@@ -127,6 +130,19 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
           ? { ...session, updatedAt: Math.max(session.updatedAt, message.createdAt) }
           : session
       ));
+      if (job.resourceType === 'rss' && job.purpose === 'summary') {
+        const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
+        state.rssItems = rssItems.map((item) => (
+          item.id === job.rssItemId
+            ? {
+              ...item,
+              aiSummary: result.content,
+              aiSummaryUpdatedAt: job.assistantCreatedAt,
+              aiSummaryVersion: 2,
+            }
+            : item
+        ));
+      }
     });
   }
 
@@ -179,9 +195,14 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
 
   async function start(input) {
     pruneJobs();
+    const resourceType = input?.resourceType === 'rss' ? 'rss' : 'book';
+    const purpose = resourceType === 'rss' && input?.purpose === 'summary' ? 'summary' : 'chat';
     const configId = requiredString(input?.configId, '模型配置', 200);
     const model = requiredString(input?.model, '模型名称', 300);
-    const bookId = requiredString(input?.bookId, '书籍', 200);
+    const bookId = requiredString(input?.bookId, resourceType === 'rss' ? '内容' : '书籍', 240);
+    const rssItemId = resourceType === 'rss'
+      ? requiredString(input?.rssItemId, 'RSS 内容', 240)
+      : undefined;
     const conversationId = requiredString(input?.conversationId, '对话', 200);
     const messageInput = input?.userMessage;
     const userMessageId = requiredString(messageInput?.id, '消息', 200);
@@ -203,8 +224,19 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     if (!Array.isArray(config.models) || !config.models.includes(model)) {
       throw statusError(400, '所选模型不属于当前配置');
     }
-    const book = (Array.isArray(state.books) ? state.books : []).find((item) => item.id === bookId);
-    if (!book) throw statusError(404, '找不到当前书籍');
+    const book = resourceType === 'book'
+      ? (Array.isArray(state.books) ? state.books : []).find((item) => item.id === bookId)
+      : undefined;
+    if (resourceType === 'book' && !book) throw statusError(404, '找不到当前书籍');
+    const rssItem = resourceType === 'rss'
+      ? (Array.isArray(state.rssItems) ? state.rssItems : []).find((item) => item.id === rssItemId)
+      : undefined;
+    if (resourceType === 'rss' && (!rssItem || bookId !== `rss:${rssItem.id}`)) {
+      throw statusError(404, '找不到当前 RSS 内容');
+    }
+    const rssFeed = rssItem
+      ? (Array.isArray(state.rssFeeds) ? state.rssFeeds : []).find((feed) => feed.id === rssItem.feedId)
+      : undefined;
 
     const existingChats = (Array.isArray(state.chats) ? state.chats : [])
       .filter((message) => (
@@ -258,6 +290,9 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     const job = {
       id: randomUUID(),
       bookId,
+      resourceType,
+      rssItemId,
+      purpose,
       conversationId,
       userMessageId,
       assistantMessageId: randomUUID(),
@@ -272,6 +307,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       error: undefined,
       controller: new AbortController(),
       userMessage: structuredClone(userMessage),
+      session: structuredClone(session),
       finalResult: undefined,
     };
     jobs.set(job.id, job);
@@ -279,7 +315,17 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       config: structuredClone(config),
       model,
       messages: [...existingChats, normalizedMessage(userMessage)],
-      book: structuredClone(book),
+      resourceType,
+      ...(book ? { book: structuredClone(book) } : {}),
+      ...(rssItem ? {
+        rssItem: structuredClone(rssItem),
+        rssFeed: rssFeed ? structuredClone(rssFeed) : undefined,
+        relatedRssItems: (Array.isArray(state.rssItems) ? state.rssItems : [])
+          .filter((item) => item.feedId === rssItem.feedId && item.id !== rssItem.id)
+          .sort((left, right) => right.publishedAt - left.publishedAt)
+          .slice(0, 30)
+          .map((item) => structuredClone(item)),
+      } : {}),
       currentText,
       notes: (Array.isArray(state.notes) ? state.notes : [])
         .filter((note) => note.bookId === bookId)
@@ -331,8 +377,14 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     if (!state) return persistedState;
     const sessions = Array.isArray(state.chatSessions) ? state.chatSessions : [];
     const chats = Array.isArray(state.chats) ? state.chats : [];
+    let rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
     for (const job of jobs.values()) {
-      if (!sessions.some((session) => session.id === job.conversationId)) continue;
+      const hasSession = sessions.some((session) => session.id === job.conversationId);
+      const resumableSummary = job.resourceType === 'rss'
+        && job.purpose === 'summary'
+        && rssItems.some((item) => item.id === job.rssItemId);
+      if (!hasSession && !resumableSummary) continue;
+      if (!hasSession) sessions.push(structuredClone(job.session));
       if (!chats.some((message) => message.id === job.userMessage.id)) {
         chats.push(structuredClone(job.userMessage));
       }
@@ -350,8 +402,22 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
           createdAt: job.assistantCreatedAt,
         });
       }
+      if (job.resourceType === 'rss' && job.purpose === 'summary' && job.finalResult) {
+        rssItems = rssItems.map((item) => (
+          item.id === job.rssItemId
+            ? {
+              ...item,
+              aiSummary: job.finalResult.content,
+              aiSummaryUpdatedAt: job.assistantCreatedAt,
+              aiSummaryVersion: 2,
+            }
+            : item
+        ));
+      }
     }
+    state.chatSessions = sessions;
     state.chats = chats;
+    state.rssItems = rssItems;
     return persistedState;
   }
 

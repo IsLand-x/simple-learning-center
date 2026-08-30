@@ -22,6 +22,7 @@ import {
 import { statusError } from './errors.mjs';
 
 let stateWriteQueue = Promise.resolve();
+const RSS_STATE_VERSION = 16;
 
 export function encodedId(value) {
   if (typeof value !== 'string' || !value || value.length > 200 || value.includes('\0')) {
@@ -212,8 +213,42 @@ async function readPersistedStateFromDisk() {
   }
 }
 
+function protectRssStateFromOlderClient(persistedState, currentPersistedState) {
+  const incomingVersion = Number.isInteger(persistedState?.version) ? persistedState.version : 0;
+  const currentVersion = Number.isInteger(currentPersistedState?.version) ? currentPersistedState.version : 0;
+  if (
+    currentVersion < RSS_STATE_VERSION
+    || incomingVersion >= RSS_STATE_VERSION
+    || !persistedState?.state
+    || !currentPersistedState?.state
+  ) {
+    return persistedState;
+  }
+  const protectedState = structuredClone(persistedState);
+  protectedState.version = currentVersion;
+  protectedState.state.rssFolders = structuredClone(
+    Array.isArray(currentPersistedState.state.rssFolders) ? currentPersistedState.state.rssFolders : [],
+  );
+  protectedState.state.rssFeeds = structuredClone(
+    Array.isArray(currentPersistedState.state.rssFeeds) ? currentPersistedState.state.rssFeeds : [],
+  );
+  protectedState.state.rssItems = structuredClone(
+    Array.isArray(currentPersistedState.state.rssItems) ? currentPersistedState.state.rssItems : [],
+  );
+  protectedState.state.rssAnnotations = structuredClone(
+    Array.isArray(currentPersistedState.state.rssAnnotations) ? currentPersistedState.state.rssAnnotations : [],
+  );
+  protectedState.state.rssPanelWidth = typeof currentPersistedState.state.rssPanelWidth === 'number'
+    ? currentPersistedState.state.rssPanelWidth
+    : 380;
+  return protectedState;
+}
+
 async function persistState(persistedState) {
-  const stateForDisk = await prepareStateForDisk(persistedState);
+  const currentPersistedState = await readPersistedStateFromDisk();
+  const stateForDisk = await prepareStateForDisk(
+    protectRssStateFromOlderClient(persistedState, currentPersistedState),
+  );
   await atomicWrite(STATE_FILE, `${JSON.stringify({
     formatVersion: 1,
     updatedAt: new Date().toISOString(),
@@ -231,8 +266,9 @@ export function writePersistedState(persistedState, initializeOnly = false, tran
     if (initializeOnly && await exists(STATE_FILE)) {
       throw statusError(409, '服务端已经包含数据');
     }
+    const currentPersistedState = transform ? await readPersistedStateFromDisk() : null;
     const nextState = transform
-      ? await transform(structuredClone(persistedState))
+      ? await transform(structuredClone(persistedState), currentPersistedState)
       : persistedState;
     await persistState(nextState);
   });

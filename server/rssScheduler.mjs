@@ -1,0 +1,234 @@
+import { RSS_REFRESH_INITIAL_DELAY_MS, RSS_REFRESH_INTERVAL_MS } from './config.mjs';
+import { fetchRssFeed } from './rss.mjs';
+import { mutatePersistedState, readPersistedState } from './storage.mjs';
+
+const MIN_FEED_SPACING_MS = 15_000;
+
+function rssState(persistedState) {
+  return persistedState?.state && typeof persistedState.state === 'object'
+    ? persistedState.state
+    : null;
+}
+
+function fetchedItemsForFeed(feedId, result) {
+  return (Array.isArray(result?.items) ? result.items : []).map((item) => ({
+    ...item,
+    id: `${feedId}:${item.id}`,
+    feedId,
+    fetchedAt: result.fetchedAt,
+  }));
+}
+
+function mergeFetchedItems(existingItems, feedId, incomingItems) {
+  const existing = new Map(
+    existingItems.filter((item) => item.feedId === feedId).map((item) => [item.id, item]),
+  );
+  const merged = incomingItems.map((item) => {
+    const previous = existing.get(item.id);
+    if (!previous) return item;
+    return {
+      ...item,
+      ...(previous.readAt ? { readAt: previous.readAt } : {}),
+      ...(previous.bookmarkedAt ? { bookmarkedAt: previous.bookmarkedAt } : {}),
+      ...(previous.aiSummary ? {
+        aiSummary: previous.aiSummary,
+        aiSummaryUpdatedAt: previous.aiSummaryUpdatedAt,
+        aiSummaryVersion: previous.aiSummaryVersion,
+      } : {}),
+    };
+  });
+  const mergedIds = new Set(merged.map((item) => item.id));
+  const feedItems = [
+    ...merged,
+    ...Array.from(existing.values()).filter((item) => !mergedIds.has(item.id)),
+  ].sort((left, right) => right.publishedAt - left.publishedAt);
+  return [
+    ...existingItems.filter((item) => item.feedId !== feedId),
+    ...feedItems,
+  ];
+}
+
+function copyOptionalField(target, source, field) {
+  if (Object.hasOwn(source, field)) target[field] = source[field];
+  else delete target[field];
+}
+
+function mergeConcurrentItem(incomingItem, currentItem) {
+  const currentIsNewer = Number(currentItem.fetchedAt || 0) > Number(incomingItem.fetchedAt || 0);
+  const merged = currentIsNewer
+    ? { ...incomingItem, ...currentItem }
+    : { ...currentItem, ...incomingItem };
+  copyOptionalField(merged, incomingItem, 'readAt');
+  copyOptionalField(merged, incomingItem, 'bookmarkedAt');
+  const incomingSummaryAt = Number(incomingItem.aiSummaryUpdatedAt || 0);
+  const currentSummaryAt = Number(currentItem.aiSummaryUpdatedAt || 0);
+  const summarySource = currentSummaryAt > incomingSummaryAt ? currentItem : incomingItem;
+  copyOptionalField(merged, summarySource, 'aiSummary');
+  copyOptionalField(merged, summarySource, 'aiSummaryUpdatedAt');
+  copyOptionalField(merged, summarySource, 'aiSummaryVersion');
+  return merged;
+}
+
+/**
+ * A same-version browser may PUT a snapshot taken just before the scheduler
+ * persisted new entries. Preserve those server-fetched entries while keeping
+ * browser-owned management, read and bookmark changes authoritative.
+ */
+export function protectServerRssState(incomingPersistedState, currentPersistedState) {
+  const incoming = rssState(incomingPersistedState);
+  const current = rssState(currentPersistedState);
+  if (!incoming || !current || Number(incomingPersistedState.version || 0) < 16) {
+    return incomingPersistedState;
+  }
+
+  const incomingFeeds = Array.isArray(incoming.rssFeeds) ? incoming.rssFeeds : [];
+  const currentFeeds = new Map(
+    (Array.isArray(current.rssFeeds) ? current.rssFeeds : []).map((feed) => [feed.id, feed]),
+  );
+  incoming.rssFeeds = incomingFeeds.map((feed) => {
+    const serverFeed = currentFeeds.get(feed.id);
+    if (!serverFeed || Number(serverFeed.lastFetchedAt || 0) <= Number(feed.lastFetchedAt || 0)) {
+      return feed;
+    }
+    return {
+      ...feed,
+      siteUrl: serverFeed.siteUrl || feed.siteUrl,
+      description: serverFeed.description || feed.description,
+      lastFetchedAt: serverFeed.lastFetchedAt,
+      lastError: serverFeed.lastError,
+    };
+  });
+
+  const activeFeedIds = new Set(incoming.rssFeeds.map((feed) => feed.id));
+  const incomingItems = Array.isArray(incoming.rssItems) ? incoming.rssItems : [];
+  const incomingById = new Map(incomingItems.map((item) => [item.id, item]));
+  const currentItems = (Array.isArray(current.rssItems) ? current.rssItems : [])
+    .filter((item) => activeFeedIds.has(item.feedId));
+  const mergedItems = incomingItems.map((item) => {
+    const serverItem = currentItems.find((candidate) => candidate.id === item.id);
+    return serverItem ? mergeConcurrentItem(item, serverItem) : item;
+  });
+  currentItems.forEach((item) => {
+    if (!incomingById.has(item.id)) mergedItems.push(item);
+  });
+  incoming.rssItems = Array.from(activeFeedIds).flatMap((feedId) => (
+    mergedItems
+      .filter((item) => item.feedId === feedId)
+      .sort((left, right) => right.publishedAt - left.publishedAt)
+  ));
+  return incomingPersistedState;
+}
+
+export async function refreshPersistedRssFeed(feedId, {
+  fetchFeed = fetchRssFeed,
+  logger = console,
+} = {}) {
+  const persistedState = await readPersistedState();
+  const feed = rssState(persistedState)?.rssFeeds?.find((item) => item.id === feedId);
+  if (!feed) return { status: 'missing', feedId };
+
+  try {
+    const result = await fetchFeed(feed.url);
+    await mutatePersistedState((nextPersistedState) => {
+      const state = rssState(nextPersistedState);
+      const currentFeed = state?.rssFeeds?.find((item) => item.id === feedId);
+      if (!state || !currentFeed) return;
+      const timestamp = Date.now();
+      Object.assign(currentFeed, {
+        siteUrl: result.siteUrl || currentFeed.siteUrl,
+        description: result.description || currentFeed.description,
+        lastFetchedAt: result.fetchedAt,
+        lastError: undefined,
+        updatedAt: timestamp,
+      });
+      state.rssItems = mergeFetchedItems(
+        Array.isArray(state.rssItems) ? state.rssItems : [],
+        feedId,
+        fetchedItemsForFeed(feedId, result),
+      );
+    });
+    return { status: 'refreshed', feedId, itemCount: result.items.length };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '刷新失败';
+    await mutatePersistedState((nextPersistedState) => {
+      const currentFeed = rssState(nextPersistedState)?.rssFeeds?.find((item) => item.id === feedId);
+      if (!currentFeed) return;
+      currentFeed.lastError = message;
+      currentFeed.updatedAt = Date.now();
+    }).catch(() => undefined);
+    logger.warn?.(`RSS 订阅源刷新失败（${feed.title}）：${message}`);
+    return { status: 'failed', feedId, error: message };
+  }
+}
+
+function shuffled(values, random) {
+  const result = [...values];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(random() * (index + 1));
+    [result[index], result[target]] = [result[target], result[index]];
+  }
+  return result;
+}
+
+export function createRssScheduler({
+  fetchFeed = fetchRssFeed,
+  initialDelayMs = RSS_REFRESH_INITIAL_DELAY_MS,
+  intervalMs = RSS_REFRESH_INTERVAL_MS,
+  logger = console,
+  minFeedSpacingMs = MIN_FEED_SPACING_MS,
+  random = Math.random,
+} = {}) {
+  let active = false;
+  let cycleTimer;
+  const feedTimers = new Set();
+
+  const clearTimers = () => {
+    clearTimeout(cycleTimer);
+    feedTimers.forEach((timer) => clearTimeout(timer));
+    feedTimers.clear();
+  };
+
+  const scheduleCycle = (delay) => {
+    clearTimeout(cycleTimer);
+    cycleTimer = setTimeout(() => void runCycle(), delay);
+    cycleTimer.unref?.();
+  };
+
+  const runCycle = async () => {
+    if (!active) return 0;
+    let feeds = [];
+    try {
+      const persistedState = await readPersistedState();
+      feeds = shuffled(rssState(persistedState)?.rssFeeds ?? [], random);
+    } catch (error) {
+      logger.warn?.(`无法读取 RSS 定时任务状态：${error instanceof Error ? error.message : String(error)}`);
+    }
+    const spacing = feeds.length
+      ? Math.max(minFeedSpacingMs, Math.floor(intervalMs / feeds.length))
+      : intervalMs;
+    feeds.forEach((feed, index) => {
+      const timer = setTimeout(() => {
+        feedTimers.delete(timer);
+        if (active) void refreshPersistedRssFeed(feed.id, { fetchFeed, logger });
+      }, index * spacing);
+      timer.unref?.();
+      feedTimers.add(timer);
+    });
+    scheduleCycle(Math.max(intervalMs, spacing * Math.max(feeds.length, 1)));
+    return feeds.length;
+  };
+
+  return {
+    start() {
+      if (active) return;
+      active = true;
+      scheduleCycle(initialDelayMs);
+    },
+    stop() {
+      active = false;
+      clearTimers();
+    },
+    runCycle,
+    refreshFeed: (feedId) => refreshPersistedRssFeed(feedId, { fetchFeed, logger }),
+  };
+}

@@ -19,6 +19,14 @@ export const HOST = MODE === 'remote' ? '0.0.0.0' : '127.0.0.1';
 export const PORT = Number.parseInt(process.env.LEARNING_CENTER_PORT || '4174', 10);
 export const USERNAME = process.env.LEARNING_CENTER_USERNAME || 'admin';
 export const PASSWORD = process.env.LEARNING_CENTER_PASSWORD || 'password';
+export const RSS_REFRESH_INTERVAL_MS = Number.parseInt(
+  process.env.LEARNING_CENTER_RSS_REFRESH_INTERVAL_MS || String(30 * 60 * 1_000),
+  10,
+);
+export const RSS_REFRESH_INITIAL_DELAY_MS = Number.parseInt(
+  process.env.LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS || '15000',
+  10,
+);
 
 export const MAX_STATE_BYTES = 64 * 1024 * 1024;
 export const MAX_INDEX_BYTES = 256 * 1024 * 1024;
@@ -26,9 +34,20 @@ export const MAX_BOOK_BYTES = 2 * 1024 * 1024 * 1024;
 export const MAX_API_KEY_IMPORT_BYTES = 1024 * 1024;
 export const MAX_AUTH_REQUEST_BYTES = 8 * 1024;
 export const MAX_AI_JOB_REQUEST_BYTES = 512 * 1024;
+export const MAX_RSS_REQUEST_BYTES = 16 * 1024;
 
 export function validateServerConfig() {
   if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65_535) {
     throw new Error('LEARNING_CENTER_PORT 必须是有效端口号');
+  }
+  if (!Number.isInteger(RSS_REFRESH_INTERVAL_MS) || RSS_REFRESH_INTERVAL_MS < 60_000) {
+    throw new Error('LEARNING_CENTER_RSS_REFRESH_INTERVAL_MS 必须是不小于 60000 的整数');
+  }
+  if (
+    !Number.isInteger(RSS_REFRESH_INITIAL_DELAY_MS)
+    || RSS_REFRESH_INITIAL_DELAY_MS < 0
+    || RSS_REFRESH_INITIAL_DELAY_MS > RSS_REFRESH_INTERVAL_MS
+  ) {
+    throw new Error('LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS 必须是刷新周期内的非负整数');
   }
 }

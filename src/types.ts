@@ -20,6 +20,61 @@ export type ReaderDensity = 'compact' | 'balanced' | 'relaxed';
 export type ReaderTexture = 'none' | 'paper' | 'grain';
 export type AiProvider = `api:${string}`;
 export type RightPanel = 'ai' | 'history' | 'notes' | 'highlights' | 'comments' | 'trajectory' | null;
+export type RssFeedType = 'article' | 'video' | 'social';
+
+export interface RssFolder {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface RssFeed {
+  id: string;
+  title: string;
+  url: string;
+  siteUrl?: string;
+  description?: string;
+  type: RssFeedType;
+  folderId?: string;
+  createdAt: number;
+  updatedAt: number;
+  lastFetchedAt?: number;
+  lastError?: string;
+}
+
+export interface RssItem {
+  id: string;
+  feedId: string;
+  title: string;
+  link: string;
+  author?: string;
+  publishedAt: number;
+  contentText: string;
+  contentHtml?: string;
+  imageUrl?: string;
+  imageUrls?: string[];
+  fetchedAt: number;
+  readAt?: number;
+  bookmarkedAt?: number;
+  aiSummary?: string;
+  aiSummaryUpdatedAt?: number;
+  aiSummaryVersion?: number;
+}
+
+export interface RssAnnotation {
+  id: string;
+  itemId: string;
+  kind: 'highlight' | 'comment';
+  text: string;
+  startOffset: number;
+  endOffset: number;
+  prefix?: string;
+  suffix?: string;
+  comment?: string;
+  commentUpdatedAt?: number;
+  createdAt: number;
+}
 
 export interface TocItem {
   id: string;
