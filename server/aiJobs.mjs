@@ -5,6 +5,14 @@ import { mutatePersistedState, readPersistedState } from './storage.mjs';
 
 const JOB_RETENTION_MS = 24 * 60 * 60 * 1_000;
 const MAX_RETAINED_JOBS = 100;
+const MAX_RETAINED_DIGEST_RUNS = 100;
+
+function upsertDigestRun(state, run) {
+  const runs = Array.isArray(state.rssDigestRuns) ? state.rssDigestRuns : [];
+  state.rssDigestRuns = [run, ...runs.filter((item) => item.id !== run.id)]
+    .sort((left, right) => Number(right.startedAt || 0) - Number(left.startedAt || 0))
+    .slice(0, MAX_RETAINED_DIGEST_RUNS);
+}
 
 function requiredString(value, label, maxLength) {
   if (typeof value !== 'string' || !value.trim() || value.length > maxLength) {
@@ -70,6 +78,22 @@ function normalizedMessage(message) {
 export function createAiJobManager({ runChat = runServerAiChat } = {}) {
   const jobs = new Map();
   const subscribers = new Map();
+
+  async function updateDigestRun(runId, changes) {
+    if (!runId) return;
+    await mutatePersistedState((persistedState) => {
+      const runs = Array.isArray(persistedState.state.rssDigestRuns)
+        ? persistedState.state.rssDigestRuns
+        : [];
+      const current = runs.find((run) => run.id === runId);
+      if (!current) return;
+      upsertDigestRun(persistedState.state, {
+        ...current,
+        ...changes,
+        updatedAt: Number.isFinite(changes.updatedAt) ? changes.updatedAt : Date.now(),
+      });
+    });
+  }
 
   function publishJob(job) {
     const listeners = subscribers.get(job.id);
@@ -159,6 +183,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         ));
       }
       if (job.resourceType === 'rssDigest' && job.purpose === 'digest') {
+        const completedAt = Date.now();
         const digests = Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [];
         const feedIds = [...new Set(job.digestItems.map((item) => item.feedId))];
         const previous = digests.find((digest) => digest.date === job.digestDate);
@@ -177,9 +202,20 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
           .sort((left, right) => right.date.localeCompare(left.date));
         state.rssDigestSettings = {
           ...(state.rssDigestSettings || {}),
-          lastCompletedAt: job.assistantCreatedAt,
+          lastCompletedAt: completedAt,
           lastError: undefined,
         };
+        const runs = Array.isArray(state.rssDigestRuns) ? state.rssDigestRuns : [];
+        const digestRun = runs.find((run) => run.id === job.digestRunId);
+        if (digestRun) {
+          upsertDigestRun(state, {
+            ...digestRun,
+            status: 'completed',
+            completedAt,
+            updatedAt: completedAt,
+            message: undefined,
+          });
+        }
       }
     });
   }
@@ -191,6 +227,9 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     job.revision += 1;
     publishJob(job);
     try {
+      if (job.resourceType === 'rssDigest') {
+        await updateDigestRun(job.digestRunId, { status: 'running' });
+      }
       const result = await runChat({
         ...context,
         signal: job.controller.signal,
@@ -221,17 +260,32 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         job.status = 'failed';
         job.error = safeErrorMessage(error, [context.config.apiKey, context.webSearchConfig.apiKey]);
         console.error(`AI task ${job.id} failed`);
-        if (job.resourceType === 'rssDigest') {
-          await mutatePersistedState((persistedState) => {
+      }
+      job.completedAt = Date.now();
+      job.updatedAt = job.completedAt;
+      if (job.resourceType === 'rssDigest') {
+        await mutatePersistedState((persistedState) => {
+          if (job.status === 'failed') {
             persistedState.state.rssDigestSettings = {
               ...(persistedState.state.rssDigestSettings || {}),
               lastError: job.error,
             };
-          }).catch(() => undefined);
-        }
+          }
+          const runs = Array.isArray(persistedState.state.rssDigestRuns)
+            ? persistedState.state.rssDigestRuns
+            : [];
+          const digestRun = runs.find((run) => run.id === job.digestRunId);
+          if (digestRun) {
+            upsertDigestRun(persistedState.state, {
+              ...digestRun,
+              status: job.status,
+              completedAt: job.completedAt,
+              updatedAt: job.completedAt,
+              message: job.error,
+            });
+          }
+        }).catch(() => undefined);
       }
-      job.completedAt = Date.now();
-      job.updatedAt = job.completedAt;
       job.revision += 1;
       publishJob(job);
     } finally {
@@ -262,6 +316,18 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       ? requiredString(input?.digestDate, '日报日期', 10)
       : undefined;
     if (digestDate && !/^\d{4}-\d{2}-\d{2}$/.test(digestDate)) throw statusError(400, '日报日期不正确');
+    const digestRunId = resourceType === 'rssDigest'
+      ? optionalString(input?.digestRunId, 200).trim() || randomUUID()
+      : undefined;
+    const digestTrigger = resourceType === 'rssDigest' && input?.digestTrigger === 'schedule'
+      ? 'schedule'
+      : 'manual';
+    const digestScheduleKey = resourceType === 'rssDigest'
+      ? optionalString(input?.digestScheduleKey, 200).trim() || undefined
+      : undefined;
+    const digestRunStartedAt = resourceType === 'rssDigest' && Number.isFinite(input?.digestRunStartedAt)
+      ? input.digestRunStartedAt
+      : Date.now();
     const conversationId = requiredString(input?.conversationId, '对话', 200);
     const messageInput = input?.userMessage;
     const userMessageId = requiredString(messageInput?.id, '消息', 200);
@@ -354,6 +420,18 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       createdAt: sessionCreatedAt,
       updatedAt: createdAt,
     };
+    const timestamp = Date.now();
+    const digestRun = resourceType === 'rssDigest' ? {
+      id: digestRunId,
+      date: digestDate,
+      trigger: digestTrigger,
+      status: 'queued',
+      ...(digestScheduleKey ? { scheduleKey: digestScheduleKey } : {}),
+      model,
+      itemCount: digestItems.length,
+      startedAt: digestRunStartedAt,
+      updatedAt: timestamp,
+    } : undefined;
 
     await mutatePersistedState((nextPersistedState) => {
       const next = nextPersistedState.state;
@@ -367,9 +445,9 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       ];
       const chats = Array.isArray(next.chats) ? next.chats : [];
       next.chats = [...chats.filter((item) => item.id !== userMessageId), userMessage];
+      if (digestRun) upsertDigestRun(next, structuredClone(digestRun));
     });
 
-    const timestamp = Date.now();
     const job = {
       id: randomUUID(),
       bookId,
@@ -377,6 +455,9 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       rssItemId,
       videoId,
       digestDate,
+      digestRunId,
+      digestTrigger,
+      digestScheduleKey,
       digestItems: digestItems.map((item) => structuredClone(item)),
       model,
       purpose,
@@ -446,6 +527,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     const digestDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
       ? date
       : new Date().toLocaleDateString('en-CA');
+    const digestTrigger = trigger === 'schedule' ? 'schedule' : 'manual';
     const activeJob = [...jobs.values()].find((job) => (
       job.resourceType === 'rssDigest'
       && job.digestDate === digestDate
@@ -456,6 +538,32 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     const persistedState = await readPersistedState();
     if (!persistedState?.state) throw statusError(409, '服务端尚未初始化');
     const state = persistedState.state;
+    const digestRunId = randomUUID();
+    const attemptedAt = Date.now();
+    const persistAttempt = async ({ status, message, model, itemCount = 0 }) => {
+      const completed = status !== 'queued' && status !== 'running';
+      await mutatePersistedState((nextPersistedState) => {
+        nextPersistedState.state.rssDigestSettings = {
+          ...(nextPersistedState.state.rssDigestSettings || {}),
+          lastAttemptAt: attemptedAt,
+          lastError: status === 'failed' ? message : undefined,
+          ...(scheduleKey ? { lastScheduledKey: scheduleKey } : {}),
+        };
+        upsertDigestRun(nextPersistedState.state, {
+          id: digestRunId,
+          date: digestDate,
+          trigger: digestTrigger,
+          status,
+          ...(scheduleKey ? { scheduleKey } : {}),
+          ...(model ? { model } : {}),
+          itemCount,
+          startedAt: attemptedAt,
+          updatedAt: attemptedAt,
+          ...(completed ? { completedAt: attemptedAt } : {}),
+          ...(message ? { message } : {}),
+        });
+      });
+    };
     const settings = state.rssDigestSettings || {};
     const configuredProvider = typeof settings.provider === 'string' && settings.provider.startsWith('api:')
       ? settings.provider
@@ -472,16 +580,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         : config?.models?.[0];
     if (!config || !model) {
       const message = '请先为 RSS 日报选择可用的模型';
-      if (trigger === 'schedule') {
-        await mutatePersistedState((nextPersistedState) => {
-          nextPersistedState.state.rssDigestSettings = {
-            ...(nextPersistedState.state.rssDigestSettings || {}),
-            lastAttemptAt: Date.now(),
-            lastError: message,
-            ...(scheduleKey ? { lastScheduledKey: scheduleKey } : {}),
-          };
-        });
-      }
+      await persistAttempt({ status: 'failed', message, model: configuredModel });
       throw statusError(409, message);
     }
 
@@ -497,13 +596,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     const previousIds = new Set(previous?.sourceItemIds || []);
     const newUnreadItems = unreadItems.filter((item) => !previousIds.has(item.id));
     if (!force && previous && !newUnreadItems.length) {
-      await mutatePersistedState((nextPersistedState) => {
-        nextPersistedState.state.rssDigestSettings = {
-          ...(nextPersistedState.state.rssDigestSettings || {}),
-          lastAttemptAt: Date.now(),
-          ...(scheduleKey ? { lastScheduledKey: scheduleKey } : {}),
-        };
-      });
+      await persistAttempt({ status: 'skipped', message: '没有新的未读内容', model });
       return { skipped: true };
     }
     const includedIds = new Set([...(previous?.sourceItemIds || []), ...unreadItems.map((item) => item.id)]);
@@ -511,21 +604,15 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       .filter((item) => includedIds.has(item.id))
       .sort((left, right) => right.publishedAt - left.publishedAt);
     if (!digestItems.length) {
-      if (trigger === 'schedule') {
-        await mutatePersistedState((nextPersistedState) => {
-          nextPersistedState.state.rssDigestSettings = {
-            ...(nextPersistedState.state.rssDigestSettings || {}),
-            lastAttemptAt: Date.now(),
-            lastError: undefined,
-            ...(scheduleKey ? { lastScheduledKey: scheduleKey } : {}),
-          };
-        });
+      const message = '这一天还没有可整理的未读内容';
+      if (digestTrigger === 'schedule') {
+        await persistAttempt({ status: 'skipped', message, model });
         return { skipped: true };
       }
-      throw statusError(409, '这一天还没有可整理的未读内容');
+      await persistAttempt({ status: 'failed', message, model });
+      throw statusError(409, message);
     }
 
-    const attemptedAt = Date.now();
     await mutatePersistedState((nextPersistedState) => {
       nextPersistedState.state.rssDigestSettings = {
         ...(nextPersistedState.state.rssDigestSettings || {}),
@@ -537,30 +624,40 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     const prompt = optionalString(settings.prompt, 12_000).trim()
       || '请把当天尚未读过的 RSS 内容整理成一份中文日报，按主题去重并为每条信息附上订阅源名称与原文链接。';
     const createdAt = Date.now();
-    const job = await start({
-      configId: config.id,
-      model,
-      bookId: `rss-digest:${digestDate}`,
-      resourceType: 'rssDigest',
-      purpose: 'digest',
-      digestDate,
-      digestItemIds: digestItems.map((item) => item.id),
-      conversationId: `rss-digest:${digestDate}`,
-      userMessage: {
-        id: randomUUID(),
-        content: [
-          prompt,
-          '',
-          `日报日期：${digestDate}`,
-          `本次触发方式：${trigger === 'schedule' ? '定时任务' : '手动生成'}`,
-          '先读取全部条目与上一版日报，再输出可直接阅读的完整日报。',
-        ].join('\n'),
-        createdAt,
-      },
-      session: { title: `${digestDate} RSS 日报`, createdAt },
-      currentText: '',
-    });
-    return { job, skipped: false };
+    try {
+      const job = await start({
+        configId: config.id,
+        model,
+        bookId: `rss-digest:${digestDate}`,
+        resourceType: 'rssDigest',
+        purpose: 'digest',
+        digestDate,
+        digestItemIds: digestItems.map((item) => item.id),
+        digestRunId,
+        digestRunStartedAt: attemptedAt,
+        digestTrigger,
+        digestScheduleKey: scheduleKey,
+        conversationId: `rss-digest:${digestDate}`,
+        userMessage: {
+          id: randomUUID(),
+          content: [
+            prompt,
+            '',
+            `日报日期：${digestDate}`,
+            `本次触发方式：${digestTrigger === 'schedule' ? '定时任务' : '手动生成'}`,
+            '先读取全部条目与上一版日报，再输出可直接阅读的完整日报。',
+          ].join('\n'),
+          createdAt,
+        },
+        session: { title: `${digestDate} RSS 日报`, createdAt },
+        currentText: '',
+      });
+      return { job, skipped: false };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '日报任务启动失败';
+      await persistAttempt({ status: 'failed', message, model, itemCount: digestItems.length });
+      throw error;
+    }
   }
 
   function get(id) {
@@ -586,6 +683,13 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       job.status = 'cancelled';
       job.completedAt = Date.now();
       job.updatedAt = job.completedAt;
+      if (job.resourceType === 'rssDigest') {
+        void updateDigestRun(job.digestRunId, {
+          status: 'cancelled',
+          completedAt: job.completedAt,
+          message: '任务已取消',
+        }).catch(() => undefined);
+      }
       job.revision += 1;
       publishJob(job);
     }

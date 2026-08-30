@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Select, SideSheet, Switch, TextArea, Typography } from '@douyinfe/semi-ui';
-import type { AiProvider, OpenAICompatibleConfig, RssDigestSettings } from '../types';
+import { Button, Select, SideSheet, Switch, Tag, TextArea, Typography } from '@douyinfe/semi-ui';
+import type { AiProvider, OpenAICompatibleConfig, RssDigestRun, RssDigestRunStatus, RssDigestSettings } from '../types';
 import { AiModelSelector } from './AiConversationPrimitives';
 
 const { Text, Title } = Typography;
@@ -11,14 +11,44 @@ const scheduleOptions = [
   { label: '每天指定时间', value: 'fixed-times' },
 ];
 
+const runStatusMeta: Record<RssDigestRunStatus, {
+  color: 'blue' | 'green' | 'red' | 'grey';
+  label: string;
+}> = {
+  queued: { color: 'blue', label: '等待中' },
+  running: { color: 'blue', label: '执行中' },
+  completed: { color: 'green', label: '已完成' },
+  failed: { color: 'red', label: '失败' },
+  skipped: { color: 'grey', label: '已跳过' },
+  cancelled: { color: 'grey', label: '已取消' },
+};
+
+function digestDateLabel(date: string) {
+  const [, month, day] = date.split('-').map(Number);
+  return month && day ? `${month}月${day}日` : date;
+}
+
+function runTimeLabel(timestamp: number) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(timestamp);
+}
+
 export function RssDigestSettingsSheet({
   configs,
+  runs,
   settings,
   visible,
   onCancel,
   onSave,
 }: {
   configs: OpenAICompatibleConfig[];
+  runs: RssDigestRun[];
   settings: RssDigestSettings;
   visible: boolean;
   onCancel: () => void;
@@ -29,6 +59,10 @@ export function RssDigestSettingsSheet({
     const value = `${String(hour).padStart(2, '0')}:00`;
     return { label: value, value };
   }), []);
+  const visibleRuns = useMemo(
+    () => [...runs].sort((left, right) => right.startedAt - left.startedAt).slice(0, 100),
+    [runs],
+  );
 
   useEffect(() => {
     if (visible) setDraft(settings);
@@ -58,7 +92,7 @@ export function RssDigestSettingsSheet({
       <div className="rss-digest-settings">
         <section className="rss-digest-settings__section">
           <div className="rss-digest-settings__switch-row">
-            <div>
+            <div className="rss-digest-settings__switch-copy">
               <Title heading={5}>自动生成今天的日报</Title>
               <Text size="small" type="tertiary">服务运行时会在后台整理当天未读内容，浏览器可以关闭。</Text>
             </div>
@@ -74,6 +108,7 @@ export function RssDigestSettingsSheet({
           <label className="rss-digest-settings__field">
             <Text strong>模型</Text>
             <AiModelSelector
+              className="rss-digest-settings__model-select"
               configs={configs}
               disabled={!configs.length}
               model={draft.model}
@@ -140,6 +175,34 @@ export function RssDigestSettingsSheet({
             <Text size="small" type="danger">{draft.lastError}</Text>
           </section>
         )}
+
+        <section className="rss-digest-settings__section rss-digest-settings__history" aria-label="日报执行记录">
+          <div className="rss-digest-settings__history-heading">
+            <Text strong>执行记录</Text>
+            <Text size="small" type="tertiary">最近 {Math.min(runs.length, 100)} 条</Text>
+          </div>
+          {visibleRuns.length ? (
+            <div className="rss-digest-runs" role="list">
+              {visibleRuns.map((run) => {
+                const meta = runStatusMeta[run.status];
+                return (
+                  <article className="rss-digest-run" key={run.id} role="listitem">
+                    <div className="rss-digest-run__topline">
+                      <Tag color={meta.color} size="small" type="light">{meta.label}</Tag>
+                      <time dateTime={new Date(run.startedAt).toISOString()}>{runTimeLabel(run.startedAt)}</time>
+                    </div>
+                    <Text strong>{digestDateLabel(run.date)}日报 · {run.trigger === 'schedule' ? '定时任务' : '手动生成'}</Text>
+                    <Text size="small" type="tertiary">
+                      {run.itemCount ? `${run.itemCount} 条内容` : '未处理内容'}
+                      {run.model ? ` · ${run.model}` : ''}
+                    </Text>
+                    {run.message && <Text className="rss-digest-run__message" size="small" type={run.status === 'failed' ? 'danger' : 'tertiary'}>{run.message}</Text>}
+                  </article>
+                );
+              })}
+            </div>
+          ) : <Text size="small" type="tertiary">还没有日报执行记录。手动生成或定时任务运行后会显示在这里。</Text>}
+        </section>
       </div>
       <div className="rss-digest-settings__footer">
         <Button theme="borderless" type="tertiary" onClick={onCancel}>取消</Button>

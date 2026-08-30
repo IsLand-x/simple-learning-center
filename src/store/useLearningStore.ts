@@ -23,6 +23,7 @@ import type {
   ReaderTheme,
   ReadingSession,
   RssDailyDigest,
+  RssDigestRun,
   RssDigestSettings,
   RssFeed,
   RssFolder,
@@ -108,6 +109,7 @@ interface LearningState {
   rssItems: RssItem[];
   rssAnnotations: RssAnnotation[];
   rssDailyDigests: RssDailyDigest[];
+  rssDigestRuns: RssDigestRun[];
   rssDigestSettings: RssDigestSettings;
   rssPanelWidth: number;
   videoResources: VideoResource[];
@@ -184,6 +186,7 @@ export const useLearningStore = create<LearningState>()(
       rssItems: [],
       rssAnnotations: [],
       rssDailyDigests: [],
+      rssDigestRuns: [],
       rssDigestSettings: defaultRssDigestSettings,
       rssPanelWidth: 380,
       videoResources: [],
@@ -535,7 +538,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 19,
+      version: 20,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -747,6 +750,12 @@ export const useLearningStore = create<LearningState>()(
             rssDigestSettings: defaultRssDigestSettings,
           };
         }
+        if (version < 20) {
+          migrated = {
+            ...migrated,
+            rssDigestRuns: [],
+          };
+        }
         return migrated;
       },
       merge: (persistedState, currentState) => {
@@ -759,6 +768,7 @@ export const useLearningStore = create<LearningState>()(
           rssItems: Array.isArray(persisted.rssItems) ? persisted.rssItems : [],
           rssAnnotations: Array.isArray(persisted.rssAnnotations) ? persisted.rssAnnotations : [],
           rssDailyDigests: Array.isArray(persisted.rssDailyDigests) ? persisted.rssDailyDigests : [],
+          rssDigestRuns: Array.isArray(persisted.rssDigestRuns) ? persisted.rssDigestRuns : [],
           rssDigestSettings: {
             ...defaultRssDigestSettings,
             ...persisted.rssDigestSettings,

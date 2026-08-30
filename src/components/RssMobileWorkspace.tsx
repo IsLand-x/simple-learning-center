@@ -187,7 +187,14 @@ export function RssMobileWorkspace({
       {view === 'detail' && (
         <section className="rss-mobile-screen rss-mobile-screen--detail" aria-label="订阅内容详情">
           <header className="rss-mobile-topbar rss-mobile-topbar--detail">
-            <Button className="rss-mobile-topbar__back" aria-label="返回订阅内容列表" icon={<IconChevronLeft />} theme="borderless" type="tertiary" onClick={onBackToItems} />
+            <Button
+              className="rss-mobile-topbar__back"
+              aria-label={activePanel ? '关闭更多阅读工具' : '返回订阅内容列表'}
+              icon={<IconChevronLeft />}
+              theme="borderless"
+              type="tertiary"
+              onClick={() => activePanel ? onChangePanel(null) : onBackToItems()}
+            />
             <div className="rss-mobile-topbar__identity rss-mobile-topbar__identity--grow">
               <Text strong ellipsis={{ showTooltip: true }}>{detailTitle ?? '订阅内容详情'}</Text>
               <Text size="small" type="tertiary">{detailStatus}</Text>

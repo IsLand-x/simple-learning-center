@@ -23,6 +23,8 @@ import { statusError } from './errors.mjs';
 
 let stateWriteQueue = Promise.resolve();
 const RSS_STATE_VERSION = 16;
+const RSS_DIGEST_STATE_VERSION = 19;
+const RSS_DIGEST_RUN_STATE_VERSION = 20;
 const VIDEO_STATE_VERSION = 18;
 
 export function encodedId(value) {
@@ -217,31 +219,46 @@ async function readPersistedStateFromDisk() {
 function protectRssStateFromOlderClient(persistedState, currentPersistedState) {
   const incomingVersion = Number.isInteger(persistedState?.version) ? persistedState.version : 0;
   const currentVersion = Number.isInteger(currentPersistedState?.version) ? currentPersistedState.version : 0;
-  if (
-    currentVersion < RSS_STATE_VERSION
-    || incomingVersion >= RSS_STATE_VERSION
-    || !persistedState?.state
-    || !currentPersistedState?.state
-  ) {
+  if (!persistedState?.state || !currentPersistedState?.state) {
     return persistedState;
   }
+  const protectCoreRss = currentVersion >= RSS_STATE_VERSION && incomingVersion < RSS_STATE_VERSION;
+  const protectDigests = currentVersion >= RSS_DIGEST_STATE_VERSION && incomingVersion < RSS_DIGEST_STATE_VERSION;
+  const protectDigestRuns = currentVersion >= RSS_DIGEST_RUN_STATE_VERSION
+    && incomingVersion < RSS_DIGEST_RUN_STATE_VERSION;
+  if (!protectCoreRss && !protectDigests && !protectDigestRuns) return persistedState;
   const protectedState = structuredClone(persistedState);
   protectedState.version = currentVersion;
-  protectedState.state.rssFolders = structuredClone(
-    Array.isArray(currentPersistedState.state.rssFolders) ? currentPersistedState.state.rssFolders : [],
-  );
-  protectedState.state.rssFeeds = structuredClone(
-    Array.isArray(currentPersistedState.state.rssFeeds) ? currentPersistedState.state.rssFeeds : [],
-  );
-  protectedState.state.rssItems = structuredClone(
-    Array.isArray(currentPersistedState.state.rssItems) ? currentPersistedState.state.rssItems : [],
-  );
-  protectedState.state.rssAnnotations = structuredClone(
-    Array.isArray(currentPersistedState.state.rssAnnotations) ? currentPersistedState.state.rssAnnotations : [],
-  );
-  protectedState.state.rssPanelWidth = typeof currentPersistedState.state.rssPanelWidth === 'number'
-    ? currentPersistedState.state.rssPanelWidth
-    : 380;
+  if (protectCoreRss) {
+    protectedState.state.rssFolders = structuredClone(
+      Array.isArray(currentPersistedState.state.rssFolders) ? currentPersistedState.state.rssFolders : [],
+    );
+    protectedState.state.rssFeeds = structuredClone(
+      Array.isArray(currentPersistedState.state.rssFeeds) ? currentPersistedState.state.rssFeeds : [],
+    );
+    protectedState.state.rssItems = structuredClone(
+      Array.isArray(currentPersistedState.state.rssItems) ? currentPersistedState.state.rssItems : [],
+    );
+    protectedState.state.rssAnnotations = structuredClone(
+      Array.isArray(currentPersistedState.state.rssAnnotations) ? currentPersistedState.state.rssAnnotations : [],
+    );
+    protectedState.state.rssPanelWidth = typeof currentPersistedState.state.rssPanelWidth === 'number'
+      ? currentPersistedState.state.rssPanelWidth
+      : 380;
+  }
+  if (protectDigests) {
+    protectedState.state.rssDailyDigests = structuredClone(
+      Array.isArray(currentPersistedState.state.rssDailyDigests) ? currentPersistedState.state.rssDailyDigests : [],
+    );
+    protectedState.state.rssDigestSettings = structuredClone(
+      currentPersistedState.state.rssDigestSettings || {},
+    );
+  }
+  if (protectDigestRuns) {
+    protectedState.state.rssDigestRuns = structuredClone(
+      Array.isArray(currentPersistedState.state.rssDigestRuns) ? currentPersistedState.state.rssDigestRuns : [],
+    );
+  }
   return protectedState;
 }
 

@@ -40,12 +40,14 @@ export function AiModelSelector({
   provider,
   model,
   disabled,
+  className,
   onChange,
 }: {
   configs: OpenAICompatibleConfig[];
   provider: AiProvider | null;
   model: string;
   disabled: boolean;
+  className?: string;
   onChange: (selection: unknown) => void;
 }) {
   const treeData = configs.map((config) => ({
@@ -65,7 +67,7 @@ export function AiModelSelector({
       changeOnSelect={false}
       displayRender={(labels) => Array.isArray(labels) ? labels.at(-1) ?? '' : ''}
       onChange={onChange}
-      className="ai-composer-model-cascader"
+      className={`ai-composer-model-cascader${className ? ` ${className}` : ''}`}
     />
   );
 }

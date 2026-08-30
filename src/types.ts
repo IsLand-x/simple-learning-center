@@ -124,6 +124,23 @@ export interface RssDigestSettings {
   lastError?: string;
 }
 
+export type RssDigestRunTrigger = 'manual' | 'schedule';
+export type RssDigestRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled';
+
+export interface RssDigestRun {
+  id: string;
+  date: string;
+  trigger: RssDigestRunTrigger;
+  status: RssDigestRunStatus;
+  scheduleKey?: string;
+  model?: string;
+  itemCount: number;
+  startedAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  message?: string;
+}
+
 export interface RssDailyDigest {
   id: string;
   date: string;

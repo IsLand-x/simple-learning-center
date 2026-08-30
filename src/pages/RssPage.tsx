@@ -14,7 +14,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Allotment } from 'allotment';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   DragDropContext,
   Draggable,
@@ -124,6 +124,10 @@ const feedTypeLabels: Record<RssFeedType, string> = {
 
 function isRssMobileView(value: string | null): value is RssMobileView {
   return value === 'sources' || value === 'items' || value === 'detail';
+}
+
+function isRssMobilePanel(value: string | null): value is Exclude<RssMobilePanel, null> {
+  return value === 'style' || value === 'ai' || value === 'timeline';
 }
 
 function HighlightedText({ text, query }: { text: string; query: string }) {
@@ -390,15 +394,17 @@ function RssArticleToc({
   activeHeadingId,
   headings,
   onSelect,
+  style,
 }: {
   activeHeadingId?: string;
   headings: RssContentHeading[];
   onSelect: (headingId: string) => void;
+  style: CSSProperties;
 }) {
   if (!headings.length) return null;
   const minimumLevel = Math.min(...headings.map((heading) => heading.level));
   return (
-    <nav className="rss-article-toc" aria-label="文章目录">
+    <nav className="rss-article-toc" aria-label="文章目录" style={style}>
       <Text className="rss-article-toc__title" size="small" type="tertiary">目录</Text>
       <div className="rss-article-toc__list">
         {headings.map((heading) => (
@@ -579,12 +585,15 @@ function RssImageViewer({
 }
 
 export function RssPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const folders = useLearningStore((state) => state.rssFolders);
   const feeds = useLearningStore((state) => state.rssFeeds);
   const items = useLearningStore((state) => state.rssItems);
   const annotations = useLearningStore((state) => state.rssAnnotations);
   const dailyDigests = useLearningStore((state) => state.rssDailyDigests);
+  const digestRuns = useLearningStore((state) => state.rssDigestRuns);
   const digestSettings = useLearningStore((state) => state.rssDigestSettings);
   const configs = useLearningStore((state) => state.openAIConfigs);
   const aiPreferences = useLearningStore((state) => state.aiPreferences);
@@ -611,7 +620,6 @@ export function RssPage() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set(folders.map((folder) => folder.id)));
   const [query, setQuery] = useState('');
   const [activePanel, setActivePanel] = useState<RssSidePanel>(null);
-  const [mobileStyleVisible, setMobileStyleVisible] = useState(false);
   const [addVisible, setAddVisible] = useState(false);
   const [folderVisible, setFolderVisible] = useState(false);
   const [manageVisible, setManageVisible] = useState(false);
@@ -784,9 +792,12 @@ export function RssPage() {
   const mobileView: RssMobileView = isRssMobileView(requestedMobileView)
     ? requestedMobileView === 'detail' && !selectedItem && !selectedDigest ? 'items' : requestedMobileView
     : inferredMobileView;
-  const mobilePanel: RssMobilePanel = mobileStyleVisible
-    ? 'style'
-    : activePanel === 'comments' ? null : activePanel;
+  const requestedMobilePanel = searchParams.get('panel');
+  const mobilePanel: RssMobilePanel = mobileLayout
+    && mobileView === 'detail'
+    && isRssMobilePanel(requestedMobilePanel)
+    ? requestedMobilePanel
+    : null;
   const selectedAnnotations = useMemo(
     () => annotations.filter((annotation) => annotation.itemId === selectedItemId),
     [annotations, selectedItemId],
@@ -861,6 +872,13 @@ export function RssPage() {
     '--rss-reader-paragraph-spacing': `${readerStyle.density.paragraphSpacing}em`,
     '--rss-reader-text-color': readerStyle.textColor,
   } as CssVariables), [readerStyle]);
+  const articleTocStyle = useMemo(() => ({
+    '--rss-toc-accent-color': readerStyle.accentColor,
+    '--rss-toc-callout-color': readerStyle.calloutColor,
+    '--rss-toc-muted-color': readerStyle.mutedTextColor,
+    '--rss-toc-paper-color': readerStyle.paperColor,
+    '--rss-toc-text-color': readerStyle.textColor,
+  } as CssVariables), [readerStyle]);
   const sanitizedContentHtml = useMemo(() => sanitizeRssContentHtml(
     selectedItem?.fullContentHtml || selectedItem?.contentHtml || selectedItem?.fullContentText || selectedItem?.contentText,
     selectedItem?.fullContentUrl || selectedItem?.link || selectedFeed?.siteUrl || selectedFeed?.url || window.location.href,
@@ -896,6 +914,7 @@ export function RssPage() {
       if (feedById.has(selectedFeedId)) next.set('feed', selectedFeedId);
       else next.delete('feed');
     }
+    if (!mobileLayout || mobileView !== 'detail') next.delete('panel');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
   }, [feedById, mobileLayout, mobileView, searchParams, selectedDigest, selectedFeedId, selectedItem, selectedItemId, setSearchParams, timeRange]);
 
@@ -1307,12 +1326,15 @@ export function RssPage() {
       const result = await generateRssDigest(date, true);
       if (!result.job) {
         await refreshServerState();
+        await useLearningStore.persist.rehydrate();
+        setDigestGenerating(false);
         return;
       }
       const applyDigestJob = async (job: AiJob) => {
         if (job.status === 'queued' || job.status === 'running') return;
+        await refreshServerState();
+        await useLearningStore.persist.rehydrate();
         if (job.status === 'completed') {
-          await refreshServerState();
           Toast.success('日报已更新');
         } else if (job.status === 'failed') {
           setDigestError(job.error || '日报生成失败');
@@ -1331,6 +1353,9 @@ export function RssPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '日报生成失败';
+      await refreshServerState()
+        .then(() => useLearningStore.persist.rehydrate())
+        .catch(() => undefined);
       setDigestGenerating(false);
       setDigestError(message);
       Toast.error(message);
@@ -1475,13 +1500,13 @@ export function RssPage() {
       return;
     }
     setActivePanel(null);
-    setMobileStyleVisible(false);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('source', sourceId);
       next.set('view', 'items');
       next.delete('item');
       next.delete('digest');
+      next.delete('panel');
       if (RSS_SMART_SOURCE_IDS.has(sourceId)) next.delete('feed');
       else next.set('feed', sourceId);
       return next;
@@ -1497,6 +1522,7 @@ export function RssPage() {
         next.set('view', 'detail');
         next.delete('feed');
         next.delete('item');
+        next.delete('panel');
         return next;
       }, { replace: false });
       return;
@@ -1512,6 +1538,7 @@ export function RssPage() {
         next.set('feed', item.feedId);
         next.set('item', item.id);
         next.set('view', 'detail');
+        next.delete('panel');
         return next;
       }, { replace: false });
     } else {
@@ -1522,36 +1549,54 @@ export function RssPage() {
 
   const showMobileSources = () => {
     setActivePanel(null);
-    setMobileStyleVisible(false);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('view', 'sources');
       next.delete('item');
       next.delete('digest');
+      next.delete('panel');
       return next;
     }, { replace: true });
   };
 
   const showMobileItems = () => {
     setActivePanel(null);
-    setMobileStyleVisible(false);
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('view', 'items');
       next.delete('item');
       next.delete('digest');
+      next.delete('panel');
       return next;
     }, { replace: true });
   };
 
   const changeMobilePanel = (panel: RssMobilePanel) => {
-    if (panel === 'style') {
-      setActivePanel(null);
-      setMobileStyleVisible(true);
+    if (!panel) {
+      const state = location.state as { rssMobilePanelEntry?: boolean } | null;
+      if (state?.rssMobilePanelEntry) {
+        navigate(-1);
+        return;
+      }
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete('panel');
+        return next;
+      }, { replace: true });
       return;
     }
-    setMobileStyleVisible(false);
-    setActivePanel(panel);
+    const replacingPanel = Boolean(mobilePanel);
+    const previousState = location.state && typeof location.state === 'object'
+      ? location.state as Record<string, unknown>
+      : {};
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('panel', panel);
+      return next;
+    }, {
+      replace: replacingPanel,
+      state: replacingPanel ? previousState : { ...previousState, rssMobilePanelEntry: true },
+    });
   };
 
   const selectRange = (range: TimeRange) => {
@@ -1655,8 +1700,8 @@ export function RssPage() {
   const askAboutRssSelection = () => {
     if (!rssSelection) return;
     setAiQuote(rssSelection.text);
-    setMobileStyleVisible(false);
-    setActivePanel('ai');
+    if (mobileLayout) changeMobilePanel('ai');
+    else setActivePanel('ai');
     clearNativeSelection();
   };
 
@@ -2389,7 +2434,7 @@ export function RssPage() {
                       )}
                     </div>
                     <div className="rss-article-workspace">
-                      <RssArticleToc activeHeadingId={activeHeadingId} headings={translationVisible ? [] : articleHeadings} onSelect={jumpToHeading} />
+                      <RssArticleToc activeHeadingId={activeHeadingId} headings={translationVisible ? [] : articleHeadings} style={articleTocStyle} onSelect={jumpToHeading} />
                       {articleContent}
                     </div>
                   </div>
@@ -2436,6 +2481,7 @@ export function RssPage() {
 
       <RssDigestSettingsSheet
         configs={configs}
+        runs={digestRuns}
         settings={digestSettings}
         visible={digestSettingsVisible}
         onCancel={() => setDigestSettingsVisible(false)}

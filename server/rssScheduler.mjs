@@ -183,6 +183,11 @@ export function protectServerRssState(incomingPersistedState, currentPersistedSt
       lastError: currentDigestSettings.lastError,
     } : {}),
   };
+  if (Number(currentPersistedState.version || 0) >= 20) {
+    incoming.rssDigestRuns = structuredClone(
+      Array.isArray(current.rssDigestRuns) ? current.rssDigestRuns : [],
+    );
+  }
   return incomingPersistedState;
 }
 

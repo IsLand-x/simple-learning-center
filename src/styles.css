@@ -467,6 +467,7 @@
 }
 
 .rss-article-workspace {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -497,38 +498,64 @@
 }
 
 .rss-article-toc {
-  width: 188px;
-  min-width: 0;
-  flex: 0 0 188px;
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 12px;
+  width: 32px;
+  max-height: min(72%, 560px);
   overflow: auto;
-  padding: 14px 8px 24px;
-  border-right: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-1);
+  padding: 6px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--semi-border-radius-medium);
+  background: transparent;
+  scrollbar-width: none;
+  transform: translateY(-50%);
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.rss-article-toc::-webkit-scrollbar {
+  display: none;
+}
+
+.rss-article-toc:hover,
+.rss-article-toc:focus-within {
+  width: min(228px, calc(100% - 24px));
+  padding: 10px 8px;
+  border-color: color-mix(in srgb, var(--rss-toc-text-color) 14%, transparent);
+  background: var(--rss-toc-paper-color);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--rss-toc-text-color) 16%, transparent);
   scrollbar-width: thin;
 }
 
 .rss-article-toc__title {
-  display: block;
+  display: none;
   padding: 0 8px 8px;
+  color: var(--rss-toc-muted-color) !important;
+}
+
+.rss-article-toc:hover .rss-article-toc__title,
+.rss-article-toc:focus-within .rss-article-toc__title {
+  display: block;
 }
 
 .rss-article-toc__list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 0;
 }
 
 .rss-article-toc__item {
-  display: grid;
-  width: 100%;
-  min-height: 34px;
-  grid-template-columns: 12px minmax(0, 1fr);
+  display: flex;
+  width: 24px;
+  min-height: 14px;
   align-items: center;
-  gap: 4px;
-  padding: 5px 8px 5px calc(6px + var(--rss-toc-depth, 0) * 10px);
+  justify-content: center;
+  padding: 0;
   border: 0;
   border-radius: var(--semi-border-radius-small);
-  color: var(--semi-color-text-2);
+  color: var(--rss-toc-muted-color);
   background: transparent;
   font: inherit;
   font-size: 12px;
@@ -539,37 +566,69 @@
 }
 
 .rss-article-toc__item > span:last-child {
+  display: none;
+}
+
+.rss-article-toc:hover .rss-article-toc__list,
+.rss-article-toc:focus-within .rss-article-toc__list {
+  align-items: stretch;
+  gap: 2px;
+}
+
+.rss-article-toc:hover .rss-article-toc__item,
+.rss-article-toc:focus-within .rss-article-toc__item {
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  grid-template-columns: 12px minmax(0, 1fr);
+  justify-content: initial;
+  gap: 4px;
+  padding: 5px 8px 5px calc(6px + var(--rss-toc-depth, 0) * 10px);
+}
+
+.rss-article-toc:hover .rss-article-toc__item > span:last-child,
+.rss-article-toc:focus-within .rss-article-toc__item > span:last-child {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .rss-article-toc__indicator {
-  width: 6px;
+  width: max(5px, calc(9px - var(--rss-toc-depth, 0) * 2px));
   height: 1px;
   justify-self: center;
-  background: var(--semi-color-border);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--rss-toc-muted-color) 58%, transparent);
   transition: width 160ms ease, height 160ms ease, background-color 160ms ease;
 }
 
 .rss-article-toc__item:hover {
-  color: var(--semi-color-text-1);
-  background: var(--semi-color-fill-0);
+  color: var(--rss-toc-text-color);
 }
 
 .rss-article-toc__item--active {
-  color: var(--semi-color-primary);
-  background: var(--semi-color-primary-light-default);
+  color: var(--rss-toc-accent-color);
 }
 
 .rss-article-toc__item--active .rss-article-toc__indicator {
-  width: 10px;
+  width: 11px;
   height: 2px;
-  background: var(--semi-color-primary);
+  background: var(--rss-toc-accent-color);
+}
+
+.rss-article-toc:hover .rss-article-toc__item:hover,
+.rss-article-toc:focus-within .rss-article-toc__item:hover {
+  background: color-mix(in srgb, var(--rss-toc-text-color) 6%, transparent);
+}
+
+.rss-article-toc:hover .rss-article-toc__item--active,
+.rss-article-toc:focus-within .rss-article-toc__item--active {
+  background: var(--rss-toc-callout-color);
 }
 
 .rss-article-toc__item:focus-visible {
-  outline: 2px solid var(--semi-color-focus-border);
+  outline: 2px solid var(--rss-toc-accent-color);
   outline-offset: -2px;
 }
 
@@ -1111,13 +1170,18 @@
 
 .rss-digest-settings__switch-row {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: flex-start;
+  gap: 12px;
 }
 
-.rss-digest-settings__switch-row > div {
+.rss-digest-settings__switch-copy {
   min-width: 0;
   flex: 1;
+}
+
+.rss-digest-settings__switch-row > .semi-switch {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .rss-digest-settings__switch-row h5 {
@@ -1129,11 +1193,70 @@
   width: 100%;
 }
 
+.rss-digest-settings__field .rss-digest-settings__model-select.ai-composer-model-cascader.semi-cascader {
+  width: 100%;
+  min-height: 32px;
+  border-radius: var(--semi-border-radius-small);
+}
+
+.rss-digest-settings__model-select .semi-cascader-selection {
+  min-width: 0;
+  flex: 1;
+}
+
 .rss-digest-settings__error {
   padding: 12px;
   border: 1px solid var(--semi-color-danger-light-active) !important;
   border-radius: var(--semi-border-radius-medium);
   background: var(--semi-color-danger-light-default);
+}
+
+.rss-digest-settings__history {
+  gap: 12px;
+}
+
+.rss-digest-settings__history-heading,
+.rss-digest-run__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rss-digest-runs {
+  display: flex;
+  flex-direction: column;
+}
+
+.rss-digest-run {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+}
+
+.rss-digest-run + .rss-digest-run {
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.rss-digest-run:first-child {
+  padding-top: 0;
+}
+
+.rss-digest-run:last-child {
+  padding-bottom: 0;
+}
+
+.rss-digest-run__topline time {
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rss-digest-run__message {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
 }
 
 .rss-digest-settings__footer {

@@ -596,6 +596,8 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       scheduleMode: 'every-4-hours',
       times: [],
     };
+    translatedState.state.rssDigestRuns = [];
+    translatedState.version = 20;
     await aiApp.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -617,6 +619,21 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(digestState.state.rssDailyDigests[0].date, '1970-01-01');
     assert.equal(digestState.state.rssDailyDigests[0].content, '服务端回答');
     assert.deepEqual(digestState.state.rssDailyDigests[0].sourceItemIds, ['rss-item-1']);
+    assert.equal(digestState.state.rssDigestRuns[0].status, 'completed');
+    assert.equal(digestState.state.rssDigestRuns[0].trigger, 'manual');
+    assert.equal(digestState.state.rssDigestRuns[0].itemCount, 1);
+    assert.equal(digestState.state.rssDigestRuns[0].model, 'test-model');
+
+    const skippedDigestResponse = await aiApp.request('/api/rss/digests/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: '1970-01-01', force: false }),
+    });
+    assert.equal(skippedDigestResponse.status, 200);
+    assert.equal((await skippedDigestResponse.json()).skipped, true);
+    const skippedDigestState = await (await aiApp.request('/api/state')).json();
+    assert.equal(skippedDigestState.state.rssDigestRuns[0].status, 'skipped');
+    assert.equal(skippedDigestState.state.rssDigestRuns[0].message, '没有新的未读内容');
 
     const staleRssState = structuredClone(rssState);
     staleRssState.state.chatSessions = staleRssState.state.chatSessions
@@ -626,6 +643,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     delete staleRssState.state.rssItems[0].aiSummary;
     delete staleRssState.state.rssItems[0].aiTranslation;
     delete staleRssState.state.rssDailyDigests;
+    delete staleRssState.state.rssDigestRuns;
     await aiApp.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -636,6 +654,9 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(protectedRssState.state.rssItems[0].aiSummaryVersion, 2);
     assert.equal(protectedRssState.state.rssItems[0].aiTranslation, '服务端回答');
     assert.equal(protectedRssState.state.rssDailyDigests[0].content, '服务端回答');
+    assert.equal(protectedRssState.state.rssDigestRuns.length, 2);
+    assert.ok(protectedRssState.state.rssDigestRuns.some((run) => run.status === 'completed'));
+    assert.ok(protectedRssState.state.rssDigestRuns.some((run) => run.status === 'skipped'));
     assert.ok(protectedRssState.state.chatSessions.some((session) => session.id === 'rss-summary:rss-item-1'));
   });
 
