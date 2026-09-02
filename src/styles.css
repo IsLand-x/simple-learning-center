@@ -5573,22 +5573,20 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 }
 
 .video-learning-stage {
+  display: flex;
   width: 100%;
-  max-width: 1040px;
   min-height: 0;
   flex: 1;
-  margin: 0 auto;
-  padding: 20px 24px 28px;
-  overflow: auto;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .youtube-player {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  min-height: 220px;
+  flex: 1 1 auto;
   overflow: hidden;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
   background: var(--semi-color-bg-1);
 }
 
@@ -5612,35 +5610,20 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   background: var(--semi-color-bg-1);
 }
 
-.video-quick-note {
-  margin-top: 16px;
-  padding: 14px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-1);
-}
-
-.video-quick-note__heading,
-.video-quick-note__heading > div {
+.video-main-editor {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  width: 100%;
+  min-height: 180px;
+  flex: 0 1 32%;
+  overflow: hidden;
+  border-top: 1px solid var(--semi-color-border);
+  background: var(--semi-color-bg-0);
 }
 
-.video-quick-note__heading {
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.video-quick-note .semi-input-textarea {
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-.video-quick-note__hint {
-  display: block;
-  margin-top: 6px;
-  text-align: right;
+.video-main-editor .tiptap-markdown-editor {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
 }
 
 .video-detail-empty {
@@ -5680,24 +5663,25 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   min-height: 0;
   flex: 1;
   overflow: auto;
-  padding: 6px 8px 16px;
+  padding: var(--video-transcript-center-padding, 6px) 8px;
   scroll-behavior: smooth;
 }
 
 .video-transcript-row {
   display: grid;
   width: 100%;
-  min-height: 50px;
-  grid-template-columns: 48px minmax(0, 1fr);
+  min-height: 44px;
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: start;
   gap: 6px;
-  padding: 8px;
+  padding: 7px 8px;
   border: 0;
   border-radius: var(--semi-border-radius-small);
   color: var(--semi-color-text-0);
   background: transparent;
   font: inherit;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.45;
   text-align: left;
   cursor: pointer;
 }
@@ -5707,15 +5691,11 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   background: var(--semi-color-primary-light-default);
 }
 
-.video-transcript-row--active {
-  box-shadow: inset 3px 0 0 var(--semi-color-primary);
-}
-
 .video-transcript-row__time {
   color: var(--semi-color-text-2);
-  font-size: 11px;
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
-  line-height: 1.8;
+  line-height: 1.7;
 }
 
 .video-transcript-row__copy {
@@ -5728,6 +5708,7 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 
 .video-transcript-row__translation {
   color: var(--semi-color-text-1);
+  font-size: 11px;
 }
 
 .video-notes-panel > .semi-tabs-bar {
@@ -5906,29 +5887,22 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   }
 
   .video-learning-stage {
+    display: block;
     min-height: 100%;
-    padding: 10px 12px 14px;
     overflow: visible;
   }
 
   .youtube-player {
-    border-radius: var(--semi-border-radius-small);
+    min-height: 0;
+    aspect-ratio: 16 / 9;
   }
 
-  .video-quick-note {
-    margin-top: 10px;
-    padding: 10px;
+  .video-main-editor {
+    height: 300px;
+    min-height: 240px;
   }
 
-  .video-quick-note__heading {
-    align-items: flex-start;
-  }
-
-  .video-quick-note__heading .semi-button {
-    min-height: 44px;
-  }
-
-  .video-quick-note .semi-input-textarea,
+  .video-main-editor .tiptap-markdown-editor__prosemirror,
   .video-add-form .semi-input {
     font-size: 16px;
   }
@@ -5992,9 +5966,9 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   }
 
   .video-transcript-row {
-    min-height: 56px;
-    grid-template-columns: 46px minmax(0, 1fr);
-    padding: 9px 8px;
+    min-height: 48px;
+    grid-template-columns: 42px minmax(0, 1fr);
+    padding: 8px;
   }
 
   .video-transcript-panel__modes .semi-button {
