@@ -133,7 +133,9 @@ function normalizedBilibiliItem(item, fetchedAt, extraDescription = '') {
   const rawDescription = compactText(item?.description || item?.desc, 20_000);
   const reason = compactText(extraDescription || item?.rcmd_reason, 2_000);
   const contentText = [reason, rawDescription].filter(Boolean).join('\n\n');
-  const imageUrl = compactText(item?.cover || item?.pic || item?.owner?.face, 4_000).replace(/^\/\//, 'https://');
+  const imageUrl = compactText(item?.cover || item?.pic || item?.owner?.face, 4_000)
+    .replace(/^\/\//, 'https://')
+    .replace(/^http:\/\/(?:[^/]+\.)?hdslb\.com\//i, (url) => url.replace(/^http:/i, 'https:'));
   const link = bvid
     ? `https://www.bilibili.com/video/${bvid}`
     : `https://www.bilibili.com/video/av${aid}`;

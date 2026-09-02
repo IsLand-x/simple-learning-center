@@ -1,3 +1,5 @@
+import { normalizeRssImageUrl } from './rssVideo';
+
 const ALLOWED_TAGS = new Set([
   'a',
   'abbr',
@@ -118,6 +120,23 @@ export function extractRssContentHeadings(value: string): RssContentHeading[] {
       text: heading.textContent?.trim() ?? '',
     }))
     .filter((heading) => heading.text);
+}
+
+export function removeRssLeadingCover(value: string, coverUrl?: string) {
+  const normalizedCoverUrl = normalizeRssImageUrl(coverUrl);
+  if (!value || !normalizedCoverUrl) return value;
+  const document = new DOMParser().parseFromString(value, 'text/html');
+  const image = Array.from(document.body.querySelectorAll<HTMLImageElement>('img[data-rss-content-image="true"]'))
+    .find((candidate) => normalizeRssImageUrl(candidate.src) === normalizedCoverUrl);
+  if (!image) return value;
+  const container = image.parentElement;
+  const isStandaloneContainer = container
+    && (container.tagName === 'P' || container.tagName === 'FIGURE')
+    && !container.textContent?.trim()
+    && container.querySelectorAll('img').length === 1;
+  if (isStandaloneContainer) container.remove();
+  else image.remove();
+  return document.body.innerHTML;
 }
 
 export function findRssSearchMatches(value: string, query: string): RssSearchMatch[] {
@@ -276,11 +295,11 @@ export function sanitizeRssContentHtml(
     }
 
     if (tag === 'img') {
-      const src = safeUrl(
+      const src = normalizeRssImageUrl(safeUrl(
         element.getAttribute('src') || element.getAttribute('data-src'),
         baseUrl,
         IMAGE_PROTOCOLS,
-      );
+      ));
       if (!src) {
         element.remove();
         return;

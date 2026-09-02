@@ -90,9 +90,10 @@ import {
   type FetchedRssFeed,
   type RssSourceInput,
 } from '../lib/rssApi';
-import { extractRssContentHeadings, findRssSearchMatches, sanitizeRssContentHtml, type RssContentHeading } from '../lib/rssContent';
+import { extractRssContentHeadings, findRssSearchMatches, removeRssLeadingCover, sanitizeRssContentHtml, type RssContentHeading } from '../lib/rssContent';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import { getReaderTextureStyle, getReaderThemeName, resolveReaderStyle } from '../lib/readerThemes';
+import { getRssVideoPresentation } from '../lib/rssVideo';
 import { refreshServerState, waitForServerStateWrites } from '../lib/serverStateStorage';
 import { ServerApiError } from '../lib/serverApi';
 import { createUuid } from '../lib/uuid';
@@ -845,6 +846,10 @@ export function RssPage() {
     ? filteredItems[selectedItemIndex + 1]
     : undefined;
   const selectedFeed = selectedItem ? feedById.get(selectedItem.feedId) : undefined;
+  const selectedVideoPresentation = useMemo(
+    () => selectedItem ? getRssVideoPresentation(selectedItem, selectedFeed) : undefined,
+    [selectedFeed, selectedItem],
+  );
   const requestedMobileView = searchParams.get('view');
   const inferredMobileView: RssMobileView = selectedItem || selectedDigest ? 'detail' : 'sources';
   const mobileView: RssMobileView = isRssMobileView(requestedMobileView)
@@ -938,12 +943,12 @@ export function RssPage() {
     '--rss-toc-paper-color': readerStyle.paperColor,
     '--rss-toc-text-color': readerStyle.textColor,
   } as CssVariables), [readerStyle]);
-  const sanitizedContentHtml = useMemo(() => sanitizeRssContentHtml(
+  const sanitizedContentHtml = useMemo(() => removeRssLeadingCover(sanitizeRssContentHtml(
     selectedItem?.fullContentHtml || selectedItem?.contentHtml || selectedItem?.fullContentText || selectedItem?.contentText,
     selectedItem?.fullContentUrl || selectedItem?.link || selectedFeed?.siteUrl || selectedFeed?.url || window.location.href,
     query,
     selectedAnnotations,
-  ), [query, selectedAnnotations, selectedFeed?.siteUrl, selectedFeed?.url, selectedItem?.contentHtml, selectedItem?.contentText, selectedItem?.fullContentHtml, selectedItem?.fullContentText, selectedItem?.fullContentUrl, selectedItem?.link]);
+  ), selectedVideoPresentation?.embedUrl ? selectedVideoPresentation.imageUrl : undefined), [query, selectedAnnotations, selectedFeed?.siteUrl, selectedFeed?.url, selectedItem?.contentHtml, selectedItem?.contentText, selectedItem?.fullContentHtml, selectedItem?.fullContentText, selectedItem?.fullContentUrl, selectedItem?.link, selectedVideoPresentation?.embedUrl, selectedVideoPresentation?.imageUrl]);
   const sanitizedContentMarkup = useMemo(() => ({ __html: sanitizedContentHtml }), [sanitizedContentHtml]);
   const articleHeadings = useMemo(() => extractRssContentHeadings(sanitizedContentHtml), [sanitizedContentHtml]);
 
@@ -2203,9 +2208,10 @@ export function RssPage() {
         {filteredItems.length ? filteredItems.map((item) => {
           const feed = feedById.get(item.feedId);
           const searchPreview = searchPreviews.get(item.id);
+          const videoPresentation = getRssVideoPresentation(item, feed);
           return (
             <button
-              className={`rss-item-row${selectedItem?.id === item.id ? ' rss-item-row--active' : ''}${item.readAt ? ' rss-item-row--read' : ''}`}
+              className={`rss-item-row${videoPresentation?.imageUrl ? ' rss-item-row--with-thumbnail' : ''}${selectedItem?.id === item.id ? ' rss-item-row--active' : ''}${item.readAt ? ' rss-item-row--read' : ''}`}
               key={item.id}
               type="button"
               onClick={() => openItem(item)}
@@ -2215,15 +2221,27 @@ export function RssPage() {
                 setItemMenu({ item, x: event.clientX, y: event.clientY });
               }}
             >
-              <span className="rss-item-row__title"><HighlightedText text={item.title} query={query} /></span>
-              {searchPreview && (
-                <span className="rss-item-row__excerpt"><HighlightedText text={searchPreview} query={query} /></span>
+              {videoPresentation?.imageUrl && (
+                <img
+                  alt=""
+                  className="rss-item-row__thumbnail"
+                  decoding="async"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  src={videoPresentation.imageUrl}
+                />
               )}
-              <span className="rss-item-row__meta">
-                <span className="rss-item-row__type-icon" aria-label={feed ? feedTypeLabels[feed.type] : '内容'}><FeedTypeIcon type={feed?.type ?? 'article'} /></span>
-                <span><HighlightedText text={feed?.title ?? '未知订阅源'} query={query} /></span>
-                <time>{itemTime(item.publishedAt)}</time>
-                {item.bookmarkedAt && <IconBookmark />}
+              <span className="rss-item-row__content">
+                <span className="rss-item-row__title"><HighlightedText text={item.title} query={query} /></span>
+                {searchPreview && (
+                  <span className="rss-item-row__excerpt"><HighlightedText text={searchPreview} query={query} /></span>
+                )}
+                <span className="rss-item-row__meta">
+                  <span className="rss-item-row__type-icon" aria-label={feed ? feedTypeLabels[feed.type] : '内容'}><FeedTypeIcon type={feed?.type ?? 'article'} /></span>
+                  <span><HighlightedText text={feed?.title ?? '未知订阅源'} query={query} /></span>
+                  <time>{itemTime(item.publishedAt)}</time>
+                  {item.bookmarkedAt && <IconBookmark />}
+                </span>
               </span>
             </button>
           );
@@ -2265,6 +2283,18 @@ export function RssPage() {
           {selectedItem.author && <> · <HighlightedText text={selectedItem.author} query={query} /></>}
           {selectedItem.fullContentFetchedAt && <> · 已读取原文</>}
         </Text>
+        {selectedVideoPresentation?.embedUrl && (
+          <div className="rss-video-player">
+            <iframe
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+              loading="eager"
+              referrerPolicy="strict-origin-when-cross-origin"
+              src={selectedVideoPresentation.embedUrl}
+              title={`播放：${selectedItem.title}`}
+            />
+          </div>
+        )}
         <section className="rss-ai-summary" aria-live="polite">
           <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 摘要</Text></div>
           {selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2 ? (
