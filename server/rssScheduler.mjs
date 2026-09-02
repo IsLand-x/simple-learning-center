@@ -1,6 +1,6 @@
 import { RSS_REFRESH_INITIAL_DELAY_MS, RSS_REFRESH_INTERVAL_MS } from './config.mjs';
-import { fetchRssFeed } from './rss.mjs';
 import { fetchRssArticle } from './rssArticle.mjs';
+import { fetchRssSource, normalizeRssSource, sourceMinimumIntervalMs } from './rssSources.mjs';
 import { mutatePersistedState, readPersistedState } from './storage.mjs';
 
 const MIN_FEED_SPACING_MS = 15_000;
@@ -118,6 +118,7 @@ function mergeConcurrentItem(incomingItem, currentItem) {
 export function protectServerRssState(incomingPersistedState, currentPersistedState) {
   const incoming = rssState(incomingPersistedState);
   const current = rssState(currentPersistedState);
+  const originalIncomingVersion = Number(incomingPersistedState?.version || 0);
   if (!incoming || !current || Number(incomingPersistedState.version || 0) < 16) {
     return incomingPersistedState;
   }
@@ -136,7 +137,9 @@ export function protectServerRssState(incomingPersistedState, currentPersistedSt
       siteUrl: serverFeed.siteUrl || feed.siteUrl,
       description: serverFeed.description || feed.description,
       lastFetchedAt: serverFeed.lastFetchedAt,
+      lastSuccessAt: serverFeed.lastSuccessAt,
       lastError: serverFeed.lastError,
+      lastErrorCode: serverFeed.lastErrorCode,
     };
   });
 
@@ -195,11 +198,25 @@ export function protectServerRssState(incomingPersistedState, currentPersistedSt
     incoming.rssDigestSettings = structuredClone(current.rssDigestSettings || {});
     incomingPersistedState.version = currentPersistedState.version;
   }
+  if (
+    Number(currentPersistedState.version || 0) >= 22
+    && originalIncomingVersion < 22
+  ) {
+    const currentFeedsById = new Map(
+      (Array.isArray(current.rssFeeds) ? current.rssFeeds : []).map((feed) => [feed.id, feed]),
+    );
+    incoming.rssFeeds = (Array.isArray(incoming.rssFeeds) ? incoming.rssFeeds : []).map((feed) => {
+      const currentFeed = currentFeedsById.get(feed.id);
+      return currentFeed?.source ? { ...feed, source: structuredClone(currentFeed.source) } : feed;
+    });
+    incomingPersistedState.version = currentPersistedState.version;
+  }
   return incomingPersistedState;
 }
 
-export async function refreshPersistedRssFeed(feedId, {
-  fetchFeed = fetchRssFeed,
+async function performPersistedRssRefresh(feedId, {
+  fetchFeed,
+  fetchSource,
   fetchArticle = fetchRssArticle,
   logger = console,
 } = {}) {
@@ -208,7 +225,12 @@ export async function refreshPersistedRssFeed(feedId, {
   if (!feed) return { status: 'missing', feedId };
 
   try {
-    const result = await fetchFeed(feed.url);
+    const source = normalizeRssSource(feed.source, feed.url);
+    const result = fetchSource
+      ? await fetchSource(source)
+      : fetchFeed
+        ? await fetchFeed(feed.url)
+        : await fetchRssSource(source);
     const existingItems = new Map(
       (rssState(persistedState)?.rssItems ?? [])
         .filter((item) => item.feedId === feedId)
@@ -246,7 +268,9 @@ export async function refreshPersistedRssFeed(feedId, {
         siteUrl: result.siteUrl || currentFeed.siteUrl,
         description: result.description || currentFeed.description,
         lastFetchedAt: result.fetchedAt,
+        lastSuccessAt: result.fetchedAt,
         lastError: undefined,
+        lastErrorCode: undefined,
         updatedAt: timestamp,
       });
       state.rssItems = mergeFetchedItems(
@@ -262,11 +286,24 @@ export async function refreshPersistedRssFeed(feedId, {
       const currentFeed = rssState(nextPersistedState)?.rssFeeds?.find((item) => item.id === feedId);
       if (!currentFeed) return;
       currentFeed.lastError = message;
+      currentFeed.lastErrorCode = typeof error?.sourceCode === 'string' ? error.sourceCode : undefined;
       currentFeed.updatedAt = Date.now();
     }).catch(() => undefined);
     logger.warn?.(`RSS 订阅源刷新失败（${feed.title}）：${message}`);
     return { status: 'failed', feedId, error: message };
   }
+}
+
+const inFlightRefreshes = new Map();
+
+export function refreshPersistedRssFeed(feedId, options = {}) {
+  const current = inFlightRefreshes.get(feedId);
+  if (current) return current;
+  const operation = performPersistedRssRefresh(feedId, options).finally(() => {
+    if (inFlightRefreshes.get(feedId) === operation) inFlightRefreshes.delete(feedId);
+  });
+  inFlightRefreshes.set(feedId, operation);
+  return operation;
 }
 
 function shuffled(values, random) {
@@ -279,17 +316,21 @@ function shuffled(values, random) {
 }
 
 export function createRssScheduler({
-  fetchFeed = fetchRssFeed,
+  fetchFeed,
+  fetchSource,
   fetchArticle = fetchRssArticle,
   initialDelayMs = RSS_REFRESH_INITIAL_DELAY_MS,
   intervalMs = RSS_REFRESH_INTERVAL_MS,
   logger = console,
   minFeedSpacingMs = MIN_FEED_SPACING_MS,
+  now = Date.now,
   random = Math.random,
 } = {}) {
   let active = false;
   let cycleTimer;
   const feedTimers = new Set();
+  const sourceFetcher = fetchSource
+    || (fetchFeed ? (source) => fetchFeed(source.feedUrl) : fetchRssSource);
 
   const clearTimers = () => {
     clearTimeout(cycleTimer);
@@ -308,7 +349,11 @@ export function createRssScheduler({
     let feeds = [];
     try {
       const persistedState = await readPersistedState();
-      feeds = shuffled(rssState(persistedState)?.rssFeeds ?? [], random);
+      feeds = shuffled(rssState(persistedState)?.rssFeeds ?? [], random).filter((feed) => {
+        const source = normalizeRssSource(feed.source, feed.url);
+        const minimumInterval = Math.max(intervalMs, sourceMinimumIntervalMs(source));
+        return !feed.lastFetchedAt || now() - feed.lastFetchedAt >= minimumInterval;
+      });
     } catch (error) {
       logger.warn?.(`无法读取 RSS 定时任务状态：${error instanceof Error ? error.message : String(error)}`);
     }
@@ -318,7 +363,7 @@ export function createRssScheduler({
     feeds.forEach((feed, index) => {
       const timer = setTimeout(() => {
         feedTimers.delete(timer);
-        if (active) void refreshPersistedRssFeed(feed.id, { fetchFeed, fetchArticle, logger });
+        if (active) void refreshPersistedRssFeed(feed.id, { fetchSource: sourceFetcher, fetchArticle, logger });
       }, index * spacing);
       timer.unref?.();
       feedTimers.add(timer);
@@ -338,6 +383,6 @@ export function createRssScheduler({
       clearTimers();
     },
     runCycle,
-    refreshFeed: (feedId) => refreshPersistedRssFeed(feedId, { fetchFeed, fetchArticle, logger }),
+    refreshFeed: (feedId) => refreshPersistedRssFeed(feedId, { fetchSource: sourceFetcher, fetchArticle, logger }),
   };
 }

@@ -1,10 +1,12 @@
 export class ServerApiError extends Error {
   status: number;
+  code?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'ServerApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -12,12 +14,17 @@ export const AUTHENTICATION_REQUIRED_EVENT = 'learning-center:authentication-req
 
 async function responseError(response: Response) {
   try {
-    const payload = await response.json() as { error?: unknown };
-    if (typeof payload.error === 'string' && payload.error.trim()) return payload.error;
+    const payload = await response.json() as { error?: unknown; code?: unknown };
+    if (typeof payload.error === 'string' && payload.error.trim()) {
+      return {
+        message: payload.error,
+        code: typeof payload.code === 'string' ? payload.code : undefined,
+      };
+    }
   } catch {
     // Fall back to the HTTP status below.
   }
-  return `服务器请求失败（${response.status}）`;
+  return { message: `服务器请求失败（${response.status}）` };
 }
 
 export async function serverRequest(path: string, init?: RequestInit) {
@@ -36,7 +43,8 @@ export async function serverRequest(path: string, init?: RequestInit) {
     if (response.status === 401 && !path.startsWith('/api/auth/')) {
       window.dispatchEvent(new Event(AUTHENTICATION_REQUIRED_EVENT));
     }
-    throw new ServerApiError(await responseError(response), response.status);
+    const details = await responseError(response);
+    throw new ServerApiError(details.message, response.status, details.code);
   }
   return response;
 }

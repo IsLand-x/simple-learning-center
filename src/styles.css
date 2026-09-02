@@ -1158,6 +1158,13 @@
   width: 100%;
 }
 
+.rss-dialog-note {
+  padding: 10px 12px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+}
+
 .rss-dialog-actions {
   display: flex;
   justify-content: flex-end;
@@ -2000,6 +2007,7 @@ button,
 
 .settings-notice,
 .web-search-settings,
+.content-source-settings,
 .settings-about,
 .account-settings,
 .api-config-list,
@@ -2128,6 +2136,56 @@ button,
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
   background: var(--semi-color-bg-1);
+}
+
+.content-source-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-bg-1);
+}
+
+.content-source-settings__heading,
+.content-source-settings__identity,
+.content-source-settings__actions {
+  display: flex;
+  align-items: center;
+}
+
+.content-source-settings__heading {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.content-source-settings__identity {
+  min-width: 0;
+  gap: 10px;
+  color: var(--semi-color-text-1);
+}
+
+.content-source-settings__identity > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.content-source-settings__identity h5 {
+  margin: 0;
+}
+
+.content-source-settings__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.content-source-settings__actions {
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .web-search-settings--editing {

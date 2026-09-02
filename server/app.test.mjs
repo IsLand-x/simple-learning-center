@@ -395,6 +395,47 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(articleReaderConfig.apiKey, 'test-search-key');
   });
 
+  await t.test('内容源解析、抓取与 B站凭据接口不会回显 Cookie', async () => {
+    let savedCookie = '';
+    const status = () => ({
+      configured: Boolean(savedCookie),
+      verificationStatus: savedCookie ? 'valid' : 'unconfigured',
+      ...(savedCookie ? { accountLabel: '测试账号' } : {}),
+    });
+    const sourceApp = createApp({
+      serveFrontend: false,
+      rssSourceResolver: async (input) => ({
+        source: { kind: input.kind },
+        result: { title: '测试来源', items: [] },
+      }),
+      rssSourceFetcher: async (source) => ({ title: source.kind, items: [] }),
+      sourceSecrets: {
+        getBilibiliStatus: async () => status(),
+        setBilibiliCookie: async (cookie) => { savedCookie = cookie; return status(); },
+        verifyBilibiliCookie: async () => status(),
+        deleteBilibiliCookie: async () => { savedCookie = ''; return status(); },
+      },
+    });
+    const resolvedResponse = await sourceApp.request('/api/rss/sources/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'bilibili-weekly' }),
+    });
+    assert.equal(resolvedResponse.status, 200);
+    assert.equal((await resolvedResponse.json()).source.kind, 'bilibili-weekly');
+
+    const saveResponse = await sourceApp.request('/api/source-credentials/bilibili', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookie: 'SESSDATA=private' }),
+    });
+    const savedStatus = await saveResponse.json();
+    assert.equal(savedStatus.configured, true);
+    assert.equal(Object.hasOwn(savedStatus, 'cookie'), false);
+    const readStatus = await (await sourceApp.request('/api/source-credentials/bilibili')).json();
+    assert.equal(Object.hasOwn(readStatus, 'cookie'), false);
+  });
+
   await t.test('AI 任务在服务端运行并持久化对话', async () => {
     const aiApp = createApp({
       serveFrontend: false,

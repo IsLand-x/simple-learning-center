@@ -299,12 +299,12 @@ function decodeFeed(buffer) {
   }
 }
 
-export async function fetchRssFeed(value) {
+export async function fetchRssFeed(value, { fetchImpl = fetch, onFetchError } = {}) {
   let url = await validateRemoteUrl(value);
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
     let response;
     try {
-      response = await fetch(url, {
+      response = await fetchImpl(url, {
         headers: {
           Accept: 'application/atom+xml, application/rss+xml, application/xml, text/xml, */*;q=0.2',
           'User-Agent': 'LearningCenterRSS/1.0',
@@ -313,6 +313,8 @@ export async function fetchRssFeed(value) {
         signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
       });
     } catch (error) {
+      const mappedError = onFetchError?.(error);
+      if (mappedError) throw mappedError;
       if (error?.name === 'TimeoutError') throw statusError(504, '获取订阅源超时');
       throw statusError(502, '无法连接订阅源');
     }
