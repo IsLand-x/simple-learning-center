@@ -4,6 +4,8 @@ import type { AiProvider, OpenAICompatibleConfig } from '../types';
 import { CspSafeChatContent } from './CspSafeChatContent';
 
 type DialogueChats = NonNullable<ComponentProps<typeof AIChatDialogue>['chats']>;
+type DialogueQuote = { text: string; chapter: string };
+type DialogueChat = DialogueChats[number] & { quote?: DialogueQuote };
 
 export function AiConversationDialogue({
   chats,
@@ -11,16 +13,19 @@ export function AiConversationDialogue({
   emptyTitle,
   emptyDescription,
 }: {
-  chats: DialogueChats;
+  chats: DialogueChat[];
   assistantName: string;
   emptyTitle: string;
   emptyDescription: string;
 }) {
   if (!chats.length) return <Empty title={emptyTitle} description={emptyDescription} />;
+  const quoteByMessageId = new Map(
+    chats.flatMap((message) => message.quote ? [[String(message.id), message.quote] as const] : []),
+  );
   return (
     <AIChatDialogue
       chats={chats}
-      align="leftRight"
+      align="leftAlign"
       mode="bubble"
       roleConfig={{ user: { name: '你' }, assistant: { name: assistantName } }}
       dialogueRenderConfig={{
@@ -28,7 +33,11 @@ export function AiConversationDialogue({
         renderDialogueTitle: () => null,
         renderDialogueAction: () => null,
         renderDialogueContent: ({ message, className }) => (
-          <CspSafeChatContent message={message} bubbleClassName={className} />
+          <CspSafeChatContent
+            message={message}
+            bubbleClassName={`${className} ai-message--${message?.role ?? 'assistant'}`}
+            quote={message ? quoteByMessageId.get(String(message.id)) : undefined}
+          />
         ),
       }}
     />

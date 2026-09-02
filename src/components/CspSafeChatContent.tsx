@@ -109,9 +109,11 @@ function renderItem(item: unknown, index: number, bubbleClassName: string) {
 export function CspSafeChatContent({
   message,
   bubbleClassName = '',
+  quote,
 }: {
   message?: ChatRenderMessage;
   bubbleClassName?: string;
+  quote?: { text: string; chapter: string };
 }) {
   const content = message?.content;
   const children = typeof content === 'string'
@@ -127,7 +129,15 @@ export function CspSafeChatContent({
         {message?.status === 'failed' && (
           <div className="semi-ai-chat-dialogue-content-failed"><IconAlertCircle /></div>
         )}
-        <div className="semi-ai-chat-dialogue-content-inner">{children}</div>
+        <div className="semi-ai-chat-dialogue-content-inner">
+          {quote && (
+            <blockquote className="ai-message-quote">
+              <span className="ai-message-quote__label">引用 · {quote.chapter || '当前内容'}</span>
+              <span className="ai-message-quote__text">{quote.text}</span>
+            </blockquote>
+          )}
+          {children}
+        </div>
       </div>
       {loading && (
         <div className="semi-ai-chat-dialogue-content-loading" aria-label="正在生成">

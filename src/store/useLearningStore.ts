@@ -394,8 +394,9 @@ export const useLearningStore = create<LearningState>()(
                 aiSummaryUpdatedAt: previous.aiSummaryUpdatedAt,
                 aiSummaryVersion: previous.aiSummaryVersion,
               } : {}),
-              ...(!hasNewFullContent && previous.aiTranslation ? {
+              ...(!hasNewFullContent && (previous.aiTranslationHtml || previous.aiTranslation) ? {
                 aiTranslation: previous.aiTranslation,
+                aiTranslationHtml: previous.aiTranslationHtml,
                 aiTranslationUpdatedAt: previous.aiTranslationUpdatedAt,
                 aiTranslationSourceFetchedAt: previous.aiTranslationSourceFetchedAt,
               } : {}),
@@ -540,7 +541,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 21,
+      version: 22,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -769,6 +770,17 @@ export const useLearningStore = create<LearningState>()(
                 ? DEFAULT_RSS_DIGEST_PROMPT
                 : digestSettings.prompt,
             },
+          };
+        }
+        if (version < 22) {
+          migrated = {
+            ...migrated,
+            rssItems: (migrated.rssItems ?? []).map((item) => ({
+              ...item,
+              ...(typeof item.aiTranslationHtml === 'string' && item.aiTranslationHtml.trim()
+                ? { aiTranslationHtml: item.aiTranslationHtml }
+                : { aiTranslationHtml: undefined }),
+            })),
           };
         }
         return migrated;

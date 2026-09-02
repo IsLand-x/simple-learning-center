@@ -351,12 +351,19 @@ function RssDigestArticle({
   return (
     <article className="rss-article rss-digest-article" style={style}>
       <div className="rss-article__inner rss-digest-article__inner">
-        <Text size="small" type="secondary">AI 整理 · {digest?.itemCount ?? 0} 条内容</Text>
-        <Title className="rss-article__title" heading={3}>{digestDateLabel(date)} RSS 日报</Title>
-        <Text size="small" type="tertiary">
-          {date === localDateKey() ? '[正在产出中] 今天的内容会随定时任务持续更新' : '已归档日报'}
-          {digest?.updatedAt && <> · 更新于 {itemDateTime(digest.updatedAt)}</>}
-        </Text>
+        <header className="rss-article__header">
+          <div className="rss-article__masthead">
+            <span>每日汇编</span>
+            <span>AI 整理 · {digest?.itemCount ?? 0} 条内容</span>
+          </div>
+          <Title className="rss-article__title" heading={3}>{digestDateLabel(date)} RSS 日报</Title>
+          <div className="rss-article__byline">
+            <Text size="small" type="tertiary">
+              {date === localDateKey() ? '[正在产出中] 今天的内容会随定时任务持续更新' : '已归档日报'}
+              {digest?.updatedAt && <> · 更新于 <time>{itemDateTime(digest.updatedAt)}</time></>}
+            </Text>
+          </div>
+        </header>
         {generating && (
           <div className="rss-digest-status" aria-live="polite">
             <Spin size="small" />
@@ -783,11 +790,16 @@ export function RssPage() {
     ? requestedDigest ?? (mobileLayout ? undefined : digestList[0])
     : undefined;
   const selectedItemId = selectedItem?.id ?? null;
+  const automaticallySelectedItemIdRef = useRef<string | null>(
+    !mobileLayout && feedById.has(selectedFeedId) && !requestedItemMatchesSource ? selectedItemId : null,
+  );
+  const pendingAutomaticSourceIdRef = useRef<string | null>(null);
   const selectedItemIdRef = useRef(selectedItemId);
   selectedItemIdRef.current = selectedItemId;
   const selectedTranslationTask = selectedItemId ? translationTasks[selectedItemId] : undefined;
+  const hasSelectedTranslation = Boolean(selectedItem?.aiTranslationHtml || selectedItem?.aiTranslation);
   const translationStatus = selectedTranslationTask?.status
-    ?? (selectedItem?.aiTranslation ? 'ready' : 'idle');
+    ?? (hasSelectedTranslation ? 'ready' : 'idle');
   const translationError = selectedTranslationTask?.error ?? '';
   const selectedItemIndex = selectedItem
     ? filteredItems.findIndex((item) => item.id === selectedItem.id)
@@ -816,6 +828,10 @@ export function RssPage() {
     ? selectedAnnotations.find((annotation) => annotation.id === activeAnnotationTarget.highlightId)
     : undefined;
   const setSelectedFeedId = useCallback((sourceId: string) => {
+    automaticallySelectedItemIdRef.current = null;
+    pendingAutomaticSourceIdRef.current = !mobileLayout && !RSS_SMART_SOURCE_IDS.has(sourceId)
+      ? sourceId
+      : null;
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.set('source', sourceId);
@@ -826,7 +842,7 @@ export function RssPage() {
       next.delete('digest');
       return next;
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [mobileLayout, setSearchParams]);
   const setSelectedItemId = useCallback((itemId: string | null) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
@@ -890,14 +906,27 @@ export function RssPage() {
     '--rss-toc-paper-color': readerStyle.paperColor,
     '--rss-toc-text-color': readerStyle.textColor,
   } as CssVariables), [readerStyle]);
+  const articleBaseUrl = selectedItem?.fullContentUrl || selectedItem?.link || selectedFeed?.siteUrl || selectedFeed?.url || window.location.href;
   const sanitizedContentHtml = useMemo(() => sanitizeRssContentHtml(
     selectedItem?.fullContentHtml || selectedItem?.contentHtml || selectedItem?.fullContentText || selectedItem?.contentText,
-    selectedItem?.fullContentUrl || selectedItem?.link || selectedFeed?.siteUrl || selectedFeed?.url || window.location.href,
+    articleBaseUrl,
     query,
     selectedAnnotations,
-  ), [query, selectedAnnotations, selectedFeed?.siteUrl, selectedFeed?.url, selectedItem?.contentHtml, selectedItem?.contentText, selectedItem?.fullContentHtml, selectedItem?.fullContentText, selectedItem?.fullContentUrl, selectedItem?.link]);
+  ), [articleBaseUrl, query, selectedAnnotations, selectedItem?.contentHtml, selectedItem?.contentText, selectedItem?.fullContentHtml, selectedItem?.fullContentText]);
   const sanitizedContentMarkup = useMemo(() => ({ __html: sanitizedContentHtml }), [sanitizedContentHtml]);
   const articleHeadings = useMemo(() => extractRssContentHeadings(sanitizedContentHtml), [sanitizedContentHtml]);
+  const sanitizedTranslationHtml = useMemo(() => sanitizeRssContentHtml(
+    selectedItem?.aiTranslationHtml,
+    articleBaseUrl,
+    query,
+  ), [articleBaseUrl, query, selectedItem?.aiTranslationHtml]);
+  const sanitizedTranslationMarkup = useMemo(() => ({ __html: sanitizedTranslationHtml }), [sanitizedTranslationHtml]);
+  const translationHeadings = useMemo(() => extractRssContentHeadings(sanitizedTranslationHtml), [sanitizedTranslationHtml]);
+  const displayedArticleHeadings = useMemo(() => (
+    translationVisible && sanitizedTranslationHtml
+      ? translationHeadings
+      : translationVisible ? [] : articleHeadings
+  ), [articleHeadings, sanitizedTranslationHtml, translationHeadings, translationVisible]);
 
   useEffect(() => {
     setExpandedFolders((current) => {
@@ -906,6 +935,18 @@ export function RssPage() {
       return next;
     });
   }, [folders]);
+
+  useEffect(() => {
+    const pendingSourceId = pendingAutomaticSourceIdRef.current;
+    if (pendingSourceId) {
+      pendingAutomaticSourceIdRef.current = null;
+      automaticallySelectedItemIdRef.current = pendingSourceId === selectedFeedId ? selectedItemId : null;
+      return;
+    }
+    if (automaticallySelectedItemIdRef.current !== selectedItemId) {
+      automaticallySelectedItemIdRef.current = null;
+    }
+  }, [selectedFeedId, selectedItemId]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
@@ -951,10 +992,14 @@ export function RssPage() {
   }, [selectedItemId]);
 
   useEffect(() => {
-    setActiveHeadingId(articleHeadings[0]?.id);
-  }, [articleHeadings, selectedItemId]);
+    setActiveHeadingId(displayedArticleHeadings[0]?.id);
+  }, [displayedArticleHeadings, selectedItemId]);
 
   useEffect(() => {
+    if (translationVisible) {
+      setRssSelection(null);
+      return undefined;
+    }
     const syncSelection = () => {
       const nativeSelection = window.getSelection();
       const body = articleBodyRef.current;
@@ -996,7 +1041,7 @@ export function RssPage() {
     };
     document.addEventListener('selectionchange', syncSelection);
     return () => document.removeEventListener('selectionchange', syncSelection);
-  }, [selectedItemId]);
+  }, [selectedItemId, translationVisible]);
 
   useEffect(() => {
     void ensureReaderFontStylesheet(document, readerStyle.fontFamily);
@@ -1096,6 +1141,7 @@ export function RssPage() {
         aiSummaryUpdatedAt: undefined,
         aiSummaryVersion: undefined,
         aiTranslation: undefined,
+        aiTranslationHtml: undefined,
         aiTranslationUpdatedAt: undefined,
         aiTranslationSourceFetchedAt: undefined,
       });
@@ -1248,7 +1294,7 @@ export function RssPage() {
         },
       }));
     };
-    if (item.aiTranslation) {
+    if (item.aiTranslationHtml || item.aiTranslation) {
       updateTranslationTask({ status: 'ready', error: '' });
       setTranslationVisible((current) => !current);
       return;
@@ -1262,7 +1308,7 @@ export function RssPage() {
       return;
     }
     const resourceId = `rss:${itemId}`;
-    const conversationId = `rss-translation-v1:${itemId}`;
+    const conversationId = `rss-translation-v2:${itemId}`;
     updateTranslationTask({ status: 'generating', error: '' });
     setTranslationVisible(true);
     const applyTranslationJob = (job: AiJob) => {
@@ -1274,6 +1320,7 @@ export function RssPage() {
       if (job.status === 'completed') {
         updateRssItem(itemId, {
           aiTranslation: job.content,
+          aiTranslationHtml: job.translationHtml,
           aiTranslationUpdatedAt: Date.now(),
           aiTranslationSourceFetchedAt: Number(item.fullContentFetchedAt || item.fetchedAt || 0),
         });
@@ -1303,7 +1350,7 @@ export function RssPage() {
               conversationId,
               userMessage: {
                 id: createUuid(),
-                content: '请读取当前 RSS 正文并完整翻译成简体中文。保留标题、段落、列表、小标题、链接文字和引用关系，使用清晰的 Markdown 输出；不要总结、删减、补写或解释。原文已经是中文时，忠实整理为可读的简体中文。',
+                content: '请读取当前 RSS 正文并完整翻译成简体中文。逐一翻译服务端提供的文本片段，严格保留片段 id；不要总结、删减、补写或解释。',
                 createdAt,
               },
               session: { title: `页面翻译：${item.title}`.slice(0, 100), createdAt },
@@ -1550,6 +1597,8 @@ export function RssPage() {
   };
 
   const openItem = (item: RssItem) => {
+    automaticallySelectedItemIdRef.current = null;
+    pendingAutomaticSourceIdRef.current = null;
     if (mobileLayout) {
       setSearchParams((current) => {
         const next = new URLSearchParams(current);
@@ -1564,6 +1613,17 @@ export function RssPage() {
       setSelectedItemId(item.id);
     }
     if (!item.readAt) updateRssItem(item.id, { readAt: Date.now() });
+  };
+
+  const markAutomaticallySelectedItemRead = (scrollContainer: HTMLElement) => {
+    if (
+      scrollContainer.scrollTop <= 0
+      || !selectedItem
+      || selectedItem.readAt
+      || automaticallySelectedItemIdRef.current !== selectedItem.id
+    ) return;
+    automaticallySelectedItemIdRef.current = null;
+    updateRssItem(selectedItem.id, { readAt: Date.now() });
   };
 
   const showMobileSources = () => {
@@ -2136,6 +2196,7 @@ export function RssPage() {
       className="rss-article"
       style={articleStyle}
       onScroll={(event) => {
+        markAutomaticallySelectedItemRead(event.currentTarget);
         setRssSelection(null);
         setActiveAnnotationTarget(null);
         syncActiveHeading(event.currentTarget);
@@ -2145,15 +2206,22 @@ export function RssPage() {
       }}
     >
       <div className="rss-article__inner">
-        <Text size="small" type="secondary"><HighlightedText text={selectedFeed?.title ?? '未知订阅源'} query={query} /> · {selectedFeed ? feedTypeLabels[selectedFeed.type] : '内容'}</Text>
-        <Title className="rss-article__title" heading={3}><HighlightedText text={selectedItem.title} query={query} /></Title>
-        <Text size="small" type="tertiary">
-          {itemDateTime(selectedItem.publishedAt)}
-          {selectedItem.author && <> · <HighlightedText text={selectedItem.author} query={query} /></>}
-          {selectedItem.fullContentFetchedAt && <> · 已读取原文</>}
-        </Text>
+        <header className="rss-article__header">
+          <div className="rss-article__masthead">
+            <span><HighlightedText text={selectedFeed?.title ?? '未知订阅源'} query={query} /></span>
+            <span>{selectedFeed ? feedTypeLabels[selectedFeed.type] : '内容'}</span>
+          </div>
+          <Title className="rss-article__title" heading={3}><HighlightedText text={selectedItem.title} query={query} /></Title>
+          <div className="rss-article__byline">
+            <Text size="small" type="tertiary">
+              <time>{itemDateTime(selectedItem.publishedAt)}</time>
+              {selectedItem.author && <> · <HighlightedText text={selectedItem.author} query={query} /></>}
+              {selectedItem.fullContentFetchedAt && <> · 已读取原文</>}
+            </Text>
+          </div>
+        </header>
         <section className="rss-ai-summary" aria-live="polite">
-          <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 摘要</Text></div>
+          <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 导读</Text></div>
           {selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2 ? (
             <p>{selectedItem.aiSummary}</p>
           ) : summaryStatus === 'generating' ? (
@@ -2169,10 +2237,20 @@ export function RssPage() {
             <Spin size="small" />
             <Text type="tertiary">正在翻译当前页面…</Text>
           </div>
-        ) : translationVisible && selectedItem.aiTranslation ? (
+        ) : translationVisible && hasSelectedTranslation ? (
           <section className="rss-translation" aria-label="当前页面中文翻译">
             <div className="rss-translation__heading"><IconLanguage /><Text strong>中文翻译</Text></div>
-            <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation} />
+            {sanitizedTranslationHtml ? (
+              <div
+                ref={articleBodyRef}
+                className="rss-article__body rss-article__body--rich rss-translation__content"
+                dangerouslySetInnerHTML={sanitizedTranslationMarkup}
+                onClick={handleArticleContentClick}
+                onKeyDown={handleArticleContentKeyDown}
+              />
+            ) : (
+              <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation || ''} />
+            )}
           </section>
         ) : translationVisible && translationStatus === 'error' ? (
           <div className="rss-translation-status"><Text type="danger">{translationError}</Text></div>
@@ -2219,7 +2297,7 @@ export function RssPage() {
                 onClick={() => updateRssItem(selectedItem.id, { bookmarkedAt: selectedItem.bookmarkedAt ? undefined : Date.now() })}
               />
               <Button aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'} disabled={!selectedItem.link} icon={<IconGlobeStroked />} loading={fetchingArticleIds.has(selectedItem.id)} theme="borderless" type="tertiary" onClick={() => void fetchArticleContent(selectedItem)} />
-              <Button aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
+              <Button aria-label={translationVisible ? '显示原文' : hasSelectedTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
               {selectedItem.link && <Button aria-label="打开原文" icon={<IconExternalOpen />} theme="borderless" type="tertiary" onClick={() => window.open(selectedItem.link, '_blank', 'noopener,noreferrer')} />}
             </>
           ) : undefined}
@@ -2396,9 +2474,9 @@ export function RssPage() {
                               onClick={() => void fetchArticleContent(selectedItem)}
                             />
                           </Tooltip>
-                          <Tooltip content={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}>
+                          <Tooltip content={translationVisible ? '显示原文' : hasSelectedTranslation ? '显示中文翻译' : '翻译当前页面'}>
                             <Button
-                              aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}
+                              aria-label={translationVisible ? '显示原文' : hasSelectedTranslation ? '显示中文翻译' : '翻译当前页面'}
                               aria-pressed={translationVisible}
                               icon={<IconLanguage />}
                               loading={translationStatus === 'generating'}
@@ -2457,7 +2535,7 @@ export function RssPage() {
                       )}
                     </div>
                     <div className="rss-article-workspace">
-                      <RssArticleToc activeHeadingId={activeHeadingId} headings={translationVisible ? [] : articleHeadings} style={articleTocStyle} onSelect={jumpToHeading} />
+                      <RssArticleToc activeHeadingId={activeHeadingId} headings={displayedArticleHeadings} style={articleTocStyle} onSelect={jumpToHeading} />
                       {articleContent}
                     </div>
                   </div>

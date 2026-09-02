@@ -105,6 +105,7 @@ export interface RssItem {
   aiSummaryUpdatedAt?: number;
   aiSummaryVersion?: number;
   aiTranslation?: string;
+  aiTranslationHtml?: string;
   aiTranslationUpdatedAt?: number;
   aiTranslationSourceFetchedAt?: number;
 }

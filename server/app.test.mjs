@@ -135,6 +135,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(protectedState.state.rssItems[0].title, '受保护内容');
     assert.equal(protectedState.state.rssAnnotations[0].text, '正文');
     assert.equal(protectedState.state.rssPanelWidth, 420);
+
   });
 
   await t.test('旧标签页不会覆盖视频资料与学习记录', async () => {
@@ -398,7 +399,16 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
   await t.test('AI 任务在服务端运行并持久化对话', async () => {
     const aiApp = createApp({
       serveFrontend: false,
-      aiJobRunner: async ({ onProgress }) => {
+      aiJobRunner: async ({ onProgress, purpose, translationSource }) => {
+        const content = purpose === 'translation'
+          ? JSON.stringify({
+            version: 1,
+            segments: translationSource.segments.map((segment) => ({
+              id: segment.id,
+              text: `译：${segment.text}`,
+            })),
+          })
+          : '服务端回答';
         onProgress({
           content: '正在生成',
           dialogueContent: [{
@@ -411,12 +421,12 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
         });
         await new Promise((resolve) => setTimeout(resolve, 10));
         return {
-          content: '服务端回答',
+          content,
           dialogueContent: [{
             type: 'message',
             role: 'assistant',
             status: 'completed',
-            content: [{ type: 'output_text', text: '服务端回答' }],
+            content: [{ type: 'output_text', text: content }],
           }],
           status: 'completed',
         };
@@ -539,6 +549,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       publishedAt: 100,
       fetchedAt: 100,
       contentText: 'RSS 正文',
+      contentHtml: '<p>RSS 正文</p><figure><img src="https://example.com/photo.jpg" alt="测试图片"></figure>',
     }, {
       id: 'rss-item-read',
       feedId: 'rss-feed-1',
@@ -617,7 +628,11 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const translatedState = await (await aiApp.request('/api/state')).json();
     assert.equal(
       translatedState.state.rssItems.find((item) => item.id === 'rss-item-1').aiTranslation,
-      '服务端回答',
+      '译：RSS 正文',
+    );
+    assert.match(
+      translatedState.state.rssItems.find((item) => item.id === 'rss-item-1').aiTranslationHtml,
+      /<p>译：RSS 正文<\/p><figure><img src="https:\/\/example\.com\/photo\.jpg" alt="测试图片"><\/figure>/,
     );
 
     translatedState.state.rssDigestSettings = {
@@ -629,7 +644,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       times: [],
     };
     translatedState.state.rssDigestRuns = [];
-    translatedState.version = 21;
+    translatedState.version = 22;
     await aiApp.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -678,6 +693,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const staleRssItem = staleRssState.state.rssItems.find((item) => item.id === 'rss-item-1');
     delete staleRssItem.aiSummary;
     delete staleRssItem.aiTranslation;
+    delete staleRssItem.aiTranslationHtml;
     delete staleRssState.state.rssDailyDigests;
     delete staleRssState.state.rssDigestRuns;
     await aiApp.request('/api/state', {
@@ -689,12 +705,42 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const protectedRssItem = protectedRssState.state.rssItems.find((item) => item.id === 'rss-item-1');
     assert.equal(protectedRssItem.aiSummary, '服务端回答');
     assert.equal(protectedRssItem.aiSummaryVersion, 2);
-    assert.equal(protectedRssItem.aiTranslation, '服务端回答');
+    assert.equal(protectedRssItem.aiTranslation, '译：RSS 正文');
+    assert.match(protectedRssItem.aiTranslationHtml, /<img src="https:\/\/example\.com\/photo\.jpg"/);
     assert.equal(protectedRssState.state.rssDailyDigests[0].content, '服务端回答');
     assert.equal(protectedRssState.state.rssDigestRuns.length, 2);
     assert.ok(protectedRssState.state.rssDigestRuns.some((run) => run.status === 'completed'));
     assert.ok(protectedRssState.state.rssDigestRuns.some((run) => run.status === 'skipped'));
     assert.ok(protectedRssState.state.chatSessions.some((session) => session.id === 'rss-summary:rss-item-1'));
+  });
+
+  await t.test('旧标签页不会覆盖结构化 RSS 译文', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    currentState.version = 22;
+    const currentItem = currentState.state.rssItems.find((item) => item.id === 'rss-item-1');
+    currentItem.aiTranslation = '中文正文';
+    currentItem.aiTranslationHtml = '<p>中文正文</p>';
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+
+    const staleState = structuredClone(currentState);
+    staleState.version = 21;
+    delete staleState.state.rssItems.find((item) => item.id === 'rss-item-1').aiTranslationHtml;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleState),
+    });
+
+    const protectedState = await (await app.request('/api/state')).json();
+    assert.equal(protectedState.version, 22);
+    assert.equal(
+      protectedState.state.rssItems.find((item) => item.id === 'rss-item-1').aiTranslationHtml,
+      '<p>中文正文</p>',
+    );
   });
 
   await t.test('远程模式保护页面与 API', async () => {

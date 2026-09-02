@@ -26,6 +26,7 @@ const RSS_STATE_VERSION = 16;
 const RSS_DIGEST_STATE_VERSION = 19;
 const RSS_DIGEST_RUN_STATE_VERSION = 20;
 const RSS_DIGEST_ALL_ITEMS_STATE_VERSION = 21;
+const RSS_TRANSLATED_HTML_STATE_VERSION = 22;
 const VIDEO_STATE_VERSION = 18;
 
 export function encodedId(value) {
@@ -229,7 +230,15 @@ function protectRssStateFromOlderClient(persistedState, currentPersistedState) {
     && incomingVersion < RSS_DIGEST_RUN_STATE_VERSION;
   const protectAllItemsDigestSettings = currentVersion >= RSS_DIGEST_ALL_ITEMS_STATE_VERSION
     && incomingVersion < RSS_DIGEST_ALL_ITEMS_STATE_VERSION;
-  if (!protectCoreRss && !protectDigests && !protectDigestRuns && !protectAllItemsDigestSettings) {
+  const protectTranslatedHtml = currentVersion >= RSS_TRANSLATED_HTML_STATE_VERSION
+    && incomingVersion < RSS_TRANSLATED_HTML_STATE_VERSION;
+  if (
+    !protectCoreRss
+    && !protectDigests
+    && !protectDigestRuns
+    && !protectAllItemsDigestSettings
+    && !protectTranslatedHtml
+  ) {
     return persistedState;
   }
   const protectedState = structuredClone(persistedState);
@@ -250,6 +259,26 @@ function protectRssStateFromOlderClient(persistedState, currentPersistedState) {
     protectedState.state.rssPanelWidth = typeof currentPersistedState.state.rssPanelWidth === 'number'
       ? currentPersistedState.state.rssPanelWidth
       : 380;
+  } else if (protectTranslatedHtml) {
+    const currentItems = new Map(
+      (Array.isArray(currentPersistedState.state.rssItems) ? currentPersistedState.state.rssItems : [])
+        .map((item) => [item.id, item]),
+    );
+    protectedState.state.rssItems = (
+      Array.isArray(protectedState.state.rssItems) ? protectedState.state.rssItems : []
+    ).map((item) => {
+      const currentItem = currentItems.get(item.id);
+      const sourceAt = Number(item.fullContentFetchedAt || item.fetchedAt || 0);
+      const currentSourceAt = Number(currentItem?.fullContentFetchedAt || currentItem?.fetchedAt || 0);
+      if (
+        !currentItem?.aiTranslationHtml
+        || sourceAt !== currentSourceAt
+        || item.aiTranslation !== currentItem.aiTranslation
+      ) {
+        return item;
+      }
+      return { ...item, aiTranslationHtml: currentItem.aiTranslationHtml };
+    });
   }
   if (protectDigests || protectAllItemsDigestSettings) {
     protectedState.state.rssDailyDigests = structuredClone(

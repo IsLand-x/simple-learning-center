@@ -50,8 +50,9 @@ function mergeFetchedItems(existingItems, feedId, incomingItems) {
         aiSummaryUpdatedAt: previous.aiSummaryUpdatedAt,
         aiSummaryVersion: previous.aiSummaryVersion,
       } : {}),
-      ...(!hasNewFullContent && previous.aiTranslation ? {
+      ...(!hasNewFullContent && (previous.aiTranslationHtml || previous.aiTranslation) ? {
         aiTranslation: previous.aiTranslation,
+        aiTranslationHtml: previous.aiTranslationHtml,
         aiTranslationUpdatedAt: previous.aiTranslationUpdatedAt,
         aiTranslationSourceFetchedAt: previous.aiTranslationSourceFetchedAt,
       } : {}),
@@ -105,6 +106,7 @@ function mergeConcurrentItem(incomingItem, currentItem) {
     ? currentTranslationAt > incomingTranslationAt ? currentItem : incomingItem
     : fullContentSource;
   copyOptionalField(merged, translationSource, 'aiTranslation');
+  copyOptionalField(merged, translationSource, 'aiTranslationHtml');
   copyOptionalField(merged, translationSource, 'aiTranslationUpdatedAt');
   copyOptionalField(merged, translationSource, 'aiTranslationSourceFetchedAt');
   return merged;

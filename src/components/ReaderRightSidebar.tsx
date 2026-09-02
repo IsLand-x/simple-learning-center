@@ -462,6 +462,7 @@ function AiPanel({
       id: message.id,
       role: message.role,
       content: message.dialogueContent?.length ? message.dialogueContent : message.content,
+      ...(message.quote ? { quote: message.quote } : {}),
       createdAt: message.createdAt,
       status: 'completed',
     })),

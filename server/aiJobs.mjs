@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { runServerAiChat } from './aiChat.mjs';
 import { statusError } from './errors.mjs';
+import { completeRssTranslation, prepareRssTranslationSource } from './rssTranslation.mjs';
 import { mutatePersistedState, readPersistedState } from './storage.mjs';
 
 const JOB_RETENTION_MS = 24 * 60 * 60 * 1_000;
@@ -40,6 +41,7 @@ function publicJob(job) {
     status: job.status,
     revision: job.revision,
     content: job.content,
+    translationHtml: job.translationHtml,
     dialogueContent: job.dialogueContent,
     error: job.error,
     createdAt: job.createdAt,
@@ -73,6 +75,27 @@ function normalizedMessage(message) {
       },
     } : {}),
   };
+}
+
+function translatedDialogueContent(dialogueContent, text) {
+  const items = structuredClone(Array.isArray(dialogueContent) ? dialogueContent : []);
+  let messageIndex = -1;
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    if (items[index]?.type === 'message' && items[index]?.role === 'assistant') {
+      messageIndex = index;
+      break;
+    }
+  }
+  const message = {
+    ...(messageIndex >= 0 ? items[messageIndex] : {}),
+    type: 'message',
+    role: 'assistant',
+    status: 'completed',
+    content: [{ type: 'output_text', text }],
+  };
+  if (messageIndex >= 0) items[messageIndex] = message;
+  else items.push(message);
+  return items;
 }
 
 export function createAiJobManager({ runChat = runServerAiChat } = {}) {
@@ -176,6 +199,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
             ? {
               ...item,
               aiTranslation: result.content,
+              aiTranslationHtml: result.translationHtml,
               aiTranslationUpdatedAt: job.assistantCreatedAt,
               aiTranslationSourceFetchedAt: Number(item.fullContentFetchedAt || item.fetchedAt || 0),
             }
@@ -230,7 +254,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       if (job.resourceType === 'rssDigest') {
         await updateDigestRun(job.digestRunId, { status: 'running' });
       }
-      const result = await runChat({
+      const rawResult = await runChat({
         ...context,
         signal: job.controller.signal,
         onProgress(progress) {
@@ -243,9 +267,21 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         },
       });
       if (job.controller.signal.aborted || job.status === 'cancelled') return;
+      const result = job.resourceType === 'rss' && job.purpose === 'translation'
+        ? (() => {
+          const translation = completeRssTranslation(rawResult.content, context.translationSource);
+          return {
+            ...rawResult,
+            content: translation.text,
+            dialogueContent: translatedDialogueContent(rawResult.dialogueContent, translation.text),
+            translationHtml: translation.html,
+          };
+        })()
+        : rawResult;
       job.finalResult = structuredClone(result);
       await persistAssistant(job, result);
       job.content = result.content;
+      job.translationHtml = result.translationHtml;
       job.dialogueContent = structuredClone(result.dialogueContent);
       job.status = 'completed';
       job.completedAt = Date.now();
@@ -358,6 +394,14 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       : undefined;
     if (resourceType === 'rss' && (!rssItem || bookId !== `rss:${rssItem.id}`)) {
       throw statusError(404, '找不到当前 RSS 内容');
+    }
+    let translationSource;
+    if (resourceType === 'rss' && purpose === 'translation') {
+      try {
+        translationSource = prepareRssTranslationSource(rssItem);
+      } catch (error) {
+        throw statusError(422, error instanceof Error ? error.message : '当前 RSS 内容无法翻译');
+      }
     }
     const rssFeed = rssItem
       ? (Array.isArray(state.rssFeeds) ? state.rssFeeds : []).find((feed) => feed.id === rssItem.feedId)
@@ -484,10 +528,12 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       model,
       messages: [...existingChats, normalizedMessage(userMessage)],
       resourceType,
+      purpose,
       ...(book ? { book: structuredClone(book) } : {}),
       ...(rssItem ? {
         rssItem: structuredClone(rssItem),
         rssFeed: rssFeed ? structuredClone(rssFeed) : undefined,
+        ...(translationSource ? { translationSource: structuredClone(translationSource) } : {}),
         relatedRssItems: (Array.isArray(state.rssItems) ? state.rssItems : [])
           .filter((item) => item.feedId === rssItem.feedId && item.id !== rssItem.id)
           .sort((left, right) => right.publishedAt - left.publishedAt)
@@ -749,6 +795,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
             ? {
               ...item,
               aiTranslation: job.finalResult.content,
+              aiTranslationHtml: job.finalResult.translationHtml,
               aiTranslationUpdatedAt: job.assistantCreatedAt,
               aiTranslationSourceFetchedAt: Number(item.fullContentFetchedAt || item.fetchedAt || 0),
             }
