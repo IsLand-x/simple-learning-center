@@ -846,6 +846,7 @@ export function RssPage() {
     ? filteredItems[selectedItemIndex + 1]
     : undefined;
   const selectedFeed = selectedItem ? feedById.get(selectedItem.feedId) : undefined;
+  const isSelectedVideo = selectedFeed?.type === 'video';
   const selectedVideoPresentation = useMemo(
     () => selectedItem ? getRssVideoPresentation(selectedItem, selectedFeed) : undefined,
     [selectedFeed, selectedItem],
@@ -943,12 +944,15 @@ export function RssPage() {
     '--rss-toc-paper-color': readerStyle.paperColor,
     '--rss-toc-text-color': readerStyle.textColor,
   } as CssVariables), [readerStyle]);
+  const selectedContent = isSelectedVideo
+    ? selectedItem?.contentHtml || selectedItem?.contentText
+    : selectedItem?.fullContentHtml || selectedItem?.contentHtml || selectedItem?.fullContentText || selectedItem?.contentText;
   const sanitizedContentHtml = useMemo(() => removeRssLeadingCover(sanitizeRssContentHtml(
-    selectedItem?.fullContentHtml || selectedItem?.contentHtml || selectedItem?.fullContentText || selectedItem?.contentText,
+    selectedContent,
     selectedItem?.fullContentUrl || selectedItem?.link || selectedFeed?.siteUrl || selectedFeed?.url || window.location.href,
     query,
     selectedAnnotations,
-  ), selectedVideoPresentation?.embedUrl ? selectedVideoPresentation.imageUrl : undefined), [query, selectedAnnotations, selectedFeed?.siteUrl, selectedFeed?.url, selectedItem?.contentHtml, selectedItem?.contentText, selectedItem?.fullContentHtml, selectedItem?.fullContentText, selectedItem?.fullContentUrl, selectedItem?.link, selectedVideoPresentation?.embedUrl, selectedVideoPresentation?.imageUrl]);
+  ), selectedVideoPresentation?.embedUrl ? selectedVideoPresentation.imageUrl : undefined), [query, selectedAnnotations, selectedContent, selectedFeed?.siteUrl, selectedFeed?.url, selectedItem?.fullContentUrl, selectedItem?.link, selectedVideoPresentation?.embedUrl, selectedVideoPresentation?.imageUrl]);
   const sanitizedContentMarkup = useMemo(() => ({ __html: sanitizedContentHtml }), [sanitizedContentHtml]);
   const articleHeadings = useMemo(() => extractRssContentHeadings(sanitizedContentHtml), [sanitizedContentHtml]);
 
@@ -1219,6 +1223,11 @@ export function RssPage() {
       setSummaryError('');
       return undefined;
     }
+    if (isSelectedVideo) {
+      setSummaryStatus('idle');
+      setSummaryError('');
+      return undefined;
+    }
     if (selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2) {
       setSummaryStatus('ready');
       setSummaryError('');
@@ -1314,7 +1323,7 @@ export function RssPage() {
       disposed = true;
       controller.abort();
     };
-  }, [aiPreferences.model, aiPreferences.provider, configs, selectedItem, updateRssItem]);
+  }, [aiPreferences.model, aiPreferences.provider, configs, isSelectedVideo, selectedItem, updateRssItem]);
 
   const translateCurrentPage = useCallback(async () => {
     if (!selectedItem) return;
@@ -2250,6 +2259,12 @@ export function RssPage() {
     </>
   );
 
+  const selectedItemDetailStatus = selectedItem
+    ? isSelectedVideo
+      ? selectedItem.readAt ? '已读 · 视频' : '未读 · 视频'
+      : `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}`
+    : '未选择内容';
+
   const articleContent = selectedDigest ? (
     <RssDigestArticle
       date={selectedDigest.date}
@@ -2264,7 +2279,7 @@ export function RssPage() {
   ) : selectedItem ? (
     <article
       ref={articleRef}
-      className="rss-article"
+      className={`rss-article${isSelectedVideo ? ' rss-article--video' : ''}`}
       style={articleStyle}
       onScroll={(event) => {
         setRssSelection(null);
@@ -2295,39 +2310,56 @@ export function RssPage() {
             />
           </div>
         )}
-        <section className="rss-ai-summary" aria-live="polite">
-          <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 摘要</Text></div>
-          {selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2 ? (
-            <p>{selectedItem.aiSummary}</p>
-          ) : summaryStatus === 'generating' ? (
-            <div className="rss-ai-summary__loading"><Spin size="small" /><Text size="small" type="tertiary">正在阅读并总结当前内容…</Text></div>
-          ) : summaryStatus === 'unavailable' ? (
-            <Text size="small" type="tertiary">请先在设置页添加并选择模型，进入内容后会自动生成摘要。</Text>
-          ) : summaryStatus === 'error' ? (
-            <Text size="small" type="danger">{summaryError}</Text>
-          ) : null}
-        </section>
-        {translationVisible && translationStatus === 'generating' ? (
-          <div className="rss-translation-status" aria-live="polite">
-            <Spin size="small" />
-            <Text type="tertiary">正在翻译当前页面…</Text>
-          </div>
-        ) : translationVisible && selectedItem.aiTranslation ? (
-          <section className="rss-translation" aria-label="当前页面中文翻译">
-            <div className="rss-translation__heading"><IconLanguage /><Text strong>中文翻译</Text></div>
-            <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation} />
+        {isSelectedVideo ? (
+          <section className="rss-video-description" aria-labelledby="rss-video-description-title">
+            <Text id="rss-video-description-title" strong>视频简介</Text>
+            {sanitizedContentHtml ? (
+              <div
+                ref={articleBodyRef}
+                className="rss-article__body rss-article__body--rich"
+                dangerouslySetInnerHTML={sanitizedContentMarkup}
+                onClick={handleArticleContentClick}
+                onKeyDown={handleArticleContentKeyDown}
+              />
+            ) : <Text size="small" type="tertiary">发布者没有填写视频简介。</Text>}
           </section>
-        ) : translationVisible && translationStatus === 'error' ? (
-          <div className="rss-translation-status"><Text type="danger">{translationError}</Text></div>
-        ) : sanitizedContentHtml ? (
-          <div
-            ref={articleBodyRef}
-            className="rss-article__body rss-article__body--rich"
-            dangerouslySetInnerHTML={sanitizedContentMarkup}
-            onClick={handleArticleContentClick}
-            onKeyDown={handleArticleContentKeyDown}
-          />
-        ) : <Empty title="订阅源没有提供正文" description="可以打开原文，或让 AI 根据已有摘要和页面链接继续了解" />}
+        ) : (
+          <>
+            <section className="rss-ai-summary" aria-live="polite">
+              <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 摘要</Text></div>
+              {selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2 ? (
+                <p>{selectedItem.aiSummary}</p>
+              ) : summaryStatus === 'generating' ? (
+                <div className="rss-ai-summary__loading"><Spin size="small" /><Text size="small" type="tertiary">正在阅读并总结当前内容…</Text></div>
+              ) : summaryStatus === 'unavailable' ? (
+                <Text size="small" type="tertiary">请先在设置页添加并选择模型，进入内容后会自动生成摘要。</Text>
+              ) : summaryStatus === 'error' ? (
+                <Text size="small" type="danger">{summaryError}</Text>
+              ) : null}
+            </section>
+            {translationVisible && translationStatus === 'generating' ? (
+              <div className="rss-translation-status" aria-live="polite">
+                <Spin size="small" />
+                <Text type="tertiary">正在翻译当前页面…</Text>
+              </div>
+            ) : translationVisible && selectedItem.aiTranslation ? (
+              <section className="rss-translation" aria-label="当前页面中文翻译">
+                <div className="rss-translation__heading"><IconLanguage /><Text strong>中文翻译</Text></div>
+                <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation} />
+              </section>
+            ) : translationVisible && translationStatus === 'error' ? (
+              <div className="rss-translation-status"><Text type="danger">{translationError}</Text></div>
+            ) : sanitizedContentHtml ? (
+              <div
+                ref={articleBodyRef}
+                className="rss-article__body rss-article__body--rich"
+                dangerouslySetInnerHTML={sanitizedContentMarkup}
+                onClick={handleArticleContentClick}
+                onKeyDown={handleArticleContentKeyDown}
+              />
+            ) : <Empty title="订阅源没有提供正文" description="可以打开原文，或让 AI 根据已有摘要和页面链接继续了解" />}
+          </>
+        )}
       </div>
     </article>
   ) : (
@@ -2343,7 +2375,7 @@ export function RssPage() {
           activePanel={mobilePanel}
           articleFetching={Boolean(selectedItem && fetchingArticleIds.has(selectedItem.id))}
           bookmarked={Boolean(selectedItem?.bookmarkedAt)}
-          canFetchArticle={Boolean(selectedItem?.link)}
+          canFetchArticle={Boolean(selectedItem?.link && !isSelectedVideo)}
           detailContent={articleContent}
           detailActions={selectedDigest ? (
             <>
@@ -2361,8 +2393,8 @@ export function RssPage() {
                 type="tertiary"
                 onClick={() => updateRssItem(selectedItem.id, { bookmarkedAt: selectedItem.bookmarkedAt ? undefined : Date.now() })}
               />
-              <Button aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'} disabled={!selectedItem.link} icon={<IconGlobeStroked />} loading={fetchingArticleIds.has(selectedItem.id)} theme="borderless" type="tertiary" onClick={() => void fetchArticleContent(selectedItem)} />
-              <Button aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
+              {!isSelectedVideo && <Button aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'} disabled={!selectedItem.link} icon={<IconGlobeStroked />} loading={fetchingArticleIds.has(selectedItem.id)} theme="borderless" type="tertiary" onClick={() => void fetchArticleContent(selectedItem)} />}
+              {!isSelectedVideo && <Button aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />}
               {selectedFeed?.source.kind === 'youtube-channel' && <Button aria-label="添加到视频学习区" icon={<IconVideo />} loading={videoImporting} theme="borderless" type="tertiary" onClick={() => void importSelectedYouTubeVideo()} />}
               {selectedItem.link && <Button aria-label="打开原文" icon={<IconExternalOpen />} theme="borderless" type="tertiary" onClick={() => window.open(selectedItem.link, '_blank', 'noopener,noreferrer')} />}
             </>
@@ -2370,9 +2402,7 @@ export function RssPage() {
           detailIsDigest={Boolean(selectedDigest)}
           detailStatus={selectedDigest
             ? `${selectedDigest.date === todayKey ? '[正在产出中] ' : ''}${selectedDigest.itemCount} 条内容`
-            : selectedItem
-              ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}`
-              : '未选择内容'}
+            : selectedItemDetailStatus}
           detailTitle={selectedDigest ? `${digestDateLabel(selectedDigest.date)}日报` : selectedItem?.title}
           hasOriginalLink={Boolean(selectedItem?.link)}
           hasNextItem={Boolean(nextItem)}
@@ -2518,7 +2548,7 @@ export function RssPage() {
                         <Text className="rss-detail-toolbar__status" size="small" type="tertiary">
                           {selectedDigest
                             ? `${selectedDigest.date === todayKey ? '[正在产出中] ' : ''}${selectedDigest.itemCount} 条内容 · ${selectedDigest.sourceFeedIds.length} 个来源`
-                            : selectedItem ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}` : '未选择内容'}
+                            : selectedItemDetailStatus}
                         </Text>
                         {(selectedItem || selectedDigest) && (
                           <Text className="rss-detail-toolbar__title" ellipsis strong title={selectedItem?.title ?? `${digestDateLabel(selectedDigest!.date)}日报`}>
@@ -2528,30 +2558,34 @@ export function RssPage() {
                       </div>
                       {selectedItem && (
                         <>
-                          <Tooltip content={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}>
-                            <Button
-                              aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}
-                              disabled={!selectedItem.link}
-                              icon={<IconGlobeStroked />}
-                              loading={fetchingArticleIds.has(selectedItem.id)}
-                              size="small"
-                              theme="borderless"
-                              type="tertiary"
-                              onClick={() => void fetchArticleContent(selectedItem)}
-                            />
-                          </Tooltip>
-                          <Tooltip content={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}>
-                            <Button
-                              aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}
-                              aria-pressed={translationVisible}
-                              icon={<IconLanguage />}
-                              loading={translationStatus === 'generating'}
-                              size="small"
-                              theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'}
-                              type="tertiary"
-                              onClick={() => void translateCurrentPage()}
-                            />
-                          </Tooltip>
+                          {!isSelectedVideo && (
+                            <>
+                              <Tooltip content={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}>
+                                <Button
+                                  aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}
+                                  disabled={!selectedItem.link}
+                                  icon={<IconGlobeStroked />}
+                                  loading={fetchingArticleIds.has(selectedItem.id)}
+                                  size="small"
+                                  theme="borderless"
+                                  type="tertiary"
+                                  onClick={() => void fetchArticleContent(selectedItem)}
+                                />
+                              </Tooltip>
+                              <Tooltip content={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}>
+                                <Button
+                                  aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}
+                                  aria-pressed={translationVisible}
+                                  icon={<IconLanguage />}
+                                  loading={translationStatus === 'generating'}
+                                  size="small"
+                                  theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'}
+                                  type="tertiary"
+                                  onClick={() => void translateCurrentPage()}
+                                />
+                              </Tooltip>
+                            </>
+                          )}
                           <Popover
                             content={<ReaderStylePanel preferences={readerPreferences} onChangePreferences={setReaderPreferences} />}
                             contentClassName="reader-style-popover"
@@ -2606,7 +2640,7 @@ export function RssPage() {
                       )}
                     </div>
                     <div className="rss-article-workspace">
-                      <RssArticleToc activeHeadingId={activeHeadingId} headings={translationVisible ? [] : articleHeadings} style={articleTocStyle} onSelect={jumpToHeading} />
+                      <RssArticleToc activeHeadingId={activeHeadingId} headings={isSelectedVideo || translationVisible ? [] : articleHeadings} style={articleTocStyle} onSelect={jumpToHeading} />
                       {articleContent}
                     </div>
                   </div>
