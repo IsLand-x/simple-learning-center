@@ -2264,6 +2264,13 @@ export function RssPage() {
       ? selectedItem.readAt ? '已读 · 视频' : '未读 · 视频'
       : `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}`
     : '未选择内容';
+  const translationActionLabel = translationVisible
+    ? '显示原文'
+    : selectedItem?.aiTranslation
+      ? '显示中文翻译'
+      : isSelectedVideo
+        ? sanitizedContentHtml ? '翻译视频简介' : '没有可翻译的视频简介'
+        : '翻译当前页面';
 
   const articleContent = selectedDigest ? (
     <RssDigestArticle
@@ -2313,7 +2320,16 @@ export function RssPage() {
         {isSelectedVideo ? (
           <section className="rss-video-description" aria-labelledby="rss-video-description-title">
             <Text id="rss-video-description-title" strong>视频简介</Text>
-            {sanitizedContentHtml ? (
+            {translationVisible && translationStatus === 'generating' ? (
+              <div className="rss-translation-status" aria-live="polite">
+                <Spin size="small" />
+                <Text type="tertiary">正在翻译视频简介…</Text>
+              </div>
+            ) : translationVisible && selectedItem.aiTranslation ? (
+              <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation} />
+            ) : translationVisible && translationStatus === 'error' ? (
+              <Text type="danger">{translationError}</Text>
+            ) : sanitizedContentHtml ? (
               <div
                 ref={articleBodyRef}
                 className="rss-article__body rss-article__body--rich"
@@ -2394,7 +2410,7 @@ export function RssPage() {
                 onClick={() => updateRssItem(selectedItem.id, { bookmarkedAt: selectedItem.bookmarkedAt ? undefined : Date.now() })}
               />
               {!isSelectedVideo && <Button aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'} disabled={!selectedItem.link} icon={<IconGlobeStroked />} loading={fetchingArticleIds.has(selectedItem.id)} theme="borderless" type="tertiary" onClick={() => void fetchArticleContent(selectedItem)} />}
-              {!isSelectedVideo && <Button aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />}
+              <Button aria-label={translationActionLabel} aria-pressed={translationVisible} disabled={Boolean(isSelectedVideo && !sanitizedContentHtml)} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
               {selectedFeed?.source.kind === 'youtube-channel' && <Button aria-label="添加到视频学习区" icon={<IconVideo />} loading={videoImporting} theme="borderless" type="tertiary" onClick={() => void importSelectedYouTubeVideo()} />}
               {selectedItem.link && <Button aria-label="打开原文" icon={<IconExternalOpen />} theme="borderless" type="tertiary" onClick={() => window.open(selectedItem.link, '_blank', 'noopener,noreferrer')} />}
             </>
@@ -2559,33 +2575,32 @@ export function RssPage() {
                       {selectedItem && (
                         <>
                           {!isSelectedVideo && (
-                            <>
-                              <Tooltip content={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}>
-                                <Button
-                                  aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}
-                                  disabled={!selectedItem.link}
-                                  icon={<IconGlobeStroked />}
-                                  loading={fetchingArticleIds.has(selectedItem.id)}
-                                  size="small"
-                                  theme="borderless"
-                                  type="tertiary"
-                                  onClick={() => void fetchArticleContent(selectedItem)}
-                                />
-                              </Tooltip>
-                              <Tooltip content={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}>
-                                <Button
-                                  aria-label={translationVisible ? '显示原文' : selectedItem.aiTranslation ? '显示中文翻译' : '翻译当前页面'}
-                                  aria-pressed={translationVisible}
-                                  icon={<IconLanguage />}
-                                  loading={translationStatus === 'generating'}
-                                  size="small"
-                                  theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'}
-                                  type="tertiary"
-                                  onClick={() => void translateCurrentPage()}
-                                />
-                              </Tooltip>
-                            </>
+                            <Tooltip content={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}>
+                              <Button
+                                aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}
+                                disabled={!selectedItem.link}
+                                icon={<IconGlobeStroked />}
+                                loading={fetchingArticleIds.has(selectedItem.id)}
+                                size="small"
+                                theme="borderless"
+                                type="tertiary"
+                                onClick={() => void fetchArticleContent(selectedItem)}
+                              />
+                            </Tooltip>
                           )}
+                          <Tooltip content={translationActionLabel}>
+                            <Button
+                              aria-label={translationActionLabel}
+                              aria-pressed={translationVisible}
+                              disabled={Boolean(isSelectedVideo && !sanitizedContentHtml)}
+                              icon={<IconLanguage />}
+                              loading={translationStatus === 'generating'}
+                              size="small"
+                              theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'}
+                              type="tertiary"
+                              onClick={() => void translateCurrentPage()}
+                            />
+                          </Tooltip>
                           <Popover
                             content={<ReaderStylePanel preferences={readerPreferences} onChangePreferences={setReaderPreferences} />}
                             contentClassName="reader-style-popover"
