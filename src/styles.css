@@ -5634,8 +5634,7 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   padding: 24px;
 }
 
-.video-transcript-panel,
-.video-notes-panel {
+.video-transcript-panel {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -5709,97 +5708,6 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 .video-transcript-row__translation {
   color: var(--semi-color-text-1);
   font-size: 11px;
-}
-
-.video-notes-panel > .semi-tabs-bar {
-  flex: 0 0 auto;
-  padding: 8px 8px 0;
-}
-
-.video-notes-panel > .semi-tabs-content,
-.video-notes-panel .semi-tabs-pane,
-.video-study-note,
-.video-study-note .tiptap-markdown-editor {
-  min-height: 0;
-  flex: 1;
-}
-
-.video-notes-panel > .semi-tabs-content {
-  display: flex;
-  overflow: hidden;
-}
-
-.video-notes-panel .semi-tabs-pane {
-  display: flex;
-  overflow: hidden;
-}
-
-.video-timestamp-notes {
-  width: 100%;
-  min-height: 0;
-  overflow: auto;
-  padding: 10px;
-}
-
-.video-note-card {
-  padding: 10px 12px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
-  background: var(--semi-color-bg-0);
-}
-
-.video-note-card + .video-note-card {
-  margin-top: 10px;
-}
-
-.video-note-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.video-note-card blockquote {
-  margin: 8px 0;
-  padding-left: 10px;
-  border-left: 3px solid var(--semi-color-primary-light-active);
-  color: var(--semi-color-text-2);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.video-note-card blockquote p,
-.video-note-card__content {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.video-note-card blockquote p + p {
-  margin-top: 4px;
-}
-
-.video-note-card__content {
-  color: var(--semi-color-text-0);
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-.video-study-note {
-  display: flex;
-  padding: 10px;
-  overflow: hidden;
-}
-
-.video-study-note .tiptap-markdown-editor {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-}
-
-.video-study-note .tiptap-markdown-editor__content {
-  min-height: 0;
-  flex: 1;
-  overflow: auto;
 }
 
 .video-add-form,
@@ -5917,7 +5825,7 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
     min-width: 0;
     height: calc(58px + env(safe-area-inset-bottom));
     min-height: calc(58px + env(safe-area-inset-bottom));
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     flex: 0 0 auto;
     flex-direction: row;
     gap: 0;
