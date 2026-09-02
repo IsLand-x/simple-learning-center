@@ -88,6 +88,46 @@ test('元数据客户端不可用时按 MWEB、WEB 顺序回退', async () => {
   assert.equal(result.title, '回退成功');
 });
 
+test('跳过带标题但不可播放的响应并读取后备客户端字幕', async () => {
+  const clients = [];
+  const result = await fetchYouTubeVideo('dQw4w9WgXcQ', {
+    getClient: async () => ({
+      getBasicInfo: async (_videoId, { client }) => {
+        clients.push(client);
+        if (client !== 'ANDROID') {
+          return {
+            basic_info: { title: '不可播放的占位标题' },
+            playability_status: { status: 'UNPLAYABLE' },
+          };
+        }
+        return {
+          basic_info: {
+            title: '后备客户端可播放',
+            duration: 60,
+            channel: { id: 'channel-3', name: '后备频道' },
+          },
+          playability_status: { status: 'OK' },
+          captions: {
+            caption_tracks: [{
+              base_url: 'https://www.youtube.com/api/timedtext?v=dQw4w9WgXcQ&lang=zh',
+              language_code: 'zh',
+              is_translatable: true,
+              name: { toString: () => '中文' },
+            }],
+          },
+        };
+      },
+    }),
+    fetchImpl: async (url) => new Response(JSON.stringify({
+      events: [{ tStartMs: 0, dDurationMs: 2_000, segs: [{ utf8: new URL(url).searchParams.get('tlang') === 'en' ? 'Hello' : '你好' }] }],
+    })),
+  });
+  assert.deepEqual(clients, ['MWEB', 'WEB', 'ANDROID']);
+  assert.equal(result.title, '后备客户端可播放');
+  assert.equal(result.captions.original[0].text, '你好');
+  assert.equal(result.captions.chinese[0].text, '你好');
+});
+
 test('服务端连接 YouTube 超时时返回可操作的代理提示', async () => {
   const cause = Object.assign(new Error('Connect Timeout Error'), { code: 'UND_ERR_CONNECT_TIMEOUT' });
   await assert.rejects(

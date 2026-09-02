@@ -9,6 +9,7 @@ import {
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_CAPTION_BYTES = 16 * 1024 * 1024;
 const METADATA_CLIENTS = ['MWEB', 'WEB', 'ANDROID'];
+const YOUTUBE_WEB_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
 const YOUTUBE_HOSTS = new Set([
   'youtube.com',
   'www.youtube.com',
@@ -102,6 +103,7 @@ export function parseTimedTextJson(payload) {
 }
 
 async function readLimitedText(response, limit = MAX_CAPTION_BYTES) {
+  if (response.status === 429) throw statusError(429, 'YouTube 暂时限制字幕请求，请稍后重试');
   if (!response.ok) throw statusError(502, `YouTube 字幕请求失败（${response.status}）`);
   const contentLength = Number(response.headers.get('content-length'));
   if (Number.isFinite(contentLength) && contentLength > limit) {
@@ -140,7 +142,8 @@ async function fetchCaptionTrack(track, translatedLanguage, fetchImpl) {
   const response = await fetchImpl(captionRequestUrl(track.base_url, translatedLanguage), {
     headers: {
       Accept: 'application/json',
-      'User-Agent': 'LearningCenter/1.0',
+      'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      'User-Agent': YOUTUBE_WEB_USER_AGENT,
     },
     signal: AbortSignal.timeout(30_000),
   });
@@ -168,17 +171,32 @@ export async function fetchYouTubeVideo(input, {
   try {
     const youtube = await getClient();
     let lastIncompleteInfo;
+    let playableInfoWithoutCaptions;
     for (const client of METADATA_CLIENTS) {
       try {
         const candidate = await youtube.getBasicInfo(videoId, { client });
-        if (cleanText(candidate?.basic_info?.title, 500)) {
+        const title = cleanText(candidate?.basic_info?.title, 500);
+        const playabilityStatus = cleanText(candidate?.playability_status?.status, 80).toUpperCase();
+        const captionTracks = Array.isArray(candidate?.captions?.caption_tracks)
+          ? candidate.captions.caption_tracks
+          : [];
+        const playable = !playabilityStatus || playabilityStatus === 'OK';
+        if (title && playable && captionTracks.length) {
           info = candidate;
           break;
+        }
+        if (title && playable && !playabilityStatus) {
+          info = candidate;
+          break;
+        }
+        if (title && playable && !playableInfoWithoutCaptions) {
+          playableInfoWithoutCaptions = candidate;
         }
         lastIncompleteInfo = candidate;
         console.warn('YouTube metadata response was incomplete', {
           client,
-          playabilityStatus: cleanText(candidate?.playability_status?.status, 80),
+          playabilityStatus,
+          captionTrackCount: captionTracks.length,
         });
       } catch (error) {
         const transportFailure = youtubeTransportError(error);
@@ -190,6 +208,7 @@ export async function fetchYouTubeVideo(input, {
         });
       }
     }
+    info ||= playableInfoWithoutCaptions;
     if (!info) throw playabilityError(lastIncompleteInfo);
   } catch (error) {
     if (Number.isInteger(error?.status)) throw error;
@@ -207,21 +226,22 @@ export async function fetchYouTubeVideo(input, {
   const channel = info.basic_info.channel;
   const tracks = Array.isArray(info.captions?.caption_tracks) ? info.captions.caption_tracks : [];
   const track = chooseCaptionTrack(tracks);
-  const trackIsEnglish = Boolean(track && /^en(?:-|$)/i.test(track.language_code));
-  const translateOriginalToEnglish = Boolean(track && !trackIsEnglish && track.is_translatable);
   let originalCues = [];
   let chineseCues = [];
   let captionError = '';
 
   if (track) {
     try {
-      originalCues = await fetchCaptionTrack(track, translateOriginalToEnglish ? 'en' : undefined, fetchImpl);
+      originalCues = await fetchCaptionTrack(track, undefined, fetchImpl);
       if (/^zh(?:-|$)/i.test(track.language_code)) {
-        chineseCues = translateOriginalToEnglish
-          ? await fetchCaptionTrack(track, undefined, fetchImpl)
-          : originalCues;
+        chineseCues = originalCues;
       } else if (track.is_translatable) {
-        chineseCues = await fetchCaptionTrack(track, 'zh-Hans', fetchImpl);
+        try {
+          chineseCues = await fetchCaptionTrack(track, 'zh-Hans', fetchImpl);
+        } catch (error) {
+          const transportFailure = youtubeTransportError(error);
+          captionError = `中文字幕读取失败：${transportFailure?.message || (error instanceof Error ? error.message : '字幕读取失败')}`;
+        }
       }
     } catch (error) {
       const transportFailure = youtubeTransportError(error);
@@ -241,10 +261,8 @@ export async function fetchYouTubeVideo(input, {
     description: cleanText(info.basic_info.short_description, 20_000),
     durationSeconds: Math.max(0, Number(info.basic_info.duration) || 0),
     captions: {
-      originalLanguage: translateOriginalToEnglish ? 'en' : track?.language_code || '',
-      originalLanguageLabel: translateOriginalToEnglish
-        ? 'English（YouTube 自动翻译）'
-        : track?.name?.toString?.() || track?.language_code || '',
+      originalLanguage: track?.language_code || '',
+      originalLanguageLabel: track?.name?.toString?.() || track?.language_code || '',
       original: originalCues,
       chinese: chineseCues,
       ...(captionError ? { error: captionError } : {}),

@@ -171,7 +171,7 @@ function VideoTranscriptPanel({
     <div className="video-transcript-panel">
       <div className="video-transcript-panel__modes">
         <ButtonGroup aria-label="字幕语言">
-          <Button aria-pressed={mode === 'original'} theme={mode === 'original' ? 'solid' : 'borderless'} type={mode === 'original' ? 'primary' : 'tertiary'} onClick={() => onChangeMode('original')}>英文</Button>
+          <Button disabled={!original.length} aria-pressed={mode === 'original'} theme={mode === 'original' ? 'solid' : 'borderless'} type={mode === 'original' ? 'primary' : 'tertiary'} onClick={() => onChangeMode('original')}>原文</Button>
           <Button disabled={!chinese.length} aria-pressed={mode === 'chinese'} theme={mode === 'chinese' ? 'solid' : 'borderless'} type={mode === 'chinese' ? 'primary' : 'tertiary'} onClick={() => onChangeMode('chinese')}>中文</Button>
           <Button disabled={!original.length || !chinese.length} aria-pressed={mode === 'bilingual'} theme={mode === 'bilingual' ? 'solid' : 'borderless'} type={mode === 'bilingual' ? 'primary' : 'tertiary'} onClick={() => onChangeMode('bilingual')}>双语</Button>
         </ButtonGroup>
@@ -412,8 +412,11 @@ export function VideoStudyPage() {
     setCurrentTime(selectedVideo?.lastPositionSeconds ?? 0);
     currentTimeRef.current = selectedVideo?.lastPositionSeconds ?? 0;
     setNoteDraft('');
-    if (selectedVideo && !selectedVideo.captions.chinese.length) setTranscriptMode('original');
-    else setTranscriptMode('bilingual');
+    if (!selectedVideo) setTranscriptMode('original');
+    else if (/^zh(?:-|$)/i.test(selectedVideo.captions.originalLanguage)) setTranscriptMode('original');
+    else if (selectedVideo.captions.original.length && selectedVideo.captions.chinese.length) setTranscriptMode('bilingual');
+    else if (selectedVideo.captions.original.length) setTranscriptMode('original');
+    else setTranscriptMode('chinese');
   }, [selectedVideo?.id]);
 
   useEffect(() => {
