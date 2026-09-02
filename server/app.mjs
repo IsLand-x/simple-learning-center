@@ -9,6 +9,8 @@ import { createApiKeyExport, importApiKeys, parseApiKeyImport } from './apiKeys.
 import { createAiJobManager } from './aiJobs.mjs';
 import { fetchRssFeed } from './rss.mjs';
 import { fetchRssArticle } from './rssArticle.mjs';
+import { fetchRssSource, resolveRssSource } from './rssSources.mjs';
+import { sourceSecretsService } from './sourceSecrets.mjs';
 import { fetchYouTubeVideo } from './youtubeVideo.mjs';
 import { protectServerRssState } from './rssScheduler.mjs';
 import {
@@ -25,6 +27,7 @@ import {
   MAX_BOOK_BYTES,
   MAX_INDEX_BYTES,
   MAX_RSS_REQUEST_BYTES,
+  MAX_SOURCE_CREDENTIALS_REQUEST_BYTES,
   MAX_STATE_BYTES,
   MAX_VIDEO_REQUEST_BYTES,
   MODE,
@@ -115,7 +118,10 @@ export function createApp({
   authFile = AUTH_FILE,
   aiJobRunner,
   rssFetcher = fetchRssFeed,
+  rssSourceFetcher = fetchRssSource,
+  rssSourceResolver = resolveRssSource,
   rssArticleFetcher = fetchRssArticle,
+  sourceSecrets = sourceSecretsService,
   youtubeVideoFetcher = fetchYouTubeVideo,
   aiJobManager,
 } = {}) {
@@ -250,6 +256,33 @@ export function createApp({
     return c.json(await rssFetcher(payload?.url));
   });
   app.all('/api/rss/fetch', methodNotAllowed);
+
+  app.post('/api/rss/sources/resolve', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_RSS_REQUEST_BYTES);
+    return c.json(await rssSourceResolver(payload));
+  });
+  app.post('/api/rss/sources/fetch', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_RSS_REQUEST_BYTES);
+    return c.json(await rssSourceFetcher(payload?.source));
+  });
+  app.all('/api/rss/sources/resolve', methodNotAllowed);
+  app.all('/api/rss/sources/fetch', methodNotAllowed);
+
+  app.get('/api/source-credentials/bilibili', async (c) => (
+    c.json(await sourceSecrets.getBilibiliStatus())
+  ));
+  app.put('/api/source-credentials/bilibili', async (c) => {
+    const payload = await readJsonRequest(c.req.raw, MAX_SOURCE_CREDENTIALS_REQUEST_BYTES);
+    return c.json(await sourceSecrets.setBilibiliCookie(payload?.cookie));
+  });
+  app.post('/api/source-credentials/bilibili/verify', async (c) => (
+    c.json(await sourceSecrets.verifyBilibiliCookie())
+  ));
+  app.delete('/api/source-credentials/bilibili', async (c) => (
+    c.json(await sourceSecrets.deleteBilibiliCookie())
+  ));
+  app.all('/api/source-credentials/bilibili', methodNotAllowed);
+  app.all('/api/source-credentials/bilibili/verify', methodNotAllowed);
 
   app.post('/api/rss/article', async (c) => {
     const payload = await readJsonRequest(c.req.raw, MAX_RSS_REQUEST_BYTES);
@@ -396,7 +429,12 @@ export function createApp({
     const message = status >= 500 && error?.expose !== true
       ? '服务器处理失败'
       : error instanceof Error ? error.message : '请求处理失败';
-    if (c.req.path.startsWith('/api/')) return c.json({ error: message }, status);
+    if (c.req.path.startsWith('/api/')) {
+      return c.json({
+        error: message,
+        ...(typeof error?.sourceCode === 'string' ? { code: error.sourceCode } : {}),
+      }, status);
+    }
     return c.text(message, status);
   });
 

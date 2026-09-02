@@ -81,20 +81,32 @@ import {
 import { confirmDialog } from '../lib/confirmDialog';
 import { clamp, formatRelativeTime } from '../lib/format';
 import { listAiJobs, startAiJob, watchAiJob, getAiJob, type AiJob } from '../lib/aiJobs';
-import { fetchRssArticle, fetchRssFeed, fetchedItemsForFeed, generateRssDigest, type FetchedRssFeed } from '../lib/rssApi';
-import { extractRssContentHeadings, findRssSearchMatches, sanitizeRssContentHtml, type RssContentHeading } from '../lib/rssContent';
+import {
+  fetchRssArticle,
+  fetchRssSource,
+  fetchedItemsForFeed,
+  generateRssDigest,
+  resolveRssSource,
+  type FetchedRssFeed,
+  type RssSourceInput,
+} from '../lib/rssApi';
+import { extractRssContentHeadings, findRssSearchMatches, removeRssLeadingCover, sanitizeRssContentHtml, type RssContentHeading } from '../lib/rssContent';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import { getReaderTextureStyle, getReaderThemeName, resolveReaderStyle } from '../lib/readerThemes';
+import { getRssVideoPresentation } from '../lib/rssVideo';
 import { refreshServerState, waitForServerStateWrites } from '../lib/serverStateStorage';
+import { ServerApiError } from '../lib/serverApi';
 import { createUuid } from '../lib/uuid';
+import { importYouTubeVideo } from '../lib/youtubeVideos';
 import { useLearningStore } from '../store/useLearningStore';
-import type { ReaderHighlightTarget, ReaderSelection, RssAnnotation, RssDailyDigest, RssFeed, RssFeedType, RssFolder, RssItem } from '../types';
+import type { ReaderHighlightTarget, ReaderSelection, RssAnnotation, RssDailyDigest, RssFeed, RssFeedType, RssFolder, RssItem, RssSource, RssSourceErrorCode, VideoResource } from '../types';
 
 const { Text, Title } = Typography;
 type TimeRange = 'today' | 'seven-days' | 'all';
 type RssSidePanel = 'ai' | 'timeline' | 'comments' | null;
 type SummaryStatus = 'idle' | 'unavailable' | 'generating' | 'ready' | 'error';
 type TranslationStatus = 'idle' | 'unavailable' | 'generating' | 'ready' | 'error';
+type RssSourceKind = RssSource['kind'];
 
 interface TranslationTaskState {
   status: TranslationStatus;
@@ -245,14 +257,44 @@ function escapeXml(value: string) {
     .replaceAll("'", '&apos;');
 }
 
+function rssSourceKey(source: RssSource) {
+  switch (source.kind) {
+    case 'rss': return `rss:${source.feedUrl}`;
+    case 'bilibili-weekly': return source.kind;
+    case 'bilibili-up': return `${source.kind}:${source.uid}`;
+    case 'youtube-channel': return `${source.kind}:${source.channelId}`;
+  }
+}
+
+function sourceTypeLabel(source: RssSource) {
+  switch (source.kind) {
+    case 'rss': return 'RSS / Atom';
+    case 'bilibili-weekly': return 'B站每周必看';
+    case 'bilibili-up': return `B站 UP · ${source.uid}`;
+    case 'youtube-channel': return `YouTube · ${source.channelId}`;
+  }
+}
+
+function sourceOpmlAttributes(feed: RssFeed) {
+  const source = feed.source;
+  const common = `learningCenterSourceKind="${source.kind}"`;
+  if (source.kind === 'rss') return `${common} xmlUrl="${escapeXml(source.feedUrl)}"`;
+  if (source.kind === 'bilibili-weekly') return common;
+  if (source.kind === 'bilibili-up') return `${common} learningCenterUid="${escapeXml(source.uid)}"`;
+  return `${common} learningCenterChannelId="${escapeXml(source.channelId)}" xmlUrl="${escapeXml(source.feedUrl)}"`;
+}
+
 function exportOpml(feeds: RssFeed[], folders: RssFolder[]) {
+  if (feeds.some((feed) => feed.source.kind === 'bilibili-weekly' || feed.source.kind === 'bilibili-up')) {
+    Toast.warning('B站来源会保留学习中心扩展字段，其他阅读器可能无法识别；Cookie 不会导出');
+  }
   const folderById = new Map(folders.map((folder) => [folder.id, folder.name]));
   const grouped = new Map<string, RssFeed[]>();
   feeds.forEach((feed) => {
     const folder = feed.folderId ? folderById.get(feed.folderId) ?? '' : '';
     grouped.set(folder, [...(grouped.get(folder) ?? []), feed]);
   });
-  const outline = (feed: RssFeed) => `      <outline text="${escapeXml(feed.title)}" title="${escapeXml(feed.title)}" type="rss" xmlUrl="${escapeXml(feed.url)}" htmlUrl="${escapeXml(feed.siteUrl ?? '')}" learningCenterType="${feed.type}" learningCenterFetchFullContent="${feed.fetchFullContent ? 'true' : 'false'}" />`;
+  const outline = (feed: RssFeed) => `      <outline text="${escapeXml(feed.title)}" title="${escapeXml(feed.title)}" type="rss" ${sourceOpmlAttributes(feed)} htmlUrl="${escapeXml(feed.siteUrl ?? '')}" learningCenterType="${feed.type}" learningCenterFetchFullContent="${feed.fetchFullContent ? 'true' : 'false'}" />`;
   const lines = ['<?xml version="1.0" encoding="UTF-8"?>', '<opml version="2.0">', '  <head><title>个人学习中心 RSS 订阅</title></head>', '  <body>'];
   for (const [folder, items] of grouped) {
     if (folder) {
@@ -278,6 +320,7 @@ function normalizedFeed(
   type: RssFeedType,
   folderId: string | undefined,
   result: FetchedRssFeed,
+  source: RssSource,
   title?: string,
   fetchFullContent = false,
 ): RssFeed {
@@ -286,6 +329,7 @@ function normalizedFeed(
     id: feedId,
     title: title?.trim() || result.title,
     url: result.feedUrl,
+    source,
     siteUrl: result.siteUrl || undefined,
     description: result.description || undefined,
     type,
@@ -294,6 +338,7 @@ function normalizedFeed(
     createdAt: timestamp,
     updatedAt: timestamp,
     lastFetchedAt: result.fetchedAt,
+    lastSuccessAt: result.fetchedAt,
   };
 }
 
@@ -610,6 +655,7 @@ export function RssPage() {
   const configs = useLearningStore((state) => state.openAIConfigs);
   const aiPreferences = useLearningStore((state) => state.aiPreferences);
   const readerPreferences = useLearningStore((state) => state.readerPreferences);
+  const videoResources = useLearningStore((state) => state.videoResources);
   const addRssFolder = useLearningStore((state) => state.addRssFolder);
   const updateRssFolder = useLearningStore((state) => state.updateRssFolder);
   const moveRssFolder = useLearningStore((state) => state.moveRssFolder);
@@ -626,6 +672,7 @@ export function RssPage() {
   const setRssDigestSettings = useLearningStore((state) => state.setRssDigestSettings);
   const markRssItemsRead = useLearningStore((state) => state.markRssItemsRead);
   const markRssItemsUnread = useLearningStore((state) => state.markRssItemsUnread);
+  const upsertVideoResource = useLearningStore((state) => state.upsertVideoResource);
   const rssPanelWidth = useLearningStore((state) => state.rssPanelWidth);
   const setRssPanelWidth = useLearningStore((state) => state.setRssPanelWidth);
   const setReaderPreferences = useLearningStore((state) => state.setReaderPreferences);
@@ -636,12 +683,14 @@ export function RssPage() {
   const [folderVisible, setFolderVisible] = useState(false);
   const [manageVisible, setManageVisible] = useState(false);
   const [sourceActionsVisible, setSourceActionsVisible] = useState(false);
+  const [sourceKind, setSourceKind] = useState<RssSourceKind>('rss');
   const [feedUrl, setFeedUrl] = useState('');
   const [feedTitle, setFeedTitle] = useState('');
   const [feedType, setFeedType] = useState<RssFeedType>('article');
   const [feedFolderId, setFeedFolderId] = useState('');
   const [folderName, setFolderName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [videoImporting, setVideoImporting] = useState(false);
   const [refreshingIds, setRefreshingIds] = useState<Set<string>>(new Set());
   const [fetchingArticleIds, setFetchingArticleIds] = useState<Set<string>>(new Set());
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>('idle');
@@ -809,6 +858,11 @@ export function RssPage() {
     ? filteredItems[selectedItemIndex + 1]
     : undefined;
   const selectedFeed = selectedItem ? feedById.get(selectedItem.feedId) : undefined;
+  const isSelectedVideo = selectedFeed?.type === 'video';
+  const selectedVideoPresentation = useMemo(
+    () => selectedItem ? getRssVideoPresentation(selectedItem, selectedFeed) : undefined,
+    [selectedFeed, selectedItem],
+  );
   const requestedMobileView = searchParams.get('view');
   const inferredMobileView: RssMobileView = selectedItem || selectedDigest ? 'detail' : 'sources';
   const mobileView: RssMobileView = isRssMobileView(requestedMobileView)
@@ -907,12 +961,15 @@ export function RssPage() {
     '--rss-toc-text-color': readerStyle.textColor,
   } as CssVariables), [readerStyle]);
   const articleBaseUrl = selectedItem?.fullContentUrl || selectedItem?.link || selectedFeed?.siteUrl || selectedFeed?.url || window.location.href;
-  const sanitizedContentHtml = useMemo(() => sanitizeRssContentHtml(
-    selectedItem?.fullContentHtml || selectedItem?.contentHtml || selectedItem?.fullContentText || selectedItem?.contentText,
+  const selectedContent = isSelectedVideo
+    ? selectedItem?.contentHtml || selectedItem?.contentText
+    : selectedItem?.fullContentHtml || selectedItem?.contentHtml || selectedItem?.fullContentText || selectedItem?.contentText;
+  const sanitizedContentHtml = useMemo(() => removeRssLeadingCover(sanitizeRssContentHtml(
+    selectedContent,
     articleBaseUrl,
     query,
     selectedAnnotations,
-  ), [articleBaseUrl, query, selectedAnnotations, selectedItem?.contentHtml, selectedItem?.contentText, selectedItem?.fullContentHtml, selectedItem?.fullContentText]);
+  ), selectedVideoPresentation?.embedUrl ? selectedVideoPresentation.imageUrl : undefined), [articleBaseUrl, query, selectedAnnotations, selectedContent, selectedVideoPresentation?.embedUrl, selectedVideoPresentation?.imageUrl]);
   const sanitizedContentMarkup = useMemo(() => ({ __html: sanitizedContentHtml }), [sanitizedContentHtml]);
   const articleHeadings = useMemo(() => extractRssContentHeadings(sanitizedContentHtml), [sanitizedContentHtml]);
   const sanitizedTranslationHtml = useMemo(() => sanitizeRssContentHtml(
@@ -923,10 +980,12 @@ export function RssPage() {
   const sanitizedTranslationMarkup = useMemo(() => ({ __html: sanitizedTranslationHtml }), [sanitizedTranslationHtml]);
   const translationHeadings = useMemo(() => extractRssContentHeadings(sanitizedTranslationHtml), [sanitizedTranslationHtml]);
   const displayedArticleHeadings = useMemo(() => (
-    translationVisible && sanitizedTranslationHtml
+    isSelectedVideo
+      ? []
+      : translationVisible && sanitizedTranslationHtml
       ? translationHeadings
       : translationVisible ? [] : articleHeadings
-  ), [articleHeadings, sanitizedTranslationHtml, translationHeadings, translationVisible]);
+  ), [articleHeadings, isSelectedVideo, sanitizedTranslationHtml, translationHeadings, translationVisible]);
 
   useEffect(() => {
     setExpandedFolders((current) => {
@@ -1075,7 +1134,7 @@ export function RssPage() {
   const refreshFeed = useCallback(async (feed: RssFeed) => {
     setRefreshingIds((current) => new Set(current).add(feed.id));
     try {
-      const result = await fetchRssFeed(feed.url);
+      const result = await fetchRssSource(feed.source);
       const fetchedItems = fetchedItemsForFeed(feed.id, result);
       if (feed.fetchFullContent) {
         const existingItems = new Map(
@@ -1108,11 +1167,16 @@ export function RssPage() {
         siteUrl: result.siteUrl || feed.siteUrl,
         description: result.description || feed.description,
         lastFetchedAt: result.fetchedAt,
+        lastSuccessAt: result.fetchedAt,
         lastError: undefined,
+        lastErrorCode: undefined,
       });
       return true;
     } catch (error) {
-      updateRssFeed(feed.id, { lastError: error instanceof Error ? error.message : '刷新失败' });
+      updateRssFeed(feed.id, {
+        lastError: error instanceof Error ? error.message : '刷新失败',
+        lastErrorCode: error instanceof ServerApiError ? error.code as RssSourceErrorCode | undefined : undefined,
+      });
       return false;
     } finally {
       setRefreshingIds((current) => {
@@ -1177,8 +1241,37 @@ export function RssPage() {
     else Toast.success('订阅源已刷新');
   }, [refreshFeed]);
 
+  const importSelectedYouTubeVideo = async () => {
+    if (!selectedItem || selectedFeed?.source.kind !== 'youtube-channel') return;
+    setVideoImporting(true);
+    try {
+      const imported = await importYouTubeVideo(selectedItem.link);
+      const existing = videoResources.find((video) => video.youtubeVideoId === imported.youtubeVideoId);
+      const timestamp = Date.now();
+      const video: VideoResource = {
+        ...imported,
+        id: existing?.id ?? imported.youtubeVideoId,
+        ...(existing?.lastPositionSeconds ? { lastPositionSeconds: existing.lastPositionSeconds } : {}),
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      };
+      upsertVideoResource(video);
+      Toast.success(existing ? '已更新学习区中的视频资料' : '已添加到视频学习区');
+      navigate(`/videos?video=${encodeURIComponent(video.id)}`);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : '导入视频学习区失败');
+    } finally {
+      setVideoImporting(false);
+    }
+  };
+
   useEffect(() => {
     if (!selectedItem) {
+      setSummaryStatus('idle');
+      setSummaryError('');
+      return undefined;
+    }
+    if (isSelectedVideo) {
       setSummaryStatus('idle');
       setSummaryError('');
       return undefined;
@@ -1278,7 +1371,7 @@ export function RssPage() {
       disposed = true;
       controller.abort();
     };
-  }, [aiPreferences.model, aiPreferences.provider, configs, selectedItem, updateRssItem]);
+  }, [aiPreferences.model, aiPreferences.provider, configs, isSelectedVideo, selectedItem, updateRssItem]);
 
   const translateCurrentPage = useCallback(async () => {
     if (!selectedItem) return;
@@ -1429,23 +1522,31 @@ export function RssPage() {
 
   const addSubscription = async (event: FormEvent) => {
     event.preventDefault();
-    const url = feedUrl.trim();
-    if (!url) return;
-    if (feeds.some((feed) => feed.url === url)) {
-      Toast.warning('这个订阅源已经存在');
-      return;
-    }
+    const input = feedUrl.trim();
+    if (sourceKind !== 'bilibili-weekly' && !input) return;
     setSubmitting(true);
     try {
-      const result = await fetchRssFeed(url);
+      const request: RssSourceInput = sourceKind === 'bilibili-weekly'
+        ? { kind: sourceKind }
+        : { kind: sourceKind, input } as RssSourceInput;
+      const { source, result } = await resolveRssSource(request);
+      const duplicate = feeds.find((feed) => rssSourceKey(feed.source) === rssSourceKey(source));
+      if (duplicate) {
+        Toast.warning('这个订阅源已经存在');
+        setSelectedFeedId(duplicate.id);
+        setAddVisible(false);
+        return;
+      }
       const id = createUuid();
-      const feed = normalizedFeed(id, feedType, feedFolderId || undefined, result, feedTitle);
+      const type = source.kind === 'rss' ? feedType : 'video';
+      const feed = normalizedFeed(id, type, feedFolderId || undefined, result, source, feedTitle);
       upsertRssFeed(feed);
       mergeRssItems(id, fetchedItemsForFeed(id, result));
       setSelectedFeedId(id);
       setAddVisible(false);
       setFeedUrl('');
       setFeedTitle('');
+      setSourceKind('rss');
       Toast.success(`已订阅“${feed.title}”`);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : '添加订阅源失败');
@@ -1510,12 +1611,26 @@ export function RssPage() {
     try {
       const document = new DOMParser().parseFromString(await file.text(), 'text/xml');
       if (document.querySelector('parsererror')) throw new Error('OPML 文件格式不正确');
-      const outlines = Array.from(document.querySelectorAll('outline[xmlUrl]'));
+      const outlines = Array.from(document.querySelectorAll('outline[xmlUrl], outline[learningCenterSourceKind]'))
+        .filter((outline) => outline.hasAttribute('xmlUrl') || outline.hasAttribute('learningCenterSourceKind'));
       let imported = 0;
       let failed = 0;
       for (const outline of outlines) {
-        const url = outline.getAttribute('xmlUrl')?.trim();
-        if (!url || useLearningStore.getState().rssFeeds.some((feed) => feed.url === url)) continue;
+        const url = outline.getAttribute('xmlUrl')?.trim() || '';
+        const declaredSourceKind = outline.getAttribute('learningCenterSourceKind');
+        const sourceKindFromOpml: RssSourceKind = declaredSourceKind === 'bilibili-weekly'
+          || declaredSourceKind === 'bilibili-up'
+          || declaredSourceKind === 'youtube-channel'
+          ? declaredSourceKind
+          : 'rss';
+        const sourceInput = sourceKindFromOpml === 'bilibili-weekly'
+          ? ''
+          : sourceKindFromOpml === 'bilibili-up'
+            ? outline.getAttribute('learningCenterUid')?.trim() || ''
+            : sourceKindFromOpml === 'youtube-channel'
+              ? outline.getAttribute('learningCenterChannelId')?.trim() || url
+              : url;
+        if (sourceKindFromOpml !== 'bilibili-weekly' && !sourceInput) continue;
         let folderNameFromOpml = '';
         let parent = outline.parentElement;
         while (parent && parent.localName === 'outline') {
@@ -1539,10 +1654,24 @@ export function RssPage() {
         const type: RssFeedType = declaredType === 'video' || declaredType === 'social' ? declaredType : 'article';
         const fetchFullContent = outline.getAttribute('learningCenterFetchFullContent') === 'true';
         try {
-          const result = await fetchRssFeed(url);
+          const request: RssSourceInput = sourceKindFromOpml === 'bilibili-weekly'
+            ? { kind: sourceKindFromOpml }
+            : { kind: sourceKindFromOpml, input: sourceInput } as RssSourceInput;
+          const { source, result } = await resolveRssSource(request);
+          if (useLearningStore.getState().rssFeeds.some((feed) => rssSourceKey(feed.source) === rssSourceKey(source))) {
+            continue;
+          }
           const id = createUuid();
           const title = outline.getAttribute('title') || outline.getAttribute('text') || undefined;
-          useLearningStore.getState().upsertRssFeed(normalizedFeed(id, type, folderId, result, title, fetchFullContent));
+          useLearningStore.getState().upsertRssFeed(normalizedFeed(
+            id,
+            source.kind === 'rss' ? type : 'video',
+            folderId,
+            result,
+            source,
+            title,
+            source.kind === 'rss' && fetchFullContent,
+          ));
           useLearningStore.getState().mergeRssItems(id, fetchedItemsForFeed(id, result));
           imported += 1;
         } catch {
@@ -2150,9 +2279,10 @@ export function RssPage() {
         {filteredItems.length ? filteredItems.map((item) => {
           const feed = feedById.get(item.feedId);
           const searchPreview = searchPreviews.get(item.id);
+          const videoPresentation = getRssVideoPresentation(item, feed);
           return (
             <button
-              className={`rss-item-row${selectedItem?.id === item.id ? ' rss-item-row--active' : ''}${item.readAt ? ' rss-item-row--read' : ''}`}
+              className={`rss-item-row${videoPresentation?.imageUrl ? ' rss-item-row--with-thumbnail' : ''}${selectedItem?.id === item.id ? ' rss-item-row--active' : ''}${item.readAt ? ' rss-item-row--read' : ''}`}
               key={item.id}
               type="button"
               onClick={() => openItem(item)}
@@ -2162,15 +2292,27 @@ export function RssPage() {
                 setItemMenu({ item, x: event.clientX, y: event.clientY });
               }}
             >
-              <span className="rss-item-row__title"><HighlightedText text={item.title} query={query} /></span>
-              {searchPreview && (
-                <span className="rss-item-row__excerpt"><HighlightedText text={searchPreview} query={query} /></span>
+              {videoPresentation?.imageUrl && (
+                <img
+                  alt=""
+                  className="rss-item-row__thumbnail"
+                  decoding="async"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  src={videoPresentation.imageUrl}
+                />
               )}
-              <span className="rss-item-row__meta">
-                <span className="rss-item-row__type-icon" aria-label={feed ? feedTypeLabels[feed.type] : '内容'}><FeedTypeIcon type={feed?.type ?? 'article'} /></span>
-                <span><HighlightedText text={feed?.title ?? '未知订阅源'} query={query} /></span>
-                <time>{itemTime(item.publishedAt)}</time>
-                {item.bookmarkedAt && <IconBookmark />}
+              <span className="rss-item-row__content">
+                <span className="rss-item-row__title"><HighlightedText text={item.title} query={query} /></span>
+                {searchPreview && (
+                  <span className="rss-item-row__excerpt"><HighlightedText text={searchPreview} query={query} /></span>
+                )}
+                <span className="rss-item-row__meta">
+                  <span className="rss-item-row__type-icon" aria-label={feed ? feedTypeLabels[feed.type] : '内容'}><FeedTypeIcon type={feed?.type ?? 'article'} /></span>
+                  <span><HighlightedText text={feed?.title ?? '未知订阅源'} query={query} /></span>
+                  <time>{itemTime(item.publishedAt)}</time>
+                  {item.bookmarkedAt && <IconBookmark />}
+                </span>
               </span>
             </button>
           );
@@ -2178,6 +2320,19 @@ export function RssPage() {
       </div>
     </>
   );
+
+  const selectedItemDetailStatus = selectedItem
+    ? isSelectedVideo
+      ? selectedItem.readAt ? '已读 · 视频' : '未读 · 视频'
+      : `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}`
+    : '未选择内容';
+  const translationActionLabel = translationVisible
+    ? '显示原文'
+    : hasSelectedTranslation
+      ? '显示中文翻译'
+      : isSelectedVideo
+        ? sanitizedContentHtml ? '翻译视频简介' : '没有可翻译的视频简介'
+        : '翻译当前页面';
 
   const articleContent = selectedDigest ? (
     <RssDigestArticle
@@ -2193,7 +2348,7 @@ export function RssPage() {
   ) : selectedItem ? (
     <article
       ref={articleRef}
-      className="rss-article"
+      className={`rss-article${isSelectedVideo ? ' rss-article--video' : ''}`}
       style={articleStyle}
       onScroll={(event) => {
         markAutomaticallySelectedItemRead(event.currentTarget);
@@ -2214,55 +2369,103 @@ export function RssPage() {
           <Title className="rss-article__title" heading={3}><HighlightedText text={selectedItem.title} query={query} /></Title>
           <div className="rss-article__byline">
             <Text size="small" type="tertiary">
-              <time>{itemDateTime(selectedItem.publishedAt)}</time>
+              <time>{selectedItem.publishedAtIsFallback ? '收录于 ' : ''}{itemDateTime(selectedItem.publishedAt)}</time>
               {selectedItem.author && <> · <HighlightedText text={selectedItem.author} query={query} /></>}
               {selectedItem.fullContentFetchedAt && <> · 已读取原文</>}
             </Text>
           </div>
         </header>
-        <section className="rss-ai-summary" aria-live="polite">
-          <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 导读</Text></div>
-          {selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2 ? (
-            <p>{selectedItem.aiSummary}</p>
-          ) : summaryStatus === 'generating' ? (
-            <div className="rss-ai-summary__loading"><Spin size="small" /><Text size="small" type="tertiary">正在阅读并总结当前内容…</Text></div>
-          ) : summaryStatus === 'unavailable' ? (
-            <Text size="small" type="tertiary">请先在设置页添加并选择模型，进入内容后会自动生成摘要。</Text>
-          ) : summaryStatus === 'error' ? (
-            <Text size="small" type="danger">{summaryError}</Text>
-          ) : null}
-        </section>
-        {translationVisible && translationStatus === 'generating' ? (
-          <div className="rss-translation-status" aria-live="polite">
-            <Spin size="small" />
-            <Text type="tertiary">正在翻译当前页面…</Text>
+        {selectedVideoPresentation?.embedUrl && (
+          <div className="rss-video-player">
+            <iframe
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+              loading="eager"
+              referrerPolicy="strict-origin-when-cross-origin"
+              src={selectedVideoPresentation.embedUrl}
+              title={`播放：${selectedItem.title}`}
+            />
           </div>
-        ) : translationVisible && hasSelectedTranslation ? (
-          <section className="rss-translation" aria-label="当前页面中文翻译">
-            <div className="rss-translation__heading"><IconLanguage /><Text strong>中文翻译</Text></div>
-            {sanitizedTranslationHtml ? (
+        )}
+        {isSelectedVideo ? (
+          <section className="rss-video-description" aria-labelledby="rss-video-description-title">
+            <Text id="rss-video-description-title" strong>视频简介</Text>
+            {translationVisible && translationStatus === 'generating' ? (
+              <div className="rss-translation-status" aria-live="polite">
+                <Spin size="small" />
+                <Text type="tertiary">正在翻译视频简介…</Text>
+              </div>
+            ) : translationVisible && hasSelectedTranslation ? (
+              sanitizedTranslationHtml ? (
+                <div
+                  ref={articleBodyRef}
+                  className="rss-article__body rss-article__body--rich rss-translation__content"
+                  dangerouslySetInnerHTML={sanitizedTranslationMarkup}
+                  onClick={handleArticleContentClick}
+                  onKeyDown={handleArticleContentKeyDown}
+                />
+              ) : (
+                <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation || ''} />
+              )
+            ) : translationVisible && translationStatus === 'error' ? (
+              <Text type="danger">{translationError}</Text>
+            ) : sanitizedContentHtml ? (
               <div
                 ref={articleBodyRef}
-                className="rss-article__body rss-article__body--rich rss-translation__content"
-                dangerouslySetInnerHTML={sanitizedTranslationMarkup}
+                className="rss-article__body rss-article__body--rich"
+                dangerouslySetInnerHTML={sanitizedContentMarkup}
                 onClick={handleArticleContentClick}
                 onKeyDown={handleArticleContentKeyDown}
               />
-            ) : (
-              <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation || ''} />
-            )}
+            ) : <Text size="small" type="tertiary">发布者没有填写视频简介。</Text>}
           </section>
-        ) : translationVisible && translationStatus === 'error' ? (
-          <div className="rss-translation-status"><Text type="danger">{translationError}</Text></div>
-        ) : sanitizedContentHtml ? (
-          <div
-            ref={articleBodyRef}
-            className="rss-article__body rss-article__body--rich"
-            dangerouslySetInnerHTML={sanitizedContentMarkup}
-            onClick={handleArticleContentClick}
-            onKeyDown={handleArticleContentKeyDown}
-          />
-        ) : <Empty title="订阅源没有提供正文" description="可以打开原文，或让 AI 根据已有摘要和页面链接继续了解" />}
+        ) : (
+          <>
+            <section className="rss-ai-summary" aria-live="polite">
+              <div className="rss-ai-summary__heading"><IconAIStrokedLevel1 /><Text strong>AI 导读</Text></div>
+              {selectedItem.aiSummary && selectedItem.aiSummaryVersion === 2 ? (
+                <p>{selectedItem.aiSummary}</p>
+              ) : summaryStatus === 'generating' ? (
+                <div className="rss-ai-summary__loading"><Spin size="small" /><Text size="small" type="tertiary">正在阅读并总结当前内容…</Text></div>
+              ) : summaryStatus === 'unavailable' ? (
+                <Text size="small" type="tertiary">请先在设置页添加并选择模型，进入内容后会自动生成摘要。</Text>
+              ) : summaryStatus === 'error' ? (
+                <Text size="small" type="danger">{summaryError}</Text>
+              ) : null}
+            </section>
+            {translationVisible && translationStatus === 'generating' ? (
+              <div className="rss-translation-status" aria-live="polite">
+                <Spin size="small" />
+                <Text type="tertiary">正在翻译当前页面…</Text>
+              </div>
+            ) : translationVisible && hasSelectedTranslation ? (
+              <section className="rss-translation" aria-label="当前页面中文翻译">
+                <div className="rss-translation__heading"><IconLanguage /><Text strong>中文翻译</Text></div>
+                {sanitizedTranslationHtml ? (
+                  <div
+                    ref={articleBodyRef}
+                    className="rss-article__body rss-article__body--rich rss-translation__content"
+                    dangerouslySetInnerHTML={sanitizedTranslationMarkup}
+                    onClick={handleArticleContentClick}
+                    onKeyDown={handleArticleContentKeyDown}
+                  />
+                ) : (
+                  <CspSafeMarkdown className="rss-translation__content" content={selectedItem.aiTranslation || ''} />
+                )}
+              </section>
+            ) : translationVisible && translationStatus === 'error' ? (
+              <div className="rss-translation-status"><Text type="danger">{translationError}</Text></div>
+            ) : sanitizedContentHtml ? (
+              <div
+                ref={articleBodyRef}
+                className="rss-article__body rss-article__body--rich"
+                dangerouslySetInnerHTML={sanitizedContentMarkup}
+                onClick={handleArticleContentClick}
+                onKeyDown={handleArticleContentKeyDown}
+              />
+            ) : <Empty title="订阅源没有提供正文" description="可以打开原文，或让 AI 根据已有摘要和页面链接继续了解" />}
+          </>
+        )}
       </div>
     </article>
   ) : (
@@ -2278,7 +2481,7 @@ export function RssPage() {
           activePanel={mobilePanel}
           articleFetching={Boolean(selectedItem && fetchingArticleIds.has(selectedItem.id))}
           bookmarked={Boolean(selectedItem?.bookmarkedAt)}
-          canFetchArticle={Boolean(selectedItem?.link)}
+          canFetchArticle={Boolean(selectedItem?.link && !isSelectedVideo)}
           detailContent={articleContent}
           detailActions={selectedDigest ? (
             <>
@@ -2296,17 +2499,16 @@ export function RssPage() {
                 type="tertiary"
                 onClick={() => updateRssItem(selectedItem.id, { bookmarkedAt: selectedItem.bookmarkedAt ? undefined : Date.now() })}
               />
-              <Button aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'} disabled={!selectedItem.link} icon={<IconGlobeStroked />} loading={fetchingArticleIds.has(selectedItem.id)} theme="borderless" type="tertiary" onClick={() => void fetchArticleContent(selectedItem)} />
-              <Button aria-label={translationVisible ? '显示原文' : hasSelectedTranslation ? '显示中文翻译' : '翻译当前页面'} aria-pressed={translationVisible} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
+              {!isSelectedVideo && <Button aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'} disabled={!selectedItem.link} icon={<IconGlobeStroked />} loading={fetchingArticleIds.has(selectedItem.id)} theme="borderless" type="tertiary" onClick={() => void fetchArticleContent(selectedItem)} />}
+              <Button aria-label={translationActionLabel} aria-pressed={translationVisible} disabled={Boolean(isSelectedVideo && !sanitizedContentHtml)} icon={<IconLanguage />} loading={translationStatus === 'generating'} theme={translationVisible && translationStatus !== 'generating' ? 'solid' : 'borderless'} type="tertiary" onClick={() => void translateCurrentPage()} />
+              {selectedFeed?.source.kind === 'youtube-channel' && <Button aria-label="添加到视频学习区" icon={<IconVideo />} loading={videoImporting} theme="borderless" type="tertiary" onClick={() => void importSelectedYouTubeVideo()} />}
               {selectedItem.link && <Button aria-label="打开原文" icon={<IconExternalOpen />} theme="borderless" type="tertiary" onClick={() => window.open(selectedItem.link, '_blank', 'noopener,noreferrer')} />}
             </>
           ) : undefined}
           detailIsDigest={Boolean(selectedDigest)}
           detailStatus={selectedDigest
             ? `${selectedDigest.date === todayKey ? '[正在产出中] ' : ''}${selectedDigest.itemCount} 条内容`
-            : selectedItem
-              ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}`
-              : '未选择内容'}
+            : selectedItemDetailStatus}
           detailTitle={selectedDigest ? `${digestDateLabel(selectedDigest.date)}日报` : selectedItem?.title}
           hasOriginalLink={Boolean(selectedItem?.link)}
           hasNextItem={Boolean(nextItem)}
@@ -2452,7 +2654,7 @@ export function RssPage() {
                         <Text className="rss-detail-toolbar__status" size="small" type="tertiary">
                           {selectedDigest
                             ? `${selectedDigest.date === todayKey ? '[正在产出中] ' : ''}${selectedDigest.itemCount} 条内容 · ${selectedDigest.sourceFeedIds.length} 个来源`
-                            : selectedItem ? `${selectedItem.readAt ? '已读' : '未读'} · ${summaryStatus === 'ready' ? 'AI 已总结' : summaryStatus === 'generating' ? 'AI 总结中' : '等待摘要'}` : '未选择内容'}
+                            : selectedItemDetailStatus}
                         </Text>
                         {(selectedItem || selectedDigest) && (
                           <Text className="rss-detail-toolbar__title" ellipsis strong title={selectedItem?.title ?? `${digestDateLabel(selectedDigest!.date)}日报`}>
@@ -2462,22 +2664,25 @@ export function RssPage() {
                       </div>
                       {selectedItem && (
                         <>
-                          <Tooltip content={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}>
+                          {!isSelectedVideo && (
+                            <Tooltip content={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}>
+                              <Button
+                                aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}
+                                disabled={!selectedItem.link}
+                                icon={<IconGlobeStroked />}
+                                loading={fetchingArticleIds.has(selectedItem.id)}
+                                size="small"
+                                theme="borderless"
+                                type="tertiary"
+                                onClick={() => void fetchArticleContent(selectedItem)}
+                              />
+                            </Tooltip>
+                          )}
+                          <Tooltip content={translationActionLabel}>
                             <Button
-                              aria-label={selectedItem.fullContentFetchedAt ? '重新读取原文' : '读取原文'}
-                              disabled={!selectedItem.link}
-                              icon={<IconGlobeStroked />}
-                              loading={fetchingArticleIds.has(selectedItem.id)}
-                              size="small"
-                              theme="borderless"
-                              type="tertiary"
-                              onClick={() => void fetchArticleContent(selectedItem)}
-                            />
-                          </Tooltip>
-                          <Tooltip content={translationVisible ? '显示原文' : hasSelectedTranslation ? '显示中文翻译' : '翻译当前页面'}>
-                            <Button
-                              aria-label={translationVisible ? '显示原文' : hasSelectedTranslation ? '显示中文翻译' : '翻译当前页面'}
+                              aria-label={translationActionLabel}
                               aria-pressed={translationVisible}
+                              disabled={Boolean(isSelectedVideo && !sanitizedContentHtml)}
                               icon={<IconLanguage />}
                               loading={translationStatus === 'generating'}
                               size="small"
@@ -2516,6 +2721,11 @@ export function RssPage() {
                               onClick={() => updateRssItem(selectedItem.id, { bookmarkedAt: selectedItem.bookmarkedAt ? undefined : Date.now() })}
                             />
                           </Tooltip>
+                          {selectedFeed?.source.kind === 'youtube-channel' && (
+                            <Tooltip content="添加到视频学习区">
+                              <Button aria-label="添加到视频学习区" icon={<IconVideo />} loading={videoImporting} size="small" theme="borderless" type="tertiary" onClick={() => void importSelectedYouTubeVideo()} />
+                            </Tooltip>
+                          )}
                           {selectedItem.link && (
                             <Tooltip content="打开原文">
                               <Button aria-label="打开原文" icon={<IconExternalOpen />} size="small" theme="borderless" type="tertiary" onClick={() => window.open(selectedItem.link, '_blank', 'noopener,noreferrer')} />
@@ -2595,9 +2805,29 @@ export function RssPage() {
 
       <Modal bodyStyle={rssModalBodyStyle} closable={false} title="添加订阅源" visible={addVisible} footer={null} onCancel={() => setAddVisible(false)}>
         <form className="rss-dialog-form" onSubmit={(event) => void addSubscription(event)}>
-          <label><Text strong>RSS / Atom 地址</Text><Input autoFocus value={feedUrl} onChange={setFeedUrl} placeholder="https://example.com/feed.xml" /></label>
+          <label>
+            <Text strong>内容源</Text>
+            <Select autoFocus value={sourceKind} onChange={(value) => { setSourceKind(String(value) as RssSourceKind); setFeedUrl(''); }}>
+              <Select.Option value="rss">RSS / Atom</Select.Option>
+              <Select.Option value="bilibili-weekly">B站每周必看</Select.Option>
+              <Select.Option value="bilibili-up">B站指定 UP 主</Select.Option>
+              <Select.Option value="youtube-channel">YouTube 频道</Select.Option>
+            </Select>
+          </label>
+          {sourceKind !== 'bilibili-weekly' ? (
+            <label>
+              <Text strong>{sourceKind === 'rss' ? 'RSS / Atom 地址' : sourceKind === 'bilibili-up' ? 'UP 主 UID 或空间地址' : '频道地址、@handle 或频道 ID'}</Text>
+              <Input
+                value={feedUrl}
+                onChange={setFeedUrl}
+                placeholder={sourceKind === 'rss' ? 'https://example.com/feed.xml' : sourceKind === 'bilibili-up' ? '例如：946974' : '例如：@channel 或频道地址'}
+              />
+            </label>
+          ) : (
+            <div className="rss-dialog-note"><Text size="small" type="tertiary">订阅 B站官方“每周必看”，刷新时自动识别最新期次。</Text></div>
+          )}
           <label><Text strong>显示名称（可选）</Text><Input value={feedTitle} onChange={setFeedTitle} placeholder="默认使用订阅源名称" /></label>
-          <label><Text strong>内容类型</Text><Select value={feedType} onChange={(value) => setFeedType(String(value) as RssFeedType)}><Select.Option value="article">文章</Select.Option><Select.Option value="video">视频</Select.Option><Select.Option value="social">社交媒体</Select.Option></Select></label>
+          {sourceKind === 'rss' ? <label><Text strong>内容类型</Text><Select value={feedType} onChange={(value) => setFeedType(String(value) as RssFeedType)}><Select.Option value="article">文章</Select.Option><Select.Option value="video">视频</Select.Option><Select.Option value="social">社交媒体</Select.Option></Select></label> : null}
           <label><Text strong>文件夹</Text><Select value={feedFolderId || '__none__'} onChange={(value) => setFeedFolderId(value === '__none__' ? '' : String(value))}><Select.Option value="__none__">未分类</Select.Option>{folders.map((folder) => <Select.Option key={folder.id} value={folder.id}>{folder.name}</Select.Option>)}</Select></label>
           <div className="rss-dialog-actions"><Button theme="borderless" type="tertiary" onClick={() => setAddVisible(false)}>取消</Button><Button htmlType="submit" loading={submitting} theme="solid" type="primary">获取并订阅</Button></div>
         </form>
@@ -2630,7 +2860,9 @@ export function RssPage() {
               <div className="rss-manage-feed" key={feed.id}>
                 <div>
                   <Text strong>{feed.title}</Text>
-                  <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>{feed.url}</Text>
+                  <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>{sourceTypeLabel(feed.source)} · {feed.url}</Text>
+                  {feed.lastSuccessAt ? <Text size="small" type="tertiary">最近成功：{formatRelativeTime(feed.lastSuccessAt)}</Text> : null}
+                  {feed.lastError ? <Text size="small" type="danger" ellipsis={{ showTooltip: true }}>{feed.lastError}</Text> : null}
                 </div>
                 <Select size="small" value={feed.folderId || '__none__'} onChange={(value) => updateRssFeed(feed.id, { folderId: value === '__none__' ? undefined : String(value) })}>
                   <Select.Option value="__none__">未分类</Select.Option>
@@ -2645,10 +2877,11 @@ export function RssPage() {
                   <Switch
                     aria-label={`${feed.title} 自动抓取原文`}
                     checked={Boolean(feed.fetchFullContent)}
+                    disabled={feed.source.kind !== 'rss'}
                     size="small"
                     onChange={(checked) => updateRssFeed(feed.id, { fetchFullContent: checked })}
                   />
-                  <Text size="small">自动原文</Text>
+                  <Text size="small">{feed.source.kind === 'rss' ? '自动原文' : '原生内容'}</Text>
                 </label>
                 <Button aria-label={`删除订阅源 ${feed.title}`} icon={<IconDeleteStroked />} theme="borderless" type="danger" onClick={() => confirmDeleteFeed(feed)} />
               </div>

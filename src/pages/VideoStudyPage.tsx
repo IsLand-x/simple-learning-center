@@ -5,9 +5,6 @@ import {
   Empty,
   Input,
   Modal,
-  TabPane,
-  Tabs,
-  TextArea,
   Toast,
   Tooltip,
   Typography,
@@ -15,12 +12,10 @@ import {
 import {
   IconAIStrokedLevel1,
   IconArrowLeft,
-  IconClock,
   IconDelete,
   IconExternalOpen,
   IconLanguage,
   IconPlus,
-  IconSave,
 } from '@douyinfe/semi-icons';
 import { Allotment } from 'allotment';
 import { useSearchParams } from 'react-router-dom';
@@ -29,14 +24,13 @@ import { MarkdownNoteEditor } from '../components/MarkdownNoteEditor';
 import { VideoAiPanel } from '../components/RssAiPanel';
 import { YouTubePlayer, type YouTubePlayerHandle } from '../components/YouTubePlayer';
 import { confirmDialog } from '../lib/confirmDialog';
-import { createUuid } from '../lib/uuid';
 import { importYouTubeVideo } from '../lib/youtubeVideos';
 import { useLearningStore } from '../store/useLearningStore';
-import type { NoteItem, VideoCaptionCue, VideoResource, VideoTimestampNote } from '../types';
+import type { NoteItem, VideoCaptionCue, VideoResource } from '../types';
 
 const { Text, Title } = Typography;
 
-type VideoPanel = 'transcript' | 'ai' | 'notes';
+type VideoPanel = 'transcript' | 'ai';
 type TranscriptMode = 'original' | 'chinese' | 'bilingual';
 
 function clamp(value: number, min: number, max: number) {
@@ -157,21 +151,39 @@ function VideoTranscriptPanel({
   onSeek: (seconds: number) => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
+  const centeredContextRef = useRef('');
   const original = video.captions.original;
   const chinese = video.captions.chinese;
   const displayCues = mode === 'chinese' ? chinese : original;
   const activeCue = cueAt(displayCues, currentTime);
 
   useEffect(() => {
-    const active = listRef.current?.querySelector<HTMLElement>('.video-transcript-row--active');
-    active?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [activeCue?.startSeconds]);
+    const list = listRef.current;
+    const active = list?.querySelector<HTMLElement>('.video-transcript-row--active');
+    if (!list || !active) return undefined;
+
+    const context = `${video.id}:${mode}`;
+    const behavior = centeredContextRef.current === context ? 'smooth' : 'auto';
+    centeredContextRef.current = context;
+    const centerPadding = Math.max(6, (list.clientHeight - active.getBoundingClientRect().height) / 2);
+    list.style.setProperty('--video-transcript-center-padding', `${centerPadding}px`);
+    const frame = window.requestAnimationFrame(() => {
+      const listRect = list.getBoundingClientRect();
+      const activeRect = active.getBoundingClientRect();
+      const activeTop = activeRect.top - listRect.top + list.scrollTop;
+      list.scrollTo({
+        top: activeTop - ((list.clientHeight - activeRect.height) / 2),
+        behavior,
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeCue?.startSeconds, mode, video.id]);
 
   return (
     <div className="video-transcript-panel">
       <div className="video-transcript-panel__modes">
         <ButtonGroup aria-label="字幕语言">
-          <Button aria-pressed={mode === 'original'} theme={mode === 'original' ? 'solid' : 'borderless'} type={mode === 'original' ? 'primary' : 'tertiary'} onClick={() => onChangeMode('original')}>英文</Button>
+          <Button disabled={!original.length} aria-pressed={mode === 'original'} theme={mode === 'original' ? 'solid' : 'borderless'} type={mode === 'original' ? 'primary' : 'tertiary'} onClick={() => onChangeMode('original')}>原文</Button>
           <Button disabled={!chinese.length} aria-pressed={mode === 'chinese'} theme={mode === 'chinese' ? 'solid' : 'borderless'} type={mode === 'chinese' ? 'primary' : 'tertiary'} onClick={() => onChangeMode('chinese')}>中文</Button>
           <Button disabled={!original.length || !chinese.length} aria-pressed={mode === 'bilingual'} theme={mode === 'bilingual' ? 'solid' : 'borderless'} type={mode === 'bilingual' ? 'primary' : 'tertiary'} onClick={() => onChangeMode('bilingual')}>双语</Button>
         </ButtonGroup>
@@ -205,90 +217,23 @@ function VideoTranscriptPanel({
   );
 }
 
-function TimestampNotes({
-  notes,
-  onDelete,
-  onSeek,
-}: {
-  notes: VideoTimestampNote[];
-  onDelete: (noteId: string) => void;
-  onSeek: (seconds: number) => void;
-}) {
-  return (
-    <div className="video-timestamp-notes">
-      {notes.length ? notes.map((note) => (
-        <article key={note.id} className="video-note-card">
-          <div className="video-note-card__header">
-            <Button icon={<IconClock />} size="small" theme="borderless" type="primary" onClick={() => onSeek(note.timeSeconds)}>{formatTime(note.timeSeconds)}</Button>
-            <Tooltip content="删除笔记">
-              <Button aria-label="删除时间点笔记" icon={<IconDelete />} size="small" theme="borderless" type="danger" onClick={() => onDelete(note.id)} />
-            </Tooltip>
-          </div>
-          {(note.quoteOriginal || note.quoteChinese) && (
-            <blockquote>
-              {note.quoteOriginal && <p>{note.quoteOriginal}</p>}
-              {note.quoteChinese && <p>{note.quoteChinese}</p>}
-            </blockquote>
-          )}
-          <p className="video-note-card__content">{note.content}</p>
-        </article>
-      )) : <Empty title="还没有时间点笔记" description="在播放器下方记录想法，会自动绑定当前时间和字幕" />}
-    </div>
-  );
-}
-
-function VideoNotesPanel({
-  notes,
-  studyNote,
-  onChangeStudyNote,
-  onDeleteTimestampNote,
-  onSeek,
-}: {
-  notes: VideoTimestampNote[];
-  studyNote?: NoteItem;
-  onChangeStudyNote: (content: string) => void;
-  onDeleteTimestampNote: (noteId: string) => void;
-  onSeek: (seconds: number) => void;
-}) {
-  return (
-    <Tabs className="video-notes-panel" type="button" keepDOM={false}>
-      <TabPane itemKey="timestamps" tab={`时间点笔记 ${notes.length}`}>
-        <TimestampNotes notes={notes} onDelete={onDeleteTimestampNote} onSeek={onSeek} />
-      </TabPane>
-      <TabPane itemKey="study" tab="学习笔记">
-        <div className="video-study-note">
-          <MarkdownNoteEditor ariaLabel="视频学习笔记" content={studyNote?.content ?? ''} onChange={onChangeStudyNote} />
-        </div>
-      </TabPane>
-    </Tabs>
-  );
-}
-
 function VideoRightPanel({
   panel,
   video,
   currentTime,
   transcriptMode,
-  timestampNotes,
-  studyNote,
   onChangeTranscriptMode,
-  onChangeStudyNote,
-  onDeleteTimestampNote,
   onSeek,
 }: {
   panel: VideoPanel;
   video: VideoResource;
   currentTime: number;
   transcriptMode: TranscriptMode;
-  timestampNotes: VideoTimestampNote[];
-  studyNote?: NoteItem;
   onChangeTranscriptMode: (mode: TranscriptMode) => void;
-  onChangeStudyNote: (content: string) => void;
-  onDeleteTimestampNote: (noteId: string) => void;
   onSeek: (seconds: number) => void;
 }) {
-  const title = panel === 'transcript' ? '对话稿' : panel === 'ai' ? 'AI 助手' : '笔记';
-  const PanelIcon = panel === 'transcript' ? IconLanguage : panel === 'ai' ? IconAIStrokedLevel1 : IconSave;
+  const title = panel === 'transcript' ? '对话稿' : 'AI 助手';
+  const PanelIcon = panel === 'transcript' ? IconLanguage : IconAIStrokedLevel1;
   return (
     <aside className={`right-panel video-right-panel${panel === 'ai' ? ' right-panel--ai' : ''}`} aria-label={title}>
       <div className="panel-titlebar">
@@ -299,10 +244,8 @@ function VideoRightPanel({
       </div>
       {panel === 'transcript' ? (
         <VideoTranscriptPanel video={video} currentTime={currentTime} mode={transcriptMode} onChangeMode={onChangeTranscriptMode} onSeek={onSeek} />
-      ) : panel === 'ai' ? (
-        <VideoAiPanel video={video} />
       ) : (
-        <VideoNotesPanel notes={timestampNotes} studyNote={studyNote} onChangeStudyNote={onChangeStudyNote} onDeleteTimestampNote={onDeleteTimestampNote} onSeek={onSeek} />
+        <VideoAiPanel video={video} />
       )}
     </aside>
   );
@@ -313,29 +256,24 @@ function VideoActivityBar({ panel, onChange }: { panel: VideoPanel | null; onCha
     <nav className="activity-bar video-activity-bar" aria-label="视频学习辅助功能">
       <ActivityRailButton active={panel === 'transcript'} ariaLabel="打开对话稿" icon={<IconLanguage />} label="字幕" tooltip="查看对话稿" onClick={() => onChange('transcript')} />
       <ActivityRailButton active={panel === 'ai'} ariaLabel="打开 AI 助手" icon={<IconAIStrokedLevel1 />} label="AI" tooltip="打开 AI 助手" onClick={() => onChange('ai')} />
-      <ActivityRailButton active={panel === 'notes'} ariaLabel="打开视频笔记" icon={<IconSave />} label="笔记" tooltip="查看视频笔记" onClick={() => onChange('notes')} />
     </nav>
   );
 }
 
 function VideoMainContent({
   video,
-  currentTime,
-  noteDraft,
+  studyNote,
   playerRef,
   onChangeCurrentTime,
-  onChangeNoteDraft,
+  onChangeStudyNote,
   onDeleteVideo,
-  onSaveNote,
 }: {
   video: VideoResource;
-  currentTime: number;
-  noteDraft: string;
+  studyNote?: NoteItem;
   playerRef: RefObject<YouTubePlayerHandle>;
   onChangeCurrentTime: (seconds: number) => void;
-  onChangeNoteDraft: (value: string) => void;
+  onChangeStudyNote: (content: string) => void;
   onDeleteVideo: () => void;
-  onSaveNote: () => void;
 }) {
   return (
     <section className="video-main-pane" aria-label="视频学习区">
@@ -353,23 +291,8 @@ function VideoMainContent({
       </div>
       <div className="video-learning-stage">
         <YouTubePlayer key={video.id} ref={playerRef} videoId={video.youtubeVideoId} initialTime={video.lastPositionSeconds} onTimeUpdate={onChangeCurrentTime} />
-        <section className="video-quick-note" aria-label="记录时间点笔记">
-          <div className="video-quick-note__heading">
-            <div><Text strong>时间点笔记</Text><Text size="small" type="tertiary">{formatTime(currentTime)}</Text></div>
-            <Button disabled={!noteDraft.trim()} icon={<IconSave />} theme="solid" type="primary" onClick={onSaveNote}>保存笔记</Button>
-          </div>
-          <TextArea
-            aria-label="时间点笔记内容"
-            autosize={{ minRows: 3, maxRows: 6 }}
-            maxCount={2_000}
-            placeholder="记录这一刻的想法，会自动带上当前时间和对应字幕…"
-            value={noteDraft}
-            onChange={onChangeNoteDraft}
-            onEnterPress={(event) => {
-              if ((event.metaKey || event.ctrlKey) && noteDraft.trim()) onSaveNote();
-            }}
-          />
-          <Text className="video-quick-note__hint" size="small" type="tertiary">Cmd/Ctrl + Enter 保存</Text>
+        <section className="video-main-editor" aria-label="视频学习笔记">
+          <MarkdownNoteEditor ariaLabel="视频学习笔记" content={studyNote?.content ?? ''} onChange={onChangeStudyNote} />
         </section>
       </div>
     </section>
@@ -381,13 +304,10 @@ export function VideoStudyPage() {
   const mobileLayout = useMediaQuery('(max-width: 800px)');
   const compactLayout = useMediaQuery('(max-width: 1100px)');
   const videos = useLearningStore((state) => state.videoResources);
-  const timestampNotes = useLearningStore((state) => state.videoTimestampNotes);
   const notes = useLearningStore((state) => state.notes);
   const videoPanelWidth = useLearningStore((state) => state.videoPanelWidth);
   const upsertVideoResource = useLearningStore((state) => state.upsertVideoResource);
   const deleteVideoResource = useLearningStore((state) => state.deleteVideoResource);
-  const addVideoTimestampNote = useLearningStore((state) => state.addVideoTimestampNote);
-  const deleteVideoTimestampNote = useLearningStore((state) => state.deleteVideoTimestampNote);
   const addNote = useLearningStore((state) => state.addNote);
   const updateNote = useLearningStore((state) => state.updateNote);
   const setVideoPanelWidth = useLearningStore((state) => state.setVideoPanelWidth);
@@ -397,7 +317,6 @@ export function VideoStudyPage() {
   const [videoUrl, setVideoUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [noteDraft, setNoteDraft] = useState('');
   const currentTimeRef = useRef(0);
   const playerRef = useRef<YouTubePlayerHandle>(null);
   const requestedVideoId = searchParams.get('video') ?? '';
@@ -411,9 +330,11 @@ export function VideoStudyPage() {
   useEffect(() => {
     setCurrentTime(selectedVideo?.lastPositionSeconds ?? 0);
     currentTimeRef.current = selectedVideo?.lastPositionSeconds ?? 0;
-    setNoteDraft('');
-    if (selectedVideo && !selectedVideo.captions.chinese.length) setTranscriptMode('original');
-    else setTranscriptMode('bilingual');
+    if (!selectedVideo) setTranscriptMode('original');
+    else if (/^zh(?:-|$)/i.test(selectedVideo.captions.originalLanguage)) setTranscriptMode('original');
+    else if (selectedVideo.captions.original.length && selectedVideo.captions.chinese.length) setTranscriptMode('bilingual');
+    else if (selectedVideo.captions.original.length) setTranscriptMode('original');
+    else setTranscriptMode('chinese');
   }, [selectedVideo?.id]);
 
   useEffect(() => {
@@ -425,12 +346,6 @@ export function VideoStudyPage() {
     };
   }, [selectedVideo?.id]);
 
-  const selectedTimestampNotes = useMemo(
-    () => selectedVideo
-      ? timestampNotes.filter((note) => note.videoId === selectedVideo.id).sort((left, right) => left.timeSeconds - right.timeSeconds)
-      : [],
-    [selectedVideo, timestampNotes],
-  );
   const resourceId = selectedVideo ? `video:${selectedVideo.id}` : '';
   const studyNote = notes.find((note) => note.bookId === resourceId);
 
@@ -493,25 +408,15 @@ export function VideoStudyPage() {
     }
   };
 
-  const saveTimestampNote = () => {
-    if (!selectedVideo || !noteDraft.trim()) return;
-    const originalCue = cueAt(selectedVideo.captions.original, currentTime);
-    const chineseCue = cueAt(selectedVideo.captions.chinese, currentTime);
-    const timestamp = Date.now();
-    addVideoTimestampNote({
-      id: createUuid(),
-      videoId: selectedVideo.id,
-      timeSeconds: currentTime,
-      content: noteDraft.trim(),
-      ...(originalCue?.text ? { quoteOriginal: originalCue.text } : {}),
-      ...(chineseCue?.text ? { quoteChinese: chineseCue.text } : {}),
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    });
-    setNoteDraft('');
-    setActivePanel('notes');
-    Toast.success('时间点笔记已保存');
-  };
+  const changeStudyNote = useCallback((content: string) => {
+    if (!selectedVideo) return;
+    const current = useLearningStore.getState().notes.find((note) => note.bookId === resourceId);
+    if (current) updateNote(current.id, { content });
+    else {
+      const timestamp = Date.now();
+      addNote({ id: `video-study-note:${selectedVideo.id}`, bookId: resourceId, title: `${selectedVideo.title} · 学习笔记`, content, createdAt: timestamp, updatedAt: timestamp });
+    }
+  }, [addNote, resourceId, selectedVideo, updateNote]);
 
   const removeSelectedVideo = () => {
     if (!selectedVideo) return;
@@ -535,13 +440,11 @@ export function VideoStudyPage() {
   const mainContent = selectedVideo ? (
     <VideoMainContent
       video={selectedVideo}
-      currentTime={currentTime}
-      noteDraft={noteDraft}
+      studyNote={studyNote}
       playerRef={playerRef}
       onChangeCurrentTime={handleTimeUpdate}
-      onChangeNoteDraft={setNoteDraft}
+      onChangeStudyNote={changeStudyNote}
       onDeleteVideo={removeSelectedVideo}
-      onSaveNote={saveTimestampNote}
     />
   ) : (
     <div className="video-detail-empty"><Empty title="选择或添加一个视频" description="视频只通过 YouTube 播放，服务器仅保存元数据、字幕和学习记录" /></div>
@@ -553,18 +456,7 @@ export function VideoStudyPage() {
       video={selectedVideo}
       currentTime={currentTime}
       transcriptMode={transcriptMode}
-      timestampNotes={selectedTimestampNotes}
-      studyNote={studyNote}
       onChangeTranscriptMode={setTranscriptMode}
-      onChangeStudyNote={(content) => {
-        const current = useLearningStore.getState().notes.find((note) => note.bookId === resourceId);
-        if (current) updateNote(current.id, { content });
-        else if (selectedVideo) {
-          const timestamp = Date.now();
-          addNote({ id: `video-study-note:${selectedVideo.id}`, bookId: resourceId, title: `${selectedVideo.title} · 学习笔记`, content, createdAt: timestamp, updatedAt: timestamp });
-        }
-      }}
-      onDeleteTimestampNote={deleteVideoTimestampNote}
       onSeek={seekTo}
     />
   ) : null;

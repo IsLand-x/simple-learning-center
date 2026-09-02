@@ -99,6 +99,24 @@ function normalizeReaderTheme(theme: unknown): ReaderTheme {
     : 'custom';
 }
 
+function normalizeRssFeedSource(feed: RssFeed): RssFeed {
+  const source = feed.source;
+  if (source?.kind === 'rss' && typeof source.feedUrl === 'string' && source.feedUrl) return feed;
+  if (source?.kind === 'bilibili-weekly') return feed;
+  if (source?.kind === 'bilibili-up' && typeof source.uid === 'string' && source.uid) return feed;
+  if (
+    source?.kind === 'youtube-channel'
+    && typeof source.channelId === 'string'
+    && source.channelId
+    && typeof source.feedUrl === 'string'
+    && source.feedUrl
+  ) return feed;
+  return {
+    ...feed,
+    source: { kind: 'rss', feedUrl: feed.url },
+  };
+}
+
 interface LearningState {
   books: BookItem[];
   highlights: HighlightItem[];
@@ -541,7 +559,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 22,
+      version: 23,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -772,7 +790,7 @@ export const useLearningStore = create<LearningState>()(
             },
           };
         }
-        if (version < 22) {
+        if (version < 23) {
           migrated = {
             ...migrated,
             rssItems: (migrated.rssItems ?? []).map((item) => ({
@@ -781,6 +799,7 @@ export const useLearningStore = create<LearningState>()(
                 ? { aiTranslationHtml: item.aiTranslationHtml }
                 : { aiTranslationHtml: undefined }),
             })),
+            rssFeeds: (migrated.rssFeeds ?? []).map((feed) => normalizeRssFeedSource(feed)),
           };
         }
         return migrated;
@@ -791,7 +810,9 @@ export const useLearningStore = create<LearningState>()(
           ...currentState,
           ...persisted,
           rssFolders: Array.isArray(persisted.rssFolders) ? persisted.rssFolders : [],
-          rssFeeds: Array.isArray(persisted.rssFeeds) ? persisted.rssFeeds : [],
+          rssFeeds: Array.isArray(persisted.rssFeeds)
+            ? persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed))
+            : [],
           rssItems: Array.isArray(persisted.rssItems) ? persisted.rssItems : [],
           rssAnnotations: Array.isArray(persisted.rssAnnotations) ? persisted.rssAnnotations : [],
           rssDailyDigests: Array.isArray(persisted.rssDailyDigests) ? persisted.rssDailyDigests : [],

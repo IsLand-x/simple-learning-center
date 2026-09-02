@@ -27,6 +27,7 @@ const RSS_DIGEST_STATE_VERSION = 19;
 const RSS_DIGEST_RUN_STATE_VERSION = 20;
 const RSS_DIGEST_ALL_ITEMS_STATE_VERSION = 21;
 const RSS_TRANSLATED_HTML_STATE_VERSION = 22;
+const RSS_SOURCE_STATE_VERSION = 23;
 const VIDEO_STATE_VERSION = 18;
 
 export function encodedId(value) {
@@ -232,18 +233,21 @@ function protectRssStateFromOlderClient(persistedState, currentPersistedState) {
     && incomingVersion < RSS_DIGEST_ALL_ITEMS_STATE_VERSION;
   const protectTranslatedHtml = currentVersion >= RSS_TRANSLATED_HTML_STATE_VERSION
     && incomingVersion < RSS_TRANSLATED_HTML_STATE_VERSION;
+  const protectSources = currentVersion >= RSS_SOURCE_STATE_VERSION
+    && incomingVersion < RSS_SOURCE_STATE_VERSION;
   if (
     !protectCoreRss
     && !protectDigests
     && !protectDigestRuns
     && !protectAllItemsDigestSettings
     && !protectTranslatedHtml
+    && !protectSources
   ) {
     return persistedState;
   }
   const protectedState = structuredClone(persistedState);
   protectedState.version = currentVersion;
-  if (protectCoreRss) {
+  if (protectCoreRss || protectSources) {
     protectedState.state.rssFolders = structuredClone(
       Array.isArray(currentPersistedState.state.rssFolders) ? currentPersistedState.state.rssFolders : [],
     );
