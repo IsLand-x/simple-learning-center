@@ -2719,6 +2719,53 @@ button,
   white-space: nowrap;
 }
 
+.epub-import-modal__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.epub-import-modal__upload.semi-upload {
+  min-width: 0;
+}
+
+.epub-import-modal__upload .semi-upload-file-list {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.epub-import-modal__upload .semi-upload-file-list-main {
+  max-height: min(280px, 38vh);
+  overflow-y: auto;
+}
+
+.epub-import-modal__progress {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.epub-import-modal__progress-label,
+.epub-import-modal__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.epub-import-modal__progress-label .semi-typography:first-child {
+  min-width: 0;
+}
+
+.epub-import-modal__actions {
+  justify-content: flex-end;
+}
+
 .book-lists-workspace {
   display: grid;
   min-width: 0;
@@ -6588,6 +6635,15 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   .book-list-form .semi-input-textarea,
   .book-picker .semi-input {
     font-size: 16px;
+  }
+
+  .epub-import-modal__upload .semi-button,
+  .epub-import-modal__actions .semi-button {
+    min-height: 44px;
+  }
+
+  .epub-import-modal__actions .semi-button:last-child {
+    flex: 1;
   }
 
   .book-picker__list {
