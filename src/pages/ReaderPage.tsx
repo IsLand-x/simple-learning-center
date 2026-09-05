@@ -28,6 +28,19 @@ import type { BookItem, ChatSession, HighlightItem, ReaderHighlightTarget, Reade
 const { Text } = Typography;
 const PENDING_COMMENT_HIGHLIGHT_ID = 'pending-comment-highlight';
 
+function formatPageProgress(book: BookItem) {
+  const totalPages = typeof book.totalPages === 'number' && Number.isFinite(book.totalPages)
+    ? Math.max(1, Math.round(book.totalPages))
+    : null;
+  if (totalPages === null) return '页数计算中';
+
+  const savedPage = typeof book.currentPage === 'number' && Number.isFinite(book.currentPage)
+    ? Math.round(book.currentPage)
+    : Math.round(totalPages * book.progress / 100);
+  const currentPage = Math.min(totalPages, Math.max(1, savedPage));
+  return `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+}
+
 export function ReaderPage() {
   const { bookId = '' } = useParams();
   const navigate = useNavigate();
@@ -596,8 +609,8 @@ export function ReaderPage() {
           />
           <div className="reader-header__title">
             <Text strong ellipsis={{ showTooltip: true }}>{book.title}</Text>
-            <Text size="small" type="tertiary">
-              {Math.round(book.progress)}% · {currentChapter}
+            <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>
+              {Math.round(book.progress)}% · {formatPageProgress(book)} · {currentChapter}
             </Text>
           </div>
         </div>
