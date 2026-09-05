@@ -163,6 +163,7 @@ interface LearningState {
   updateHighlight: (highlightId: string, changes: Partial<Pick<HighlightItem, 'comment'>>) => void;
   deleteHighlight: (highlightId: string) => void;
   addNote: (note: NoteItem) => void;
+  setBookNoteContent: (bookId: string, bookTitle: string, content: string) => void;
   updateNote: (noteId: string, changes: Partial<Pick<NoteItem, 'title' | 'content' | 'fileName'>>) => void;
   deleteNote: (noteId: string) => void;
   createChatSession: (session: ChatSession) => void;
@@ -396,6 +397,33 @@ export const useLearningStore = create<LearningState>()(
       deleteHighlight: (highlightId) =>
         set((state) => ({ highlights: state.highlights.filter((item) => item.id !== highlightId) })),
       addNote: (note) => set((state) => ({ notes: [note, ...state.notes] })),
+      setBookNoteContent: (bookId, bookTitle, content) =>
+        set((state) => {
+          const timestamp = Date.now();
+          const existing = state.notes
+            .filter((note) => note.bookId === bookId)
+            .sort((left, right) => left.createdAt - right.createdAt)[0];
+          const note: NoteItem = existing
+            ? {
+                ...existing,
+                title: `${bookTitle} · 阅读笔记`,
+                content,
+                fileName: 'reading-note.md',
+                updatedAt: timestamp,
+              }
+            : {
+                id: `book-note:${bookId}`,
+                bookId,
+                title: `${bookTitle} · 阅读笔记`,
+                content,
+                fileName: 'reading-note.md',
+                createdAt: timestamp,
+                updatedAt: timestamp,
+              };
+          return {
+            notes: [note, ...state.notes.filter((item) => item.bookId !== bookId)],
+          };
+        }),
       updateNote: (noteId, changes) =>
         set((state) => ({
           notes: state.notes.map((note) =>

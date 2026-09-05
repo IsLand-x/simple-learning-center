@@ -4211,7 +4211,8 @@ button,
 }
 
 .notes-panel--list,
-.notes-panel--detail {
+.notes-panel--detail,
+.book-note-panel {
   gap: 8px;
   padding: 8px;
   overflow: hidden;

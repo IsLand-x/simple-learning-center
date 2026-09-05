@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { createPortal } from 'react-dom';
-import { AIChatInput, Button, Dropdown, Empty, Input, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { AIChatInput, Button, Dropdown, Empty, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import {
   IconAIStrokedLevel1,
   IconAlertTriangle,
-  IconArrowLeft,
   IconBookOpenStroked,
   IconBookmark,
   IconColorPalette,
@@ -14,7 +13,6 @@ import {
   IconHistogram,
   IconHistory,
   IconPlus,
-  IconSearch,
 } from '@douyinfe/semi-icons';
 import { confirmDialog } from '../lib/confirmDialog';
 import {
@@ -27,7 +25,7 @@ import {
 } from '../lib/aiJobs';
 import { getBookPassages } from '../lib/bookSearch';
 import { formatRelativeTime } from '../lib/format';
-import { markdownNoteExcerpt, markdownNoteTitle } from '../lib/markdownNotes';
+import { markdownNoteTitle } from '../lib/markdownNotes';
 import { waitForServerStateWrites } from '../lib/serverStateStorage';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
@@ -694,268 +692,40 @@ function HistoryPanel({
   );
 }
 
-function NotesPanel({
-  bookId,
-  selectedNoteId,
-  onSelectNote,
-  onBack,
-}: {
-  bookId: string;
-  selectedNoteId: string | null;
-  onSelectNote: (noteId: string) => void;
-  onBack: () => void;
-}) {
+function mergeBookNoteContent(notes: NoteItem[]) {
+  const orderedNotes = [...notes].sort((left, right) => left.createdAt - right.createdAt);
+  if (orderedNotes.length <= 1) return orderedNotes[0]?.content ?? '';
+  return orderedNotes.map((note) => {
+    const content = note.content.trim();
+    const title = note.title.trim() || markdownNoteTitle(content);
+    return content ? `## ${title}\n\n${content}` : `## ${title}`;
+  }).join('\n\n---\n\n');
+}
+
+function BookNotePanel({ book }: { book: BookItem }) {
   const allNotes = useLearningStore((state) => state.notes);
-  const addNote = useLearningStore((state) => state.addNote);
-  const updateNote = useLearningStore((state) => state.updateNote);
-  const deleteNote = useLearningStore((state) => state.deleteNote);
-  const [query, setQuery] = useState('');
-  const [contextMenu, setContextMenu] = useState<{
-    note: NoteItem;
-    x: number;
-    y: number;
-  } | null>(null);
-  const notes = useMemo(
-    () => allNotes.filter((note) => note.bookId === bookId).sort((left, right) => right.updatedAt - left.updatedAt),
-    [allNotes, bookId],
+  const setBookNoteContent = useLearningStore((state) => state.setBookNoteContent);
+  const content = useMemo(
+    () => mergeBookNoteContent(allNotes.filter((note) => note.bookId === book.id)),
+    [allNotes, book.id],
   );
-  const selectedNote = notes.find((note) => note.id === selectedNoteId);
-  const filteredNotes = useMemo(() => {
-    const normalized = query.trim().toLocaleLowerCase();
-    if (!normalized) return notes;
-    return notes.filter((note) => `${note.title}\n${note.content}`.toLocaleLowerCase().includes(normalized));
-  }, [notes, query]);
-
-  useEffect(() => {
-    if (selectedNoteId && !selectedNote) onBack();
-  }, [onBack, selectedNote, selectedNoteId]);
-
-  useEffect(() => {
-    if (!contextMenu) return undefined;
-    const closeMenu = () => setContextMenu(null);
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeMenu();
-    };
-    document.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('resize', closeMenu);
-    window.addEventListener('scroll', closeMenu, true);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('resize', closeMenu);
-      window.removeEventListener('scroll', closeMenu, true);
-    };
-  }, [contextMenu]);
-
-  const createNote = () => {
-    const timestamp = Date.now();
-    const id = createUuid();
-    addNote({
-      id,
-      bookId,
-      title: '未命名笔记',
-      content: '',
-      fileName: `note-${timestamp}.md`,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    });
-    onSelectNote(id);
-  };
-
-  const confirmDelete = (note: NoteItem) => {
-    confirmDialog({
-      title: `删除“${note.title || '未命名笔记'}”？`,
-      content: '只会删除保存在服务器数据目录中的这篇笔记。',
-      icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
-      okText: '删除',
-      cancelText: '取消',
-      okButtonProps: { type: 'danger' },
-      onOk: () => {
-        deleteNote(note.id);
-        Toast.success('笔记已删除');
-      },
-    });
-  };
-
-  if (selectedNote) {
-    return (
-      <div className="right-panel__body notes-panel notes-panel--detail">
-        <div className="markdown-note-editor">
-          <MarkdownNoteEditor
-            key={selectedNote.id}
-            ariaLabel={`编辑“${selectedNote.title || '未命名笔记'}”的 Markdown 内容`}
-            content={selectedNote.content}
-            onChange={(content) => updateNote(selectedNote.id, { content })}
-          />
-          <div className="markdown-note-editor__footer">
-            <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>
-              {selectedNote.fileName || '应用内 Markdown 笔记'}
-            </Text>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="right-panel__body notes-panel notes-panel--list">
-      <div className="notes-list-toolbar">
-        <Input
-          aria-label="搜索笔记标题和内容"
-          prefix={<IconSearch />}
-          placeholder="搜索笔记"
-          showClear
-          value={query}
-          onChange={setQuery}
-          className="notes-search-input"
+    <div className="right-panel__body notes-panel book-note-panel">
+      <div className="markdown-note-editor">
+        <MarkdownNoteEditor
+          key={book.id}
+          ariaLabel={`编辑《${book.title}》的 Markdown 笔记`}
+          content={content}
+          onChange={(markdown) => setBookNoteContent(book.id, book.title, markdown)}
         />
-        <div className="notes-list-actions">
-          <Tooltip content="新建笔记">
-            <Button
-              aria-label="新建 Markdown 笔记"
-              icon={<IconPlus />}
-              theme="borderless"
-              type="tertiary"
-              onClick={createNote}
-            />
-          </Tooltip>
+        <div className="markdown-note-editor__footer">
+          <Text size="small" type="tertiary">自动保存为 Markdown</Text>
         </div>
       </div>
-      <div className="notes-list" aria-label="笔记列表">
-        {filteredNotes.length ? filteredNotes.map((note) => (
-          <button
-            className="note-list-item"
-            key={note.id}
-            title="右键可删除这篇笔记"
-            type="button"
-            onClick={() => onSelectNote(note.id)}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setContextMenu({ note, x: event.clientX, y: event.clientY });
-            }}
-          >
-            <strong>{note.title || markdownNoteTitle(note.content)}</strong>
-            <span className="note-list-item__excerpt">{markdownNoteExcerpt(note.content) || '空白笔记'}</span>
-            <span className="note-list-item__meta">
-              {note.fileName || '应用内笔记'} · {formatRelativeTime(note.updatedAt)}
-            </span>
-          </button>
-        )) : (
-          <Empty
-            title={notes.length ? '没有找到匹配的笔记' : '还没有笔记'}
-            description={notes.length ? '试试搜索其他标题或内容' : '新建一篇笔记开始记录'}
-          />
-        )}
-      </div>
-      {contextMenu && createPortal((
-        <Dropdown
-          autoAdjustOverflow
-          closeOnEsc
-          margin={0}
-          motion={false}
-          position="bottomLeft"
-          rePosKey={`${contextMenu.x}:${contextMenu.y}`}
-          spacing={0}
-          trigger="custom"
-          visible
-          render={(
-            <Dropdown.Menu>
-              <Dropdown.Item
-                type="danger"
-                icon={<IconDeleteStroked />}
-                onClick={() => {
-                  const { note } = contextMenu;
-                  setContextMenu(null);
-                  confirmDelete(note);
-                }}
-              >
-                删除笔记
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          )}
-          onVisibleChange={(visible) => {
-            if (!visible) setContextMenu(null);
-          }}
-        >
-          <span
-            aria-hidden="true"
-            className="cursor-context-menu-anchor"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-            tabIndex={-1}
-          />
-        </Dropdown>
-      ), document.body)}
     </div>
   );
 }
-
-function NoteTitleInput({
-  note,
-  onChange,
-}: {
-  note: NoteItem;
-  onChange: (title: string) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(note.title.trim() || '未命名笔记');
-
-  useEffect(() => {
-    if (!editing) setDraft(note.title.trim() || '未命名笔记');
-  }, [editing, note.title]);
-
-  const beginEditing = () => {
-    if (editing) return;
-    setEditing(true);
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    });
-  };
-
-  const commit = () => {
-    const nextTitle = draft.trim() || '未命名笔记';
-    setDraft(nextTitle);
-    setEditing(false);
-    if (nextTitle !== note.title) onChange(nextTitle);
-  };
-
-  const cancel = () => {
-    setDraft(note.title.trim() || '未命名笔记');
-    setEditing(false);
-  };
-
-  return (
-    <input
-      ref={inputRef}
-      aria-label="笔记名称，双击编辑"
-      className={`note-title-input${editing ? ' note-title-input--editing' : ''}`}
-      readOnly={!editing}
-      title={editing ? undefined : '双击编辑笔记名称'}
-      value={draft}
-      onBlur={() => {
-        if (editing) commit();
-      }}
-      onChange={(event) => setDraft(event.currentTarget.value)}
-      onDoubleClick={beginEditing}
-      onKeyDown={(event) => {
-        if (!editing && (event.key === 'Enter' || event.key === 'F2')) {
-          event.preventDefault();
-          beginEditing();
-          return;
-        }
-        if (editing && event.key === 'Enter') {
-          event.preventDefault();
-          commit();
-        } else if (editing && event.key === 'Escape') {
-          event.preventDefault();
-          cancel();
-        }
-      }}
-    />
-  );
-}
-
 function HighlightsPanel({
   bookId,
   focusedHighlightId,
@@ -1310,68 +1080,17 @@ export function ReaderRightPanel({
   focusedHighlightId,
 }: ReaderRightPanelProps) {
   const ActivePanelIcon = panelMeta[activePanel].Icon;
-  const allNotes = useLearningStore((state) => state.notes);
-  const updateNote = useLearningStore((state) => state.updateNote);
-  const deleteNote = useLearningStore((state) => state.deleteNote);
   const hasCurrentConversation = useLearningStore((state) => (
     state.chatSessions.some((session) => session.id === conversationId)
     || state.chats.some((message) => message.conversationId === conversationId)
   ));
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSelectedNoteId(null);
-  }, [book.id]);
-
-  useEffect(() => {
-    if (activePanel !== 'notes') setSelectedNoteId(null);
-  }, [activePanel]);
-
-  const selectedNote = activePanel === 'notes'
-    ? allNotes.find((note) => note.id === selectedNoteId && note.bookId === book.id)
-    : undefined;
-  const isNoteDetail = selectedNote !== undefined;
-
-  const confirmDeleteNote = () => {
-    if (!selectedNote) return;
-    confirmDialog({
-      title: `删除“${selectedNote.title || '未命名笔记'}”？`,
-      content: '只会删除保存在服务器数据目录中的这篇笔记。',
-      icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
-      okText: '删除',
-      cancelText: '取消',
-      okButtonProps: { type: 'danger' },
-      onOk: () => {
-        deleteNote(selectedNote.id);
-        setSelectedNoteId(null);
-      },
-    });
-  };
 
   return (
     <aside className={`right-panel${activePanel === 'ai' ? ' right-panel--ai' : ''}`} aria-label={panelMeta[activePanel].label}>
-      <div className={`panel-titlebar${isNoteDetail ? ' panel-titlebar--note-detail' : ''}`}>
+      <div className="panel-titlebar">
         <div className="panel-titlebar__title">
-          {isNoteDetail ? (
-            <Tooltip content="返回笔记列表">
-              <Button
-                aria-label="返回笔记列表"
-                className="panel-titlebar__back"
-                icon={<IconArrowLeft />}
-                size="small"
-                theme="borderless"
-                type="tertiary"
-                onClick={() => setSelectedNoteId(null)}
-              />
-            </Tooltip>
-          ) : <ActivePanelIcon size="large" className="panel-tool-icon" />}
-          <Text strong>{isNoteDetail ? '编辑笔记' : panelMeta[activePanel].label}</Text>
-          {selectedNote ? (
-            <NoteTitleInput
-              note={selectedNote}
-              onChange={(title) => updateNote(selectedNote.id, { title })}
-            />
-          ) : null}
+          <ActivePanelIcon size="large" className="panel-tool-icon" />
+          <Text strong>{panelMeta[activePanel].label}</Text>
         </div>
         {activePanel === 'ai' && hasCurrentConversation ? (
           <Button
@@ -1385,18 +1104,6 @@ export function ReaderRightPanel({
           >
             新建对话
           </Button>
-        ) : selectedNote ? (
-          <Tooltip content="删除笔记">
-            <Button
-              aria-label={`删除笔记 ${selectedNote.title || '未命名笔记'}`}
-              className="panel-titlebar__delete"
-              icon={<IconDeleteStroked />}
-              size="small"
-              theme="borderless"
-              type="danger"
-              onClick={confirmDeleteNote}
-            />
-          </Tooltip>
         ) : null}
       </div>
       {activePanel === 'ai' && (
@@ -1412,12 +1119,7 @@ export function ReaderRightPanel({
         <HistoryPanel bookId={book.id} activeConversationId={conversationId} onResumeConversation={onResumeConversation} />
       )}
       {activePanel === 'notes' && (
-        <NotesPanel
-          bookId={book.id}
-          selectedNoteId={selectedNoteId}
-          onSelectNote={setSelectedNoteId}
-          onBack={() => setSelectedNoteId(null)}
-        />
+        <BookNotePanel book={book} />
       )}
       {activePanel === 'highlights' && (
         <HighlightsPanel
@@ -1438,6 +1140,7 @@ export function ReaderActivityBar({ activePanel, onChangePanel }: ReaderActivity
     <nav className="activity-bar" aria-label="阅读辅助工具">
       <ActivityButton panel="ai" activePanel={activePanel} onClick={() => toggle('ai')} />
       <ActivityButton panel="history" activePanel={activePanel} onClick={() => toggle('history')} />
+      <ActivityButton panel="notes" activePanel={activePanel} onClick={() => toggle('notes')} />
       <ActivityButton panel="comments" activePanel={activePanel} onClick={() => toggle('comments')} />
       <ActivityButton panel="highlights" activePanel={activePanel} onClick={() => toggle('highlights')} />
       <ActivityButton panel="trajectory" activePanel={activePanel} onClick={() => toggle('trajectory')} />
