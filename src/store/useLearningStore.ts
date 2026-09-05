@@ -542,6 +542,7 @@ export const useLearningStore = create<LearningState>()(
             return {
               ...item,
               ...(previous.readAt ? { readAt: previous.readAt } : {}),
+              ...(previous.readStateUpdatedAt ? { readStateUpdatedAt: previous.readStateUpdatedAt } : {}),
               ...(previous.bookmarkedAt ? { bookmarkedAt: previous.bookmarkedAt } : {}),
               ...(!hasNewFullContent && previous.aiSummary ? {
                 aiSummary: previous.aiSummary,
@@ -577,7 +578,11 @@ export const useLearningStore = create<LearningState>()(
         }),
       updateRssItem: (itemId, changes) =>
         set((state) => ({
-          rssItems: state.rssItems.map((item) => item.id === itemId ? { ...item, ...changes } : item),
+          rssItems: state.rssItems.map((item) => item.id === itemId ? {
+            ...item,
+            ...changes,
+            ...(Object.hasOwn(changes, 'readAt') ? { readStateUpdatedAt: Date.now() } : {}),
+          } : item),
         })),
       addRssAnnotation: (annotation) =>
         set((state) => ({
@@ -608,18 +613,21 @@ export const useLearningStore = create<LearningState>()(
           const readAt = Date.now();
           return {
             rssItems: state.rssItems.map((item) => (
-              !item.readAt && (!selectedIds || selectedIds.has(item.id)) ? { ...item, readAt } : item
+              !item.readAt && (!selectedIds || selectedIds.has(item.id))
+                ? { ...item, readAt, readStateUpdatedAt: readAt }
+                : item
             )),
           };
         }),
       markRssItemsUnread: (itemIds) =>
         set((state) => {
           const selectedIds = itemIds ? new Set(itemIds) : null;
+          const readStateUpdatedAt = Date.now();
           return {
             rssItems: state.rssItems.map((item) => {
               if (!item.readAt || (selectedIds && !selectedIds.has(item.id))) return item;
               const { readAt: _readAt, ...unreadItem } = item;
-              return unreadItem;
+              return { ...unreadItem, readStateUpdatedAt };
             }),
           };
         }),

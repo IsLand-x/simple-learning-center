@@ -63,3 +63,48 @@ test('23 版来源描述不会被旧浏览器快照覆盖', () => {
   assert.equal(protectedState.version, 23);
   assert.deepEqual(protectedState.state.rssFeeds[0].source, { kind: 'bilibili-weekly' });
 });
+
+function persistedRssItem(item) {
+  return {
+    version: 25,
+    state: {
+      rssFeeds: [{ id: 'feed', source: { kind: 'rss', feedUrl: 'https://example.com/feed.xml' } }],
+      rssItems: [{
+        id: 'feed:item',
+        feedId: 'feed',
+        title: '测试内容',
+        link: 'https://example.com/item',
+        publishedAt: 1,
+        fetchedAt: 1,
+        contentText: '正文',
+        ...item,
+      }],
+      rssDailyDigests: [],
+      rssDigestSettings: {},
+      rssDigestRuns: [],
+    },
+  };
+}
+
+test('多设备 RSS 已读状态按最后一次操作合并', () => {
+  const legacyReadOnServer = protectServerRssState(
+    persistedRssItem({}),
+    persistedRssItem({ readAt: 200 }),
+  );
+  assert.equal(legacyReadOnServer.state.rssItems[0].readAt, 200);
+  assert.equal(legacyReadOnServer.state.rssItems[0].readStateUpdatedAt, 200);
+
+  const newerUnreadFromBrowser = protectServerRssState(
+    persistedRssItem({ readStateUpdatedAt: 300 }),
+    persistedRssItem({ readAt: 200, readStateUpdatedAt: 200 }),
+  );
+  assert.equal(Object.hasOwn(newerUnreadFromBrowser.state.rssItems[0], 'readAt'), false);
+  assert.equal(newerUnreadFromBrowser.state.rssItems[0].readStateUpdatedAt, 300);
+
+  const staleReadFromBrowser = protectServerRssState(
+    persistedRssItem({ readAt: 350, readStateUpdatedAt: 350 }),
+    persistedRssItem({ readStateUpdatedAt: 400 }),
+  );
+  assert.equal(Object.hasOwn(staleReadFromBrowser.state.rssItems[0], 'readAt'), false);
+  assert.equal(staleReadFromBrowser.state.rssItems[0].readStateUpdatedAt, 400);
+});

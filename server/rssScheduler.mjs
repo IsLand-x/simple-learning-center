@@ -44,6 +44,7 @@ function mergeFetchedItems(existingItems, feedId, incomingItems) {
     return {
       ...item,
       ...(previous.readAt ? { readAt: previous.readAt } : {}),
+      ...(previous.readStateUpdatedAt ? { readStateUpdatedAt: previous.readStateUpdatedAt } : {}),
       ...(previous.bookmarkedAt ? { bookmarkedAt: previous.bookmarkedAt } : {}),
       ...(!hasNewFullContent && previous.aiSummary ? {
         aiSummary: previous.aiSummary,
@@ -81,12 +82,27 @@ function copyOptionalField(target, source, field) {
   else delete target[field];
 }
 
+function readStateUpdatedAt(item) {
+  if (Number.isFinite(item?.readStateUpdatedAt)) return item.readStateUpdatedAt;
+  return Number.isFinite(item?.readAt) ? item.readAt : 0;
+}
+
+function copyReadState(target, source) {
+  copyOptionalField(target, source, 'readAt');
+  const updatedAt = readStateUpdatedAt(source);
+  if (updatedAt > 0) target.readStateUpdatedAt = updatedAt;
+  else delete target.readStateUpdatedAt;
+}
+
 function mergeConcurrentItem(incomingItem, currentItem) {
   const currentIsNewer = Number(currentItem.fetchedAt || 0) > Number(incomingItem.fetchedAt || 0);
   const merged = currentIsNewer
     ? { ...incomingItem, ...currentItem }
     : { ...currentItem, ...incomingItem };
-  copyOptionalField(merged, incomingItem, 'readAt');
+  const readStateSource = readStateUpdatedAt(currentItem) > readStateUpdatedAt(incomingItem)
+    ? currentItem
+    : incomingItem;
+  copyReadState(merged, readStateSource);
   copyOptionalField(merged, incomingItem, 'bookmarkedAt');
   const incomingFullContentAt = Number(incomingItem.fullContentFetchedAt || 0);
   const currentFullContentAt = Number(currentItem.fullContentFetchedAt || 0);
@@ -123,7 +139,8 @@ function mergeConcurrentItem(incomingItem, currentItem) {
 /**
  * A same-version browser may PUT a snapshot taken just before the scheduler
  * persisted new entries. Preserve those server-fetched entries while keeping
- * browser-owned management, read and bookmark changes authoritative.
+ * browser-owned management and bookmark changes authoritative. Read state is
+ * merged by its operation timestamp so a stale device cannot undo a newer one.
  */
 export function protectServerRssState(incomingPersistedState, currentPersistedState) {
   const incoming = rssState(incomingPersistedState);

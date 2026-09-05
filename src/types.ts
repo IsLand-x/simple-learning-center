@@ -119,6 +119,7 @@ export interface RssItem {
   imageUrls?: string[];
   fetchedAt: number;
   readAt?: number;
+  readStateUpdatedAt?: number;
   bookmarkedAt?: number;
   aiSummary?: string;
   aiSummaryUpdatedAt?: number;
