@@ -12,8 +12,10 @@ import { serverStateStorage } from '../lib/serverStateStorage';
 import type {
   AiPreferences,
   BookItem,
+  BookList,
   ChatMessage,
   ChatSession,
+  DeletedBookTombstone,
   HighlightItem,
   NoteItem,
   OpenAICompatibleConfig,
@@ -30,6 +32,7 @@ import type {
   RssItem,
   RssAnnotation,
   ThemeMode,
+  TrashedBookItem,
   VideoResource,
   VideoTimestampNote,
   WebSearchConfig,
@@ -119,6 +122,9 @@ function normalizeRssFeedSource(feed: RssFeed): RssFeed {
 
 interface LearningState {
   books: BookItem[];
+  bookLists: BookList[];
+  trashedBooks: TrashedBookItem[];
+  deletedBookTombstones: DeletedBookTombstone[];
   highlights: HighlightItem[];
   notes: NoteItem[];
   chats: ChatMessage[];
@@ -144,7 +150,15 @@ interface LearningState {
   addBooks: (books: BookItem[]) => void;
   setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
-  deleteBook: (bookId: string) => void;
+  trashBook: (bookId: string, deletedAt?: number) => void;
+  restoreBook: (bookId: string, restoredAt?: number) => void;
+  deleteBookPermanently: (bookId: string, deletedAt?: number) => void;
+  createBookList: (bookList: BookList) => void;
+  updateBookList: (bookListId: string, changes: Partial<Pick<BookList, 'name' | 'note'>>) => void;
+  deleteBookList: (bookListId: string) => void;
+  setBookListBooks: (bookListId: string, bookIds: string[]) => void;
+  moveBookInList: (bookListId: string, sourceIndex: number, destinationIndex: number) => void;
+  removeBookFromList: (bookListId: string, bookId: string) => void;
   addHighlight: (highlight: HighlightItem) => void;
   updateHighlight: (highlightId: string, changes: Partial<Pick<HighlightItem, 'comment'>>) => void;
   deleteHighlight: (highlightId: string) => void;
@@ -196,6 +210,9 @@ export const useLearningStore = create<LearningState>()(
   persist(
     (set) => ({
       books: demoBooks,
+      bookLists: [],
+      trashedBooks: [],
+      deletedBookTombstones: [],
       highlights: [],
       notes: [],
       chats: [],
@@ -232,14 +249,133 @@ export const useLearningStore = create<LearningState>()(
             book.id === bookId ? { ...book, ...changes, updatedAt: changes.updatedAt ?? Date.now() } : book,
           ),
         })),
-      deleteBook: (bookId) =>
+      trashBook: (bookId, deletedAt = Date.now()) =>
+        set((state) => {
+          const book = state.books.find((item) => item.id === bookId);
+          if (!book || state.trashedBooks.some((item) => item.book.id === bookId)) return state;
+          const bookListPositions = state.bookLists.flatMap((bookList) => {
+            const index = bookList.bookIds.indexOf(bookId);
+            return index >= 0 ? [{ bookListId: bookList.id, index }] : [];
+          });
+          return {
+            books: state.books.filter((item) => item.id !== bookId),
+            trashedBooks: [
+              { book, deletedAt, bookListPositions },
+              ...state.trashedBooks.filter((item) => item.book.id !== bookId),
+            ],
+            deletedBookTombstones: state.deletedBookTombstones.filter((item) => item.bookId !== bookId),
+            bookLists: state.bookLists.map((bookList) => (
+              bookList.bookIds.includes(bookId)
+                ? {
+                  ...bookList,
+                  bookIds: bookList.bookIds.filter((item) => item !== bookId),
+                  updatedAt: deletedAt,
+                }
+                : bookList
+            )),
+          };
+        }),
+      restoreBook: (bookId, restoredAt = Date.now()) =>
+        set((state) => {
+          const trashedBook = state.trashedBooks.find((item) => item.book.id === bookId);
+          if (!trashedBook) return state;
+          const positions = new Map(
+            trashedBook.bookListPositions.map((position) => [position.bookListId, position.index]),
+          );
+          return {
+            books: state.books.some((book) => book.id === bookId)
+              ? state.books
+              : [trashedBook.book, ...state.books],
+            trashedBooks: state.trashedBooks.filter((item) => item.book.id !== bookId),
+            deletedBookTombstones: state.deletedBookTombstones.filter((item) => item.bookId !== bookId),
+            bookLists: state.bookLists.map((bookList) => {
+              const savedIndex = positions.get(bookList.id);
+              if (!Number.isInteger(savedIndex) || bookList.bookIds.includes(bookId)) return bookList;
+              const bookIds = [...bookList.bookIds];
+              bookIds.splice(Math.min(Math.max(savedIndex!, 0), bookIds.length), 0, bookId);
+              return { ...bookList, bookIds, updatedAt: restoredAt };
+            }),
+          };
+        }),
+      deleteBookPermanently: (bookId, deletedAt = Date.now()) =>
         set((state) => ({
           books: state.books.filter((book) => book.id !== bookId),
+          trashedBooks: state.trashedBooks.filter((item) => item.book.id !== bookId),
+          deletedBookTombstones: [
+            { bookId, deletedAt },
+            ...state.deletedBookTombstones.filter((item) => item.bookId !== bookId),
+          ],
+          bookLists: state.bookLists.map((bookList) => (
+            bookList.bookIds.includes(bookId)
+              ? {
+                ...bookList,
+                bookIds: bookList.bookIds.filter((item) => item !== bookId),
+                updatedAt: deletedAt,
+              }
+              : bookList
+          )),
           highlights: state.highlights.filter((highlight) => highlight.bookId !== bookId),
           notes: state.notes.filter((note) => note.bookId !== bookId),
           chats: state.chats.filter((message) => message.bookId !== bookId),
           chatSessions: state.chatSessions.filter((session) => session.bookId !== bookId),
           readingSessions: state.readingSessions.filter((session) => session.bookId !== bookId),
+        })),
+      createBookList: (bookList) =>
+        set((state) => ({
+          bookLists: [bookList, ...state.bookLists.filter((item) => item.id !== bookList.id)],
+        })),
+      updateBookList: (bookListId, changes) =>
+        set((state) => ({
+          bookLists: state.bookLists.map((bookList) => (
+            bookList.id === bookListId
+              ? { ...bookList, ...changes, updatedAt: Date.now() }
+              : bookList
+          )),
+        })),
+      deleteBookList: (bookListId) =>
+        set((state) => ({
+          bookLists: state.bookLists.filter((bookList) => bookList.id !== bookListId),
+        })),
+      setBookListBooks: (bookListId, bookIds) =>
+        set((state) => {
+          const availableBookIds = new Set(state.books.map((book) => book.id));
+          const uniqueBookIds = [...new Set(bookIds)].filter((bookId) => availableBookIds.has(bookId));
+          return {
+            bookLists: state.bookLists.map((bookList) => (
+              bookList.id === bookListId
+                ? { ...bookList, bookIds: uniqueBookIds, updatedAt: Date.now() }
+                : bookList
+            )),
+          };
+        }),
+      moveBookInList: (bookListId, sourceIndex, destinationIndex) =>
+        set((state) => ({
+          bookLists: state.bookLists.map((bookList) => {
+            if (
+              bookList.id !== bookListId
+              || sourceIndex === destinationIndex
+              || sourceIndex < 0
+              || destinationIndex < 0
+              || sourceIndex >= bookList.bookIds.length
+              || destinationIndex >= bookList.bookIds.length
+            ) return bookList;
+            const bookIds = [...bookList.bookIds];
+            const [bookId] = bookIds.splice(sourceIndex, 1);
+            bookIds.splice(destinationIndex, 0, bookId);
+            return { ...bookList, bookIds, updatedAt: Date.now() };
+          }),
+        })),
+      removeBookFromList: (bookListId, bookId) =>
+        set((state) => ({
+          bookLists: state.bookLists.map((bookList) => (
+            bookList.id === bookListId && bookList.bookIds.includes(bookId)
+              ? {
+                ...bookList,
+                bookIds: bookList.bookIds.filter((item) => item !== bookId),
+                updatedAt: Date.now(),
+              }
+              : bookList
+          )),
         })),
       addHighlight: (highlight) =>
         set((state) => ({
@@ -559,7 +695,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 23,
+      version: 25,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -802,6 +938,19 @@ export const useLearningStore = create<LearningState>()(
             rssFeeds: (migrated.rssFeeds ?? []).map((feed) => normalizeRssFeedSource(feed)),
           };
         }
+        if (version < 24) {
+          migrated = {
+            ...migrated,
+            bookLists: [],
+          };
+        }
+        if (version < 25) {
+          migrated = {
+            ...migrated,
+            trashedBooks: [],
+            deletedBookTombstones: [],
+          };
+        }
         return migrated;
       },
       merge: (persistedState, currentState) => {
@@ -809,6 +958,11 @@ export const useLearningStore = create<LearningState>()(
         return {
           ...currentState,
           ...persisted,
+          bookLists: Array.isArray(persisted.bookLists) ? persisted.bookLists : [],
+          trashedBooks: Array.isArray(persisted.trashedBooks) ? persisted.trashedBooks : [],
+          deletedBookTombstones: Array.isArray(persisted.deletedBookTombstones)
+            ? persisted.deletedBookTombstones
+            : [],
           rssFolders: Array.isArray(persisted.rssFolders) ? persisted.rssFolders : [],
           rssFeeds: Array.isArray(persisted.rssFeeds)
             ? persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed))

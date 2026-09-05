@@ -20,7 +20,7 @@ import { ReaderSelectionOverlays } from '../components/ReaderSelectionOverlays';
 import { ReaderDesktopToolbar } from '../components/ReaderToolbar';
 import { ReaderWorkspace } from '../components/ReaderWorkspace';
 import { confirmDialog } from '../lib/confirmDialog';
-import { removeEpubFile } from '../lib/epubStorage';
+import { moveBookToTrash } from '../lib/epubStorage';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
 import type { BookItem, ChatSession, HighlightItem, ReaderHighlightTarget, ReaderSelection } from '../types';
@@ -34,7 +34,7 @@ export function ReaderPage() {
   const book = useLearningStore((state) => state.books.find((item) => item.id === bookId));
   const allHighlights = useLearningStore((state) => state.highlights);
   const updateBook = useLearningStore((state) => state.updateBook);
-  const deleteBook = useLearningStore((state) => state.deleteBook);
+  const trashBook = useLearningStore((state) => state.trashBook);
   const addHighlight = useLearningStore((state) => state.addHighlight);
   const updateHighlight = useLearningStore((state) => state.updateHighlight);
   const deleteHighlight = useLearningStore((state) => state.deleteHighlight);
@@ -382,17 +382,22 @@ export function ReaderPage() {
 
   const handleDelete = () => {
     confirmDialog({
-      title: `删除《${book.title}》？`,
-      content: '书籍文件、阅读进度、笔记、高亮和评论都将从服务器数据目录删除，且无法恢复。',
-      icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-danger)' }} />,
-      okText: '删除',
+      title: `将《${book.title}》移到回收站？`,
+      content: '书籍和相关学习记录会保留 30 天；期间可以恢复，也可以在回收站中彻底删除。',
+      icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
+      okText: '移到回收站',
       cancelText: '取消',
       okButtonProps: { type: 'danger' },
       onOk: async () => {
-        if (book.kind === 'epub') await removeEpubFile(book.id);
-        deleteBook(book.id);
-        Toast.success('书籍已删除');
-        navigate('/');
+        try {
+          const trashedBook = await moveBookToTrash(book.id);
+          trashBook(book.id, trashedBook.deletedAt);
+          Toast.success('已移到回收站，30 天内可以恢复');
+          navigate('/');
+        } catch (error) {
+          Toast.error(error instanceof Error ? error.message : '无法将书籍移到回收站');
+          throw error;
+        }
       },
     });
   };

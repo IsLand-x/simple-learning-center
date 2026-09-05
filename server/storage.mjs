@@ -19,6 +19,7 @@ import {
   SEARCH_INDEX_DIRECTORY,
   STATE_FILE,
 } from './config.mjs';
+import { protectBookTrashStateFromClient } from './bookTrashState.mjs';
 import { statusError } from './errors.mjs';
 
 let stateWriteQueue = Promise.resolve();
@@ -29,6 +30,7 @@ const RSS_DIGEST_ALL_ITEMS_STATE_VERSION = 21;
 const RSS_TRANSLATED_HTML_STATE_VERSION = 22;
 const RSS_SOURCE_STATE_VERSION = 23;
 const VIDEO_STATE_VERSION = 18;
+const BOOK_LIST_STATE_VERSION = 24;
 
 export function encodedId(value) {
   if (typeof value !== 'string' || !value || value.length > 200 || value.includes('\0')) {
@@ -325,14 +327,40 @@ function protectVideoStateFromOlderClient(persistedState, currentPersistedState)
   return protectedState;
 }
 
-async function persistState(persistedState) {
-  const currentPersistedState = await readPersistedStateFromDisk();
-  const stateForDisk = await prepareStateForDisk(
-    protectVideoStateFromOlderClient(
-      protectRssStateFromOlderClient(persistedState, currentPersistedState),
-      currentPersistedState,
-    ),
+function protectBookListStateFromOlderClient(persistedState, currentPersistedState) {
+  const incomingVersion = Number.isInteger(persistedState?.version) ? persistedState.version : 0;
+  const currentVersion = Number.isInteger(currentPersistedState?.version) ? currentPersistedState.version : 0;
+  if (
+    currentVersion < BOOK_LIST_STATE_VERSION
+    || incomingVersion >= BOOK_LIST_STATE_VERSION
+    || !persistedState?.state
+    || !currentPersistedState?.state
+  ) {
+    return persistedState;
+  }
+  const protectedState = structuredClone(persistedState);
+  protectedState.version = currentVersion;
+  protectedState.state.bookLists = structuredClone(
+    Array.isArray(currentPersistedState.state.bookLists) ? currentPersistedState.state.bookLists : [],
   );
+  return protectedState;
+}
+
+async function persistState(persistedState, protectClientSnapshot = true) {
+  const currentPersistedState = protectClientSnapshot ? await readPersistedStateFromDisk() : null;
+  const protectedState = protectClientSnapshot
+    ? protectBookTrashStateFromClient(
+      protectBookListStateFromOlderClient(
+        protectVideoStateFromOlderClient(
+          protectRssStateFromOlderClient(persistedState, currentPersistedState),
+          currentPersistedState,
+        ),
+        currentPersistedState,
+      ),
+      currentPersistedState,
+    )
+    : persistedState;
+  const stateForDisk = await prepareStateForDisk(protectedState);
   await atomicWrite(STATE_FILE, `${JSON.stringify({
     formatVersion: 1,
     updatedAt: new Date().toISOString(),
@@ -354,7 +382,7 @@ export function writePersistedState(persistedState, initializeOnly = false, tran
     const nextState = transform
       ? await transform(structuredClone(persistedState), currentPersistedState)
       : persistedState;
-    await persistState(nextState);
+    await persistState(nextState, true);
   });
   stateWriteQueue = operation;
   return operation;
@@ -368,7 +396,7 @@ export function mutatePersistedState(mutator) {
     }
     const nextState = structuredClone(persistedState);
     const result = await mutator(nextState);
-    await persistState(nextState);
+    await persistState(nextState, false);
     return result;
   });
   stateWriteQueue = operation.then(() => undefined);

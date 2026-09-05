@@ -204,7 +204,7 @@ function AiPanel({
   const [streamingAssistant, setStreamingAssistant] = useState<{
     id: string;
     role: 'assistant';
-    content: AiDialogueContentItem[];
+    content: string | AiDialogueContentItem[];
     status: 'queued' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
     createdAt: number;
   } | null>(null);
@@ -234,7 +234,7 @@ function AiPanel({
       setStreamingAssistant({
         id: job.assistantMessageId,
         role: 'assistant',
-        content: job.dialogueContent,
+        content: job.dialogueContent?.length ? job.dialogueContent : job.content,
         status: job.status === 'queued' ? 'queued' : 'in_progress',
         createdAt: job.createdAt,
       });
@@ -270,7 +270,7 @@ function AiPanel({
     setStreamingAssistant({
       id: job.assistantMessageId,
       role: 'assistant',
-      content: job.dialogueContent,
+      content: job.dialogueContent?.length ? job.dialogueContent : job.content,
       status: 'failed',
       createdAt: job.createdAt,
     });
@@ -306,7 +306,7 @@ function AiPanel({
         if (disposed) return;
         applyJob(job);
         if (job.status === 'queued' || job.status === 'running') {
-          timer = window.setTimeout(poll, 250);
+          timer = window.setTimeout(poll, 1_000);
         }
       } catch (error) {
         if (disposed) return;
@@ -330,6 +330,7 @@ function AiPanel({
         if (!disposed && latestJob) applyJob(latestJob);
       });
     };
+    timer = window.setTimeout(startPolling, 1_000);
     void watchAiJob(activeJobId, (job) => {
       if (!disposed) applyStreamedJob(job);
     }, controller.signal).catch((error) => {

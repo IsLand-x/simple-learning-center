@@ -1,4 +1,5 @@
 import { serverRequest } from './serverApi';
+import type { TrashedBookItem } from '../types';
 
 const LEGACY_DB_NAME = 'learning-center-db';
 const LEGACY_DB_VERSION = 2;
@@ -61,8 +62,19 @@ export async function loadEpubFile(bookId: string) {
   return response.arrayBuffer();
 }
 
-export async function removeEpubFile(bookId: string) {
-  await serverRequest(`/api/books/${encodeURIComponent(bookId)}`, { method: 'DELETE' });
+export async function moveBookToTrash(bookId: string) {
+  const response = await serverRequest(`/api/books/${encodeURIComponent(bookId)}/trash`, { method: 'POST' });
+  return response.json() as Promise<TrashedBookItem>;
+}
+
+export async function restoreBookFromTrash(bookId: string) {
+  const response = await serverRequest(`/api/books/${encodeURIComponent(bookId)}/restore`, { method: 'POST' });
+  return response.json() as Promise<TrashedBookItem>;
+}
+
+export async function permanentlyDeleteBook(bookId: string) {
+  const response = await serverRequest(`/api/books/${encodeURIComponent(bookId)}`, { method: 'DELETE' });
+  return response.json() as Promise<{ bookId: string; deletedAt: number; wasPresent: boolean }>;
 }
 
 export async function saveBookSearchIndex(bookId: string, index: unknown) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -8,11 +8,18 @@ const testDataDirectory = await mkdtemp(join(tmpdir(), 'learning-center-test-'))
 process.env.LEARNING_CENTER_DATA_DIR = testDataDirectory;
 process.env.LEARNING_CENTER_MODE = 'local';
 
-const [{ createApp }, { initializeDataDirectories }, { parseRssFeed }, { refreshPersistedRssFeed }] = await Promise.all([
+const [
+  { createApp },
+  { bookPath, initializeDataDirectories, mutatePersistedState },
+  { parseRssFeed },
+  { refreshPersistedRssFeed },
+  { purgeExpiredTrashedBooks },
+] = await Promise.all([
   import('./app.mjs'),
   import('./storage.mjs'),
   import('./rss.mjs'),
   import('./rssScheduler.mjs'),
+  import('./bookTrash.mjs'),
 ]);
 
 before(async () => {
@@ -782,6 +789,209 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       protectedState.state.rssItems.find((item) => item.id === 'rss-item-1').aiTranslationHtml,
       '<p>中文正文</p>',
     );
+  });
+
+  await t.test('旧标签页不会覆盖新版书单', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    currentState.version = 24;
+    currentState.state.bookLists = [{
+      id: 'protected-list',
+      name: '受保护书单',
+      note: '服务端保存的备注',
+      bookIds: ['book-2', 'book-1'],
+      createdAt: 1,
+      updatedAt: 2,
+    }];
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+
+    const staleState = structuredClone(currentState);
+    staleState.version = 23;
+    staleState.state.themeMode = 'light';
+    delete staleState.state.bookLists;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleState),
+    });
+
+    const protectedState = await (await app.request('/api/state')).json();
+    assert.equal(protectedState.version, 24);
+    assert.equal(protectedState.state.themeMode, 'light');
+    assert.deepEqual(protectedState.state.bookLists[0].bookIds, ['book-2', 'book-1']);
+    assert.equal(protectedState.state.bookLists[0].note, '服务端保存的备注');
+  });
+
+  await t.test('回收站阻止旧设备快照复活书籍，并支持恢复与彻底删除', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    const book = {
+      id: 'trash-sync-book',
+      kind: 'epub',
+      title: '不会复活的书',
+      author: '测试作者',
+      fileName: 'trash-sync-book.epub',
+      fileSize: 4,
+      createdAt: 100,
+      updatedAt: 100,
+      progress: 42,
+      currentChapter: '第二章',
+      toc: [],
+    };
+    currentState.version = 25;
+    currentState.state.books = [
+      book,
+      ...(currentState.state.books ?? []).filter((item) => item.id !== book.id),
+    ];
+    currentState.state.bookLists = [{
+      id: 'trash-sync-list',
+      name: '同步测试',
+      note: '',
+      bookIds: [book.id],
+      createdAt: 100,
+      updatedAt: 100,
+    }];
+    currentState.state.trashedBooks = [];
+    currentState.state.deletedBookTombstones = [];
+    currentState.state.highlights = [{
+      id: 'trash-sync-highlight',
+      bookId: book.id,
+      text: '保留的高亮',
+      cfi: 'epubcfi(/6/2)',
+      chapter: '第二章',
+      createdAt: 100,
+    }];
+    currentState.state.notes = [{
+      id: 'trash-sync-note',
+      bookId: book.id,
+      title: '保留的笔记',
+      content: '笔记正文',
+      createdAt: 100,
+      updatedAt: 100,
+    }];
+    currentState.state.chats = [];
+    currentState.state.chatSessions = [];
+    currentState.state.readingSessions = [];
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+    await writeFile(bookPath(book.id), new Uint8Array([1, 2, 3, 4]));
+    const staleDeviceSnapshot = structuredClone(currentState);
+    staleDeviceSnapshot.state.highlights = [];
+    staleDeviceSnapshot.state.notes = [];
+
+    const trashResponse = await app.request(`/api/books/${book.id}/trash`, { method: 'POST' });
+    assert.equal(trashResponse.status, 200);
+    assert.equal((await trashResponse.json()).book.id, book.id);
+    let serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.books.some((item) => item.id === book.id), false);
+    assert.equal(serverState.state.trashedBooks[0].book.id, book.id);
+    assert.equal(serverState.state.highlights[0].text, '保留的高亮');
+    assert.equal(serverState.state.notes[0].content, '笔记正文');
+    assert.deepEqual(serverState.state.bookLists[0].bookIds, []);
+    assert.equal((await app.request(`/api/books/${book.id}`)).status, 200);
+
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleDeviceSnapshot),
+    });
+    serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.books.some((item) => item.id === book.id), false);
+    assert.equal(serverState.state.trashedBooks[0].book.id, book.id);
+    assert.equal(serverState.state.highlights[0].text, '保留的高亮');
+    assert.equal(serverState.state.notes[0].content, '笔记正文');
+
+    const restoreResponse = await app.request(`/api/books/${book.id}/restore`, { method: 'POST' });
+    assert.equal(restoreResponse.status, 200);
+    serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.books.some((item) => item.id === book.id), true);
+    assert.equal(serverState.state.trashedBooks.length, 0);
+    assert.deepEqual(serverState.state.bookLists[0].bookIds, [book.id]);
+
+    const snapshotMissingActiveBook = structuredClone(serverState);
+    snapshotMissingActiveBook.state.books = snapshotMissingActiveBook.state.books
+      .filter((item) => item.id !== book.id);
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(snapshotMissingActiveBook),
+    });
+    serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.books.some((item) => item.id === book.id), true);
+
+    await app.request(`/api/books/${book.id}/trash`, { method: 'POST' });
+    const deleteResponse = await app.request(`/api/books/${book.id}`, { method: 'DELETE' });
+    assert.equal(deleteResponse.status, 200);
+    const deleteResult = await deleteResponse.json();
+    assert.equal(deleteResult.bookId, book.id);
+    serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.trashedBooks.length, 0);
+    assert.equal(serverState.state.highlights.some((item) => item.bookId === book.id), false);
+    assert.equal(serverState.state.notes.some((item) => item.bookId === book.id), false);
+    assert.equal(serverState.state.deletedBookTombstones.some((item) => item.bookId === book.id), true);
+    assert.equal((await app.request(`/api/books/${book.id}`)).status, 404);
+
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleDeviceSnapshot),
+    });
+    serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.books.some((item) => item.id === book.id), false);
+    assert.equal(serverState.state.highlights.some((item) => item.bookId === book.id), false);
+    assert.equal(serverState.state.notes.some((item) => item.bookId === book.id), false);
+  });
+
+  await t.test('回收站仅自动清理超过 30 天的书籍', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    const makeBook = (id) => ({
+      id,
+      kind: 'epub',
+      title: id,
+      author: '测试作者',
+      fileName: `${id}.epub`,
+      fileSize: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      progress: 0,
+      currentChapter: '开始阅读',
+      toc: [],
+    });
+    const expiredBook = makeBook('expired-trash-book');
+    const recentBook = makeBook('recent-trash-book');
+    currentState.version = 25;
+    currentState.state.books = [expiredBook, recentBook, ...(currentState.state.books ?? [])];
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+    await Promise.all([
+      writeFile(bookPath(expiredBook.id), new Uint8Array([1])),
+      writeFile(bookPath(recentBook.id), new Uint8Array([2])),
+    ]);
+    await app.request(`/api/books/${expiredBook.id}/trash`, { method: 'POST' });
+    await app.request(`/api/books/${recentBook.id}/trash`, { method: 'POST' });
+    const now = Date.now();
+    await mutatePersistedState((persistedState) => {
+      const expiredEntry = persistedState.state.trashedBooks.find((item) => item.book.id === expiredBook.id);
+      const recentEntry = persistedState.state.trashedBooks.find((item) => item.book.id === recentBook.id);
+      expiredEntry.deletedAt = now - (30 * 24 * 60 * 60 * 1_000) - 1;
+      recentEntry.deletedAt = now - (29 * 24 * 60 * 60 * 1_000);
+    });
+
+    const deletedBookIds = await purgeExpiredTrashedBooks({ now: () => now });
+    assert.deepEqual(deletedBookIds, [expiredBook.id]);
+    const serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.trashedBooks.some((item) => item.book.id === expiredBook.id), false);
+    assert.equal(serverState.state.trashedBooks.some((item) => item.book.id === recentBook.id), true);
+    assert.equal((await app.request(`/api/books/${expiredBook.id}`)).status, 404);
+    assert.equal((await app.request(`/api/books/${recentBook.id}`)).status, 200);
   });
 
   await t.test('远程模式保护页面与 API', async () => {

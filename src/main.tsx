@@ -8,13 +8,35 @@ import { applyAppTheme, readInitialThemeMode } from './lib/appTheme';
 import { getAuthSession } from './lib/auth';
 import { recoverMissingBookCovers } from './lib/bookCovers';
 import { AUTHENTICATION_REQUIRED_EVENT } from './lib/serverApi';
-import { prepareServerState, waitForServerStateWrites } from './lib/serverStateStorage';
+import { prepareServerState, refreshServerState, waitForServerStateWrites } from './lib/serverStateStorage';
 import { LoginPage } from './pages/LoginPage';
 import { useLearningStore } from './store/useLearningStore';
 
 const rootElement = document.getElementById('root')!;
 applyAppTheme(readInitialThemeMode());
 const root = ReactDOM.createRoot(rootElement);
+let stateSyncRunning = false;
+
+async function synchronizeServerState() {
+  if (stateSyncRunning || document.visibilityState === 'hidden') return;
+  stateSyncRunning = true;
+  try {
+    await refreshServerState();
+    await useLearningStore.persist.rehydrate();
+  } catch (error) {
+    console.warn('同步服务端学习数据失败', error);
+  } finally {
+    stateSyncRunning = false;
+  }
+}
+
+function startServerStateSync() {
+  window.addEventListener('focus', () => void synchronizeServerState());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void synchronizeServerState();
+  });
+  window.setInterval(() => void synchronizeServerState(), 30_000);
+}
 
 function showBootstrapMessage(message: string, error = false) {
   root.render(
@@ -54,6 +76,7 @@ async function startApplication() {
         </BrowserRouter>
       </React.StrictMode>,
     );
+    startServerStateSync();
   } catch (error) {
     console.error('学习中心启动失败', error);
     const message = error instanceof Error ? error.message : '学习中心启动失败';

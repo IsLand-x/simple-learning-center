@@ -76,7 +76,7 @@ function LearningResourceAiPanel({
   const [streamingAssistant, setStreamingAssistant] = useState<{
     id: string;
     role: 'assistant';
-    content: AiDialogueContentItem[];
+    content: string | AiDialogueContentItem[];
     status: 'queued' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
     createdAt: number;
   } | null>(null);
@@ -115,7 +115,7 @@ function LearningResourceAiPanel({
       setStreamingAssistant({
         id: job.assistantMessageId,
         role: 'assistant',
-        content: job.dialogueContent,
+        content: job.dialogueContent?.length ? job.dialogueContent : job.content,
         status: job.status === 'queued' ? 'queued' : 'in_progress',
         createdAt: job.createdAt,
       });
@@ -151,7 +151,7 @@ function LearningResourceAiPanel({
     setStreamingAssistant((message) => ({
       id: message?.id ?? job.assistantMessageId,
       role: 'assistant',
-      content: job.dialogueContent,
+      content: job.dialogueContent?.length ? job.dialogueContent : job.content,
       status: 'failed',
       createdAt: message?.createdAt ?? job.createdAt,
     }));
@@ -177,13 +177,14 @@ function LearningResourceAiPanel({
     if (!activeJobId) return undefined;
     let disposed = false;
     let timer = 0;
+    let polling = false;
     const controller = new AbortController();
     const poll = async () => {
       try {
         const job = await getAiJob(activeJobId);
         if (disposed) return;
         applyJob(job);
-        if (job.status === 'queued' || job.status === 'running') timer = window.setTimeout(poll, 300);
+        if (job.status === 'queued' || job.status === 'running') timer = window.setTimeout(poll, 1_000);
       } catch (error) {
         if (disposed) return;
         setActiveJobId(null);
@@ -191,11 +192,17 @@ function LearningResourceAiPanel({
         setStatusMessage(error instanceof Error ? error.message : '无法读取服务端任务');
       }
     };
+    const startPolling = () => {
+      if (disposed || polling) return;
+      polling = true;
+      void poll();
+    };
+    timer = window.setTimeout(startPolling, 1_000);
     void watchAiJob(activeJobId, (job) => {
       if (!disposed) applyJob(job);
     }, controller.signal).catch((error) => {
       if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
-      void poll();
+      startPolling();
     });
     return () => {
       disposed = true;

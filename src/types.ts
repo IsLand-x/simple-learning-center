@@ -212,6 +212,29 @@ export interface BookItem {
   toc: TocItem[];
 }
 
+export interface BookList {
+  id: string;
+  name: string;
+  note: string;
+  bookIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface TrashedBookItem {
+  book: BookItem;
+  deletedAt: number;
+  bookListPositions: Array<{
+    bookListId: string;
+    index: number;
+  }>;
+}
+
+export interface DeletedBookTombstone {
+  bookId: string;
+  deletedAt: number;
+}
+
 export interface HighlightItem {
   id: string;
   bookId: string;

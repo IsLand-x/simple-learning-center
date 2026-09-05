@@ -7,6 +7,12 @@ import { rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { createApiKeyExport, importApiKeys, parseApiKeyImport } from './apiKeys.mjs';
 import { createAiJobManager } from './aiJobs.mjs';
+import {
+  movePersistedBookToTrash,
+  permanentlyDeletePersistedBook,
+  purgeExpiredTrashedBooks,
+  restorePersistedBookFromTrash,
+} from './bookTrash.mjs';
 import { fetchRssFeed } from './rss.mjs';
 import { fetchRssArticle } from './rssArticle.mjs';
 import { fetchRssSource, resolveRssSource } from './rssSources.mjs';
@@ -41,7 +47,6 @@ import {
   bookPath,
   exists,
   fileResponse,
-  noteDirectoryPath,
   readJsonRequest,
   readPersistedState,
   searchIndexPath,
@@ -215,6 +220,7 @@ export function createApp({
   app.all('/api/health', methodNotAllowed);
 
   app.get('/api/state', async (c) => {
+    await purgeExpiredTrashedBooks();
     const state = await readPersistedState();
     return state ? c.json(state) : noContent(c);
   });
@@ -378,15 +384,17 @@ export function createApp({
     await writeRequestToFile(c.env.incoming, bookPath(c.req.param('bookId')), MAX_BOOK_BYTES);
     return noContent(c);
   });
-  app.delete(bookRoute, async (c) => {
-    const bookId = c.req.param('bookId');
-    await Promise.all([
-      rm(bookPath(bookId), { force: true }),
-      rm(searchIndexPath(bookId), { force: true }),
-      rm(noteDirectoryPath(bookId), { force: true, recursive: true }),
-    ]);
-    return noContent(c);
+  app.post(`${bookRoute}/trash`, async (c) => {
+    return c.json(await movePersistedBookToTrash(c.req.param('bookId')));
   });
+  app.post(`${bookRoute}/restore`, async (c) => {
+    return c.json(await restorePersistedBookFromTrash(c.req.param('bookId')));
+  });
+  app.delete(bookRoute, async (c) => {
+    return c.json(await permanentlyDeletePersistedBook(c.req.param('bookId')));
+  });
+  app.all(`${bookRoute}/trash`, methodNotAllowed);
+  app.all(`${bookRoute}/restore`, methodNotAllowed);
   app.all(bookRoute, methodNotAllowed);
 
   const searchIndexRoute = '/api/search-indexes/:bookId';

@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { createApp } from './app.mjs';
+import { createBookTrashScheduler } from './bookTrash.mjs';
 import {
   DATA_DIRECTORY,
   HOST,
@@ -18,6 +19,7 @@ import { initializeDataDirectories } from './storage.mjs';
 validateServerConfig();
 await initializeDataDirectories();
 const rssScheduler = createRssScheduler();
+const bookTrashScheduler = createBookTrashScheduler();
 const aiJobManager = createAiJobManager();
 const rssDigestScheduler = createRssDigestScheduler({ startDigest: (input) => aiJobManager.startDigest(input) });
 
@@ -35,6 +37,7 @@ const server = serve({
   }
   rssScheduler.start();
   rssDigestScheduler.start();
+  bookTrashScheduler.start();
   console.log(`RSS 服务端刷新周期：${Math.round(RSS_REFRESH_INTERVAL_MS / 60_000)} 分钟（错峰执行）`);
   console.log(`YouTube 服务端请求：${YOUTUBE_PROXY_CONFIGURED ? '使用已配置代理' : '直接连接（不会自动继承浏览器代理）'}`);
 });
@@ -42,6 +45,7 @@ const server = serve({
 function shutdown() {
   rssScheduler.stop();
   rssDigestScheduler.stop();
+  bookTrashScheduler.stop();
   server.close((error) => {
     if (error) {
       console.error(error);
