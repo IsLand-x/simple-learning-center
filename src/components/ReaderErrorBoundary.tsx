@@ -27,11 +27,11 @@ export class ReaderErrorBoundary extends Component<ReaderErrorBoundaryProps, Rea
       <main className="reader-error-fallback">
         <Empty
           title="这本书暂时无法打开"
-          description="阅读器遇到了异常，但服务器数据仍然安全。你可以返回书架后重试。"
+          description="阅读器遇到了异常，但书籍与阅读进度仍然安全。请刷新资源后重试。"
         />
         <div className="reader-error-fallback__actions">
-          <Button theme="light" onClick={() => this.setState({ hasError: false })}>重新尝试</Button>
-          <Button theme="solid" type="primary" onClick={() => window.location.assign('/')}>返回书架</Button>
+          <Button theme="solid" type="primary" onClick={() => window.location.reload()}>刷新重试</Button>
+          <Button theme="light" onClick={() => window.location.assign('/')}>返回书架</Button>
         </div>
       </main>
     );

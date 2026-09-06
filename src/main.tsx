@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { registerSW } from 'virtual:pwa-register';
 import 'allotment/dist/style.css';
 import './styles.css';
 import { App } from './App';
@@ -15,7 +16,37 @@ import { useLearningStore } from './store/useLearningStore';
 const rootElement = document.getElementById('root')!;
 applyAppTheme(readInitialThemeMode());
 const root = ReactDOM.createRoot(rootElement);
+const PRELOAD_RECOVERY_KEY = 'learning-center-preload-recovery';
 let stateSyncRunning = false;
+let applicationReloadRequested = false;
+
+function reloadApplication() {
+  if (applicationReloadRequested) return;
+  applicationReloadRequested = true;
+  window.location.reload();
+}
+
+function recoverOutdatedPreload() {
+  const recoveryId = `${__APP_REVISION__}:${window.location.pathname}${window.location.search}`;
+  try {
+    if (window.sessionStorage.getItem(PRELOAD_RECOVERY_KEY) === recoveryId) return false;
+    window.sessionStorage.setItem(PRELOAD_RECOVERY_KEY, recoveryId);
+  } catch {
+    // An in-memory guard still prevents duplicate reloads when storage is unavailable.
+  }
+  reloadApplication();
+  return true;
+}
+
+window.addEventListener('vite:preloadError', (event) => {
+  if (recoverOutdatedPreload()) event.preventDefault();
+});
+
+registerSW({
+  immediate: true,
+  onNeedReload: reloadApplication,
+  onRegisterError: (error) => console.warn('PWA 更新检查失败', error),
+});
 
 async function synchronizeServerState() {
   if (stateSyncRunning || document.visibilityState === 'hidden') return;
