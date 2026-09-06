@@ -199,6 +199,14 @@ function AiPanel({
   const [status, setStatus] = useState<AiStatus>(() => selectedConfig && model ? 'ready' : 'unavailable');
   const [statusMessage, setStatusMessage] = useState('');
   const [quote, setQuote] = useState<{ text: string; chapter: string } | null>(null);
+  const [optimisticUserMessage, setOptimisticUserMessage] = useState<{
+    id: string;
+    role: 'user';
+    content: string;
+    quote?: { text: string; chapter: string };
+    status: 'completed';
+    createdAt: number;
+  } | null>(null);
   const [streamingAssistant, setStreamingAssistant] = useState<{
     id: string;
     role: 'assistant';
@@ -222,6 +230,7 @@ function AiPanel({
 
   useEffect(() => {
     setQuote(null);
+    setOptimisticUserMessage(null);
     setStreamingAssistant(null);
     setActiveJobId(null);
   }, [conversationId]);
@@ -402,15 +411,24 @@ function AiPanel({
     ensureSession(question);
     const createdAt = Date.now();
     const userMessageId = createUuid();
-    addChatMessage({
+    const userMessage = {
       id: userMessageId,
       bookId: book.id,
       conversationId,
-      role: 'user',
+      role: 'user' as const,
       content: question,
       ...(quoteForMessage ? { quote: quoteForMessage } : {}),
       createdAt,
+    };
+    setOptimisticUserMessage({
+      id: userMessage.id,
+      role: userMessage.role,
+      content: userMessage.content,
+      ...(userMessage.quote ? { quote: userMessage.quote } : {}),
+      status: 'completed',
+      createdAt: userMessage.createdAt,
     });
+    addChatMessage(userMessage);
     setQuote(null);
 
     if (!selectedConfig || !model) return;
@@ -469,6 +487,9 @@ function AiPanel({
       createdAt: message.createdAt,
       status: 'completed',
     })),
+    ...(optimisticUserMessage && !chats.some((message) => message.id === optimisticUserMessage.id)
+      ? [optimisticUserMessage]
+      : []),
     ...(streamingAssistant && !chats.some((message) => message.id === streamingAssistant.id)
       ? [streamingAssistant]
       : []),
