@@ -280,6 +280,10 @@ function AiPanel({
     let disposed = false;
     void listAiJobs(book.id, conversationId).then((jobs) => {
       if (disposed) return;
+      jobs
+        .filter((job) => job.status === 'completed')
+        .sort((left, right) => left.createdAt - right.createdAt)
+        .forEach(applyJob);
       const runningJob = jobs.find((job) => job.status === 'queued' || job.status === 'running');
       if (runningJob) applyJob(runningJob);
     }).catch((error) => {
