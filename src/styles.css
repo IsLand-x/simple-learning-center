@@ -3413,9 +3413,21 @@ button,
   content: '';
 }
 
-.toc-item .semi-typography {
+.toc-item .toc-item__label {
   min-width: 0;
   flex: 1;
+}
+
+.toc-item .toc-item__page {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  color: var(--semi-color-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.toc-item--selected .toc-item__page {
+  color: currentColor;
 }
 
 .reader-center {
