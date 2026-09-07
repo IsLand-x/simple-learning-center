@@ -825,6 +825,68 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(protectedState.state.bookLists[0].note, '服务端保存的备注');
   });
 
+  await t.test('旧设备快照不会清除高亮、复活已删除高亮或回退阅读样式', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    currentState.version = 26;
+    currentState.state.highlights = [{
+      id: 'reader-sync-highlight',
+      bookId: 'book-1',
+      kind: 'highlight',
+      text: '服务端的新高亮',
+      cfi: 'epubcfi(/6/2)',
+      chapter: '第一章',
+      createdAt: 200,
+      updatedAt: 200,
+    }];
+    currentState.state.deletedHighlightTombstones = [];
+    currentState.state.readerPreferences = { theme: 'ink', fontSize: 22 };
+    currentState.state.readerPreferencesUpdatedAt = 200;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+
+    const staleDeviceSnapshot = structuredClone(currentState);
+    staleDeviceSnapshot.state.highlights = [];
+    staleDeviceSnapshot.state.readerPreferences = { theme: 'paper', fontSize: 16 };
+    staleDeviceSnapshot.state.readerPreferencesUpdatedAt = 100;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleDeviceSnapshot),
+    });
+
+    let serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.highlights[0].text, '服务端的新高亮');
+    assert.deepEqual(serverState.state.readerPreferences, { theme: 'ink', fontSize: 22 });
+
+    const deletionSnapshot = structuredClone(serverState);
+    deletionSnapshot.state.highlights = [];
+    deletionSnapshot.state.deletedHighlightTombstones = [{
+      highlightId: 'reader-sync-highlight',
+      bookId: 'book-1',
+      deletedAt: 300,
+    }];
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(deletionSnapshot),
+    });
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+
+    serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.highlights.some((item) => item.id === 'reader-sync-highlight'), false);
+    assert.equal(
+      serverState.state.deletedHighlightTombstones[0].highlightId,
+      'reader-sync-highlight',
+    );
+  });
+
   await t.test('回收站阻止旧设备快照复活书籍，并支持恢复与彻底删除', async () => {
     const currentState = await (await app.request('/api/state')).json();
     const book = {

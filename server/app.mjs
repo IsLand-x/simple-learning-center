@@ -19,6 +19,7 @@ import { fetchRssSource, resolveRssSource } from './rssSources.mjs';
 import { sourceSecretsService } from './sourceSecrets.mjs';
 import { fetchYouTubeVideo } from './youtubeVideo.mjs';
 import { protectServerRssState } from './rssScheduler.mjs';
+import { protectReaderStateFromClient } from './readerState.mjs';
 import {
   createAuthService,
   SESSION_COOKIE_NAME,
@@ -230,8 +231,11 @@ export function createApp({
     await writePersistedState(
       state,
       initializeOnly,
-      initializeOnly ? undefined : async (incomingState, currentState) => protectServerRssState(
-        await aiJobs.protectPersistedState(incomingState),
+      initializeOnly ? undefined : async (incomingState, currentState) => protectReaderStateFromClient(
+        protectServerRssState(
+          await aiJobs.protectPersistedState(incomingState),
+          currentState,
+        ),
         currentState,
       ),
     );

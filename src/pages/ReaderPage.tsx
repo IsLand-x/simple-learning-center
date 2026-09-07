@@ -426,6 +426,7 @@ export function ReaderPage() {
         chapter: currentChapter,
         page: book.currentPage,
         createdAt: 0,
+        updatedAt: 0,
       },
     ];
   }, [book, currentChapter, highlights, pendingCommentSelection]);
@@ -472,6 +473,7 @@ export function ReaderPage() {
       return;
     }
     const highlightId = createUuid();
+    const createdAt = Date.now();
     addHighlight({
       id: highlightId,
       bookId: book.id,
@@ -480,7 +482,8 @@ export function ReaderPage() {
       cfi: selection.cfi,
       chapter: currentChapter,
       page: book.currentPage,
-      createdAt: Date.now(),
+      createdAt,
+      updatedAt: createdAt,
     });
     readerRef.current?.clearSelection();
     setSelection(null);
@@ -551,6 +554,7 @@ export function ReaderPage() {
     const comment = commentDraft.trim();
     if (pendingCommentSelection) {
       if (!comment) return;
+      const createdAt = Date.now();
       addHighlight({
         id: createUuid(),
         bookId: book.id,
@@ -560,8 +564,9 @@ export function ReaderPage() {
         chapter: currentChapter,
         page: book.currentPage,
         comment,
-        commentUpdatedAt: Date.now(),
-        createdAt: Date.now(),
+        commentUpdatedAt: createdAt,
+        createdAt,
+        updatedAt: createdAt,
       });
       setPendingCommentSelection(null);
       setCommentDraft('');

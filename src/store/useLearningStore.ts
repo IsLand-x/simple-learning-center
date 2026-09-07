@@ -16,6 +16,7 @@ import type {
   ChatMessage,
   ChatSession,
   DeletedBookTombstone,
+  DeletedHighlightTombstone,
   HighlightItem,
   NoteItem,
   OpenAICompatibleConfig,
@@ -125,6 +126,7 @@ interface LearningState {
   bookLists: BookList[];
   trashedBooks: TrashedBookItem[];
   deletedBookTombstones: DeletedBookTombstone[];
+  deletedHighlightTombstones: DeletedHighlightTombstone[];
   highlights: HighlightItem[];
   notes: NoteItem[];
   chats: ChatMessage[];
@@ -147,6 +149,7 @@ interface LearningState {
   navCollapsed: boolean;
   themeMode: ThemeMode;
   readerPreferences: ReaderPreferences;
+  readerPreferencesUpdatedAt: number;
   addBooks: (books: BookItem[]) => void;
   setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
@@ -214,6 +217,7 @@ export const useLearningStore = create<LearningState>()(
       bookLists: [],
       trashedBooks: [],
       deletedBookTombstones: [],
+      deletedHighlightTombstones: [],
       highlights: [],
       notes: [],
       chats: [],
@@ -236,6 +240,7 @@ export const useLearningStore = create<LearningState>()(
       navCollapsed: false,
       themeMode: 'light',
       readerPreferences: defaultReaderPreferences,
+      readerPreferencesUpdatedAt: 0,
       addBooks: (books) =>
         set((state) => ({ books: [...books, ...state.books.filter((book) => !books.some((next) => next.id === book.id))] })),
       setBookCovers: (covers) =>
@@ -316,6 +321,8 @@ export const useLearningStore = create<LearningState>()(
               : bookList
           )),
           highlights: state.highlights.filter((highlight) => highlight.bookId !== bookId),
+          deletedHighlightTombstones: state.deletedHighlightTombstones
+            .filter((tombstone) => tombstone.bookId !== bookId),
           notes: state.notes.filter((note) => note.bookId !== bookId),
           chats: state.chats.filter((message) => message.bookId !== bookId),
           chatSessions: state.chatSessions.filter((session) => session.bookId !== bookId),
@@ -380,22 +387,42 @@ export const useLearningStore = create<LearningState>()(
         })),
       addHighlight: (highlight) =>
         set((state) => ({
-          highlights: [highlight, ...state.highlights.filter((item) => item.id !== highlight.id)],
+          highlights: [
+            { ...highlight, updatedAt: highlight.updatedAt ?? highlight.createdAt },
+            ...state.highlights.filter((item) => item.id !== highlight.id),
+          ],
+          deletedHighlightTombstones: state.deletedHighlightTombstones
+            .filter((tombstone) => tombstone.highlightId !== highlight.id),
         })),
       updateHighlight: (highlightId, changes) =>
-        set((state) => ({
-          highlights: state.highlights.map((highlight) => {
-            if (highlight.id !== highlightId) return highlight;
-            const comment = changes.comment?.trim();
-            if (!comment) {
-              const { comment: _comment, commentUpdatedAt: _commentUpdatedAt, ...withoutComment } = highlight;
-              return withoutComment;
-            }
-            return { ...highlight, comment, commentUpdatedAt: Date.now() };
-          }),
-        })),
+        set((state) => {
+          const updatedAt = Date.now();
+          return {
+            highlights: state.highlights.map((highlight) => {
+              if (highlight.id !== highlightId) return highlight;
+              const comment = changes.comment?.trim();
+              if (!comment) {
+                const { comment: _comment, commentUpdatedAt: _commentUpdatedAt, ...withoutComment } = highlight;
+                return { ...withoutComment, updatedAt };
+              }
+              return { ...highlight, comment, commentUpdatedAt: updatedAt, updatedAt };
+            }),
+          };
+        }),
       deleteHighlight: (highlightId) =>
-        set((state) => ({ highlights: state.highlights.filter((item) => item.id !== highlightId) })),
+        set((state) => {
+          const highlight = state.highlights.find((item) => item.id === highlightId);
+          if (!highlight) return state;
+          const deletedAt = Date.now();
+          return {
+            highlights: state.highlights.filter((item) => item.id !== highlightId),
+            deletedHighlightTombstones: [
+              { highlightId, bookId: highlight.bookId, deletedAt },
+              ...state.deletedHighlightTombstones
+                .filter((tombstone) => tombstone.highlightId !== highlightId),
+            ],
+          };
+        }),
       addNote: (note) => set((state) => ({ notes: [note, ...state.notes] })),
       setBookNoteContent: (bookId, bookTitle, content) =>
         set((state) => {
@@ -727,11 +754,12 @@ export const useLearningStore = create<LearningState>()(
       setReaderPreferences: (changes) =>
         set((state) => ({
           readerPreferences: { ...state.readerPreferences, ...changes },
+          readerPreferencesUpdatedAt: Date.now(),
         })),
     }),
     {
       name: 'learning-center-state-v1',
-      version: 25,
+      version: 26,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -987,6 +1015,17 @@ export const useLearningStore = create<LearningState>()(
             deletedBookTombstones: [],
           };
         }
+        if (version < 26) {
+          migrated = {
+            ...migrated,
+            highlights: (migrated.highlights ?? []).map((highlight) => ({
+              ...highlight,
+              updatedAt: highlight.updatedAt ?? highlight.commentUpdatedAt ?? highlight.createdAt,
+            })),
+            deletedHighlightTombstones: [],
+            readerPreferencesUpdatedAt: 0,
+          };
+        }
         return migrated;
       },
       merge: (persistedState, currentState) => {
@@ -999,6 +1038,10 @@ export const useLearningStore = create<LearningState>()(
           deletedBookTombstones: Array.isArray(persisted.deletedBookTombstones)
             ? persisted.deletedBookTombstones
             : [],
+          deletedHighlightTombstones: Array.isArray(persisted.deletedHighlightTombstones)
+            ? persisted.deletedHighlightTombstones
+            : [],
+          highlights: Array.isArray(persisted.highlights) ? persisted.highlights : [],
           rssFolders: Array.isArray(persisted.rssFolders) ? persisted.rssFolders : [],
           rssFeeds: Array.isArray(persisted.rssFeeds)
             ? persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed))
@@ -1025,6 +1068,9 @@ export const useLearningStore = create<LearningState>()(
             fontFamily: normalizeReaderFont(persisted.readerPreferences?.fontFamily),
             customStyle: normalizeStoredCustomStyle(persisted.readerPreferences?.customStyle),
           },
+          readerPreferencesUpdatedAt: typeof persisted.readerPreferencesUpdatedAt === 'number'
+            ? persisted.readerPreferencesUpdatedAt
+            : 0,
           aiPreferences: {
             provider: persisted.aiPreferences?.provider?.startsWith('api:')
               ? persisted.aiPreferences.provider

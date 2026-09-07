@@ -236,6 +236,12 @@ export interface DeletedBookTombstone {
   deletedAt: number;
 }
 
+export interface DeletedHighlightTombstone {
+  highlightId: string;
+  bookId: string;
+  deletedAt: number;
+}
+
 export interface HighlightItem {
   id: string;
   bookId: string;
@@ -247,6 +253,7 @@ export interface HighlightItem {
   comment?: string;
   commentUpdatedAt?: number;
   createdAt: number;
+  updatedAt: number;
 }
 
 export interface NoteItem {
