@@ -61,6 +61,14 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const readResponse = await app.request('/api/state');
     assert.equal(readResponse.status, 200);
     assert.deepEqual(await readResponse.json(), persistedState);
+
+    const stateEtag = readResponse.headers.get('etag');
+    assert.ok(stateEtag);
+    const unchangedResponse = await app.request('/api/state', {
+      headers: { 'If-None-Match': stateEtag },
+    });
+    assert.equal(unchangedResponse.status, 304);
+    assert.equal(await unchangedResponse.text(), '');
   });
 
   await t.test('导出并导入 API Key', async () => {
@@ -905,6 +913,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       progress: 42,
       currentChapter: '第二章',
       toc: [],
+      coverDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
     };
     currentState.version = 25;
     currentState.state.books = [
@@ -946,6 +955,19 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify(currentState),
     });
     await writeFile(bookPath(book.id), new Uint8Array([1, 2, 3, 4]));
+    const externalizedStateResponse = await app.request('/api/state');
+    const externalizedStateText = await externalizedStateResponse.text();
+    assert.equal(externalizedStateText.includes(book.coverDataUrl), false);
+    const externalizedState = JSON.parse(externalizedStateText);
+    assert.equal(
+      externalizedState.state.books.find((item) => item.id === book.id)?.coverDataUrl,
+      `/api/books/${book.id}/cover`,
+    );
+    const coverResponse = await app.request(`/api/books/${book.id}/cover`);
+    assert.equal(coverResponse.status, 200);
+    assert.equal(coverResponse.headers.get('content-type'), 'image/png');
+    assert.equal(coverResponse.headers.get('cache-control'), 'private, max-age=604800');
+    assert.ok((await coverResponse.arrayBuffer()).byteLength > 0);
     const staleDeviceSnapshot = structuredClone(currentState);
     staleDeviceSnapshot.state.highlights = [];
     staleDeviceSnapshot.state.notes = [];
@@ -1001,6 +1023,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(serverState.state.notes.some((item) => item.bookId === book.id), false);
     assert.equal(serverState.state.deletedBookTombstones.some((item) => item.bookId === book.id), true);
     assert.equal((await app.request(`/api/books/${book.id}`)).status, 404);
+    assert.equal((await app.request(`/api/books/${book.id}/cover`)).status, 404);
 
     await app.request('/api/state', {
       method: 'PUT',

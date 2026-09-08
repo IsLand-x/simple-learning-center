@@ -48,16 +48,25 @@ import {
   bookPath,
   exists,
   fileResponse,
+  findBookCoverPath,
   readJsonRequest,
   readPersistedState,
   searchIndexPath,
+  stateFileEtag,
   writePersistedState,
   writeRequestToFile,
 } from './storage.mjs';
 
 const MIME_TYPES = new Map([
+  ['.avif', 'image/avif'],
   ['.epub', 'application/epub+zip'],
+  ['.gif', 'image/gif'],
+  ['.jpeg', 'image/jpeg'],
+  ['.jpg', 'image/jpeg'],
   ['.json', 'application/json; charset=utf-8'],
+  ['.png', 'image/png'],
+  ['.svg', 'image/svg+xml'],
+  ['.webp', 'image/webp'],
 ]);
 const AI_STREAM_UPDATE_INTERVAL_MS = 32;
 
@@ -147,7 +156,7 @@ export function createApp({
 
   app.use('/api/*', async (c, next) => {
     await next();
-    c.header('Cache-Control', 'no-store');
+    if (!c.res.headers.has('Cache-Control')) c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
   });
 
@@ -222,6 +231,9 @@ export function createApp({
 
   app.get('/api/state', async (c) => {
     await purgeExpiredTrashedBooks();
+    const etag = await stateFileEtag();
+    if (etag) c.header('ETag', etag);
+    if (etag && c.req.header('If-None-Match') === etag) return c.body(null, 304);
     const state = await readPersistedState();
     return state ? c.json(state) : noContent(c);
   });
@@ -379,6 +391,15 @@ export function createApp({
   app.all('/api/ai/jobs/:jobId', methodNotAllowed);
 
   const bookRoute = '/api/books/:bookId';
+  app.on(['GET', 'HEAD'], `${bookRoute}/cover`, async (c) => {
+    const path = await findBookCoverPath(c.req.param('bookId'));
+    if (!path) return c.json({ error: '书籍封面不存在' }, 404);
+    const response = await storedFileResponse(c, path);
+    response.headers.set('Cache-Control', 'private, max-age=604800');
+    response.headers.set('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'");
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    return response;
+  });
   app.on(['GET', 'HEAD'], bookRoute, async (c) => {
     const path = bookPath(c.req.param('bookId'));
     if (!await exists(path)) return c.json({ error: '书籍文件不存在' }, 404);
@@ -399,6 +420,7 @@ export function createApp({
   });
   app.all(`${bookRoute}/trash`, methodNotAllowed);
   app.all(`${bookRoute}/restore`, methodNotAllowed);
+  app.all(`${bookRoute}/cover`, methodNotAllowed);
   app.all(bookRoute, methodNotAllowed);
 
   const searchIndexRoute = '/api/search-indexes/:bookId';

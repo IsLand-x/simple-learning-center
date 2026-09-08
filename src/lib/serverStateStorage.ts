@@ -20,9 +20,14 @@ interface PersistedStateEnvelope {
 let prepared = false;
 let preparedState: string | null = null;
 let stateWriteQueue = Promise.resolve();
+let stateEtag: string | null = null;
 
 async function readServerState() {
-  const response = await serverRequest('/api/state');
+  const response = await serverRequest('/api/state', {
+    ...(stateEtag ? { headers: { 'If-None-Match': stateEtag } } : {}),
+  }, [304]);
+  if (response.status === 304) return preparedState;
+  stateEtag = response.headers.get('ETag');
   return response.status === 204 ? null : response.text();
 }
 

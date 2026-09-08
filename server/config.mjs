@@ -9,6 +9,7 @@ export const DATA_DIRECTORY = resolve(
   process.env.LEARNING_CENTER_DATA_DIR || join(PROJECT_DIRECTORY, 'data'),
 );
 export const BOOK_DIRECTORY = join(DATA_DIRECTORY, 'books');
+export const COVER_DIRECTORY = join(DATA_DIRECTORY, 'covers');
 export const NOTE_DIRECTORY = join(DATA_DIRECTORY, 'notes');
 export const SEARCH_INDEX_DIRECTORY = join(DATA_DIRECTORY, 'search-indexes');
 export const STATE_FILE = join(DATA_DIRECTORY, 'state.json');

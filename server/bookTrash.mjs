@@ -8,6 +8,7 @@ import {
 import { statusError } from './errors.mjs';
 import {
   bookPath,
+  coverDirectoryPath,
   mutatePersistedState,
   noteDirectoryPath,
   readPersistedState,
@@ -17,6 +18,7 @@ import {
 async function removeBookFiles(bookId) {
   await Promise.all([
     rm(bookPath(bookId), { force: true }),
+    rm(coverDirectoryPath(bookId), { force: true, recursive: true }),
     rm(searchIndexPath(bookId), { force: true }),
     rm(noteDirectoryPath(bookId), { force: true, recursive: true }),
   ]);
