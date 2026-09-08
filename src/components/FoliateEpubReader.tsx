@@ -735,6 +735,10 @@ export function FoliateEpubReader({
   }, []);
 
   const syncVisibleAnnotations = useCallback(async (view: FoliateView, sectionIndex: number) => {
+    const visibleOverlayer = getFoliateContents(view)
+      .find((content) => content.index === sectionIndex)?.overlayer;
+    if (!visibleOverlayer) return false;
+
     const desired = new Map<string, { highlight: HighlightItem; signature: string }>();
     highlightsRef.current.forEach((highlight) => {
       const target = view.resolveNavigation(highlight.cfi);
@@ -748,14 +752,26 @@ export function FoliateEpubReader({
     for (const [cfi, signature] of appliedAnnotationsRef.current) {
       if (desired.get(cfi)?.signature === signature) continue;
       await view.deleteAnnotation({ value: cfi }).catch(() => undefined);
+      if (getFoliateContents(view).find((content) => content.index === sectionIndex)?.overlayer !== visibleOverlayer) {
+        return false;
+      }
       appliedAnnotationsRef.current.delete(cfi);
     }
 
     for (const [cfi, { highlight, signature }] of desired) {
       if (appliedAnnotationsRef.current.get(cfi) === signature) continue;
-      await view.addAnnotation(createFoliateAnnotation(highlight)).catch(() => undefined);
-      appliedAnnotationsRef.current.set(cfi, signature);
+      try {
+        await view.addAnnotation(createFoliateAnnotation(highlight));
+        if (
+          getFoliateContents(view).find((content) => content.index === sectionIndex)?.overlayer
+          !== visibleOverlayer
+        ) return false;
+        appliedAnnotationsRef.current.set(cfi, signature);
+      } catch {
+        appliedAnnotationsRef.current.delete(cfi);
+      }
     }
+    return true;
   }, []);
 
   const enqueueNavigation = useCallback((
@@ -1930,6 +1946,7 @@ export function FoliateEpubReader({
         page: detail.location ? detail.location.current + 1 : undefined,
         totalPages: detail.location?.total,
       });
+      if (sectionIndex !== undefined) void syncVisibleAnnotations(view, sectionIndex);
       window.requestAnimationFrame(() => mobileSelectionControllerRef.current?.refresh());
       if (!disposed) setStatus('ready');
     };
@@ -1939,7 +1956,12 @@ export function FoliateEpubReader({
       if (!view) return;
       const { index } = (event as CustomEvent<{ index: number }>).detail;
       appliedAnnotationsRef.current.clear();
-      void syncVisibleAnnotations(view, index);
+      // Foliate emits `create-overlay` synchronously before attaching the new
+      // overlayer to the renderer. Retry in a microtask, then let `relocate`
+      // provide the final post-navigation synchronization fallback.
+      queueMicrotask(() => {
+        if (!disposed && viewRef.current === view) void syncVisibleAnnotations(view, index);
+      });
     };
 
     const handleDrawAnnotation = (event: Event) => {

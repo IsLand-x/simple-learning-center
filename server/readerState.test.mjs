@@ -55,7 +55,7 @@ test('旧设备快照不会清除新高亮或回退阅读样式', () => {
 
   const merged = protectReaderStateFromClient(stale, current);
 
-  assert.equal(merged.version, 26);
+  assert.equal(merged.version, 28);
   assert.equal(merged.state.highlights[0].id, 'server-highlight');
   assert.equal(merged.state.readerPreferences.theme, 'ink');
   assert.equal(merged.state.readerPreferences.fontSize, 22);
@@ -129,4 +129,76 @@ test('高亮删除墓碑会阻止旧设备把已删除高亮重新带回', () =>
   assert.deepEqual(merged.state.highlights, []);
   assert.equal(merged.state.deletedHighlightTombstones[0].highlightId, 'deleted-highlight');
   assert.equal(merged.state.deletedHighlightTombstones[0].deletedAt, 300);
+});
+
+test('新版设备只调整面板布局时不会把旧阅读样式写回服务端', () => {
+  const current = {
+    version: 28,
+    state: {
+      highlights: [],
+      deletedHighlightTombstones: [],
+      readerPreferences: {
+        ...preferences('ink', 22),
+        tocWidth: 272,
+        panelWidth: 380,
+        tocCollapsed: false,
+      },
+      readerStyleUpdatedAt: 400,
+      readerLayoutUpdatedAt: 100,
+    },
+  };
+  const incoming = {
+    version: 28,
+    state: {
+      highlights: [],
+      deletedHighlightTombstones: [],
+      readerPreferences: {
+        ...preferences('paper', 16),
+        tocWidth: 320,
+        panelWidth: 520,
+        tocCollapsed: true,
+      },
+      readerStyleUpdatedAt: 200,
+      readerLayoutUpdatedAt: 500,
+    },
+  };
+
+  const merged = protectReaderStateFromClient(incoming, current);
+
+  assert.equal(merged.state.readerPreferences.theme, 'ink');
+  assert.equal(merged.state.readerPreferences.fontSize, 22);
+  assert.equal(merged.state.readerPreferences.tocWidth, 320);
+  assert.equal(merged.state.readerPreferences.panelWidth, 520);
+  assert.equal(merged.state.readerPreferences.tocCollapsed, true);
+  assert.equal(merged.state.readerStyleUpdatedAt, 400);
+  assert.equal(merged.state.readerLayoutUpdatedAt, 500);
+});
+
+test('未升级的客户端不能用本机时钟覆盖新版阅读偏好', () => {
+  const current = {
+    version: 28,
+    state: {
+      highlights: [],
+      deletedHighlightTombstones: [],
+      readerPreferences: preferences('ink', 22),
+      readerStyleUpdatedAt: 400,
+      readerLayoutUpdatedAt: 400,
+    },
+  };
+  const legacy = {
+    version: 27,
+    state: {
+      highlights: [],
+      deletedHighlightTombstones: [],
+      readerPreferences: preferences('paper', 16),
+      readerPreferencesUpdatedAt: 9_999,
+    },
+  };
+
+  const merged = protectReaderStateFromClient(legacy, current);
+
+  assert.equal(merged.state.readerPreferences.theme, 'ink');
+  assert.equal(merged.state.readerPreferences.fontSize, 22);
+  assert.equal(merged.state.readerStyleUpdatedAt, 400);
+  assert.equal(merged.state.readerLayoutUpdatedAt, 400);
 });

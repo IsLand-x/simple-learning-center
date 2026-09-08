@@ -50,6 +50,119 @@ const defaultReaderPreferences: ReaderPreferences = {
   tocCollapsed: false,
 };
 
+const READER_STYLE_KEYS = new Set<keyof ReaderPreferences>([
+  'fontSize',
+  'lineHeight',
+  'theme',
+  'fontFamily',
+  'customStyle',
+]);
+const READER_LAYOUT_KEYS = new Set<keyof ReaderPreferences>([
+  'tocWidth',
+  'panelWidth',
+  'tocCollapsed',
+]);
+
+type PersistedReaderState = {
+  highlights?: HighlightItem[];
+  deletedHighlightTombstones?: DeletedHighlightTombstone[];
+  readerPreferences?: ReaderPreferences;
+  readerPreferencesUpdatedAt?: number;
+  readerStyleUpdatedAt?: number;
+  readerLayoutUpdatedAt?: number;
+};
+
+function readerStateTimestamp(
+  state: PersistedReaderState,
+  key: 'readerStyleUpdatedAt' | 'readerLayoutUpdatedAt',
+) {
+  const timestamp = state[key];
+  if (typeof timestamp === 'number' && Number.isFinite(timestamp)) return timestamp;
+  return typeof state.readerPreferencesUpdatedAt === 'number'
+    && Number.isFinite(state.readerPreferencesUpdatedAt)
+    ? state.readerPreferencesUpdatedAt
+    : 0;
+}
+
+function highlightUpdatedAt(highlight: HighlightItem) {
+  return highlight.updatedAt ?? highlight.commentUpdatedAt ?? highlight.createdAt;
+}
+
+function mergeReaderHighlights(
+  persisted: PersistedReaderState,
+  current: PersistedReaderState,
+) {
+  const highlights = new Map<string, HighlightItem>();
+  (current.highlights ?? []).forEach((highlight) => highlights.set(highlight.id, highlight));
+  (persisted.highlights ?? []).forEach((highlight) => {
+    const existing = highlights.get(highlight.id);
+    if (!existing || highlightUpdatedAt(highlight) >= highlightUpdatedAt(existing)) {
+      highlights.set(highlight.id, highlight);
+    }
+  });
+
+  const tombstones = new Map<string, DeletedHighlightTombstone>();
+  (current.deletedHighlightTombstones ?? []).forEach((tombstone) => {
+    tombstones.set(tombstone.highlightId, tombstone);
+  });
+  (persisted.deletedHighlightTombstones ?? []).forEach((tombstone) => {
+    const existing = tombstones.get(tombstone.highlightId);
+    if (!existing || tombstone.deletedAt >= existing.deletedAt) {
+      tombstones.set(tombstone.highlightId, tombstone);
+    }
+  });
+
+  return {
+    deletedHighlightTombstones: [...tombstones.values()],
+    highlights: [...highlights.values()]
+      .filter((highlight) => (
+        (tombstones.get(highlight.id)?.deletedAt ?? 0) < highlightUpdatedAt(highlight)
+      ))
+      .map((highlight) => ({ ...highlight, updatedAt: highlightUpdatedAt(highlight) })),
+  };
+}
+
+function mergeReaderPreferences(
+  persisted: PersistedReaderState,
+  current: PersistedReaderState,
+) {
+  const persistedPreferences = persisted.readerPreferences ?? defaultReaderPreferences;
+  const currentPreferences = current.readerPreferences ?? defaultReaderPreferences;
+  const persistedStyleUpdatedAt = readerStateTimestamp(persisted, 'readerStyleUpdatedAt');
+  const currentStyleUpdatedAt = readerStateTimestamp(current, 'readerStyleUpdatedAt');
+  const persistedLayoutUpdatedAt = readerStateTimestamp(persisted, 'readerLayoutUpdatedAt');
+  const currentLayoutUpdatedAt = readerStateTimestamp(current, 'readerLayoutUpdatedAt');
+  const styleSource = persistedStyleUpdatedAt >= currentStyleUpdatedAt
+    ? persistedPreferences
+    : currentPreferences;
+  const layoutSource = persistedLayoutUpdatedAt >= currentLayoutUpdatedAt
+    ? persistedPreferences
+    : currentPreferences;
+
+  return {
+    readerPreferences: {
+      ...currentPreferences,
+      ...persistedPreferences,
+      fontSize: styleSource.fontSize,
+      lineHeight: styleSource.lineHeight,
+      theme: styleSource.theme,
+      fontFamily: styleSource.fontFamily,
+      customStyle: styleSource.customStyle,
+      tocWidth: layoutSource.tocWidth,
+      panelWidth: layoutSource.panelWidth,
+      tocCollapsed: layoutSource.tocCollapsed,
+    },
+    readerStyleUpdatedAt: Math.max(persistedStyleUpdatedAt, currentStyleUpdatedAt),
+    readerLayoutUpdatedAt: Math.max(persistedLayoutUpdatedAt, currentLayoutUpdatedAt),
+    readerPreferencesUpdatedAt: Math.max(
+      persistedStyleUpdatedAt,
+      currentStyleUpdatedAt,
+      persistedLayoutUpdatedAt,
+      currentLayoutUpdatedAt,
+    ),
+  };
+}
+
 const defaultAiPreferences: AiPreferences = {
   provider: null,
   model: '',
@@ -150,6 +263,8 @@ interface LearningState {
   themeMode: ThemeMode;
   readerPreferences: ReaderPreferences;
   readerPreferencesUpdatedAt: number;
+  readerStyleUpdatedAt: number;
+  readerLayoutUpdatedAt: number;
   addBooks: (books: BookItem[]) => void;
   setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
@@ -241,6 +356,8 @@ export const useLearningStore = create<LearningState>()(
       themeMode: 'light',
       readerPreferences: defaultReaderPreferences,
       readerPreferencesUpdatedAt: 0,
+      readerStyleUpdatedAt: 0,
+      readerLayoutUpdatedAt: 0,
       addBooks: (books) =>
         set((state) => ({ books: [...books, ...state.books.filter((book) => !books.some((next) => next.id === book.id))] })),
       setBookCovers: (covers) =>
@@ -752,14 +869,22 @@ export const useLearningStore = create<LearningState>()(
       setNavCollapsed: (navCollapsed) => set({ navCollapsed }),
       setThemeMode: (themeMode) => set({ themeMode }),
       setReaderPreferences: (changes) =>
-        set((state) => ({
-          readerPreferences: { ...state.readerPreferences, ...changes },
-          readerPreferencesUpdatedAt: Date.now(),
-        })),
+        set((state) => {
+          const updatedAt = Date.now();
+          const changedKeys = Object.keys(changes) as Array<keyof ReaderPreferences>;
+          const styleChanged = changedKeys.some((key) => READER_STYLE_KEYS.has(key));
+          const layoutChanged = changedKeys.some((key) => READER_LAYOUT_KEYS.has(key));
+          return {
+            readerPreferences: { ...state.readerPreferences, ...changes },
+            readerPreferencesUpdatedAt: updatedAt,
+            readerStyleUpdatedAt: styleChanged ? updatedAt : state.readerStyleUpdatedAt,
+            readerLayoutUpdatedAt: layoutChanged ? updatedAt : state.readerLayoutUpdatedAt,
+          };
+        }),
     }),
     {
       name: 'learning-center-state-v1',
-      version: 26,
+      version: 28,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -1026,10 +1151,22 @@ export const useLearningStore = create<LearningState>()(
             readerPreferencesUpdatedAt: 0,
           };
         }
+        if (version < 28) {
+          const legacyPreferencesUpdatedAt = typeof migrated.readerPreferencesUpdatedAt === 'number'
+            ? migrated.readerPreferencesUpdatedAt
+            : 0;
+          migrated = {
+            ...migrated,
+            readerStyleUpdatedAt: legacyPreferencesUpdatedAt,
+            readerLayoutUpdatedAt: legacyPreferencesUpdatedAt,
+          };
+        }
         return migrated;
       },
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<LearningState>;
+        const mergedHighlights = mergeReaderHighlights(persisted, currentState);
+        const mergedPreferences = mergeReaderPreferences(persisted, currentState);
         return {
           ...currentState,
           ...persisted,
@@ -1038,10 +1175,8 @@ export const useLearningStore = create<LearningState>()(
           deletedBookTombstones: Array.isArray(persisted.deletedBookTombstones)
             ? persisted.deletedBookTombstones
             : [],
-          deletedHighlightTombstones: Array.isArray(persisted.deletedHighlightTombstones)
-            ? persisted.deletedHighlightTombstones
-            : [],
-          highlights: Array.isArray(persisted.highlights) ? persisted.highlights : [],
+          deletedHighlightTombstones: mergedHighlights.deletedHighlightTombstones,
+          highlights: mergedHighlights.highlights,
           rssFolders: Array.isArray(persisted.rssFolders) ? persisted.rssFolders : [],
           rssFeeds: Array.isArray(persisted.rssFeeds)
             ? persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed))
@@ -1063,14 +1198,14 @@ export const useLearningStore = create<LearningState>()(
           videoPanelWidth: typeof persisted.videoPanelWidth === 'number' ? persisted.videoPanelWidth : 400,
           readerPreferences: {
             ...defaultReaderPreferences,
-            ...persisted.readerPreferences,
-            theme: normalizeReaderTheme(persisted.readerPreferences?.theme),
-            fontFamily: normalizeReaderFont(persisted.readerPreferences?.fontFamily),
-            customStyle: normalizeStoredCustomStyle(persisted.readerPreferences?.customStyle),
+            ...mergedPreferences.readerPreferences,
+            theme: normalizeReaderTheme(mergedPreferences.readerPreferences.theme),
+            fontFamily: normalizeReaderFont(mergedPreferences.readerPreferences.fontFamily),
+            customStyle: normalizeStoredCustomStyle(mergedPreferences.readerPreferences.customStyle),
           },
-          readerPreferencesUpdatedAt: typeof persisted.readerPreferencesUpdatedAt === 'number'
-            ? persisted.readerPreferencesUpdatedAt
-            : 0,
+          readerPreferencesUpdatedAt: mergedPreferences.readerPreferencesUpdatedAt,
+          readerStyleUpdatedAt: mergedPreferences.readerStyleUpdatedAt,
+          readerLayoutUpdatedAt: mergedPreferences.readerLayoutUpdatedAt,
           aiPreferences: {
             provider: persisted.aiPreferences?.provider?.startsWith('api:')
               ? persisted.aiPreferences.provider

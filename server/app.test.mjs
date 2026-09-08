@@ -827,7 +827,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
 
   await t.test('旧设备快照不会清除高亮、复活已删除高亮或回退阅读样式', async () => {
     const currentState = await (await app.request('/api/state')).json();
-    currentState.version = 26;
+    currentState.version = 28;
     currentState.state.highlights = [{
       id: 'reader-sync-highlight',
       bookId: 'book-1',
@@ -841,6 +841,8 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     currentState.state.deletedHighlightTombstones = [];
     currentState.state.readerPreferences = { theme: 'ink', fontSize: 22 };
     currentState.state.readerPreferencesUpdatedAt = 200;
+    currentState.state.readerStyleUpdatedAt = 200;
+    currentState.state.readerLayoutUpdatedAt = 200;
     await app.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -851,6 +853,8 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     staleDeviceSnapshot.state.highlights = [];
     staleDeviceSnapshot.state.readerPreferences = { theme: 'paper', fontSize: 16 };
     staleDeviceSnapshot.state.readerPreferencesUpdatedAt = 100;
+    staleDeviceSnapshot.state.readerStyleUpdatedAt = 100;
+    staleDeviceSnapshot.state.readerLayoutUpdatedAt = 100;
     await app.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

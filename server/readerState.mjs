@@ -1,4 +1,8 @@
-export const READER_STATE_VERSION = 26;
+export const READER_STATE_VERSION = 28;
+
+const HIGHLIGHT_STATE_VERSION = 26;
+const READER_STYLE_KEYS = ['fontSize', 'lineHeight', 'theme', 'fontFamily', 'customStyle'];
+const READER_LAYOUT_KEYS = ['tocWidth', 'panelWidth', 'tocCollapsed'];
 
 function stateArray(state, key) {
   return Array.isArray(state?.[key]) ? state[key] : [];
@@ -32,6 +36,18 @@ function tombstoneDeletedAt(tombstone) {
   return Number.isFinite(tombstone?.deletedAt) ? tombstone.deletedAt : 0;
 }
 
+function preferenceGroupUpdatedAt(state, key) {
+  if (Number.isFinite(state?.[key])) return state[key];
+  return Number.isFinite(state?.readerPreferencesUpdatedAt) ? state.readerPreferencesUpdatedAt : 0;
+}
+
+function copyPreferenceGroup(target, source, keys) {
+  if (!source) return;
+  for (const key of keys) {
+    if (Object.hasOwn(source, key)) target[key] = structuredClone(source[key]);
+  }
+}
+
 /**
  * Browser persistence sends a full Zustand snapshot. Merge reader-owned state
  * by operation timestamps so an older tab or device cannot erase highlights or
@@ -41,7 +57,7 @@ export function protectReaderStateFromClient(persistedState, currentPersistedSta
   if (!persistedState?.state || !currentPersistedState?.state) return persistedState;
   const incomingVersion = stateVersion(persistedState);
   const currentVersion = stateVersion(currentPersistedState);
-  if (incomingVersion < READER_STATE_VERSION && currentVersion < READER_STATE_VERSION) {
+  if (incomingVersion < HIGHLIGHT_STATE_VERSION && currentVersion < HIGHLIGHT_STATE_VERSION) {
     return persistedState;
   }
 
@@ -71,21 +87,39 @@ export function protectReaderStateFromClient(persistedState, currentPersistedSta
       updatedAt: highlightUpdatedAt(highlight),
     }));
 
-  const incomingPreferencesUpdatedAt = Number.isFinite(incoming.readerPreferencesUpdatedAt)
-    ? incoming.readerPreferencesUpdatedAt
-    : 0;
-  const currentPreferencesUpdatedAt = Number.isFinite(current.readerPreferencesUpdatedAt)
-    ? current.readerPreferencesUpdatedAt
-    : 0;
-  if (
-    current.readerPreferences
-    && (!incoming.readerPreferences || currentPreferencesUpdatedAt > incomingPreferencesUpdatedAt)
-  ) {
-    incoming.readerPreferences = structuredClone(current.readerPreferences);
-    incoming.readerPreferencesUpdatedAt = currentPreferencesUpdatedAt;
-  } else {
-    incoming.readerPreferencesUpdatedAt = incomingPreferencesUpdatedAt;
+  const incomingStyleUpdatedAt = preferenceGroupUpdatedAt(incoming, 'readerStyleUpdatedAt');
+  const currentStyleUpdatedAt = preferenceGroupUpdatedAt(current, 'readerStyleUpdatedAt');
+  const incomingLayoutUpdatedAt = preferenceGroupUpdatedAt(incoming, 'readerLayoutUpdatedAt');
+  const currentLayoutUpdatedAt = preferenceGroupUpdatedAt(current, 'readerLayoutUpdatedAt');
+  const rejectLegacyPreferences = currentVersion >= READER_STATE_VERSION
+    && incomingVersion < READER_STATE_VERSION;
+  const useCurrentStyle = current.readerPreferences && (
+    !incoming.readerPreferences
+    || rejectLegacyPreferences
+    || currentStyleUpdatedAt > incomingStyleUpdatedAt
+  );
+  const useCurrentLayout = current.readerPreferences && (
+    !incoming.readerPreferences
+    || rejectLegacyPreferences
+    || currentLayoutUpdatedAt > incomingLayoutUpdatedAt
+  );
+  const mergedPreferences = {
+    ...(current.readerPreferences ? structuredClone(current.readerPreferences) : {}),
+    ...(incoming.readerPreferences ? structuredClone(incoming.readerPreferences) : {}),
+  };
+  if (useCurrentStyle) {
+    copyPreferenceGroup(mergedPreferences, current.readerPreferences, READER_STYLE_KEYS);
   }
+  if (useCurrentLayout) {
+    copyPreferenceGroup(mergedPreferences, current.readerPreferences, READER_LAYOUT_KEYS);
+  }
+  incoming.readerPreferences = mergedPreferences;
+  incoming.readerStyleUpdatedAt = useCurrentStyle ? currentStyleUpdatedAt : incomingStyleUpdatedAt;
+  incoming.readerLayoutUpdatedAt = useCurrentLayout ? currentLayoutUpdatedAt : incomingLayoutUpdatedAt;
+  incoming.readerPreferencesUpdatedAt = Math.max(
+    incoming.readerStyleUpdatedAt,
+    incoming.readerLayoutUpdatedAt,
+  );
 
   protectedState.version = Math.max(incomingVersion, currentVersion, READER_STATE_VERSION);
   return protectedState;
