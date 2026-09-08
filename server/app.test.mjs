@@ -69,6 +69,31 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     });
     assert.equal(unchangedResponse.status, 304);
     assert.equal(await unchangedResponse.text(), '');
+
+    const libraryResponse = await app.request('/api/state/library');
+    assert.equal(libraryResponse.status, 200);
+    assert.deepEqual(Object.keys((await libraryResponse.clone().json()).state), ['books']);
+    const libraryEtag = libraryResponse.headers.get('etag');
+    assert.ok(libraryEtag);
+
+    const preferenceResponse = await app.request('/api/state/preferences');
+    const preferences = await preferenceResponse.json();
+    assert.deepEqual(Object.keys(preferences.state), ['openAIConfigs', 'webSearchConfig']);
+    const preferenceWriteResponse = await app.request('/api/state/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: { themeMode: 'dark' }, version: 1 }),
+    });
+    assert.equal(preferenceWriteResponse.status, 204);
+
+    const unchangedLibraryResponse = await app.request('/api/state/library', {
+      headers: { 'If-None-Match': libraryEtag },
+    });
+    assert.equal(unchangedLibraryResponse.status, 304);
+    const stateAfterPreferenceWrite = await (await app.request('/api/state')).json();
+    assert.equal(stateAfterPreferenceWrite.state.themeMode, 'dark');
+    assert.equal(stateAfterPreferenceWrite.state.openAIConfigs[0].apiKey, 'test-key-1');
+    assert.equal(stateAfterPreferenceWrite.state.notes.length, 0);
   });
 
   await t.test('导出并导入 API Key', async () => {

@@ -21,6 +21,11 @@ import { fetchYouTubeVideo } from './youtubeVideo.mjs';
 import { protectServerRssState } from './rssScheduler.mjs';
 import { protectReaderStateFromClient } from './readerState.mjs';
 import {
+  isStateDomain,
+  mergeStateDomainSnapshot,
+  serializeStateDomainSnapshot,
+} from './stateDomains.mjs';
+import {
   createAuthService,
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
@@ -254,6 +259,35 @@ export function createApp({
     return noContent(c);
   });
   app.all('/api/state', methodNotAllowed);
+
+  app.get('/api/state/:domain', async (c) => {
+    const domain = c.req.param('domain');
+    if (!isStateDomain(domain)) return c.json({ error: '状态分区不存在' }, 404);
+    if (domain === 'library') await purgeExpiredTrashedBooks();
+    const state = await readPersistedState();
+    const serialized = serializeStateDomainSnapshot(state, domain);
+    if (!serialized) return noContent(c);
+    c.header('ETag', serialized.etag);
+    if (c.req.header('If-None-Match') === serialized.etag) return c.body(null, 304);
+    return c.body(serialized.body, 200, { 'Content-Type': 'application/json; charset=utf-8' });
+  });
+  app.put('/api/state/:domain', async (c) => {
+    const domain = c.req.param('domain');
+    if (!isStateDomain(domain)) return c.json({ error: '状态分区不存在' }, 404);
+    const snapshot = await readJsonRequest(c.req.raw, MAX_STATE_BYTES);
+    await writePersistedState(snapshot, false, async (incomingSnapshot, currentState) => {
+      const mergedState = mergeStateDomainSnapshot(currentState, incomingSnapshot, domain);
+      return protectReaderStateFromClient(
+        protectServerRssState(
+          await aiJobs.protectPersistedState(mergedState),
+          currentState,
+        ),
+        currentState,
+      );
+    });
+    return noContent(c);
+  });
+  app.all('/api/state/:domain', methodNotAllowed);
 
   app.get('/api/api-keys/export', async (c) => {
     const state = await readPersistedState();
