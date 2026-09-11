@@ -98,3 +98,68 @@ test('mobile library uses the bottom navigation without horizontal overflow', as
   }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 });
+
+test('reader AI user messages preserve authored line breaks', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chrome');
+
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
+  await expect
+    .poll(async () => {
+      const response = await page.request.get('/api/state/library');
+      return response.status();
+    })
+    .toBe(200);
+
+  const conversationsResponse = await page.request.get('/api/state/conversations');
+  expect(conversationsResponse.ok()).toBe(true);
+  const conversations = await conversationsResponse.json();
+  const createdAt = Date.now();
+  const conversationId = 'e2e-reader-line-breaks';
+  conversations.state.chatSessions = [
+    ...(conversations.state.chatSessions ?? []).filter(
+      (session: { id?: string }) => session.id !== conversationId,
+    ),
+    {
+      id: conversationId,
+      bookId: 'demo-data-intensive',
+      title: '分段消息显示验证',
+      createdAt,
+      updatedAt: createdAt,
+    },
+  ];
+  conversations.state.chats = [
+    ...(conversations.state.chats ?? []).filter(
+      (message: { conversationId?: string }) => message.conversationId !== conversationId,
+    ),
+    {
+      id: 'e2e-reader-line-breaks-message',
+      bookId: 'demo-data-intensive',
+      conversationId,
+      role: 'user',
+      content: '第一段描述\n第二段描述',
+      createdAt,
+    },
+  ];
+  const writeResponse = await page.request.put('/api/state/conversations', {
+    data: conversations,
+  });
+  expect(writeResponse.status()).toBe(204);
+
+  await page.goto('/books/demo-data-intensive');
+  await page.getByRole('button', { name: '打开对话历史' }).click();
+  await page.getByRole('button', { name: /分段消息显示验证/ }).click();
+
+  const userParagraph = page.locator('.ai-message--user p').filter({ hasText: '第一段描述' });
+  await expect(userParagraph).toContainText('第二段描述');
+  const lineMetrics = await userParagraph.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      height: element.getBoundingClientRect().height,
+      lineHeight: Number.parseFloat(style.lineHeight),
+      whiteSpace: style.whiteSpace,
+    };
+  });
+  expect(lineMetrics.whiteSpace).toBe('pre-wrap');
+  expect(lineMetrics.height).toBeGreaterThan(lineMetrics.lineHeight * 1.5);
+});
