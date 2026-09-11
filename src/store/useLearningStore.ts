@@ -97,6 +97,12 @@ function normalizeReaderTheme(theme: unknown): ReaderTheme {
     || theme === 'rice'
     || theme === 'azure'
     || theme === 'ink'
+    || theme === 'parchment'
+    || theme === 'blossom'
+    || theme === 'lavender'
+    || theme === 'forest'
+    || theme === 'graphite'
+    || theme === 'oled'
     || theme === 'custom'
     ? theme
     : 'custom';
@@ -731,7 +737,7 @@ export const useLearningStore = create<LearningState>()(
     }),
     {
       name: 'learning-center-state-v1',
-      version: 25,
+      version: 26,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -987,6 +993,17 @@ export const useLearningStore = create<LearningState>()(
             deletedBookTombstones: [],
           };
         }
+        if (version < 26) {
+          migrated = {
+            ...migrated,
+            readerPreferences: {
+              ...defaultReaderPreferences,
+              ...migrated.readerPreferences,
+              theme: normalizeReaderTheme(migrated.readerPreferences?.theme),
+              customStyle: normalizeStoredCustomStyle(migrated.readerPreferences?.customStyle),
+            },
+          };
+        }
         return migrated;
       },
       merge: (persistedState, currentState) => {
@@ -994,47 +1011,48 @@ export const useLearningStore = create<LearningState>()(
         return {
           ...currentState,
           ...persisted,
-          bookLists: Array.isArray(persisted.bookLists) ? persisted.bookLists : [],
-          trashedBooks: Array.isArray(persisted.trashedBooks) ? persisted.trashedBooks : [],
-          deletedBookTombstones: Array.isArray(persisted.deletedBookTombstones)
-            ? persisted.deletedBookTombstones
-            : [],
-          rssFolders: Array.isArray(persisted.rssFolders) ? persisted.rssFolders : [],
-          rssFeeds: Array.isArray(persisted.rssFeeds)
-            ? persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed))
-            : [],
-          rssItems: Array.isArray(persisted.rssItems) ? persisted.rssItems : [],
-          rssAnnotations: Array.isArray(persisted.rssAnnotations) ? persisted.rssAnnotations : [],
-          rssDailyDigests: Array.isArray(persisted.rssDailyDigests) ? persisted.rssDailyDigests : [],
-          rssDigestRuns: Array.isArray(persisted.rssDigestRuns) ? persisted.rssDigestRuns : [],
-          rssDigestSettings: {
+          ...(Array.isArray(persisted.bookLists) ? { bookLists: persisted.bookLists } : {}),
+          ...(Array.isArray(persisted.trashedBooks) ? { trashedBooks: persisted.trashedBooks } : {}),
+          ...(Array.isArray(persisted.deletedBookTombstones)
+            ? { deletedBookTombstones: persisted.deletedBookTombstones }
+            : {}),
+          ...(Array.isArray(persisted.rssFolders) ? { rssFolders: persisted.rssFolders } : {}),
+          ...(Array.isArray(persisted.rssFeeds) ? {
+            rssFeeds: persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed)),
+          } : {}),
+          ...(Array.isArray(persisted.rssItems) ? { rssItems: persisted.rssItems } : {}),
+          ...(Array.isArray(persisted.rssAnnotations) ? { rssAnnotations: persisted.rssAnnotations } : {}),
+          ...(Array.isArray(persisted.rssDailyDigests) ? { rssDailyDigests: persisted.rssDailyDigests } : {}),
+          ...(Array.isArray(persisted.rssDigestRuns) ? { rssDigestRuns: persisted.rssDigestRuns } : {}),
+          ...(persisted.rssDigestSettings ? { rssDigestSettings: {
             ...defaultRssDigestSettings,
             ...persisted.rssDigestSettings,
-            times: Array.isArray(persisted.rssDigestSettings?.times)
+            times: Array.isArray(persisted.rssDigestSettings.times)
               ? persisted.rssDigestSettings.times
               : defaultRssDigestSettings.times,
-          },
-          rssPanelWidth: typeof persisted.rssPanelWidth === 'number' ? persisted.rssPanelWidth : 380,
-          videoResources: Array.isArray(persisted.videoResources) ? persisted.videoResources : [],
-          videoTimestampNotes: Array.isArray(persisted.videoTimestampNotes) ? persisted.videoTimestampNotes : [],
-          videoPanelWidth: typeof persisted.videoPanelWidth === 'number' ? persisted.videoPanelWidth : 400,
-          readerPreferences: {
+          } } : {}),
+          ...(typeof persisted.rssPanelWidth === 'number' ? { rssPanelWidth: persisted.rssPanelWidth } : {}),
+          ...(Array.isArray(persisted.videoResources) ? { videoResources: persisted.videoResources } : {}),
+          ...(Array.isArray(persisted.videoTimestampNotes) ? { videoTimestampNotes: persisted.videoTimestampNotes } : {}),
+          ...(typeof persisted.videoPanelWidth === 'number' ? { videoPanelWidth: persisted.videoPanelWidth } : {}),
+          ...(persisted.readerPreferences ? { readerPreferences: {
             ...defaultReaderPreferences,
+            ...currentState.readerPreferences,
             ...persisted.readerPreferences,
-            theme: normalizeReaderTheme(persisted.readerPreferences?.theme),
-            fontFamily: normalizeReaderFont(persisted.readerPreferences?.fontFamily),
-            customStyle: normalizeStoredCustomStyle(persisted.readerPreferences?.customStyle),
-          },
-          aiPreferences: {
-            provider: persisted.aiPreferences?.provider?.startsWith('api:')
+            theme: normalizeReaderTheme(persisted.readerPreferences.theme),
+            fontFamily: normalizeReaderFont(persisted.readerPreferences.fontFamily),
+            customStyle: normalizeStoredCustomStyle(persisted.readerPreferences.customStyle),
+          } } : {}),
+          ...(persisted.aiPreferences ? { aiPreferences: {
+            provider: persisted.aiPreferences.provider?.startsWith('api:')
               ? persisted.aiPreferences.provider
               : null,
-            model: persisted.aiPreferences?.model ?? '',
-          },
-          webSearchConfig: {
+            model: persisted.aiPreferences.model ?? '',
+          } } : {}),
+          ...(persisted.webSearchConfig ? { webSearchConfig: {
             ...defaultWebSearchConfig,
             ...persisted.webSearchConfig,
-          },
+          } } : {}),
         };
       },
     },

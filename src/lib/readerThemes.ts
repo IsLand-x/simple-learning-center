@@ -75,6 +75,7 @@ export const READER_TEXTURE_PRESETS: ReaderTexturePreset[] = [
   { id: 'none', label: '无纹理', description: '保持纯净纸面' },
   { id: 'paper', label: '细腻纸纹', description: '轻微纤维层次' },
   { id: 'grain', label: '柔和颗粒', description: '减弱屏幕平滑感' },
+  { id: 'linen', label: '亚麻织纹', description: '细密纵横纹理' },
 ];
 
 export const READER_THEME_PRESETS: ReaderThemePreset[] = [
@@ -206,6 +207,102 @@ export const READER_THEME_PRESETS: ReaderThemePreset[] = [
     fontSize: 18,
     density: 'relaxed',
   },
+  {
+    id: 'parchment',
+    name: '羊皮暖卷',
+    description: '醇厚复古',
+    paperColor: '#E8D5B7',
+    textColor: '#3B2C20',
+    mutedTextColor: '#6E5846',
+    accentColor: '#8C5E37',
+    highlightColor: '#D9B86C',
+    calloutColor: '#DECAAA',
+    isDark: false,
+    fontFamily: 'source-serif',
+    texture: 'linen',
+    fontSize: 19,
+    density: 'relaxed',
+  },
+  {
+    id: 'blossom',
+    name: '樱雾轻笺',
+    description: '柔粉低饱和',
+    paperColor: '#F6ECEC',
+    textColor: '#453538',
+    mutedTextColor: '#7A686B',
+    accentColor: '#9B6872',
+    highlightColor: '#E8C4BD',
+    calloutColor: '#EEDDDD',
+    isDark: false,
+    fontFamily: 'bright',
+    texture: 'paper',
+    fontSize: 18,
+    density: 'balanced',
+  },
+  {
+    id: 'lavender',
+    name: '薄暮丁香',
+    description: '安静淡紫',
+    paperColor: '#EFEDF6',
+    textColor: '#363342',
+    mutedTextColor: '#6E697D',
+    accentColor: '#6E6396',
+    highlightColor: '#D6CBE8',
+    calloutColor: '#E3DFEE',
+    isDark: false,
+    fontFamily: 'system-serif',
+    texture: 'none',
+    fontSize: 18,
+    density: 'balanced',
+  },
+  {
+    id: 'forest',
+    name: '松林夜读',
+    description: '幽深墨绿',
+    paperColor: '#17251F',
+    textColor: '#DCE6DE',
+    mutedTextColor: '#9DAFA2',
+    accentColor: '#8FC2A0',
+    highlightColor: '#4E623D',
+    calloutColor: '#21342B',
+    isDark: true,
+    fontFamily: 'kai',
+    texture: 'linen',
+    fontSize: 18,
+    density: 'relaxed',
+  },
+  {
+    id: 'graphite',
+    name: '石墨灰阶',
+    description: '中性专注',
+    paperColor: '#292B2E',
+    textColor: '#E1E0DC',
+    mutedTextColor: '#AAA9A5',
+    accentColor: '#B9C7D6',
+    highlightColor: '#69613C',
+    calloutColor: '#34373B',
+    isDark: true,
+    fontFamily: 'sans',
+    texture: 'none',
+    fontSize: 18,
+    density: 'compact',
+  },
+  {
+    id: 'oled',
+    name: '极夜纯黑',
+    description: 'OLED 低亮度',
+    paperColor: '#090A0B',
+    textColor: '#D7D8DA',
+    mutedTextColor: '#909397',
+    accentColor: '#84AEE8',
+    highlightColor: '#514A2B',
+    calloutColor: '#15171A',
+    isDark: true,
+    fontFamily: 'source-serif',
+    texture: 'none',
+    fontSize: 18,
+    density: 'relaxed',
+  },
 ];
 
 export const DEFAULT_READER_CUSTOM_STYLE: ReaderCustomStyle = {
@@ -255,6 +352,16 @@ const GRAIN_TEXTURE_DATA_URL = `url("data:image/svg+xml,${encodeURIComponent(`
   </svg>
 `)}")`;
 
+const LINEN_TEXTURE_DATA_URL = `url("data:image/svg+xml,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+    <filter id="linen" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035 0.68" numOctaves="2" seed="29" stitchTiles="stitch" />
+      <feColorMatrix type="saturate" values="0" />
+    </filter>
+    <rect width="96" height="96" filter="url(#linen)" opacity="0.038" />
+  </svg>
+`)}")`;
+
 export function getReaderTextureStyle(texture: ReaderTexture, isDark: boolean) {
   if (texture === 'paper') {
     return {
@@ -268,6 +375,14 @@ export function getReaderTextureStyle(texture: ReaderTexture, isDark: boolean) {
     return {
       backgroundImage: GRAIN_TEXTURE_DATA_URL,
       backgroundSize: '160px 160px',
+      backgroundPosition: '0 0',
+      backgroundBlendMode: isDark ? 'soft-light' : 'multiply',
+    };
+  }
+  if (texture === 'linen') {
+    return {
+      backgroundImage: LINEN_TEXTURE_DATA_URL,
+      backgroundSize: '96px 96px',
       backgroundPosition: '0 0',
       backgroundBlendMode: isDark ? 'soft-light' : 'multiply',
     };

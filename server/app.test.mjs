@@ -994,6 +994,57 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal((await app.request(`/api/books/${recentBook.id}`)).status, 200);
   });
 
+  await t.test('按页面作用域读取并增量保存状态', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    currentState.version = 26;
+    currentState.state.navCollapsed = true;
+    currentState.state.themeMode = 'dark';
+    currentState.state.books = [
+      { id: 'book-a', title: 'A', updatedAt: 1 },
+      { id: 'book-b', title: 'B', updatedAt: 1 },
+    ];
+    currentState.state.highlights = [
+      { id: 'highlight-a', bookId: 'book-a', text: 'A' },
+      { id: 'highlight-b', bookId: 'book-b', text: 'B' },
+    ];
+    const writeResponse = await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+    assert.equal(writeResponse.status, 204);
+
+    const shell = await (await app.request('/api/state?scope=shell')).json();
+    assert.deepEqual(shell.state, { navCollapsed: true, themeMode: 'dark' });
+
+    const reader = await (await app.request('/api/state?scope=reader&bookId=book-a')).json();
+    assert.deepEqual(reader.state.books.map((book) => book.id), ['book-a']);
+    assert.deepEqual(reader.state.highlights.map((highlight) => highlight.id), ['highlight-a']);
+    assert.equal('rssItems' in reader.state, false);
+
+    const patchResponse = await app.request('/api/state', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        version: 26,
+        scopes: ['reader'],
+        bookIds: ['book-a'],
+        state: {
+          books: [{ id: 'book-a', title: 'A2', updatedAt: 2 }],
+          highlights: [{ id: 'highlight-a2', bookId: 'book-a', text: 'A2' }],
+        },
+      }),
+    });
+    assert.equal(patchResponse.status, 204);
+
+    const persisted = await (await app.request('/api/state')).json();
+    assert.equal(persisted.state.books.find((book) => book.id === 'book-a')?.title, 'A2');
+    assert.equal(persisted.state.books.find((book) => book.id === 'book-b')?.title, 'B');
+    assert.equal(persisted.state.highlights.some((highlight) => highlight.id === 'highlight-a'), false);
+    assert.equal(persisted.state.highlights.some((highlight) => highlight.id === 'highlight-a2'), true);
+    assert.equal(persisted.state.highlights.some((highlight) => highlight.id === 'highlight-b'), true);
+  });
+
   await t.test('远程模式保护页面与 API', async () => {
     const remoteApp = createApp({
       mode: 'remote',

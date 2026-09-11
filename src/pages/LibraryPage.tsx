@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import {
   Button,
   ButtonGroup,
@@ -34,6 +34,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { ImportBooksButton } from '../components/ImportBooksButton';
 import { confirmDialog } from '../lib/confirmDialog';
+import { recoverMissingBookCover } from '../lib/bookCovers';
 import { permanentlyDeleteBook, restoreBookFromTrash } from '../lib/epubStorage';
 import { formatRelativeTime } from '../lib/format';
 import { createUuid } from '../lib/uuid';
@@ -54,12 +55,34 @@ function bookCoverTone(bookId: string): CoverTone {
 }
 
 function BookCover({ book, compact = false }: { book: BookItem; compact?: boolean }) {
+  const placeholderRef = useRef<HTMLDivElement>(null);
+  const setBookCovers = useLearningStore((state) => state.setBookCovers);
+
+  useEffect(() => {
+    if (book.kind !== 'epub' || typeof book.coverDataUrl === 'string') return undefined;
+    const placeholder = placeholderRef.current;
+    if (!placeholder) return undefined;
+    let disposed = false;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      void recoverMissingBookCover(book).then((cover) => {
+        if (!disposed && typeof cover === 'string') setBookCovers({ [book.id]: cover });
+      });
+    }, { rootMargin: '240px' });
+    observer.observe(placeholder);
+    return () => {
+      disposed = true;
+      observer.disconnect();
+    };
+  }, [book, setBookCovers]);
+
   if (book.coverDataUrl) {
     return <img className={compact ? 'book-cover-image book-cover-image--compact' : 'book-cover-image'} src={book.coverDataUrl} alt={`${book.title} 封面`} />;
   }
   const tone = bookCoverTone(book.id);
   return (
-    <div className={`book-cover book-cover--${tone}${compact ? ' book-cover--compact' : ''}`} aria-hidden="true">
+    <div ref={placeholderRef} className={`book-cover book-cover--${tone}${compact ? ' book-cover--compact' : ''}`} aria-hidden="true">
       {!compact && <span className="book-cover__eyebrow">PERSONAL LIBRARY</span>}
       <strong>{book.title}</strong>
       {!compact && <span>{book.author}</span>}

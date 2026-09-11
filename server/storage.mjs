@@ -190,13 +190,14 @@ async function prepareStateForDisk(persistedState) {
   return diskState;
 }
 
-async function hydrateStateFromDisk(diskState) {
+async function hydrateStateFromDisk(diskState, hydrateNote = () => true) {
   const persistedState = diskState?.formatVersion === 1 ? diskState.persistedState : diskState;
   if (!persistedState || typeof persistedState !== 'object' || !persistedState.state) return null;
   const hydratedState = structuredClone(persistedState);
   hydratedState.state.notes = await Promise.all(persistedStateNotes(hydratedState).map(async (note) => {
     if (!note || typeof note !== 'object') return note;
     const { contentFile, ...metadata } = note;
+    if (!hydrateNote(note)) return { ...metadata, content: '' };
     if (typeof contentFile !== 'string') return { ...metadata, content: note.content ?? '' };
     const path = resolve(DATA_DIRECTORY, contentFile);
     if (path !== DATA_DIRECTORY && !path.startsWith(`${DATA_DIRECTORY}${sep}`)) {
@@ -211,10 +212,10 @@ async function hydrateStateFromDisk(diskState) {
   return hydratedState;
 }
 
-async function readPersistedStateFromDisk() {
+async function readPersistedStateFromDisk(options = {}) {
   try {
     const diskState = JSON.parse(await readFile(STATE_FILE, 'utf8'));
-    return hydrateStateFromDisk(diskState);
+    return hydrateStateFromDisk(diskState, options.hydrateNote);
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     throw error;
@@ -368,9 +369,9 @@ async function persistState(persistedState, protectClientSnapshot = true) {
   }, null, 2)}\n`);
 }
 
-export async function readPersistedState() {
+export async function readPersistedState(options) {
   await stateWriteQueue.catch(() => undefined);
-  return readPersistedStateFromDisk();
+  return readPersistedStateFromDisk(options);
 }
 
 export function writePersistedState(persistedState, initializeOnly = false, transform) {

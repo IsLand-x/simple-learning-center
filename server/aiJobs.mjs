@@ -526,6 +526,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     const context = {
       config: structuredClone(config),
       model,
+      conversationId,
       messages: [...existingChats, normalizedMessage(userMessage)],
       resourceType,
       purpose,

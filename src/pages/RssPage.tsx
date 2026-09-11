@@ -94,7 +94,8 @@ import { extractRssContentHeadings, findRssSearchMatches, removeRssLeadingCover,
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import { getReaderTextureStyle, getReaderThemeName, resolveReaderStyle } from '../lib/readerThemes';
 import { getRssVideoPresentation } from '../lib/rssVideo';
-import { refreshServerState, waitForServerStateWrites } from '../lib/serverStateStorage';
+import { synchronizeLearningState } from '../lib/learningStateSync';
+import { waitForServerStateWrites } from '../lib/serverStateStorage';
 import { ServerApiError } from '../lib/serverApi';
 import { createUuid } from '../lib/uuid';
 import { importYouTubeVideo } from '../lib/youtubeVideos';
@@ -739,8 +740,7 @@ export function RssPage() {
       if (disposed || syncing || document.visibilityState === 'hidden') return;
       syncing = true;
       try {
-        await refreshServerState();
-        if (!disposed) await useLearningStore.persist.rehydrate();
+        if (!disposed) await synchronizeLearningState();
       } catch (error) {
         console.warn('无法同步服务端 RSS 更新', error);
       } finally {
@@ -1483,15 +1483,13 @@ export function RssPage() {
       await waitForServerStateWrites();
       const result = await generateRssDigest(date, true);
       if (!result.job) {
-        await refreshServerState();
-        await useLearningStore.persist.rehydrate();
+        await synchronizeLearningState();
         setDigestGenerating(false);
         return;
       }
       const applyDigestJob = async (job: AiJob) => {
         if (job.status === 'queued' || job.status === 'running') return;
-        await refreshServerState();
-        await useLearningStore.persist.rehydrate();
+        await synchronizeLearningState();
         if (job.status === 'completed') {
           Toast.success('日报已更新');
         } else if (job.status === 'failed') {
@@ -1511,8 +1509,7 @@ export function RssPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : '日报生成失败';
-      await refreshServerState()
-        .then(() => useLearningStore.persist.rehydrate())
+      await synchronizeLearningState()
         .catch(() => undefined);
       setDigestGenerating(false);
       setDigestError(message);

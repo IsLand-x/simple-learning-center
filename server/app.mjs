@@ -53,6 +53,12 @@ import {
   writePersistedState,
   writeRequestToFile,
 } from './storage.mjs';
+import {
+  mergeScopedStatePatch,
+  noteHydrationFilter,
+  parseStateScopeQuery,
+  projectPersistedState,
+} from './stateScopes.mjs';
 
 const MIME_TYPES = new Map([
   ['.epub', 'application/epub+zip'],
@@ -221,8 +227,17 @@ export function createApp({
 
   app.get('/api/state', async (c) => {
     await purgeExpiredTrashedBooks();
-    const state = await readPersistedState();
-    return state ? c.json(state) : noContent(c);
+    const requestedScope = c.req.query('scope');
+    if (!requestedScope) {
+      const state = await readPersistedState();
+      return state ? c.json(state) : noContent(c);
+    }
+    const scopeQuery = parseStateScopeQuery(
+      requestedScope,
+      c.req.queries('bookId') ?? [],
+    );
+    const state = await readPersistedState({ hydrateNote: noteHydrationFilter(scopeQuery) });
+    return state ? c.json(projectPersistedState(state, scopeQuery)) : noContent(c);
   });
   app.put('/api/state', async (c) => {
     const state = await readJsonRequest(c.req.raw, MAX_STATE_BYTES);
@@ -232,6 +247,18 @@ export function createApp({
       initializeOnly,
       initializeOnly ? undefined : async (incomingState, currentState) => protectServerRssState(
         await aiJobs.protectPersistedState(incomingState),
+        currentState,
+      ),
+    );
+    return noContent(c);
+  });
+  app.patch('/api/state', async (c) => {
+    const patch = await readJsonRequest(c.req.raw, MAX_STATE_BYTES);
+    await writePersistedState(
+      patch,
+      false,
+      async (incomingPatch, currentState) => protectServerRssState(
+        await aiJobs.protectPersistedState(mergeScopedStatePatch(currentState, incomingPatch)),
         currentState,
       ),
     );

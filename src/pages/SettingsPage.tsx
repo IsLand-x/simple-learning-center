@@ -15,7 +15,7 @@ import { downloadApiKeys, uploadApiKeys } from '../lib/apiKeyTransfer';
 import { appMetadata, formatAppUpdatedAt } from '../lib/appMetadata';
 import { getAuthSession, logout, updateCredentials } from '../lib/auth';
 import { confirmDialog } from '../lib/confirmDialog';
-import { refreshServerState } from '../lib/serverStateStorage';
+import { synchronizeLearningState } from '../lib/learningStateSync';
 import {
   deleteSavedBilibiliCookie,
   getBilibiliCredentialStatus,
@@ -549,8 +549,7 @@ export function SettingsPage() {
     setImporting(true);
     try {
       const result = await uploadApiKeys(file);
-      await refreshServerState();
-      await useLearningStore.persist.rehydrate();
+      await synchronizeLearningState();
       const details = [
         result.imported.added ? `新增 ${result.imported.added} 个模型配置` : '',
         result.imported.updated ? `更新 ${result.imported.updated} 个模型 Key` : '',

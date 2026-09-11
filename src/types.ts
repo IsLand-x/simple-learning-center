@@ -8,6 +8,12 @@ export type ReaderTheme =
   | 'rice'
   | 'azure'
   | 'ink'
+  | 'parchment'
+  | 'blossom'
+  | 'lavender'
+  | 'forest'
+  | 'graphite'
+  | 'oled'
   | 'custom';
 export type ReaderFont =
   | 'system-serif'
@@ -17,7 +23,7 @@ export type ReaderFont =
   | 'bright'
   | 'pingfang';
 export type ReaderDensity = 'compact' | 'balanced' | 'relaxed';
-export type ReaderTexture = 'none' | 'paper' | 'grain';
+export type ReaderTexture = 'none' | 'paper' | 'grain' | 'linen';
 export type AiProvider = `api:${string}`;
 export type RightPanel = 'ai' | 'history' | 'notes' | 'highlights' | 'comments' | 'trajectory' | null;
 export type RssFeedType = 'article' | 'video' | 'social';

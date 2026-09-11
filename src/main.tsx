@@ -7,9 +7,12 @@ import './styles.css';
 import { App } from './App';
 import { applyAppTheme, readInitialThemeMode } from './lib/appTheme';
 import { getAuthSession } from './lib/auth';
-import { recoverMissingBookCovers } from './lib/bookCovers';
+import { synchronizeLearningState } from './lib/learningStateSync';
 import { AUTHENTICATION_REQUIRED_EVENT } from './lib/serverApi';
-import { prepareServerState, refreshServerState, waitForServerStateWrites } from './lib/serverStateStorage';
+import {
+  activateServerStatePersistence,
+  prepareServerState,
+} from './lib/serverStateStorage';
 import { LoginPage } from './pages/LoginPage';
 import { useLearningStore } from './store/useLearningStore';
 
@@ -52,8 +55,7 @@ async function synchronizeServerState() {
   if (stateSyncRunning || document.visibilityState === 'hidden') return;
   stateSyncRunning = true;
   try {
-    await refreshServerState();
-    await useLearningStore.persist.rehydrate();
+    await synchronizeLearningState();
   } catch (error) {
     console.warn('同步服务端学习数据失败', error);
   } finally {
@@ -91,14 +93,9 @@ async function startApplication() {
     }
     await prepareServerState((message) => showBootstrapMessage(message));
     await useLearningStore.persist.rehydrate();
-    const recoveredCovers = await recoverMissingBookCovers(
-      useLearningStore.getState().books,
-      (current, total) => showBootstrapMessage(`正在恢复书籍封面（${current}/${total}）…`),
+    await activateServerStatePersistence(
+      useLearningStore.getState() as unknown as Record<string, unknown>,
     );
-    if (Object.keys(recoveredCovers).length) {
-      useLearningStore.getState().setBookCovers(recoveredCovers);
-      await waitForServerStateWrites();
-    }
     useLearningStore.setState({});
     root.render(
       <React.StrictMode>
