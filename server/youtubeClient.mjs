@@ -14,10 +14,6 @@ let innertubePromise;
 let youtubeDispatcher;
 let youtubeDispatcherInitialized = false;
 
-function compactMessage(value, maxLength = 500) {
-  return String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
-}
-
 function getYouTubeDispatcher() {
   if (youtubeDispatcherInitialized) return youtubeDispatcher;
   youtubeDispatcherInitialized = true;
@@ -96,8 +92,4 @@ export function getYouTubeClient() {
     });
   }
   return innertubePromise;
-}
-
-export function cleanYouTubeText(value, maxLength = 500) {
-  return compactMessage(value, maxLength);
 }

@@ -1,0 +1,4 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["public/server/index.js", "scripts/start-e2e-server.mjs"]
+}

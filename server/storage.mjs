@@ -33,7 +33,7 @@ const RSS_SOURCE_STATE_VERSION = 23;
 const VIDEO_STATE_VERSION = 18;
 const BOOK_LIST_STATE_VERSION = 24;
 
-export function encodedId(value) {
+function encodedId(value) {
   if (typeof value !== 'string' || !value || value.length > 200 || value.includes('\0')) {
     throw statusError(400, '资源标识不正确');
   }
@@ -92,7 +92,7 @@ export async function atomicWrite(path, data) {
   }
 }
 
-export async function readRequestBody(request, maxBytes) {
+async function readRequestBody(request, maxBytes) {
   const declaredSize = Number.parseInt(request.headers.get('content-length') || '0', 10);
   if (Number.isFinite(declaredSize) && declaredSize > maxBytes) {
     throw statusError(413, '请求内容过大');
@@ -471,7 +471,7 @@ export async function readPersistedState(options) {
 export async function stateFileEtag() {
   try {
     const metadata = await stat(STATE_FILE, { bigint: true });
-    return `W/\"${metadata.size.toString(16)}-${metadata.mtimeNs.toString(16)}\"`;
+    return `W/"${metadata.size.toString(16)}-${metadata.mtimeNs.toString(16)}"`;
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     throw error;

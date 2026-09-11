@@ -84,7 +84,7 @@ export async function resolveYouTubeChannel(value, { getClient = getYouTubeClien
   };
 }
 
-export function youtubeVideoIdFromUrl(value) {
+function youtubeVideoIdFromUrl(value) {
   try {
     const url = new URL(value);
     const candidate = url.searchParams.get('v') || url.pathname.split('/').filter(Boolean).at(-1) || '';

@@ -1,5 +1,5 @@
-export const BOOK_TRASH_STATE_VERSION = 25;
-export const BOOK_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
+const BOOK_TRASH_STATE_VERSION = 25;
+const BOOK_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 
 function stateArray(state, key) {
   return Array.isArray(state?.[key]) ? state[key] : [];

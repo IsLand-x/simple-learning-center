@@ -1,0 +1,13 @@
+coverage/
+data/
+dev-dist/
+dist/
+node_modules/
+public/
+
+# Preserve the reviewed selector and cascade order; avoid broad mechanical CSS rewrites.
+src/styles.css
+src/styles/
+
+# This compatibility transform is intentionally kept in its existing layout.
+vite.config.ts

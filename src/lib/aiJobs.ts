@@ -1,7 +1,7 @@
 import type { AiDialogueContentItem, ChatSession } from '../types';
 import { serverRequest } from './serverApi';
 
-export type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface AiJob {
   id: string;

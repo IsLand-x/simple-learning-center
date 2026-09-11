@@ -136,7 +136,7 @@ export interface RssItem {
   aiTranslationSourceFetchedAt?: number;
 }
 
-export type RssDigestScheduleMode = 'every-2-hours' | 'every-4-hours' | 'fixed-times';
+type RssDigestScheduleMode = 'every-2-hours' | 'every-4-hours' | 'fixed-times';
 
 export interface RssDigestSettings {
   enabled: boolean;
@@ -151,7 +151,7 @@ export interface RssDigestSettings {
   lastError?: string;
 }
 
-export type RssDigestRunTrigger = 'manual' | 'schedule';
+type RssDigestRunTrigger = 'manual' | 'schedule';
 export type RssDigestRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled';
 
 export interface RssDigestRun {

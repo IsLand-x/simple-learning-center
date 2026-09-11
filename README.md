@@ -2,6 +2,38 @@
 
 一个本地优先的个人 EPUB 阅读、RSS 订阅、YouTube 视频学习与 AI 学习应用。项目由 React Web 客户端和单用户 Node 数据服务组成，书籍、订阅、视频字幕、笔记、进度与对话统一保存在独立数据目录中，因此更换浏览器后仍可继续使用同一份资料。
 
+## 工程架构
+
+项目采用单仓库、模块化单体架构，保持一个 React Web 客户端和一个 Node 数据服务的部署形态：
+
+- `src/app/` 负责路由和应用级组合。
+- `src/features/` 按书架、阅读器、RSS、视频、AI 和设置组织页面模型与 UI。
+- `src/store/` 组合唯一的 Zustand store；默认值、领域 actions、迁移、合并和服务端同步分开维护。
+- `src/shared/` 保存不带业务归属的浏览器适配与通用能力。
+- `server/app/` 负责 Hono middleware 和通用 HTTP 行为，`server/routes/` 按领域注册 API。
+- `server/` 其余模块继续承载文件存储、内容源、AI、调度器和领域保护逻辑。
+- `docs/plans/refactor-modular-architecture/` 记录模块化重构的目标、设计和验收任务。
+
+详细边界、技术栈与代码风格见 [`docs/architecture.md`](docs/architecture.md)，可复用的重构执行说明见 [`docs/plans/refactor-modular-architecture/prompt.md`](docs/plans/refactor-modular-architecture/prompt.md)。
+
+外部契约保持稳定：页面路由、API、Cookie、ETag、SSE、`data/` 目录和 Zustand 持久化版本不能因内部重构发生隐式变化。服务端继续使用本地文件系统，不依赖外部数据库。
+
+质量门禁包括 ESLint、Prettier 增量格式检查、模块边界与 Knip dead-code 检查、Node 服务端测试、Vitest 前端测试、TypeScript 检查和生产构建：
+
+```bash
+npm run lint
+npm run format:check
+npm run check:boundaries
+npm run check:dead-code
+npm run test:server
+npm run test:web
+npm run test:e2e
+npm run verify
+npm run verify:full
+```
+
+`npm run verify` 是提交前的快速门禁；`npm run verify:full` 还会使用本机 Chrome 在隔离的临时数据目录中验证桌面与移动端路由、主题和响应式外壳。
+
 ## 功能概览
 
 ### 本地书架
@@ -160,10 +192,11 @@ http://127.0.0.1:5173/
 其他常用命令：
 
 ```bash
-npm test         # 运行服务端数据、API Key 与认证回归测试
-npm run build    # 类型检查并生成生产构建与 PWA 文件
-npm run verify   # 依次执行测试和生产构建
-npm run preview  # 使用 Node 服务运行现有生产构建
+npm test             # 运行服务端与前端单元测试
+npm run build        # 服务端语法、TypeScript 与 Vite/PWA 生产构建
+npm run verify       # 静态检查、格式、边界、dead code、测试与构建
+npm run verify:full  # 在 verify 后执行桌面与移动 Chrome 回归
+npm run preview      # 使用 Node 服务运行现有生产构建
 ```
 
 ### 远程访问

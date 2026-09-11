@@ -16,9 +16,11 @@ async function loadBookPassages(book) {
     stored = JSON.parse(await readFile(searchIndexPath(book.id), 'utf8'));
   } catch (error) {
     if (error?.code === 'ENOENT') {
-      throw new Error('书内搜索索引尚未生成，请保持书籍页面打开并重新发送问题');
+      throw new Error('书内搜索索引尚未生成，请保持书籍页面打开并重新发送问题', {
+        cause: error,
+      });
     }
-    throw new Error('书内搜索索引无法读取');
+    throw new Error('书内搜索索引无法读取', { cause: error });
   }
   if (
     stored?.version !== 2
@@ -46,7 +48,7 @@ function countOccurrences(text, query) {
 function queryTerms(query) {
   const normalized = normalizeText(query).toLocaleLowerCase();
   const words = normalized
-    .split(/[\s，。！？、；：,.!?;:()（）《》“”'"\[\]【】]+/)
+    .split(/[\s，。！？、；：,.!?;:()（）《》“”'"[\]【】]+/)
     .filter((term) => term.length > 1);
   const compact = normalized.replace(/\s+/g, '');
   const bigrams = /[\u3400-\u9fff]/.test(compact) && compact.length > 2

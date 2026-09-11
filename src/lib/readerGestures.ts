@@ -1,9 +1,9 @@
 export const MOBILE_TEXT_SELECTION_HOLD_MS = 420;
-export const MOBILE_PAGE_TURN_INTENT_WINDOW_MS = 280;
-export const MOBILE_PAGE_TURN_INTENT_DISTANCE_PX = 12;
+const MOBILE_PAGE_TURN_INTENT_WINDOW_MS = 280;
+const MOBILE_PAGE_TURN_INTENT_DISTANCE_PX = 12;
 const MOBILE_PAGE_TURN_AXIS_RATIO = 1.2;
 
-export type MobileTouchIntent = 'pending' | 'page-turn' | 'selection';
+type MobileTouchIntent = 'pending' | 'page-turn' | 'selection';
 
 export interface MobileTouchGesture {
   startedAt: number;

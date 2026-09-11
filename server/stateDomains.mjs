@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { statusError } from './errors.mjs';
 
-export const STATE_DOMAIN_FIELDS = Object.freeze({
+const STATE_DOMAIN_FIELDS = Object.freeze({
   library: Object.freeze([
     'books',
     'bookLists',
@@ -46,8 +46,6 @@ export const STATE_DOMAIN_FIELDS = Object.freeze({
   ]),
 });
 
-export const STATE_DOMAINS = Object.freeze(Object.keys(STATE_DOMAIN_FIELDS));
-
 export function isStateDomain(value) {
   return typeof value === 'string' && Object.hasOwn(STATE_DOMAIN_FIELDS, value);
 }
@@ -89,5 +87,5 @@ export function serializeStateDomainSnapshot(persistedState, domain) {
   if (!snapshot) return null;
   const body = JSON.stringify(snapshot);
   const digest = createHash('sha256').update(body).digest('base64url');
-  return { body, etag: `\"${digest}\"`, snapshot };
+  return { body, etag: `"${digest}"`, snapshot };
 }

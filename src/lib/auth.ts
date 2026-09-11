@@ -1,6 +1,6 @@
 import { serverRequest } from './serverApi';
 
-export interface AuthSession {
+interface AuthSession {
   authenticated: boolean;
   mode: 'local' | 'remote';
   username: string | null;

@@ -17,7 +17,7 @@ const wbiKeyCache = new Map();
 
 function compactText(value, maxLength = 20_000) {
   return String(value ?? '')
-    .replace(/\u0000/g, '')
+    .replaceAll('\u0000', '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLength);
@@ -176,7 +176,7 @@ export function parseBilibiliUpInput(value) {
   return uid;
 }
 
-export function createWbiQuery(params, imgKey, subKey, now = Date.now()) {
+function createWbiQuery(params, imgKey, subKey, now = Date.now()) {
   const mixinKey = MIXIN_KEY_ENC_TAB
     .map((index) => `${imgKey}${subKey}`[index] || '')
     .join('')

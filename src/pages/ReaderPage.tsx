@@ -1,47 +1,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dropdown, Empty, Progress, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
-import {
-  IconAlertTriangle,
-  IconDeleteStroked,
-  IconArrowLeft,
-  IconMore,
-} from '@douyinfe/semi-icons';
+import { Toast } from '@douyinfe/semi-ui';
+import { IconAlertTriangle } from '@douyinfe/semi-icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReaderMobileChrome } from '../components/ReaderMobileChrome';
 import type { MobileReaderPanel } from '../components/ReaderRightSidebar';
 import {
   ReaderSurface,
-  findChapterLabel,
-  isReaderKeyboardEditingTarget,
   type ReaderLocationUpdate,
   type ReaderSurfaceHandle,
 } from '../components/ReaderSurface';
 import { ReaderSelectionOverlays } from '../components/ReaderSelectionOverlays';
-import { ReaderDesktopToolbar } from '../components/ReaderToolbar';
 import { ReaderWorkspace } from '../components/ReaderWorkspace';
+import { useDeferredBookLocation } from '../features/reader/hooks/useDeferredBookLocation';
+import { useMobileReaderOverlay } from '../features/reader/hooks/useMobileReaderOverlay';
+import { useReaderResponsiveLayout } from '../features/reader/hooks/useReaderResponsiveLayout';
+import { useReadingSession } from '../features/reader/hooks/useReadingSession';
+import { createPendingCommentHighlight } from '../features/reader/model/readerPageModel';
+import {
+  findChapterLabel,
+  isReaderKeyboardEditingTarget,
+} from '../features/reader/model/readerSurfaceModel';
+import {
+  MissingReaderBook,
+  ReaderPageHeader,
+} from '../features/reader/ui/ReaderPageHeader';
 import { confirmDialog } from '../lib/confirmDialog';
 import { moveBookToTrash } from '../lib/epubStorage';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
 import type { BookItem, ChatSession, HighlightItem, ReaderHighlightTarget, ReaderSelection } from '../types';
-
-const { Text } = Typography;
-const PENDING_COMMENT_HIGHLIGHT_ID = 'pending-comment-highlight';
-const READING_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
-const READING_SESSION_PERSIST_INTERVAL_MS = 15_000;
-
-function formatPageProgress(book: BookItem) {
-  const totalPages = typeof book.totalPages === 'number' && Number.isFinite(book.totalPages)
-    ? Math.max(1, Math.round(book.totalPages))
-    : null;
-  if (totalPages === null) return '页数计算中';
-
-  const savedPage = typeof book.currentPage === 'number' && Number.isFinite(book.currentPage)
-    ? Math.round(book.currentPage)
-    : Math.round(totalPages * book.progress / 100);
-  const currentPage = Math.min(totalPages, Math.max(1, savedPage));
-  return `第 ${currentPage} 页 / 共 ${totalPages} 页`;
-}
 
 export function ReaderPage() {
   const { bookId = '' } = useParams();
@@ -61,14 +48,8 @@ export function ReaderPage() {
   const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
   const readerRef = useRef<ReaderSurfaceHandle>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
-  const latestBookRef = useRef(book);
-  const pendingLocationSaveRef = useRef<{ bookId: string; changes: Partial<BookItem> } | null>(null);
-  const locationSaveDelayRef = useRef<number | null>(null);
-  const locationSaveIdleRef = useRef<number | null>(null);
   const recordReadingActivityRef = useRef<(() => void) | null>(null);
   const [activePanel, setActivePanel] = useState<MobileReaderPanel | null>(null);
-  const [compactReader, setCompactReader] = useState(() => window.innerWidth < 900);
-  const [mobileReader, setMobileReader] = useState(() => window.matchMedia('(max-width: 800px)').matches);
   const [mobileChromeVisible, setMobileChromeVisible] = useState(true);
   const [compactTocOpen, setCompactTocOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string>(() => createUuid());
@@ -81,7 +62,6 @@ export function ReaderPage() {
   const [panelQuote, setPanelQuote] = useState<string | null>(null);
   const [stylePopoverVisible, setStylePopoverVisible] = useState(false);
   const [activeHref, setActiveHref] = useState(book?.toc[0]?.href);
-  const mobileOverlayHistoryActiveRef = useRef(false);
   const highlights = useMemo(
     () => allHighlights.filter((item) => item.bookId === bookId),
     [allHighlights, bookId],
@@ -89,156 +69,27 @@ export function ReaderPage() {
   const activeHighlight = activeHighlightTarget
     ? highlights.find((highlight) => highlight.id === activeHighlightTarget.highlightId)
     : undefined;
-  const mobileOverlayOpen = mobileReader
-    && (compactTocOpen || Boolean(activePanel));
-
   const closeMobileOverlay = useCallback(() => {
     setCompactTocOpen(false);
     setActivePanel(null);
     setStylePopoverVisible(false);
   }, []);
 
-  useEffect(() => { latestBookRef.current = book; }, [book]);
+  const { latestBookRef, queueLocationSave } = useDeferredBookLocation(book, updateBook);
+  const { compactReader, mobileReader } = useReaderResponsiveLayout({
+    workspaceRef,
+    setActivePanel,
+    setCompactTocOpen,
+    setMobileChromeVisible,
+  });
+  const mobileOverlayOpen = mobileReader
+    && (compactTocOpen || Boolean(activePanel));
 
-  const commitPendingLocation = useCallback(() => {
-    locationSaveDelayRef.current = null;
-    locationSaveIdleRef.current = null;
-    const pending = pendingLocationSaveRef.current;
-    pendingLocationSaveRef.current = null;
-    if (pending) updateBook(pending.bookId, pending.changes);
-  }, [updateBook]);
-
-  const cancelScheduledLocationSave = useCallback(() => {
-    if (locationSaveDelayRef.current !== null) {
-      window.clearTimeout(locationSaveDelayRef.current);
-      locationSaveDelayRef.current = null;
-    }
-    if (locationSaveIdleRef.current !== null) {
-      if ('cancelIdleCallback' in window) window.cancelIdleCallback(locationSaveIdleRef.current);
-      locationSaveIdleRef.current = null;
-    }
-  }, []);
-
-  const flushPendingLocation = useCallback(() => {
-    cancelScheduledLocationSave();
-    commitPendingLocation();
-  }, [cancelScheduledLocationSave, commitPendingLocation]);
-
-  const scheduleLocationSave = useCallback(() => {
-    cancelScheduledLocationSave();
-    locationSaveDelayRef.current = window.setTimeout(() => {
-      locationSaveDelayRef.current = null;
-      if ('requestIdleCallback' in window) {
-        locationSaveIdleRef.current = window.requestIdleCallback(commitPendingLocation, { timeout: 800 });
-      } else {
-        commitPendingLocation();
-      }
-    }, 220);
-  }, [cancelScheduledLocationSave, commitPendingLocation]);
-
-  useEffect(() => {
-    const handlePageHide = () => flushPendingLocation();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') flushPendingLocation();
-    };
-    window.addEventListener('pagehide', handlePageHide);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      window.removeEventListener('pagehide', handlePageHide);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      flushPendingLocation();
-    };
-  }, [flushPendingLocation]);
-
-  useEffect(() => {
-    const workspace = workspaceRef.current;
-    if (!workspace) return;
-    const observer = new ResizeObserver(([entry]) => {
-      const isCompact = entry.contentRect.width < 720;
-      setCompactReader(isCompact);
-      if (!isCompact) setCompactTocOpen(false);
-    });
-    observer.observe(workspace);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const media = window.matchMedia('(max-width: 800px)');
-    const update = () => {
-      setMobileReader(media.matches);
-      if (!media.matches) setMobileChromeVisible(true);
-      if (!media.matches) setActivePanel((panel) => panel === 'style' ? null : panel);
-    };
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-
-  useEffect(() => {
-    const handlePopState = () => {
-      if (!mobileOverlayHistoryActiveRef.current) return;
-      mobileOverlayHistoryActiveRef.current = false;
-      closeMobileOverlay();
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [closeMobileOverlay]);
-
-  useEffect(() => {
-    if (mobileOverlayOpen && !mobileOverlayHistoryActiveRef.current) {
-      const currentState = window.history.state;
-      window.history.pushState({
-        ...(currentState && typeof currentState === 'object' ? currentState : {}),
-        learningCenterMobileOverlay: true,
-      }, '', window.location.href);
-      mobileOverlayHistoryActiveRef.current = true;
-      return;
-    }
-    if (!mobileOverlayOpen && mobileOverlayHistoryActiveRef.current) {
-      mobileOverlayHistoryActiveRef.current = false;
-      window.history.back();
-    }
-  }, [mobileOverlayOpen]);
-
-  useEffect(() => {
-    if (mobileOverlayOpen) setMobileChromeVisible(true);
-  }, [mobileOverlayOpen]);
-
-  useEffect(() => {
-    if (!mobileOverlayOpen) return undefined;
-    let touchStart: { x: number; y: number } | null = null;
-    const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        touchStart = null;
-        return;
-      }
-      touchStart = {
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY,
-      };
-    };
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (!touchStart || event.changedTouches.length !== 1) {
-        touchStart = null;
-        return;
-      }
-      const deltaX = event.changedTouches[0].clientX - touchStart.x;
-      const deltaY = event.changedTouches[0].clientY - touchStart.y;
-      touchStart = null;
-      if (Math.abs(deltaX) >= 64 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
-        closeMobileOverlay();
-      }
-    };
-    const resetTouch = () => { touchStart = null; };
-    document.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
-    document.addEventListener('touchend', handleTouchEnd, { capture: true, passive: true });
-    document.addEventListener('touchcancel', resetTouch, { capture: true, passive: true });
-    return () => {
-      document.removeEventListener('touchstart', handleTouchStart, true);
-      document.removeEventListener('touchend', handleTouchEnd, true);
-      document.removeEventListener('touchcancel', resetTouch, true);
-    };
-  }, [closeMobileOverlay, mobileOverlayOpen]);
+  useMobileReaderOverlay({
+    close: closeMobileOverlay,
+    open: mobileOverlayOpen,
+    setMobileChromeVisible,
+  });
 
   useEffect(() => {
     if (!book) return;
@@ -255,6 +106,8 @@ export function ReaderPage() {
     setCompactTocOpen(false);
     setMobileChromeVisible(true);
     setConversationId(createUuid());
+    // Transient reader UI resets only when switching books; progress updates must not reset it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book?.id]);
 
   useEffect(() => {
@@ -283,87 +136,7 @@ export function ReaderPage() {
     }
   }, [activeHighlight, activeHighlightTarget]);
 
-  useEffect(() => {
-    if (!book) return;
-    const sessionId = createUuid();
-    const startedAt = Date.now();
-    let accumulatedMs = 0;
-    let lastCountedAt = startedAt;
-    let windowFocused = document.hasFocus();
-    let activeSince = document.visibilityState === 'visible' && windowFocused ? startedAt : null;
-    let idleDeadline = startedAt + READING_IDLE_TIMEOUT_MS;
-
-    const accumulateUntil = (now: number) => {
-      if (activeSince === null) return;
-      const countedUntil = Math.min(now, idleDeadline);
-      if (countedUntil <= activeSince) return;
-      accumulatedMs += countedUntil - activeSince;
-      lastCountedAt = countedUntil;
-    };
-
-    const canTimeReading = () => document.visibilityState === 'visible' && windowFocused;
-
-    const persistSession = (continueTiming: boolean) => {
-      const now = Date.now();
-      accumulateUntil(now);
-      activeSince = continueTiming && canTimeReading() && now < idleDeadline ? now : null;
-      if (accumulatedMs < 1000) return;
-      upsertReadingSession({
-        id: sessionId,
-        bookId: book.id,
-        startedAt,
-        endedAt: lastCountedAt,
-        durationMs: accumulatedMs,
-      });
-    };
-
-    const recordReadingActivity = () => {
-      const now = Date.now();
-      accumulateUntil(now);
-      idleDeadline = now + READING_IDLE_TIMEOUT_MS;
-      activeSince = canTimeReading() ? now : null;
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        recordReadingActivity();
-      } else {
-        persistSession(false);
-      }
-    };
-    const handleFocus = () => {
-      windowFocused = true;
-      recordReadingActivity();
-    };
-    const handleBlur = () => {
-      persistSession(false);
-      windowFocused = false;
-    };
-    const handlePageHide = () => persistSession(false);
-    const interval = window.setInterval(() => persistSession(true), READING_SESSION_PERSIST_INTERVAL_MS);
-    recordReadingActivityRef.current = recordReadingActivity;
-    document.addEventListener('visibilitychange', handleVisibility);
-    document.addEventListener('pointerdown', recordReadingActivity, true);
-    document.addEventListener('keydown', recordReadingActivity, true);
-    document.addEventListener('wheel', recordReadingActivity, { capture: true, passive: true });
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    window.addEventListener('pagehide', handlePageHide);
-    return () => {
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      document.removeEventListener('pointerdown', recordReadingActivity, true);
-      document.removeEventListener('keydown', recordReadingActivity, true);
-      document.removeEventListener('wheel', recordReadingActivity, true);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('pagehide', handlePageHide);
-      if (recordReadingActivityRef.current === recordReadingActivity) {
-        recordReadingActivityRef.current = null;
-      }
-      persistSession(false);
-    };
-  }, [book?.id, upsertReadingSession]);
+  useReadingSession(book?.id, upsertReadingSession, recordReadingActivityRef);
 
   useEffect(() => {
     const handleKeyUp = (event: KeyboardEvent) => {
@@ -404,10 +177,8 @@ export function ReaderPage() {
       currentPage: location.page ?? current.currentPage,
       totalPages: location.totalPages ?? current.totalPages,
     };
-    latestBookRef.current = { ...current, ...changes };
-    pendingLocationSaveRef.current = { bookId: current.id, changes };
-    scheduleLocationSave();
-  }, [scheduleLocationSave]);
+    queueLocationSave(current, changes);
+  }, [latestBookRef, queueLocationSave]);
 
   const currentChapter = useMemo(
     () => (book ? findChapterLabel(book.toc, activeHref) ?? book.currentChapter : ''),
@@ -417,27 +188,12 @@ export function ReaderPage() {
     if (!book || !pendingCommentSelection) return highlights;
     return [
       ...highlights,
-      {
-        id: PENDING_COMMENT_HIGHLIGHT_ID,
-        bookId: book.id,
-        kind: 'comment',
-        text: pendingCommentSelection.text,
-        cfi: pendingCommentSelection.cfi,
-        chapter: currentChapter,
-        page: book.currentPage,
-        createdAt: 0,
-        updatedAt: 0,
-      },
+      createPendingCommentHighlight(book, pendingCommentSelection, currentChapter),
     ];
   }, [book, currentChapter, highlights, pendingCommentSelection]);
 
   if (!book) {
-    return (
-      <main className="missing-book">
-        <Empty title="这本书不在书架中" description="它可能已被删除，或服务器数据目录已被清理" />
-        <Button theme="solid" type="primary" onClick={() => navigate('/')}>返回书架</Button>
-      </main>
-    );
+    return <MissingReaderBook onBack={() => navigate('/')} />;
   }
 
   const handleDelete = () => {
@@ -629,88 +385,35 @@ export function ReaderPage() {
 
   return (
     <main className={`reader-page${mobileReader && !mobileChromeVisible ? ' reader-page--mobile-immersive' : ''}`}>
-      <header className="reader-header">
-        <div
-          aria-hidden={mobileReader && !mobileChromeVisible}
-          className="reader-header__identity"
-        >
-          <Tooltip content={mobileOverlayOpen ? '关闭当前浮层' : '返回书架'} position="bottomLeft">
-            <Button
-              aria-label={mobileOverlayOpen ? '关闭当前浮层' : '退出阅读并返回书架'}
-              className="reader-header__back"
-              icon={<IconArrowLeft size="large" />}
-              size="small"
-              theme="borderless"
-              type="tertiary"
-              onClick={() => {
-                if (mobileOverlayOpen) {
-                  closeMobileOverlay();
-                  return;
-                }
-                navigate('/');
-              }}
-            />
-          </Tooltip>
-          <Progress
-            type="circle"
-            percent={book.progress}
-            width={28}
-            showInfo={false}
-            stroke="var(--semi-color-primary)"
-          />
-          <div className="reader-header__title">
-            <Text strong ellipsis={{ showTooltip: true }}>{book.title}</Text>
-            <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>
-              {Math.round(book.progress)}% · {formatPageProgress(book)} · {currentChapter}
-            </Text>
-          </div>
-        </div>
-        <div
-          aria-hidden={!mobileReader || mobileChromeVisible}
-          className="reader-header__immersive-summary"
-        >
-          <Text strong ellipsis={{ showTooltip: true }}>{book.title}</Text>
-          <Text size="small" type="tertiary" ellipsis={{ showTooltip: true }}>
-            {currentChapter}
-          </Text>
-        </div>
-        {!mobileReader && (
-          <div className="reader-header__toolbar">
-            <ReaderDesktopToolbar
-              preferences={preferences}
-              tocCollapsed={compactReader ? !compactTocOpen : preferences.tocCollapsed}
-              stylePopoverVisible={stylePopoverVisible}
-              onChangePreferences={setPreferences}
-              onStylePopoverVisibleChange={setStylePopoverVisible}
-              onToggleToc={() => {
-                if (compactReader) {
-                  setCompactTocOpen((open) => !open);
-                } else {
-                  setPreferences({ tocCollapsed: !preferences.tocCollapsed });
-                }
-              }}
-              onPrev={() => readerRef.current?.prev()}
-              onNext={() => readerRef.current?.next()}
-            />
-          </div>
-        )}
-        <div
-          aria-hidden={mobileReader && !mobileChromeVisible}
-          className="reader-header__actions"
-        >
-          <Dropdown
-            trigger="hover"
-            position="bottomRight"
-            render={(
-              <Dropdown.Menu>
-                <Dropdown.Item type="danger" icon={<IconDeleteStroked />} onClick={handleDelete}>删除</Dropdown.Item>
-              </Dropdown.Menu>
-            )}
-          >
-            <Button aria-label="更多书籍操作" icon={<IconMore />} theme="borderless" type="tertiary" />
-          </Dropdown>
-        </div>
-      </header>
+      <ReaderPageHeader
+        book={book}
+        currentChapter={currentChapter}
+        mobileReader={mobileReader}
+        mobileChromeVisible={mobileChromeVisible}
+        mobileOverlayOpen={mobileOverlayOpen}
+        preferences={preferences}
+        stylePopoverVisible={stylePopoverVisible}
+        tocCollapsed={compactReader ? !compactTocOpen : preferences.tocCollapsed}
+        onBack={() => {
+          if (mobileOverlayOpen) {
+            closeMobileOverlay();
+            return;
+          }
+          navigate('/');
+        }}
+        onChangePreferences={setPreferences}
+        onDelete={handleDelete}
+        onNext={() => readerRef.current?.next()}
+        onPrev={() => readerRef.current?.prev()}
+        onStylePopoverVisibleChange={setStylePopoverVisible}
+        onToggleToc={() => {
+          if (compactReader) {
+            setCompactTocOpen((open) => !open);
+          } else {
+            setPreferences({ tocCollapsed: !preferences.tocCollapsed });
+          }
+        }}
+      />
 
       <ReaderWorkspace
         activeHref={activeHref}

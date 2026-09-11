@@ -1,7 +1,7 @@
 import type { VideoResource } from '../types';
 import { serverRequest } from './serverApi';
 
-export type ImportedYouTubeVideo = Omit<VideoResource, 'id' | 'createdAt' | 'updatedAt' | 'lastPositionSeconds'>;
+type ImportedYouTubeVideo = Omit<VideoResource, 'id' | 'createdAt' | 'updatedAt' | 'lastPositionSeconds'>;
 
 export async function importYouTubeVideo(url: string) {
   const response = await serverRequest('/api/videos/import', {

@@ -9,6 +9,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
   version: string;
 };
+const apiProxyTarget = process.env.LEARNING_CENTER_API_PROXY?.trim()
+  || 'http://127.0.0.1:8787';
 
 function readGitMetadata(args: string[]) {
   try {
@@ -799,7 +801,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8787',
+      '/api': apiProxyTarget,
     },
   },
   plugins: [

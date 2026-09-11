@@ -1,0 +1,11 @@
+
+@theme inline {
+  --color-semi-bg-0: var(--semi-color-bg-0);
+  --color-semi-bg-1: var(--semi-color-bg-1);
+  --color-semi-fill-0: var(--semi-color-fill-0);
+  --color-semi-fill-1: var(--semi-color-fill-1);
+  --color-semi-text-0: var(--semi-color-text-0);
+  --color-semi-text-2: var(--semi-color-text-2);
+  --color-semi-border: var(--semi-color-border);
+  --color-semi-primary: var(--semi-color-primary);
+}

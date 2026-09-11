@@ -143,7 +143,7 @@ export function applyFoliateReaderStyle(
   view.renderer.setStyles?.(createFoliateReaderStyles(preferences, compactLayout));
 }
 
-export function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout: boolean) {
+function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout: boolean) {
   const style = resolveReaderStyle(preferences);
   const texture = getReaderTextureStyle(style.texture, style.isDark);
   const fontFamily = READER_FONT_STACKS[style.fontFamily];

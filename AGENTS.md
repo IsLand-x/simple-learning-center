@@ -5,7 +5,7 @@
 ## 项目定位
 
 - 这是一个本地优先的个人 EPUB 阅读与 AI 学习 Web App，配套单用户 Node 数据服务。
-- 当前一级功能是“读书”和“设置”；不要擅自增加多用户账号、云同步或无关一级栏目。
+- 当前一级功能是“读书”“RSS”“视频”和“设置”；不要擅自增加多用户账号、云同步或无关一级栏目。
 - 数据服务同时支持仅本机访问和带认证的远程访问；不要擅自扩展为多用户平台。
 - 默认只进行本地开发、构建和验证。除非用户明确要求，不要部署、发布或修改远程环境。
 - 所有新增文案默认使用简体中文，技术标识、协议名和代码除外。
@@ -13,12 +13,13 @@
 ## 技术栈与命令
 
 - React 18、TypeScript、Vite 8。
+- Node.js 运行环境要求 `>=22.19.0`。
 - UI 使用 Semi Design 和 Semi Icons。
 - EPUB 运行时渲染、分页、手势、标注层和书内搜索索引使用 Foliate.js；epub.js 仅保留用于导入元数据与封面。
 - 全局状态使用 Zustand；持久化使用 Zustand `persist`。
 - 可调整分栏使用 Allotment，不要重新引入自制拖拽分隔条。
 - PWA 使用 `vite-plugin-pwa`。
-- 服务端使用 Node.js 内置 HTTP 与文件系统 API，不依赖外部数据库服务。
+- 服务端使用 Hono、`@hono/node-server` 与 Node.js 文件系统 API，不依赖外部数据库服务。
 
 常用命令：
 
@@ -29,26 +30,37 @@ npm start
 npm run preview
 ```
 
-完成代码修改后至少执行：
+除纯文档修改外，完成代码或配置修改后至少执行：
 
 ```bash
-npm run build
+npm run verify
 git diff --check
 ```
 
-构建中的第三方依赖警告可以记录，但不能忽略 TypeScript、Vite 或 PWA 构建失败。
+涉及路由、交互、响应式、样式、PWA 或 Foliate 的修改还应执行 `npm run verify:full`；若本机缺少 Chrome 等运行条件，必须明确记录未执行项。纯文档修改至少执行 `git diff --check`。构建中的第三方依赖警告可以记录，但不能忽略 TypeScript、Vite 或 PWA 构建失败。
 
 ## 目录职责
 
-- `src/pages/`：页面级路由与功能编排。
-- `src/components/`：可复用界面、阅读器和侧边栏组件。
+- `src/app/`：应用启动、鉴权恢复、PWA 注册、路由和应用级组合，不承载领域规则。
+- `src/pages/`：页面状态与路由级编排；领域计算、副作用和大型 UI 应进入对应 feature。
+- `src/features/<domain>/model/`：纯计算和领域类型；`application/`、`hooks/`：API、store 与副作用编排；`ui/`：领域界面。
+- `src/components/`：跨功能稳定组件、阅读器宿主与兼容入口，不再作为新领域组件的默认落点。
 - `src/lib/`：EPUB、服务端存储适配、旧浏览器数据迁移、字体和 AI 任务 API 等基础能力。
-- `server/`：静态站点、本地数据 API、远程访问认证和开发启动编排。
-- `src/store/`：跨页面状态、持久化和数据迁移。
+- `src/shared/`：没有业务归属的通用适配器，不依赖 feature、store 或页面。
+- `src/store/`：唯一 Zustand store 的薄组合入口、领域 actions、默认值、状态契约、迁移和合并。
+- `server/app.mjs`：构造依赖并按稳定顺序挂载 middleware 与 routes；`server/app/`：通用 HTTP 能力；`server/routes/`：HTTP transport；`server/index.mjs`：进程和调度器生命周期。
 - `src/types.ts`：共享领域类型。
-- `src/styles.css`：全局样式、Semi Design 覆盖和明暗主题适配。
+- `src/styles.css`：只作为 `src/styles/` 全局样式模块的有序导入入口。
 - `public/`：PWA 图标和无需编译的静态资源。
 - `data/`：运行时创建的用户数据目录，禁止提交到 Git。
+
+## 模块边界
+
+- `src/shared/` 不得依赖 `app`、`components`、`features`、`pages` 或 `store`。
+- `src/store/` 不得依赖 `app`、`components`、`features` 或 `pages`；`src/store/useLearningStore.ts` 保持为公共薄组合入口，不重新堆入领域实现。
+- 不同 feature 不得直接相互导入。共享能力上移到 `shared`、`lib` 或跨功能 `components`，跨领域流程由 page/app 编排。
+- 除 `server/routes/` 自身外，只有 `server/app.mjs` 可以导入 route 注册模块。
+- 不得通过路径别名、动态导入或其他写法绕过边界；修改模块关系后必须通过 `npm run check:boundaries`。自动检查是安全网，不代替人工确认依赖方向。
 
 ## 本地数据与安全
 
@@ -56,7 +68,8 @@ git diff --check
 - EPUB 文件保存在 `data/books/`，书内搜索索引保存在 `data/search-indexes/`，Markdown 笔记正文保存在 `data/notes/`。
 - 元数据、阅读进度、高亮、评论、AI 对话、模型配置和笔记元数据保存在 `data/state.json`。
 - `localStorage` 与 IndexedDB 的旧数据只用于服务端空目录首次启动时的自动迁移；迁移后不得继续作为日常持久化来源。
-- 修改持久化数据结构时必须提升 store 版本并提供向后迁移，不能让已有本地数据静默丢失。
+- 修改持久化数据结构时必须同步检查 `LearningState`、默认值、所属 action、客户端与服务端 `STATE_DOMAIN_FIELDS`、store version、迁移、合并规则及对应测试，不能让已有本地数据静默丢失。
+- 每个持久化字段必须且只能归属一个状态分区。新增或调整顶层路由时，必须在 `src/app/AppRoutes.tsx` 保持 lazy loading 与 `StateDomainGate`，同步更新客户端路径分区、客户端/服务端字段映射以及顶层路由 E2E。
 - 删除书籍时必须同步清理 EPUB 文件及该书关联的笔记、高亮、评论、对话和阅读记录。
 - 状态文件和数据文件默认使用仅当前系统用户可读写的权限；不要放宽权限或把数据目录放入静态资源目录。
 - API Key 保存在服务端数据目录。不要写入源码、构建产物、日志、测试快照或提交记录。
@@ -76,6 +89,7 @@ git diff --check
 - 点击持久高亮的任意可见区域时展示“取消高亮”“在高亮中查看”和评论操作；点击命中范围必须与扩展后的视觉高亮一致，不能只响应原始字形矩形。
 - 翻页动画、触屏拖动、分页吸附和连续操作锁使用 Foliate.js Paginator 的 `animated`、`scrollBy`、`snap`、`next` 和 `prev`，不要叠加全局 View Transition 或自制双页面动画。
 - 桌面 Chromium 对 Blob iframe 的兼容由 `vite.config.ts` 的 Foliate srcdoc 变换与 `src/lib/foliateReader.ts` 的安全章节通道共同处理；升级 Foliate.js 时必须重新验证该变换，不要直接修改 `node_modules`。
+- `src/features/reader/foliate/**`、`src/components/FoliateEpubReader.tsx`、`src/lib/foliateReader.ts` 与 `vite.config.ts` 共同构成 Foliate 兼容边界。阅读器生命周期按 `book.id` 重建，其余最新值通过稳定 ref 输入；不要为消除 Hooks 提示加入会反复销毁阅读器的易变依赖，也不得扩大现有 lint 例外。
 - 新建或编辑评论时正文标记保持高亮，支持 `Cmd/Ctrl + Enter` 保存，并在保存按钮 Tooltip 中提示快捷键。
 - 字体设置必须同时应用于演示正文和 EPUB iframe 内的正文。
 - 阅读样式预设与应用浅色/暗色模式相互独立；预设和自定义参数必须同时应用于演示正文与 EPUB iframe。
@@ -175,7 +189,7 @@ git diff --check
 
 ### 样式实现与视觉验收
 
-- JSX 默认使用功能范围内的语义 class，并在 `src/styles.css` 中用 Semi token 定义样式；不要在 JSX 中堆叠 Tailwind utility、复制长串 inline 静态样式或引入另一套 CSS-in-JS 方案。动态坐标、阅读主题色和数据驱动预览可使用 inline style。
+- JSX 默认使用功能范围内的语义 class，并在职责最接近的 `src/styles/*.css` 中用 Semi token 定义样式；`src/styles.css` 只维护有序 `@import`，不得随意调整入口顺序或跨模块移动规则，因为编号顺序属于级联契约。不要在 JSX 中堆叠 Tailwind utility、复制长串 inline 静态样式或引入另一套 CSS-in-JS 方案。动态坐标、阅读主题色和数据驱动预览可使用 inline style。
 - class 命名延续现有 `block__element--modifier` 语义；覆盖 Semi 内部样式必须由页面或组件父 class 限定，禁止无作用域污染全局组件。
 - 新组件先复用已有视觉原型：普通页面参考书架/设置，分栏工作台参考阅读器/RSS，右侧工具参考 `ActivityRailButton`，移动抽屉参考 `ReaderMobileChrome`，浮层参考正文选区工具栏。
 - 没有明确需求时，不新增新的颜色 token、阴影级别、圆角等级、断点或动画曲线；确需新增时说明现有规范为何无法覆盖，并保持可复用。
@@ -202,15 +216,18 @@ git diff --check
 ## 代码修改原则
 
 - 保持 TypeScript 类型完整，避免新增无必要的 `any`、重复状态或并行实现。
+- Web 单元测试和 model characterization test 放在 `src/**/*.test.{ts,tsx}`；Node 服务端测试当前放在 `server/*.test.mjs`；E2E 放在 `tests/e2e/`。新增纯模型、迁移/合并、状态分区或 route/API 行为时必须补对应层级测试。
+- lint 必须保持 0 warning，不得提高 warning 上限。新增或重构目录必须纳入 `format:check`，或在 `.prettierignore` 中用注释说明例外；不得为了通过门禁扩大无说明的 ignore。ESLint 例外必须限定到具体文件和规则，并说明行为原因。
+- TypeScript 必须启用未使用局部变量和参数检查；`npm run check:dead-code` 必须保持通过，不得用宽泛 ignore 隐藏不可达文件、无消费者导出或未使用依赖。确需保留的独立入口应在 `knip.json` 中精确登记并说明其运行场景。
 - 优先复用现有 Semi Design、Allotment、Zustand 和 Foliate.js 能力；epub.js 只用于导入元数据与封面，不要重新接回运行时阅读器或索引。
 - 修改 Semi Design 内部样式时使用功能范围内的父级 class 限定，避免污染全局组件。
 - 不要直接修改 `node_modules` 或 `dist`；`dist` 必须由构建命令生成。
 - 保留用户已有的未提交修改。只编辑当前任务需要的文件，除非用户明确要求整理并提交整个项目。
-- 新功能完成后同步更新 README 中的功能、配置方式、数据保存或限制说明。
+- 新功能完成后同步更新 README 中的功能、配置方式、数据保存或限制说明；架构或目录边界变化同时更新 `docs/architecture.md`。
 
 ## Git 与提交
 
-- 提交前检查 `git status`、`git diff --check` 和 `npm run build`。
+- 提交前检查 `git status`、`git diff --check` 和 `npm run verify`；适用时再执行 `npm run verify:full`。
 - 不提交 `data/`、API Key、个人 EPUB、缓存、临时日志或编辑器配置。
 - commit message 应简洁描述用户可感知的结果。
 - 不执行强制推送、历史重写或远程发布，除非用户明确授权。

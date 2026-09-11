@@ -2,7 +2,7 @@ import type { RssItem, RssSource } from '../types';
 import type { AiJob } from './aiJobs';
 import { serverRequest } from './serverApi';
 
-export interface FetchedRssItem {
+interface FetchedRssItem {
   id: string;
   title: string;
   link: string;
@@ -24,7 +24,7 @@ export interface FetchedRssFeed {
   items: FetchedRssItem[];
 }
 
-export interface FetchedRssArticle {
+interface FetchedRssArticle {
   title: string;
   byline: string;
   excerpt: string;
@@ -47,15 +47,6 @@ export interface BilibiliCredentialStatus {
   lastVerifiedAt?: number;
   accountLabel?: string;
   message?: string;
-}
-
-export async function fetchRssFeed(url: string) {
-  const response = await serverRequest('/api/rss/fetch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
-  });
-  return response.json() as Promise<FetchedRssFeed>;
 }
 
 export async function resolveRssSource(input: RssSourceInput) {

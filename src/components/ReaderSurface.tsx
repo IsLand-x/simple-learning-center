@@ -14,10 +14,18 @@ import {
 import { IconComment } from '@douyinfe/semi-icons';
 import { Typography } from '@douyinfe/semi-ui';
 import { getDemoContent } from '../data/demo';
+import { flattenToc } from '../features/reader/model/readerSurfaceModel';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import { isTextSelectionHold } from '../lib/readerGestures';
 import { getReaderTextureStyle, resolveReaderStyle } from '../lib/readerThemes';
-import type { BookItem, HighlightItem, ReaderHighlightTarget, ReaderPreferences, ReaderSelection, ThemeMode, TocItem } from '../types';
+import type {
+  BookItem,
+  HighlightItem,
+  ReaderHighlightTarget,
+  ReaderPreferences,
+  ReaderSelection,
+  ThemeMode,
+} from '../types';
 import { FoliateEpubReader } from './FoliateEpubReader';
 
 const { Text } = Typography;
@@ -50,33 +58,6 @@ export interface ReaderSurfaceProps {
   onHighlightClick: (target: ReaderHighlightTarget) => void;
   onContentInteraction: () => void;
   onCenterTap: () => void;
-}
-
-function flattenToc(items: TocItem[]): TocItem[] {
-  return items.flatMap((item) => [item, ...flattenToc(item.subitems ?? [])]);
-}
-
-function findChapterLabel(items: TocItem[], href?: string) {
-  if (!href) return undefined;
-  const normalize = (value: string) => {
-    try {
-      return decodeURI(value).replace(/^\.\//, '').replace(/^\//, '');
-    } catch {
-      return value.replace(/^\.\//, '').replace(/^\//, '');
-    }
-  };
-  const matches = (left: string, right: string) => {
-    const normalizedLeft = normalize(left);
-    const normalizedRight = normalize(right);
-    return normalizedLeft === normalizedRight
-      || normalizedLeft.endsWith(`/${normalizedRight}`)
-      || normalizedRight.endsWith(`/${normalizedLeft}`);
-  };
-  const flattened = flattenToc(items);
-  const exact = flattened.find((item) => matches(item.href, href));
-  if (exact) return exact.label;
-  const hrefWithoutFragment = href.split('#')[0];
-  return flattened.find((item) => matches(item.href.split('#')[0], hrefWithoutFragment))?.label;
 }
 
 function getDemoScrollRatio(cfi: string | undefined, href: string | undefined) {
@@ -118,18 +99,11 @@ const WHEEL_GESTURE_IDLE_MS = 280;
 function isSwipeBlockedTarget(target: EventTarget | null) {
   const element = target as Element | null;
   return Boolean(
-    element
-    && typeof element.closest === 'function'
-    && element.closest('a, button, input, textarea, select, [contenteditable="true"], [role="button"], [role="link"], [role="slider"]'),
-  );
-}
-
-export function isReaderKeyboardEditingTarget(target: EventTarget | null) {
-  const element = target as Element | null;
-  return Boolean(
-    element
-    && typeof element.closest === 'function'
-    && element.closest('input, textarea, select, [contenteditable="true"], [role="textbox"], [role="combobox"], [role="listbox"], [role="menu"], [role="slider"]'),
+    element &&
+    typeof element.closest === 'function' &&
+    element.closest(
+      'a, button, input, textarea, select, [contenteditable="true"], [role="button"], [role="link"], [role="slider"]',
+    ),
   );
 }
 
@@ -139,10 +113,11 @@ function getSwipePageTurn(start: SwipeStart, endX: number, endY: number): PageTu
   if (
     (start.pointerType === 'touch'
       ? isTextSelectionHold(start.startedAt, performance.now())
-      : performance.now() - start.startedAt > 1200)
-    || Math.abs(horizontalDistance) < 56
-    || Math.abs(horizontalDistance) < Math.abs(verticalDistance) * 1.35
-  ) return null;
+      : performance.now() - start.startedAt > 1200) ||
+    Math.abs(horizontalDistance) < 56 ||
+    Math.abs(horizontalDistance) < Math.abs(verticalDistance) * 1.35
+  )
+    return null;
   return horizontalDistance < 0 ? 'next' : 'prev';
 }
 
@@ -167,11 +142,12 @@ function getWheelPageTurn(state: WheelSwipeState, event: WheelEvent): WheelPageT
   }
   state.lastEventAt = now;
 
-  const deltaMultiplier = event.deltaMode === WheelEvent.DOM_DELTA_LINE
-    ? 16
-    : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-      ? Math.max(1, event.view?.innerWidth ?? window.innerWidth)
-      : 1;
+  const deltaMultiplier =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? 16
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? Math.max(1, event.view?.innerWidth ?? window.innerWidth)
+        : 1;
   const deltaX = event.deltaX * deltaMultiplier;
   const deltaY = event.deltaY * deltaMultiplier;
   const horizontalSpeed = Math.abs(deltaX);
@@ -212,12 +188,16 @@ function getWheelPageTurn(state: WheelSwipeState, event: WheelEvent): WheelPageT
 }
 
 function lastRenderedLineRect(element: HTMLElement) {
-  const rects = Array.from(element.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);
-  return rects.reduce<DOMRect | undefined>((current, candidate) => {
-    if (!current || candidate.top > current.top + 0.5) return candidate;
-    if (Math.abs(candidate.top - current.top) > 0.5) return current;
-    return candidate.right > current.right ? candidate : current;
-  }, undefined) ?? element.getBoundingClientRect();
+  const rects = Array.from(element.getClientRects()).filter(
+    (rect) => rect.width > 0 && rect.height > 0,
+  );
+  return (
+    rects.reduce<DOMRect | undefined>((current, candidate) => {
+      if (!current || candidate.top > current.top + 0.5) return candidate;
+      if (Math.abs(candidate.top - current.top) > 0.5) return current;
+      return candidate.right > current.right ? candidate : current;
+    }, undefined) ?? element.getBoundingClientRect()
+  );
 }
 
 function DemoHighlightMark({
@@ -228,7 +208,10 @@ function DemoHighlightMark({
   onHighlightClick: (target: ReaderHighlightTarget) => void;
 }) {
   const markRef = useRef<HTMLElement>(null);
-  const [commentIconPosition, setCommentIconPosition] = useState<{ left: number; top: number } | null>(null);
+  const [commentIconPosition, setCommentIconPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
 
   const syncCommentIconPosition = useCallback(() => {
     const mark = markRef.current;
@@ -239,9 +222,11 @@ function DemoHighlightMark({
       left: lastLine.right - bounds.left - COMMENT_INDICATOR_SIZE / 2,
       top: lastLine.top - bounds.top - COMMENT_INDICATOR_SIZE / 2,
     };
-    setCommentIconPosition((current) => (
-      current?.left === nextPosition.left && current.top === nextPosition.top ? current : nextPosition
-    ));
+    setCommentIconPosition((current) =>
+      current?.left === nextPosition.left && current.top === nextPosition.top
+        ? current
+        : nextPosition,
+    );
   }, [highlight.comment]);
 
   useLayoutEffect(() => {
@@ -318,7 +303,13 @@ function renderDemoHighlightedText(
   let cursor = 0;
   matches.forEach(({ highlight, start }) => {
     if (start > cursor) content.push(text.slice(cursor, start));
-    content.push(<DemoHighlightMark key={highlight.id} highlight={highlight} onHighlightClick={onHighlightClick} />);
+    content.push(
+      <DemoHighlightMark
+        key={highlight.id}
+        highlight={highlight}
+        onHighlightClick={onHighlightClick}
+      />,
+    );
     cursor = start + highlight.text.length;
   });
   if (cursor < text.length) content.push(text.slice(cursor));
@@ -339,14 +330,18 @@ function DemoReader({
 }: ReaderSurfaceProps & { controllerRef: React.Ref<ReaderSurfaceHandle> }) {
   const readerRootRef = useRef<HTMLDivElement>(null);
   const chapters = useMemo(() => flattenToc(book.toc), [book.toc]);
-  const initialIndex = Math.max(0, chapters.findIndex((item) => item.label === book.currentChapter));
+  const initialIndex = Math.max(
+    0,
+    chapters.findIndex((item) => item.label === book.currentChapter),
+  );
   const [chapterIndex, setChapterIndex] = useState(initialIndex);
   const chapterIndexRef = useRef(chapterIndex);
   chapterIndexRef.current = chapterIndex;
   const chapter = chapters[chapterIndex] ?? chapters[0];
   const content = getDemoContent(chapter?.href ?? 'chapter-5');
   const chapterHighlights = useMemo(
-    () => highlights.filter((highlight) => highlight.cfi.startsWith(`demo:${chapter?.href ?? ''}:`)),
+    () =>
+      highlights.filter((highlight) => highlight.cfi.startsWith(`demo:${chapter?.href ?? ''}:`)),
     [chapter?.href, highlights],
   );
   const readerStyle = resolveReaderStyle(preferences);
@@ -355,37 +350,50 @@ function DemoReader({
   const suppressCenterTapUntilRef = useRef(0);
   const wheelSwipeRef = useRef<WheelSwipeState>(createWheelSwipeState());
 
-  const reportCurrentSelection = useCallback((fallbackX = 0, fallbackY = 0) => {
-    const selection = window.getSelection();
-    const selectionIsInsideReader = selection?.anchorNode && readerRootRef.current?.contains(selection.anchorNode);
-    const text = selection?.toString().trim();
-    if (!hasActiveTextSelection(selection) || !selectionIsInsideReader || !selection?.rangeCount || !text) {
-      onSelection(null);
-      return false;
-    }
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    onSelection({
-      text: text.slice(0, 600),
-      cfi: `demo:${chapter?.href ?? 'chapter-1'}:selection:${Date.now()}`,
-      rect: {
-        left: rect.left || fallbackX,
-        top: rect.top || fallbackY,
-        width: rect.width,
-        height: rect.height,
-      },
-    });
-    return true;
-  }, [chapter?.href, onSelection]);
+  const reportCurrentSelection = useCallback(
+    (fallbackX = 0, fallbackY = 0) => {
+      const selection = window.getSelection();
+      const selectionIsInsideReader =
+        selection?.anchorNode && readerRootRef.current?.contains(selection.anchorNode);
+      const text = selection?.toString().trim();
+      if (
+        !hasActiveTextSelection(selection) ||
+        !selectionIsInsideReader ||
+        !selection?.rangeCount ||
+        !text
+      ) {
+        onSelection(null);
+        return false;
+      }
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      onSelection({
+        text: text.slice(0, 600),
+        cfi: `demo:${chapter?.href ?? 'chapter-1'}:selection:${Date.now()}`,
+        rect: {
+          left: rect.left || fallbackX,
+          top: rect.top || fallbackY,
+          width: rect.width,
+          height: rect.height,
+        },
+      });
+      return true;
+    },
+    [chapter?.href, onSelection],
+  );
 
-  const turnDemoPage = (direction: PageTurnDirection) => {
-    const currentIndex = chapterIndexRef.current;
-    const nextIndex = direction === 'next'
-      ? Math.min(chapters.length - 1, currentIndex + 1)
-      : Math.max(0, currentIndex - 1);
-    if (nextIndex === currentIndex) return;
-    setChapterIndex(nextIndex);
-  };
+  const turnDemoPage = useCallback(
+    (direction: PageTurnDirection) => {
+      const currentIndex = chapterIndexRef.current;
+      const nextIndex =
+        direction === 'next'
+          ? Math.min(chapters.length - 1, currentIndex + 1)
+          : Math.max(0, currentIndex - 1);
+      if (nextIndex === currentIndex) return;
+      setChapterIndex(nextIndex);
+    },
+    [chapters.length],
+  );
 
   useEffect(() => {
     void ensureReaderFontStylesheet(document, readerStyle.fontFamily);
@@ -409,7 +417,8 @@ function DemoReader({
     const readerRoot = readerRootRef.current;
     if (!readerRoot) return;
     const handleWheel = (event: WheelEvent) => {
-      if (isSwipeBlockedTarget(event.target) || hasActiveTextSelection(window.getSelection())) return;
+      if (isSwipeBlockedTarget(event.target) || hasActiveTextSelection(window.getSelection()))
+        return;
       const result = getWheelPageTurn(wheelSwipeRef.current, event);
       if (result.shouldPreventDefault && event.cancelable) event.preventDefault();
       if (result.direction) {
@@ -419,19 +428,26 @@ function DemoReader({
     };
     readerRoot.addEventListener('wheel', handleWheel, { passive: false });
     return () => readerRoot.removeEventListener('wheel', handleWheel);
-  }, [chapters.length, onContentInteraction]);
+  }, [onContentInteraction, turnDemoPage]);
 
-  useImperativeHandle(controllerRef, () => ({
-    next: () => turnDemoPage('next'),
-    prev: () => turnDemoPage('prev'),
-    display: (target) => {
-      const normalized = target.replace(/^demo:/, '').split(':')[0].split('#')[0];
-      const index = chapters.findIndex((item) => item.href.split('#')[0] === normalized);
-      if (index >= 0) setChapterIndex(index);
-    },
-    clearSelection: () => window.getSelection()?.removeAllRanges(),
-    getCurrentText: () => [content.heading, ...content.paragraphs].join('\n\n'),
-  }), [chapters, content.heading, content.paragraphs]);
+  useImperativeHandle(
+    controllerRef,
+    () => ({
+      next: () => turnDemoPage('next'),
+      prev: () => turnDemoPage('prev'),
+      display: (target) => {
+        const normalized = target
+          .replace(/^demo:/, '')
+          .split(':')[0]
+          .split('#')[0];
+        const index = chapters.findIndex((item) => item.href.split('#')[0] === normalized);
+        if (index >= 0) setChapterIndex(index);
+      },
+      clearSelection: () => window.getSelection()?.removeAllRanges(),
+      getCurrentText: () => [content.heading, ...content.paragraphs].join('\n\n'),
+    }),
+    [chapters, content.heading, content.paragraphs, turnDemoPage],
+  );
 
   useLayoutEffect(() => {
     const readerRoot = readerRootRef.current;
@@ -443,14 +459,19 @@ function DemoReader({
 
     const reportLocation = (ratio = currentRatio) => {
       if (!restored) return;
-      const progress = Math.max(0, Math.min(100, ((chapterIndex + ratio) / Math.max(1, chapters.length)) * 100));
+      const progress = Math.max(
+        0,
+        Math.min(100, ((chapterIndex + ratio) / Math.max(1, chapters.length)) * 100),
+      );
       const cfi = `demo:${chapter.href}:scroll:${ratio.toFixed(6)}`;
       lastLocationCfiRef.current = cfi;
       onLocationChange({
         cfi,
         href: chapter.href,
         progress,
-        page: book.totalPages ? Math.max(1, Math.round(book.totalPages * progress / 100)) : undefined,
+        page: book.totalPages
+          ? Math.max(1, Math.round((book.totalPages * progress) / 100))
+          : undefined,
         totalPages: book.totalPages,
       });
     };
@@ -490,10 +511,10 @@ function DemoReader({
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     onContentInteraction();
     if (
-      !event.isPrimary
-      || (event.pointerType === 'mouse' && event.button !== 0)
-      || isSwipeBlockedTarget(event.target)
-      || hasActiveTextSelection(window.getSelection())
+      !event.isPrimary ||
+      (event.pointerType === 'mouse' && event.button !== 0) ||
+      isSwipeBlockedTarget(event.target) ||
+      hasActiveTextSelection(window.getSelection())
     ) {
       swipeStartRef.current = null;
       return;
@@ -527,19 +548,21 @@ function DemoReader({
     }
     const start = swipeStartRef.current;
     if (
-      start
-      && start.pointerId === event.pointerId
-      && (Math.abs(event.clientX - start.x) >= 8 || Math.abs(event.clientY - start.y) >= 8)
-    ) suppressCenterTapUntilRef.current = performance.now() + 450;
+      start &&
+      start.pointerId === event.pointerId &&
+      (Math.abs(event.clientX - start.x) >= 8 || Math.abs(event.clientY - start.y) >= 8)
+    )
+      suppressCenterTapUntilRef.current = performance.now() + 450;
   };
 
   const handleClick = (event: MouseEvent<HTMLDivElement>) => {
     if (
-      !compactLayout
-      || performance.now() < suppressCenterTapUntilRef.current
-      || isSwipeBlockedTarget(event.target)
-      || hasActiveTextSelection(window.getSelection())
-    ) return;
+      !compactLayout ||
+      performance.now() < suppressCenterTapUntilRef.current ||
+      isSwipeBlockedTarget(event.target) ||
+      hasActiveTextSelection(window.getSelection())
+    )
+      return;
     onCenterTap();
   };
 
@@ -573,16 +596,20 @@ function DemoReader({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerCancel={() => { swipeStartRef.current = null; }}
+      onPointerCancel={() => {
+        swipeStartRef.current = null;
+      }}
     >
-      <article style={{
-        fontSize: readerStyle.fontSize,
-        lineHeight: readerStyle.density.lineHeight,
-        letterSpacing: readerStyle.density.letterSpacing,
-        fontFamily: READER_FONT_STACKS[readerStyle.fontFamily],
-        paddingLeft: compactLayout ? 'clamp(14px, 4vw, 20px)' : readerStyle.density.pagePadding,
-        paddingRight: compactLayout ? 'clamp(14px, 4vw, 20px)' : readerStyle.density.pagePadding,
-      }}>
+      <article
+        style={{
+          fontSize: readerStyle.fontSize,
+          lineHeight: readerStyle.density.lineHeight,
+          letterSpacing: readerStyle.density.letterSpacing,
+          fontFamily: READER_FONT_STACKS[readerStyle.fontFamily],
+          paddingLeft: compactLayout ? 'clamp(14px, 4vw, 20px)' : readerStyle.density.pagePadding,
+          paddingRight: compactLayout ? 'clamp(14px, 4vw, 20px)' : readerStyle.density.pagePadding,
+        }}
+      >
         <Text className="reader-eyebrow">{content.eyebrow}</Text>
         <h1>{content.heading}</h1>
         {content.paragraphs.map((paragraph, index) => (
@@ -607,5 +634,3 @@ export const ReaderSurface = forwardRef<ReaderSurfaceHandle, ReaderSurfaceProps>
     return <FoliateEpubReader {...props} controllerRef={ref} />;
   },
 );
-
-export { findChapterLabel };

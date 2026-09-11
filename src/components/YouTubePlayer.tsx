@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Spin, Typography } from '@douyinfe/semi-ui';
 
 const { Text } = Typography;
@@ -63,14 +63,14 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, {
     return `${YOUTUBE_EMBED_ORIGIN}/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
   }, [initialTime, videoId]);
 
-  const postCommand = (func: string, args: unknown[] = []) => {
+  const postCommand = useCallback((func: string, args: unknown[] = []) => {
     iframeRef.current?.contentWindow?.postMessage(JSON.stringify({
       event: 'command',
       func,
       args,
       id: playerId,
     }), YOUTUBE_EMBED_ORIGIN);
-  };
+  }, [playerId]);
 
   useImperativeHandle(ref, () => ({
     seekTo(seconds) {
@@ -111,7 +111,7 @@ export const YouTubePlayer = forwardRef<YouTubePlayerHandle, {
       window.clearInterval(pollInterval);
       window.removeEventListener('message', handleMessage);
     };
-  }, [initialTime, onTimeUpdate, playerId, videoId]);
+  }, [initialTime, onTimeUpdate, playerId, postCommand, videoId]);
 
   const handleLoad = () => {
     window.clearTimeout(loadTimeoutRef.current);

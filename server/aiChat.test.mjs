@@ -28,7 +28,7 @@ test('OpenAI Compatible 配置通过 Pi Models 注册 Provider 与模型', async
   assert.equal(auth?.auth.apiKey, 'test-key');
 });
 
-test('PiAgent 通过 OpenAI 兼容端点流式返回对话', async (t) => {
+test('PiAgent 通过 OpenAI 兼容端点流式返回对话', async () => {
   const faux = fauxProvider({ tokensPerSecond: 0 });
   let requestContext;
   let requestOptions;
@@ -72,7 +72,7 @@ test('PiAgent 通过 OpenAI 兼容端点流式返回对话', async (t) => {
   assert.equal(requestOptions.sessionId, 'conversation-a');
 });
 
-test('PiAgent 执行阅读工具后继续生成最终回答', async (t) => {
+test('PiAgent 执行阅读工具后继续生成最终回答', async () => {
   const faux = fauxProvider({ tokensPerSecond: 0 });
   faux.setResponses([
     fauxAssistantMessage(

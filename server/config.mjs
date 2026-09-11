@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 const SERVER_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 
-export const PROJECT_DIRECTORY = resolve(SERVER_DIRECTORY, '..');
+const PROJECT_DIRECTORY = resolve(SERVER_DIRECTORY, '..');
 export const DIST_DIRECTORY = join(PROJECT_DIRECTORY, 'dist');
 export const DATA_DIRECTORY = resolve(
   process.env.LEARNING_CENTER_DATA_DIR || join(PROJECT_DIRECTORY, 'data'),

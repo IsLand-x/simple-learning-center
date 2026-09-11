@@ -21,7 +21,7 @@ const YOUTUBE_HOSTS = new Set([
 
 function cleanText(value, maxLength = 20_000) {
   return String(value ?? '')
-    .replace(/\u0000/g, '')
+    .replaceAll('\u0000', '')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()

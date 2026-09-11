@@ -1,4 +1,4 @@
-export const READER_STATE_VERSION = 28;
+const READER_STATE_VERSION = 28;
 
 const HIGHLIGHT_STATE_VERSION = 26;
 const READER_STYLE_KEYS = ['fontSize', 'lineHeight', 'theme', 'fontFamily', 'customStyle'];

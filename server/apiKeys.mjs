@@ -1,8 +1,8 @@
 import { mutatePersistedState } from './storage.mjs';
 import { statusError } from './errors.mjs';
 
-export const API_KEY_EXPORT_FORMAT = 'learning-center-api-keys';
-export const API_KEY_EXPORT_VERSION = 1;
+const API_KEY_EXPORT_FORMAT = 'learning-center-api-keys';
+const API_KEY_EXPORT_VERSION = 1;
 
 function requiredString(value, field, maxLength = 10_000) {
   if (typeof value !== 'string' || !value.trim() || value.length > maxLength) {

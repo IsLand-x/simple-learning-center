@@ -1,0 +1,53 @@
+
+.library-page {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  padding: 24px 28px;
+  background: var(--semi-color-bg-0);
+}
+
+.library-header,
+.library-toolbar,
+.book-meta__topline,
+.book-progress__label,
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.library-header {
+  max-width: 1180px;
+  margin: 0 auto 24px;
+  gap: 16px;
+}
+
+.library-header h4 {
+  margin: 0 0 4px;
+}
+
+.library-toolbar {
+  max-width: 1180px;
+  margin: 0 auto 20px;
+  gap: 16px;
+}
+
+.library-toolbar__primary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.library-toolbar--lists {
+  align-items: center;
+}
+
+.search-input {
+  width: 300px;
+  min-width: 300px;
+  flex: 0 0 300px;
+  max-width: 100%;
+}

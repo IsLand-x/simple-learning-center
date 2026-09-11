@@ -1,0 +1,98 @@
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--semi-color-bg-0);
+}
+
+.login-page {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  place-items: center;
+  overflow: auto;
+  background:
+    linear-gradient(145deg, var(--semi-color-bg-0), var(--semi-color-fill-0));
+}
+
+.login-page__theme-switch {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1;
+}
+
+.login-card {
+  display: flex;
+  width: min(100%, 420px);
+  flex-direction: column;
+  gap: 20px;
+  padding: 32px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-large);
+  background: var(--semi-color-bg-1);
+  box-shadow: var(--semi-shadow-elevated);
+}
+
+.login-card__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.login-card__heading h3 {
+  margin: 0;
+}
+
+.login-card__message {
+  min-height: 20px;
+  margin-top: -8px;
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding: 16px;
+  }
+
+  .login-card {
+    padding: 24px 20px;
+  }
+
+  .login-page__theme-switch {
+    top: 12px;
+    right: 12px;
+  }
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}

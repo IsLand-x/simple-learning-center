@@ -2,7 +2,7 @@ import { serverRequest } from './serverApi';
 
 const MAX_API_KEY_IMPORT_BYTES = 1024 * 1024;
 
-export interface ApiKeyImportResult {
+interface ApiKeyImportResult {
   imported: {
     added: number;
     updated: number;

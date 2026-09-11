@@ -420,11 +420,11 @@ function createCustomPalette(rawPaperColor: string, rawTextColor: string): Reade
     };
 }
 
-export function getReaderDensity(density: ReaderDensity) {
+function getReaderDensity(density: ReaderDensity) {
   return READER_DENSITY_PRESETS.find((preset) => preset.id === density) ?? READER_DENSITY_PRESETS[1];
 }
 
-export function getReaderThemePreset(theme: ReaderTheme) {
+function getReaderThemePreset(theme: ReaderTheme) {
   return READER_THEME_PRESETS.find((preset) => preset.id === theme) ?? READER_THEME_PRESETS[0];
 }
 
