@@ -99,9 +99,12 @@ test('mobile library uses the bottom navigation without horizontal overflow', as
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 });
 
-test('reader AI user messages preserve authored line breaks', async ({ page }, testInfo) => {
+test('reader AI user messages preserve authored line breaks on desktop and mobile', async ({
+  page,
+}, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
 
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
   await expect
@@ -152,14 +155,22 @@ test('reader AI user messages preserve authored line breaks', async ({ page }, t
 
   const userParagraph = page.locator('.ai-message--user p').filter({ hasText: '第一段描述' });
   await expect(userParagraph).toContainText('第二段描述');
-  const lineMetrics = await userParagraph.evaluate((element) => {
-    const style = window.getComputedStyle(element);
-    return {
-      height: element.getBoundingClientRect().height,
-      lineHeight: Number.parseFloat(style.lineHeight),
-      whiteSpace: style.whiteSpace,
-    };
-  });
-  expect(lineMetrics.whiteSpace).toBe('pre-wrap');
-  expect(lineMetrics.height).toBeGreaterThan(lineMetrics.lineHeight * 1.5);
+  const expectLineBreaks = async () => {
+    const lineMetrics = await userParagraph.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      return {
+        height: element.getBoundingClientRect().height,
+        lineHeight: Number.parseFloat(style.lineHeight),
+        whiteSpace: style.whiteSpace,
+      };
+    });
+    expect(lineMetrics.whiteSpace).toBe('pre-wrap');
+    expect(lineMetrics.height).toBeGreaterThan(lineMetrics.lineHeight * 1.5);
+  };
+
+  await expectLineBreaks();
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(page.getByRole('dialog').getByText('第一段描述')).toBeVisible();
+  await expectLineBreaks();
 });
