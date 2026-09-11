@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Button, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../../../lib/readerAiPrompts';
 import { useLearningStore } from '../../../store/useLearningStore';
 
@@ -7,18 +7,25 @@ const { Text, Title } = Typography;
 
 export function AiAssistantSettings() {
   const assistantPrompt = useLearningStore((state) => state.aiPreferences.assistantPrompt);
+  const autoHideReasoning = useLearningStore((state) => state.aiPreferences.autoHideReasoning);
   const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
   const [draft, setDraft] = useState(assistantPrompt);
+  const [autoHideReasoningDraft, setAutoHideReasoningDraft] = useState(autoHideReasoning);
 
   useEffect(() => setDraft(assistantPrompt), [assistantPrompt]);
+  useEffect(() => setAutoHideReasoningDraft(autoHideReasoning), [autoHideReasoning]);
 
   const normalizedDraft = draft.trim();
-  const changed = normalizedDraft !== assistantPrompt;
+  const changed =
+    normalizedDraft !== assistantPrompt || autoHideReasoningDraft !== autoHideReasoning;
   const save = (event: FormEvent) => {
     event.preventDefault();
     if (!changed) return;
-    setAiPreferences({ assistantPrompt: normalizedDraft });
-    Toast.success('阅读助手 Prompt 已保存');
+    setAiPreferences({
+      assistantPrompt: normalizedDraft,
+      autoHideReasoning: autoHideReasoningDraft,
+    });
+    Toast.success('阅读助手设置已保存');
   };
 
   return (
@@ -55,16 +62,37 @@ export function AiAssistantSettings() {
         </Text>
       </label>
 
+      <div className="ai-assistant-settings__toggle">
+        <div className="ai-assistant-settings__toggle-copy">
+          <Text strong>自动隐藏思考过程</Text>
+          <Text id="auto-hide-reasoning-description" size="small" type="tertiary">
+            开启后，模型生成时默认收起思考内容；仍可点击“正在思考”手动查看。
+          </Text>
+        </div>
+        <Switch
+          aria-label="自动隐藏思考过程"
+          aria-describedby="auto-hide-reasoning-description"
+          checked={autoHideReasoningDraft}
+          size="large"
+          onChange={setAutoHideReasoningDraft}
+        />
+      </div>
+
       <div className="ai-assistant-settings__footer">
         <Text size="small" type="tertiary">
           {changed ? '有尚未保存的修改' : '当前配置已保存'}
         </Text>
         <div className="ai-assistant-settings__actions">
           <Button
-            disabled={draft === DEFAULT_READER_AI_ASSISTANT_PROMPT}
+            disabled={
+              draft === DEFAULT_READER_AI_ASSISTANT_PROMPT && autoHideReasoningDraft === false
+            }
             theme="borderless"
             type="tertiary"
-            onClick={() => setDraft(DEFAULT_READER_AI_ASSISTANT_PROMPT)}
+            onClick={() => {
+              setDraft(DEFAULT_READER_AI_ASSISTANT_PROMPT);
+              setAutoHideReasoningDraft(false);
+            }}
           >
             恢复默认
           </Button>

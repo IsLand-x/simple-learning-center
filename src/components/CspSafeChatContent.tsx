@@ -1,4 +1,5 @@
 import { IconAISearchLevel2, IconAlertCircle, IconChevronDown, IconWrench } from '@douyinfe/semi-icons';
+import { useEffect, useState, type SyntheticEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -60,7 +61,53 @@ function reasoningText(item: Record<string, unknown>) {
     .join('\n\n');
 }
 
-function renderItem(item: unknown, index: number, bubbleClassName: string) {
+function ReasoningDetails({
+  text,
+  index,
+  status,
+  autoHideReasoning,
+}: {
+  text: string;
+  index: number;
+  status: string;
+  autoHideReasoning: boolean;
+}) {
+  const [open, setOpen] = useState(status === 'in_progress' && !autoHideReasoning);
+
+  useEffect(() => {
+    setOpen(status === 'in_progress' && !autoHideReasoning);
+  }, [autoHideReasoning, status]);
+
+  const handleToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    setOpen(event.currentTarget.open);
+  };
+
+  return (
+    <details
+      className="semi-ai-chat-dialogue-reasoning-wrapper csp-chat-reasoning"
+      open={open}
+      onToggle={handleToggle}
+    >
+      <summary className="semi-ai-chat-dialogue-reasoning-header">
+        <span className="semi-ai-chat-dialogue-reasoning-header-prefix"><IconAISearchLevel2 /></span>
+        <span className="semi-ai-chat-dialogue-reasoning-header-title">
+          {status === 'in_progress' ? '正在思考' : '思考过程'}
+        </span>
+        <span className="semi-ai-chat-dialogue-reasoning-header-suffix"><IconChevronDown /></span>
+      </summary>
+      <div className="semi-ai-chat-dialogue-reasoning-content">
+        {markdown(text, `reasoning-text-${index}`)}
+      </div>
+    </details>
+  );
+}
+
+function renderItem(
+  item: unknown,
+  index: number,
+  bubbleClassName: string,
+  autoHideReasoning: boolean,
+) {
   if (!item || typeof item !== 'object') return null;
   const value = item as Record<string, unknown>;
   const type = textValue(value.type);
@@ -71,22 +118,13 @@ function renderItem(item: unknown, index: number, bubbleClassName: string) {
     const text = reasoningText(value);
     if (!text) return null;
     return (
-      <details
-        className="semi-ai-chat-dialogue-reasoning-wrapper csp-chat-reasoning"
+      <ReasoningDetails
+        autoHideReasoning={autoHideReasoning}
         key={`reasoning-${index}`}
-        open={value.status === 'in_progress'}
-      >
-        <summary className="semi-ai-chat-dialogue-reasoning-header">
-          <span className="semi-ai-chat-dialogue-reasoning-header-prefix"><IconAISearchLevel2 /></span>
-          <span className="semi-ai-chat-dialogue-reasoning-header-title">
-            {value.status === 'in_progress' ? '正在思考' : '思考过程'}
-          </span>
-          <span className="semi-ai-chat-dialogue-reasoning-header-suffix"><IconChevronDown /></span>
-        </summary>
-        <div className="semi-ai-chat-dialogue-reasoning-content">
-          {markdown(text, `reasoning-text-${index}`)}
-        </div>
-      </details>
+        index={index}
+        status={textValue(value.status)}
+        text={text}
+      />
     );
   }
   if (type === 'function_call' || type === 'custom_tool_call') {
@@ -110,16 +148,22 @@ export function CspSafeChatContent({
   message,
   bubbleClassName = '',
   quote,
+  autoHideReasoning = false,
 }: {
   message?: ChatRenderMessage;
   bubbleClassName?: string;
   quote?: { text: string; chapter: string };
+  autoHideReasoning?: boolean;
 }) {
   const content = message?.content;
   const children = typeof content === 'string'
     ? markdown(content, 'content', bubbleClassName)
     : Array.isArray(content)
-      ? content.map((item, index) => renderItem(item, index, bubbleClassName)).filter(Boolean)
+      ? content
+          .map((item, index) =>
+            renderItem(item, index, bubbleClassName, autoHideReasoning),
+          )
+          .filter(Boolean)
       : markdown(message?.output_text ?? '', 'output', bubbleClassName);
   const hasContent = Array.isArray(children) ? children.length > 0 : Boolean(children);
   const loading = ['queued', 'in_progress'].includes(message?.status ?? '') && !hasContent;

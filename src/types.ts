@@ -321,6 +321,7 @@ export interface AiPreferences {
   provider: AiProvider | null;
   model: string;
   assistantPrompt: string;
+  autoHideReasoning: boolean;
 }
 
 export interface ReadingSession {

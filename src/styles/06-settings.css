@@ -113,6 +113,32 @@
   line-height: 1.65;
 }
 
+.ai-assistant-settings__toggle,
+.ai-assistant-settings__toggle-copy {
+  display: flex;
+  min-width: 0;
+}
+
+.ai-assistant-settings__toggle {
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ai-assistant-settings__toggle-copy {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ai-assistant-settings__toggle .semi-switch {
+  flex: 0 0 auto;
+}
+
+.ai-assistant-settings__toggle .semi-switch-native-control[type='checkbox'] {
+  top: -6px;
+  height: 44px;
+}
+
 .ai-assistant-settings__footer,
 .ai-assistant-settings__actions {
   display: flex;

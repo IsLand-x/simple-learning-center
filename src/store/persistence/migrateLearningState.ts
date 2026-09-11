@@ -330,5 +330,19 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       },
     };
   }
+  if (version < 30) {
+    const legacyAiPreferences = migrated.aiPreferences as Partial<AiPreferences> | undefined;
+    migrated = {
+      ...migrated,
+      aiPreferences: {
+        ...defaultAiPreferences,
+        ...legacyAiPreferences,
+        autoHideReasoning:
+          typeof legacyAiPreferences?.autoHideReasoning === 'boolean'
+            ? legacyAiPreferences.autoHideReasoning
+            : defaultAiPreferences.autoHideReasoning,
+      },
+    };
+  }
   return migrated;
 }

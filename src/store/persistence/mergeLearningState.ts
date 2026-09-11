@@ -91,6 +91,11 @@ export function mergeLearningState(
         typeof persisted.aiPreferences?.assistantPrompt === 'string'
           ? persisted.aiPreferences.assistantPrompt
           : (currentState.aiPreferences.assistantPrompt ?? defaultAiPreferences.assistantPrompt),
+      autoHideReasoning:
+        typeof persisted.aiPreferences?.autoHideReasoning === 'boolean'
+          ? persisted.aiPreferences.autoHideReasoning
+          : (currentState.aiPreferences.autoHideReasoning ??
+            defaultAiPreferences.autoHideReasoning),
     },
     webSearchConfig: {
       ...defaultWebSearchConfig,

@@ -12,11 +12,13 @@ export function AiConversationDialogue({
   assistantName,
   emptyTitle,
   emptyDescription,
+  autoHideReasoning = false,
 }: {
   chats: DialogueChat[];
   assistantName: string;
   emptyTitle: string;
   emptyDescription: string;
+  autoHideReasoning?: boolean;
 }) {
   if (!chats.length) return <Empty title={emptyTitle} description={emptyDescription} />;
   const quoteByMessageId = new Map(
@@ -37,6 +39,7 @@ export function AiConversationDialogue({
             message={message}
             bubbleClassName={`${className} ai-message--${message?.role ?? 'assistant'}`}
             quote={message ? quoteByMessageId.get(String(message.id)) : undefined}
+            autoHideReasoning={autoHideReasoning}
           />
         ),
       }}

@@ -190,7 +190,7 @@ test('reader AI user messages preserve authored line breaks on desktop and mobil
   await expectLineBreaks();
 });
 
-test('reader AI shortcuts send preset prompts and custom assistant style persists', async ({
+test('reader AI shortcuts, assistant style, and reasoning visibility persist', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
@@ -216,6 +216,7 @@ test('reader AI shortcuts send preset prompts and custom assistant style persist
     provider: 'api:e2e-reader-prompts',
     model: 'mock-model',
     assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+    autoHideReasoning: false,
   };
   const preferencesWrite = await page.request.put('/api/state/preferences', {
     data: preferences,
@@ -243,7 +244,13 @@ test('reader AI shortcuts send preset prompts and custom assistant style persist
         status: 'failed',
         revision: 1,
         content: '',
-        dialogueContent: [],
+        dialogueContent: [
+          {
+            type: 'reasoning',
+            status: 'in_progress',
+            summary: [{ type: 'summary_text', text: '正在核对章节结构。' }],
+          },
+        ],
         error: '测试已拦截模型请求',
         createdAt: now,
         updatedAt: now,
@@ -265,6 +272,7 @@ test('reader AI shortcuts send preset prompts and custom assistant style persist
     .toBe(
       READER_AI_PROMPT_TEMPLATES.find((template) => template.id === 'summarize-chapter')?.prompt,
     );
+  await expect(page.locator('.csp-chat-reasoning')).toHaveAttribute('open', '');
 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/books/demo-data-intensive');
@@ -284,16 +292,30 @@ test('reader AI shortcuts send preset prompts and custom assistant style persist
   await page.goto('/settings');
   await page.getByRole('tab', { name: 'AI 助手' }).click();
   const promptInput = page.getByRole('textbox', { name: '阅读助手自定义 Prompt' });
+  const autoHideReasoning = page.getByRole('switch', { name: '自动隐藏思考过程' });
   const customPrompt = '请先用一句话给出结论，再用三个问题帮助我检查理解。';
   await expect(promptInput).toHaveValue(DEFAULT_READER_AI_ASSISTANT_PROMPT);
+  await expect(autoHideReasoning).not.toBeChecked();
+  expect(Math.round((await autoHideReasoning.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(
+    44,
+  );
   await promptInput.fill(customPrompt);
+  await autoHideReasoning.check();
   await page.getByRole('button', { name: '保存设置' }).click();
-  await expect(page.getByText('阅读助手 Prompt 已保存')).toBeVisible();
+  await expect(page.getByText('阅读助手设置已保存')).toBeVisible();
   await expect
     .poll(async () => {
       const response = await page.request.get('/api/state/preferences');
       const snapshot = await response.json();
-      return snapshot.state.aiPreferences?.assistantPrompt;
+      return snapshot.state.aiPreferences;
     })
-    .toBe(customPrompt);
+    .toMatchObject({ assistantPrompt: customPrompt, autoHideReasoning: true });
+
+  await page.goto('/books/demo-data-intensive');
+  await page.getByRole('button', { name: '打开更多功能，默认显示 AI 助手' }).click();
+  await summarizeChapter.click();
+  const hiddenReasoning = page.locator('.csp-chat-reasoning');
+  await expect(hiddenReasoning).not.toHaveAttribute('open');
+  await hiddenReasoning.locator('summary').click();
+  await expect(hiddenReasoning).toHaveAttribute('open', '');
 });

@@ -457,6 +457,7 @@ export function AiConversationPanel({
           assistantName={providerLabel(provider ?? undefined, configs)}
           emptyTitle="开始新的对话"
           emptyDescription="Agent 会按需检索整本书、学习记录与联网资料"
+          autoHideReasoning={aiPreferences.autoHideReasoning}
         />
       </div>
 

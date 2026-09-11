@@ -13,6 +13,7 @@ describe('learning state migrations', () => {
       provider: null,
       model: 'test-model',
       assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+      autoHideReasoning: false,
     });
   });
 
@@ -29,5 +30,32 @@ describe('learning state migrations', () => {
     );
 
     expect(migrated.aiPreferences?.assistantPrompt).toBe('请用苏格拉底式提问引导我。');
+  });
+
+  it('adds and preserves the automatic reasoning visibility preference', () => {
+    const defaulted = migrateLearningState(
+      {
+        aiPreferences: {
+          provider: null,
+          model: '',
+          assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+        },
+      },
+      29,
+    );
+    const preserved = migrateLearningState(
+      {
+        aiPreferences: {
+          provider: null,
+          model: '',
+          assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+          autoHideReasoning: true,
+        },
+      },
+      29,
+    );
+
+    expect(defaulted.aiPreferences?.autoHideReasoning).toBe(false);
+    expect(preserved.aiPreferences?.autoHideReasoning).toBe(true);
   });
 });
