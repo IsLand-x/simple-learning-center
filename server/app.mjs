@@ -19,6 +19,12 @@ import { fetchRssSource, resolveRssSource } from './rssSources.mjs';
 import { sourceSecretsService } from './sourceSecrets.mjs';
 import { fetchYouTubeVideo } from './youtubeVideo.mjs';
 import { protectServerRssState } from './rssScheduler.mjs';
+import { protectReaderStateFromClient } from './readerState.mjs';
+import {
+  isStateDomain,
+  mergeStateDomainSnapshot,
+  serializeStateDomainSnapshot,
+} from './stateDomains.mjs';
 import {
   createAuthService,
   SESSION_COOKIE_NAME,
@@ -47,22 +53,25 @@ import {
   bookPath,
   exists,
   fileResponse,
+  findBookCoverPath,
   readJsonRequest,
   readPersistedState,
   searchIndexPath,
+  stateFileEtag,
   writePersistedState,
   writeRequestToFile,
 } from './storage.mjs';
-import {
-  mergeScopedStatePatch,
-  noteHydrationFilter,
-  parseStateScopeQuery,
-  projectPersistedState,
-} from './stateScopes.mjs';
 
 const MIME_TYPES = new Map([
+  ['.avif', 'image/avif'],
   ['.epub', 'application/epub+zip'],
+  ['.gif', 'image/gif'],
+  ['.jpeg', 'image/jpeg'],
+  ['.jpg', 'image/jpeg'],
   ['.json', 'application/json; charset=utf-8'],
+  ['.png', 'image/png'],
+  ['.svg', 'image/svg+xml'],
+  ['.webp', 'image/webp'],
 ]);
 const AI_STREAM_UPDATE_INTERVAL_MS = 32;
 
@@ -152,7 +161,7 @@ export function createApp({
 
   app.use('/api/*', async (c, next) => {
     await next();
-    c.header('Cache-Control', 'no-store');
+    if (!c.res.headers.has('Cache-Control')) c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
   });
 
@@ -227,17 +236,11 @@ export function createApp({
 
   app.get('/api/state', async (c) => {
     await purgeExpiredTrashedBooks();
-    const requestedScope = c.req.query('scope');
-    if (!requestedScope) {
-      const state = await readPersistedState();
-      return state ? c.json(state) : noContent(c);
-    }
-    const scopeQuery = parseStateScopeQuery(
-      requestedScope,
-      c.req.queries('bookId') ?? [],
-    );
-    const state = await readPersistedState({ hydrateNote: noteHydrationFilter(scopeQuery) });
-    return state ? c.json(projectPersistedState(state, scopeQuery)) : noContent(c);
+    const etag = await stateFileEtag();
+    if (etag) c.header('ETag', etag);
+    if (etag && c.req.header('If-None-Match') === etag) return c.body(null, 304);
+    const state = await readPersistedState();
+    return state ? c.json(state) : noContent(c);
   });
   app.put('/api/state', async (c) => {
     const state = await readJsonRequest(c.req.raw, MAX_STATE_BYTES);
@@ -245,26 +248,46 @@ export function createApp({
     await writePersistedState(
       state,
       initializeOnly,
-      initializeOnly ? undefined : async (incomingState, currentState) => protectServerRssState(
-        await aiJobs.protectPersistedState(incomingState),
-        currentState,
-      ),
-    );
-    return noContent(c);
-  });
-  app.patch('/api/state', async (c) => {
-    const patch = await readJsonRequest(c.req.raw, MAX_STATE_BYTES);
-    await writePersistedState(
-      patch,
-      false,
-      async (incomingPatch, currentState) => protectServerRssState(
-        await aiJobs.protectPersistedState(mergeScopedStatePatch(currentState, incomingPatch)),
+      initializeOnly ? undefined : async (incomingState, currentState) => protectReaderStateFromClient(
+        protectServerRssState(
+          await aiJobs.protectPersistedState(incomingState),
+          currentState,
+        ),
         currentState,
       ),
     );
     return noContent(c);
   });
   app.all('/api/state', methodNotAllowed);
+
+  app.get('/api/state/:domain', async (c) => {
+    const domain = c.req.param('domain');
+    if (!isStateDomain(domain)) return c.json({ error: '状态分区不存在' }, 404);
+    if (domain === 'library') await purgeExpiredTrashedBooks();
+    const state = await readPersistedState({ hydrateNote: () => domain === 'reading' });
+    const serialized = serializeStateDomainSnapshot(state, domain);
+    if (!serialized) return noContent(c);
+    c.header('ETag', serialized.etag);
+    if (c.req.header('If-None-Match') === serialized.etag) return c.body(null, 304);
+    return c.body(serialized.body, 200, { 'Content-Type': 'application/json; charset=utf-8' });
+  });
+  app.put('/api/state/:domain', async (c) => {
+    const domain = c.req.param('domain');
+    if (!isStateDomain(domain)) return c.json({ error: '状态分区不存在' }, 404);
+    const snapshot = await readJsonRequest(c.req.raw, MAX_STATE_BYTES);
+    await writePersistedState(snapshot, false, async (incomingSnapshot, currentState) => {
+      const mergedState = mergeStateDomainSnapshot(currentState, incomingSnapshot, domain);
+      return protectReaderStateFromClient(
+        protectServerRssState(
+          await aiJobs.protectPersistedState(mergedState),
+          currentState,
+        ),
+        currentState,
+      );
+    });
+    return noContent(c);
+  });
+  app.all('/api/state/:domain', methodNotAllowed);
 
   app.get('/api/api-keys/export', async (c) => {
     const state = await readPersistedState();
@@ -402,6 +425,15 @@ export function createApp({
   app.all('/api/ai/jobs/:jobId', methodNotAllowed);
 
   const bookRoute = '/api/books/:bookId';
+  app.on(['GET', 'HEAD'], `${bookRoute}/cover`, async (c) => {
+    const path = await findBookCoverPath(c.req.param('bookId'));
+    if (!path) return c.json({ error: '书籍封面不存在' }, 404);
+    const response = await storedFileResponse(c, path);
+    response.headers.set('Cache-Control', 'private, max-age=604800');
+    response.headers.set('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'");
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    return response;
+  });
   app.on(['GET', 'HEAD'], bookRoute, async (c) => {
     const path = bookPath(c.req.param('bookId'));
     if (!await exists(path)) return c.json({ error: '书籍文件不存在' }, 404);
@@ -422,6 +454,7 @@ export function createApp({
   });
   app.all(`${bookRoute}/trash`, methodNotAllowed);
   app.all(`${bookRoute}/restore`, methodNotAllowed);
+  app.all(`${bookRoute}/cover`, methodNotAllowed);
   app.all(bookRoute, methodNotAllowed);
 
   const searchIndexRoute = '/api/search-indexes/:bookId';

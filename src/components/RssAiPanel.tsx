@@ -73,6 +73,14 @@ function LearningResourceAiPanel({
   const [status, setStatus] = useState<AiStatus>(() => selectedConfig && model ? 'ready' : 'unavailable');
   const [statusMessage, setStatusMessage] = useState('');
   const [quote, setQuote] = useState<{ text: string; chapter: string } | null>(null);
+  const [optimisticUserMessage, setOptimisticUserMessage] = useState<{
+    id: string;
+    role: 'user';
+    content: string;
+    quote?: { text: string; chapter: string };
+    status: 'completed';
+    createdAt: number;
+  } | null>(null);
   const [streamingAssistant, setStreamingAssistant] = useState<{
     id: string;
     role: 'assistant';
@@ -95,6 +103,7 @@ function LearningResourceAiPanel({
 
   useEffect(() => {
     setQuote(null);
+    setOptimisticUserMessage(null);
     setStreamingAssistant(null);
     setActiveJobId(null);
     setStatusMessage('');
@@ -163,6 +172,10 @@ function LearningResourceAiPanel({
     let disposed = false;
     void listAiJobs(resourceId, conversationId).then((jobs) => {
       if (disposed) return;
+      jobs
+        .filter((job) => job.status === 'completed')
+        .sort((left, right) => left.createdAt - right.createdAt)
+        .forEach(applyJob);
       const runningJob = jobs.find((job) => job.status === 'queued' || job.status === 'running');
       if (runningJob) applyJob(runningJob);
     }).catch((error) => {
@@ -244,15 +257,24 @@ function LearningResourceAiPanel({
     ensureSession(question);
     const createdAt = Date.now();
     const userMessageId = createUuid();
-    addChatMessage({
+    const userMessage = {
       id: userMessageId,
       bookId: resourceId,
       conversationId,
-      role: 'user',
+      role: 'user' as const,
       content: question,
       ...(quoteForMessage ? { quote: quoteForMessage } : {}),
       createdAt,
+    };
+    setOptimisticUserMessage({
+      id: userMessage.id,
+      role: userMessage.role,
+      content: userMessage.content,
+      ...(userMessage.quote ? { quote: userMessage.quote } : {}),
+      status: 'completed',
+      createdAt: userMessage.createdAt,
     });
+    addChatMessage(userMessage);
     setQuote(null);
     if (!selectedConfig || !model) return;
     setStreamingAssistant({
@@ -302,6 +324,9 @@ function LearningResourceAiPanel({
       createdAt: message.createdAt,
       status: 'completed',
     })),
+    ...(optimisticUserMessage && !chats.some((message) => message.id === optimisticUserMessage.id)
+      ? [optimisticUserMessage]
+      : []),
     ...(streamingAssistant && !chats.some((message) => message.id === streamingAssistant.id)
       ? [streamingAssistant]
       : []),

@@ -9,10 +9,7 @@ import { applyAppTheme, readInitialThemeMode } from './lib/appTheme';
 import { getAuthSession } from './lib/auth';
 import { synchronizeLearningState } from './lib/learningStateSync';
 import { AUTHENTICATION_REQUIRED_EVENT } from './lib/serverApi';
-import {
-  activateServerStatePersistence,
-  prepareServerState,
-} from './lib/serverStateStorage';
+import { prepareServerState } from './lib/serverStateStorage';
 import { LoginPage } from './pages/LoginPage';
 import { useLearningStore } from './store/useLearningStore';
 
@@ -93,9 +90,6 @@ async function startApplication() {
     }
     await prepareServerState((message) => showBootstrapMessage(message));
     await useLearningStore.persist.rehydrate();
-    await activateServerStatePersistence(
-      useLearningStore.getState() as unknown as Record<string, unknown>,
-    );
     useLearningStore.setState({});
     root.render(
       <React.StrictMode>

@@ -94,6 +94,7 @@ export function ReaderMobileChrome({
           activeItemVisible={compactTocOpen}
           items={book.toc}
           activeHref={activeHref}
+          currentPage={book.currentPage}
           progress={book.progress}
           onSelect={onSelectToc}
         />

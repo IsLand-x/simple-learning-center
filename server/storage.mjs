@@ -14,6 +14,7 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import {
   BOOK_DIRECTORY,
+  COVER_DIRECTORY,
   DATA_DIRECTORY,
   NOTE_DIRECTORY,
   SEARCH_INDEX_DIRECTORY,
@@ -45,6 +46,10 @@ export function bookPath(bookId) {
   return join(BOOK_DIRECTORY, `${encodedId(bookId)}.epub`);
 }
 
+export function coverDirectoryPath(bookId) {
+  return join(COVER_DIRECTORY, encodedId(bookId));
+}
+
 export function searchIndexPath(bookId) {
   return join(SEARCH_INDEX_DIRECTORY, `${encodedId(bookId)}.json`);
 }
@@ -69,6 +74,7 @@ export async function exists(path) {
 export async function initializeDataDirectories() {
   await Promise.all([
     mkdir(BOOK_DIRECTORY, { recursive: true, mode: 0o700 }),
+    mkdir(COVER_DIRECTORY, { recursive: true, mode: 0o700 }),
     mkdir(NOTE_DIRECTORY, { recursive: true, mode: 0o700 }),
     mkdir(SEARCH_INDEX_DIRECTORY, { recursive: true, mode: 0o700 }),
   ]);
@@ -141,6 +147,91 @@ function persistedStateNotes(persistedState) {
   return Array.isArray(notes) ? notes : [];
 }
 
+const COVER_FORMATS = new Map([
+  ['image/avif', 'avif'],
+  ['image/gif', 'gif'],
+  ['image/jpeg', 'jpg'],
+  ['image/png', 'png'],
+  ['image/svg+xml', 'svg'],
+  ['image/webp', 'webp'],
+]);
+
+function parseCoverDataUrl(value) {
+  if (typeof value !== 'string') return null;
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i.exec(value);
+  if (!match) return null;
+  const mimeType = match[1].toLowerCase();
+  const extension = COVER_FORMATS.get(mimeType);
+  if (!extension) return null;
+  const data = Buffer.from(match[2].replaceAll(/\s/g, ''), 'base64');
+  return data.length ? { data, extension } : null;
+}
+
+async function findBookCoverPath(bookId) {
+  const directory = coverDirectoryPath(bookId);
+  try {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const entry = entries.find((candidate) => (
+      candidate.isFile() && /^cover\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(candidate.name)
+    ));
+    return entry ? join(directory, entry.name) : null;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+async function externalizeBookCover(book) {
+  if (!book || typeof book !== 'object' || typeof book.id !== 'string') return book;
+  let storedCoverPath = await findBookCoverPath(book.id);
+  if (!storedCoverPath) {
+    const parsedCover = parseCoverDataUrl(book.coverDataUrl);
+    if (parsedCover) {
+      storedCoverPath = join(coverDirectoryPath(book.id), `cover.${parsedCover.extension}`);
+      await atomicWrite(storedCoverPath, parsedCover.data);
+    }
+  }
+
+  if (!storedCoverPath) return book;
+  const { coverDataUrl: _coverDataUrl, ...metadata } = book;
+  return {
+    ...metadata,
+    coverDataUrl: `/api/books/${encodeURIComponent(book.id)}/cover`,
+  };
+}
+
+async function externalizeStateCovers(persistedState) {
+  const state = persistedState?.state;
+  if (!state) return;
+  if (Array.isArray(state.books)) {
+    state.books = await Promise.all(state.books.map(externalizeBookCover));
+  }
+  if (Array.isArray(state.trashedBooks)) {
+    state.trashedBooks = await Promise.all(state.trashedBooks.map(async (entry) => (
+      entry?.book ? { ...entry, book: await externalizeBookCover(entry.book) } : entry
+    )));
+  }
+}
+
+function stripStoredCoverUrls(persistedState) {
+  const strip = (book) => {
+    if (!book || typeof book !== 'object') return book;
+    if (typeof book.coverDataUrl !== 'string' || !book.coverDataUrl.startsWith('/api/books/')) return book;
+    const { coverDataUrl: _coverDataUrl, ...metadata } = book;
+    return metadata;
+  };
+  const state = persistedState?.state;
+  if (!state) return;
+  if (Array.isArray(state.books)) state.books = state.books.map(strip);
+  if (Array.isArray(state.trashedBooks)) {
+    state.trashedBooks = state.trashedBooks.map((entry) => (
+      entry?.book ? { ...entry, book: strip(entry.book) } : entry
+    ));
+  }
+}
+
+export { findBookCoverPath };
+
 async function listMarkdownFiles(directory) {
   if (!await exists(directory)) return [];
   const entries = await readdir(directory, { withFileTypes: true });
@@ -157,6 +248,8 @@ async function prepareStateForDisk(persistedState) {
     throw statusError(400, '状态数据格式不正确');
   }
   const diskState = structuredClone(persistedState);
+  await externalizeStateCovers(diskState);
+  stripStoredCoverUrls(diskState);
   const notes = persistedStateNotes(diskState);
   const expectedNoteFiles = new Set();
   const storedNotes = [];
@@ -194,6 +287,7 @@ async function hydrateStateFromDisk(diskState, hydrateNote = () => true) {
   const persistedState = diskState?.formatVersion === 1 ? diskState.persistedState : diskState;
   if (!persistedState || typeof persistedState !== 'object' || !persistedState.state) return null;
   const hydratedState = structuredClone(persistedState);
+  await externalizeStateCovers(hydratedState);
   hydratedState.state.notes = await Promise.all(persistedStateNotes(hydratedState).map(async (note) => {
     if (!note || typeof note !== 'object') return note;
     const { contentFile, ...metadata } = note;
@@ -372,6 +466,16 @@ async function persistState(persistedState, protectClientSnapshot = true) {
 export async function readPersistedState(options) {
   await stateWriteQueue.catch(() => undefined);
   return readPersistedStateFromDisk(options);
+}
+
+export async function stateFileEtag() {
+  try {
+    const metadata = await stat(STATE_FILE, { bigint: true });
+    return `W/\"${metadata.size.toString(16)}-${metadata.mtimeNs.toString(16)}\"`;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
 }
 
 export function writePersistedState(persistedState, initializeOnly = false, transform) {

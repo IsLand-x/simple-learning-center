@@ -27,6 +27,8 @@ import type { BookItem, ChatSession, HighlightItem, ReaderHighlightTarget, Reade
 
 const { Text } = Typography;
 const PENDING_COMMENT_HIGHLIGHT_ID = 'pending-comment-highlight';
+const READING_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
+const READING_SESSION_PERSIST_INTERVAL_MS = 15_000;
 
 function formatPageProgress(book: BookItem) {
   const totalPages = typeof book.totalPages === 'number' && Number.isFinite(book.totalPages)
@@ -63,6 +65,7 @@ export function ReaderPage() {
   const pendingLocationSaveRef = useRef<{ bookId: string; changes: Partial<BookItem> } | null>(null);
   const locationSaveDelayRef = useRef<number | null>(null);
   const locationSaveIdleRef = useRef<number | null>(null);
+  const recordReadingActivityRef = useRef<(() => void) | null>(null);
   const [activePanel, setActivePanel] = useState<MobileReaderPanel | null>(null);
   const [compactReader, setCompactReader] = useState(() => window.innerWidth < 900);
   const [mobileReader, setMobileReader] = useState(() => window.matchMedia('(max-width: 800px)').matches);
@@ -285,37 +288,79 @@ export function ReaderPage() {
     const sessionId = createUuid();
     const startedAt = Date.now();
     let accumulatedMs = 0;
-    let activeSince = document.visibilityState === 'visible' ? Date.now() : null;
+    let lastCountedAt = startedAt;
+    let windowFocused = document.hasFocus();
+    let activeSince = document.visibilityState === 'visible' && windowFocused ? startedAt : null;
+    let idleDeadline = startedAt + READING_IDLE_TIMEOUT_MS;
+
+    const accumulateUntil = (now: number) => {
+      if (activeSince === null) return;
+      const countedUntil = Math.min(now, idleDeadline);
+      if (countedUntil <= activeSince) return;
+      accumulatedMs += countedUntil - activeSince;
+      lastCountedAt = countedUntil;
+    };
+
+    const canTimeReading = () => document.visibilityState === 'visible' && windowFocused;
 
     const persistSession = (continueTiming: boolean) => {
       const now = Date.now();
-      if (activeSince !== null) accumulatedMs += now - activeSince;
-      activeSince = continueTiming && document.visibilityState === 'visible' ? now : null;
+      accumulateUntil(now);
+      activeSince = continueTiming && canTimeReading() && now < idleDeadline ? now : null;
       if (accumulatedMs < 1000) return;
       upsertReadingSession({
         id: sessionId,
         bookId: book.id,
         startedAt,
-        endedAt: now,
+        endedAt: lastCountedAt,
         durationMs: accumulatedMs,
       });
     };
 
+    const recordReadingActivity = () => {
+      const now = Date.now();
+      accumulateUntil(now);
+      idleDeadline = now + READING_IDLE_TIMEOUT_MS;
+      activeSince = canTimeReading() ? now : null;
+    };
+
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        if (activeSince === null) activeSince = Date.now();
+        recordReadingActivity();
       } else {
         persistSession(false);
       }
     };
+    const handleFocus = () => {
+      windowFocused = true;
+      recordReadingActivity();
+    };
+    const handleBlur = () => {
+      persistSession(false);
+      windowFocused = false;
+    };
     const handlePageHide = () => persistSession(false);
-    const interval = window.setInterval(() => persistSession(true), 15_000);
+    const interval = window.setInterval(() => persistSession(true), READING_SESSION_PERSIST_INTERVAL_MS);
+    recordReadingActivityRef.current = recordReadingActivity;
     document.addEventListener('visibilitychange', handleVisibility);
+    document.addEventListener('pointerdown', recordReadingActivity, true);
+    document.addEventListener('keydown', recordReadingActivity, true);
+    document.addEventListener('wheel', recordReadingActivity, { capture: true, passive: true });
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
     window.addEventListener('pagehide', handlePageHide);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
+      document.removeEventListener('pointerdown', recordReadingActivity, true);
+      document.removeEventListener('keydown', recordReadingActivity, true);
+      document.removeEventListener('wheel', recordReadingActivity, true);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
       window.removeEventListener('pagehide', handlePageHide);
+      if (recordReadingActivityRef.current === recordReadingActivity) {
+        recordReadingActivityRef.current = null;
+      }
       persistSession(false);
     };
   }, [book?.id, upsertReadingSession]);
@@ -351,6 +396,7 @@ export function ReaderPage() {
       current.currentPage !== location.page ||
       current.totalPages !== location.totalPages;
     if (!hasChanged) return;
+    recordReadingActivityRef.current?.();
     const changes: Partial<BookItem> = {
       progress: roundedProgress,
       currentCfi: location.cfi ?? current.currentCfi,
@@ -380,6 +426,7 @@ export function ReaderPage() {
         chapter: currentChapter,
         page: book.currentPage,
         createdAt: 0,
+        updatedAt: 0,
       },
     ];
   }, [book, currentChapter, highlights, pendingCommentSelection]);
@@ -426,6 +473,7 @@ export function ReaderPage() {
       return;
     }
     const highlightId = createUuid();
+    const createdAt = Date.now();
     addHighlight({
       id: highlightId,
       bookId: book.id,
@@ -434,7 +482,8 @@ export function ReaderPage() {
       cfi: selection.cfi,
       chapter: currentChapter,
       page: book.currentPage,
-      createdAt: Date.now(),
+      createdAt,
+      updatedAt: createdAt,
     });
     readerRef.current?.clearSelection();
     setSelection(null);
@@ -505,6 +554,7 @@ export function ReaderPage() {
     const comment = commentDraft.trim();
     if (pendingCommentSelection) {
       if (!comment) return;
+      const createdAt = Date.now();
       addHighlight({
         id: createUuid(),
         bookId: book.id,
@@ -514,8 +564,9 @@ export function ReaderPage() {
         chapter: currentChapter,
         page: book.currentPage,
         comment,
-        commentUpdatedAt: Date.now(),
-        createdAt: Date.now(),
+        commentUpdatedAt: createdAt,
+        createdAt,
+        updatedAt: createdAt,
       });
       setPendingCommentSelection(null);
       setCommentDraft('');

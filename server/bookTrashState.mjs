@@ -64,7 +64,7 @@ export function protectBookTrashStateFromClient(persistedState, currentPersisted
 
   const trashedBookIds = new Set(currentTrashedBooks.map(entryBookId).filter(Boolean));
   const permanentlyDeletedBookIds = new Set(currentTombstones.map((entry) => entry?.bookId).filter(Boolean));
-  for (const key of ['highlights', 'notes', 'chats', 'chatSessions', 'readingSessions']) {
+  for (const key of ['highlights', 'deletedHighlightTombstones', 'notes', 'chats', 'chatSessions', 'readingSessions']) {
     const currentTrashedItems = stateArray(currentPersistedState.state, key)
       .filter((item) => trashedBookIds.has(item?.bookId));
     protectedState.state[key] = [
@@ -152,7 +152,7 @@ export function permanentlyDeleteBookInState(persistedState, bookId, deletedAt =
     ...bookList,
     bookIds: stateArray(bookList, 'bookIds').filter((item) => item !== bookId),
   }));
-  for (const key of ['highlights', 'notes', 'chats', 'chatSessions', 'readingSessions']) {
+  for (const key of ['highlights', 'deletedHighlightTombstones', 'notes', 'chats', 'chatSessions', 'readingSessions']) {
     state[key] = stateArray(state, key).filter((item) => item?.bookId !== bookId);
   }
   state.deletedBookTombstones = [

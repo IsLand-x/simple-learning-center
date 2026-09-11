@@ -61,6 +61,7 @@ export function ReaderWorkspace({
           <TableOfContents
             items={book.toc}
             activeHref={activeHref}
+            currentPage={book.currentPage}
             progress={book.progress}
             onSelect={(item) => onSelectToc(item, true)}
           />
@@ -85,6 +86,7 @@ export function ReaderWorkspace({
             <TableOfContents
               items={book.toc}
               activeHref={activeHref}
+              currentPage={book.currentPage}
               progress={book.progress}
               onSelect={(item) => onSelectToc(item, false)}
             />

@@ -10,6 +10,7 @@ interface TableOfContentsProps {
   activeItemVisible?: boolean;
   items: TocItem[];
   activeHref?: string;
+  currentPage?: number;
   progress: number;
   onSelect: (item: TocItem) => void;
 }
@@ -36,11 +37,13 @@ function TocRow({
   item,
   depth,
   activeHref,
+  currentPage,
   onSelect,
 }: {
   item: TocItem;
   depth: number;
   activeHref?: string;
+  currentPage?: number;
   onSelect: (item: TocItem) => void;
 }) {
   const selected = hrefsMatch(item.href, activeHref);
@@ -63,11 +66,21 @@ function TocRow({
           onClick={() => onSelect(item)}
           onKeyDown={handleKeyDown}
         >
-          <Text ellipsis={{ showTooltip: false }}>{item.label}</Text>
+          <Text className="toc-item__label" ellipsis={{ showTooltip: false }}>{item.label}</Text>
+          {selected && currentPage !== undefined && (
+            <Text className="toc-item__page" size="small">第 {currentPage} 页</Text>
+          )}
         </div>
       </Tooltip>
       {item.subitems?.map((child) => (
-        <TocRow key={child.id || child.href} item={child} depth={depth + 1} activeHref={activeHref} onSelect={onSelect} />
+        <TocRow
+          key={child.id || child.href}
+          item={child}
+          depth={depth + 1}
+          activeHref={activeHref}
+          currentPage={currentPage}
+          onSelect={onSelect}
+        />
       ))}
     </>
   );
@@ -78,11 +91,15 @@ export function TableOfContents({
   activeItemVisible = true,
   items,
   activeHref,
+  currentPage,
   progress,
   onSelect,
 }: TableOfContentsProps) {
   const listRef = useRef<HTMLElement>(null);
   const safeProgress = Math.max(0, Math.min(100, progress));
+  const safeCurrentPage = typeof currentPage === 'number' && Number.isFinite(currentPage)
+    ? Math.max(1, Math.round(currentPage))
+    : undefined;
 
   useEffect(() => {
     if (!activeItemVisible || !activeHref) return undefined;
@@ -127,7 +144,14 @@ export function TableOfContents({
       </div>
       <nav ref={listRef} className="toc-list" aria-label="书籍目录">
         {items.map((item) => (
-          <TocRow key={item.id || item.href} item={item} depth={0} activeHref={activeHref} onSelect={onSelect} />
+          <TocRow
+            key={item.id || item.href}
+            item={item}
+            depth={0}
+            activeHref={activeHref}
+            currentPage={safeCurrentPage}
+            onSelect={onSelect}
+          />
         ))}
       </nav>
     </aside>

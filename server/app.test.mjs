@@ -61,6 +61,39 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const readResponse = await app.request('/api/state');
     assert.equal(readResponse.status, 200);
     assert.deepEqual(await readResponse.json(), persistedState);
+
+    const stateEtag = readResponse.headers.get('etag');
+    assert.ok(stateEtag);
+    const unchangedResponse = await app.request('/api/state', {
+      headers: { 'If-None-Match': stateEtag },
+    });
+    assert.equal(unchangedResponse.status, 304);
+    assert.equal(await unchangedResponse.text(), '');
+
+    const libraryResponse = await app.request('/api/state/library');
+    assert.equal(libraryResponse.status, 200);
+    assert.deepEqual(Object.keys((await libraryResponse.clone().json()).state), ['books']);
+    const libraryEtag = libraryResponse.headers.get('etag');
+    assert.ok(libraryEtag);
+
+    const preferenceResponse = await app.request('/api/state/preferences');
+    const preferences = await preferenceResponse.json();
+    assert.deepEqual(Object.keys(preferences.state), ['openAIConfigs', 'webSearchConfig']);
+    const preferenceWriteResponse = await app.request('/api/state/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: { themeMode: 'dark' }, version: 1 }),
+    });
+    assert.equal(preferenceWriteResponse.status, 204);
+
+    const unchangedLibraryResponse = await app.request('/api/state/library', {
+      headers: { 'If-None-Match': libraryEtag },
+    });
+    assert.equal(unchangedLibraryResponse.status, 304);
+    const stateAfterPreferenceWrite = await (await app.request('/api/state')).json();
+    assert.equal(stateAfterPreferenceWrite.state.themeMode, 'dark');
+    assert.equal(stateAfterPreferenceWrite.state.openAIConfigs[0].apiKey, 'test-key-1');
+    assert.equal(stateAfterPreferenceWrite.state.notes.length, 0);
   });
 
   await t.test('导出并导入 API Key', async () => {
@@ -825,6 +858,72 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(protectedState.state.bookLists[0].note, '服务端保存的备注');
   });
 
+  await t.test('旧设备快照不会清除高亮、复活已删除高亮或回退阅读样式', async () => {
+    const currentState = await (await app.request('/api/state')).json();
+    currentState.version = 28;
+    currentState.state.highlights = [{
+      id: 'reader-sync-highlight',
+      bookId: 'book-1',
+      kind: 'highlight',
+      text: '服务端的新高亮',
+      cfi: 'epubcfi(/6/2)',
+      chapter: '第一章',
+      createdAt: 200,
+      updatedAt: 200,
+    }];
+    currentState.state.deletedHighlightTombstones = [];
+    currentState.state.readerPreferences = { theme: 'ink', fontSize: 22 };
+    currentState.state.readerPreferencesUpdatedAt = 200;
+    currentState.state.readerStyleUpdatedAt = 200;
+    currentState.state.readerLayoutUpdatedAt = 200;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+
+    const staleDeviceSnapshot = structuredClone(currentState);
+    staleDeviceSnapshot.state.highlights = [];
+    staleDeviceSnapshot.state.readerPreferences = { theme: 'paper', fontSize: 16 };
+    staleDeviceSnapshot.state.readerPreferencesUpdatedAt = 100;
+    staleDeviceSnapshot.state.readerStyleUpdatedAt = 100;
+    staleDeviceSnapshot.state.readerLayoutUpdatedAt = 100;
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(staleDeviceSnapshot),
+    });
+
+    let serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.highlights[0].text, '服务端的新高亮');
+    assert.deepEqual(serverState.state.readerPreferences, { theme: 'ink', fontSize: 22 });
+
+    const deletionSnapshot = structuredClone(serverState);
+    deletionSnapshot.state.highlights = [];
+    deletionSnapshot.state.deletedHighlightTombstones = [{
+      highlightId: 'reader-sync-highlight',
+      bookId: 'book-1',
+      deletedAt: 300,
+    }];
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(deletionSnapshot),
+    });
+    await app.request('/api/state', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(currentState),
+    });
+
+    serverState = await (await app.request('/api/state')).json();
+    assert.equal(serverState.state.highlights.some((item) => item.id === 'reader-sync-highlight'), false);
+    assert.equal(
+      serverState.state.deletedHighlightTombstones[0].highlightId,
+      'reader-sync-highlight',
+    );
+  });
+
   await t.test('回收站阻止旧设备快照复活书籍，并支持恢复与彻底删除', async () => {
     const currentState = await (await app.request('/api/state')).json();
     const book = {
@@ -839,6 +938,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       progress: 42,
       currentChapter: '第二章',
       toc: [],
+      coverDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB',
     };
     currentState.version = 25;
     currentState.state.books = [
@@ -880,6 +980,19 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify(currentState),
     });
     await writeFile(bookPath(book.id), new Uint8Array([1, 2, 3, 4]));
+    const externalizedStateResponse = await app.request('/api/state');
+    const externalizedStateText = await externalizedStateResponse.text();
+    assert.equal(externalizedStateText.includes(book.coverDataUrl), false);
+    const externalizedState = JSON.parse(externalizedStateText);
+    assert.equal(
+      externalizedState.state.books.find((item) => item.id === book.id)?.coverDataUrl,
+      `/api/books/${book.id}/cover`,
+    );
+    const coverResponse = await app.request(`/api/books/${book.id}/cover`);
+    assert.equal(coverResponse.status, 200);
+    assert.equal(coverResponse.headers.get('content-type'), 'image/png');
+    assert.equal(coverResponse.headers.get('cache-control'), 'private, max-age=604800');
+    assert.ok((await coverResponse.arrayBuffer()).byteLength > 0);
     const staleDeviceSnapshot = structuredClone(currentState);
     staleDeviceSnapshot.state.highlights = [];
     staleDeviceSnapshot.state.notes = [];
@@ -935,6 +1048,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(serverState.state.notes.some((item) => item.bookId === book.id), false);
     assert.equal(serverState.state.deletedBookTombstones.some((item) => item.bookId === book.id), true);
     assert.equal((await app.request(`/api/books/${book.id}`)).status, 404);
+    assert.equal((await app.request(`/api/books/${book.id}/cover`)).status, 404);
 
     await app.request('/api/state', {
       method: 'PUT',
@@ -992,57 +1106,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(serverState.state.trashedBooks.some((item) => item.book.id === recentBook.id), true);
     assert.equal((await app.request(`/api/books/${expiredBook.id}`)).status, 404);
     assert.equal((await app.request(`/api/books/${recentBook.id}`)).status, 200);
-  });
-
-  await t.test('按页面作用域读取并增量保存状态', async () => {
-    const currentState = await (await app.request('/api/state')).json();
-    currentState.version = 26;
-    currentState.state.navCollapsed = true;
-    currentState.state.themeMode = 'dark';
-    currentState.state.books = [
-      { id: 'book-a', title: 'A', updatedAt: 1 },
-      { id: 'book-b', title: 'B', updatedAt: 1 },
-    ];
-    currentState.state.highlights = [
-      { id: 'highlight-a', bookId: 'book-a', text: 'A' },
-      { id: 'highlight-b', bookId: 'book-b', text: 'B' },
-    ];
-    const writeResponse = await app.request('/api/state', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(currentState),
-    });
-    assert.equal(writeResponse.status, 204);
-
-    const shell = await (await app.request('/api/state?scope=shell')).json();
-    assert.deepEqual(shell.state, { navCollapsed: true, themeMode: 'dark' });
-
-    const reader = await (await app.request('/api/state?scope=reader&bookId=book-a')).json();
-    assert.deepEqual(reader.state.books.map((book) => book.id), ['book-a']);
-    assert.deepEqual(reader.state.highlights.map((highlight) => highlight.id), ['highlight-a']);
-    assert.equal('rssItems' in reader.state, false);
-
-    const patchResponse = await app.request('/api/state', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        version: 26,
-        scopes: ['reader'],
-        bookIds: ['book-a'],
-        state: {
-          books: [{ id: 'book-a', title: 'A2', updatedAt: 2 }],
-          highlights: [{ id: 'highlight-a2', bookId: 'book-a', text: 'A2' }],
-        },
-      }),
-    });
-    assert.equal(patchResponse.status, 204);
-
-    const persisted = await (await app.request('/api/state')).json();
-    assert.equal(persisted.state.books.find((book) => book.id === 'book-a')?.title, 'A2');
-    assert.equal(persisted.state.books.find((book) => book.id === 'book-b')?.title, 'B');
-    assert.equal(persisted.state.highlights.some((highlight) => highlight.id === 'highlight-a'), false);
-    assert.equal(persisted.state.highlights.some((highlight) => highlight.id === 'highlight-a2'), true);
-    assert.equal(persisted.state.highlights.some((highlight) => highlight.id === 'highlight-b'), true);
   });
 
   await t.test('远程模式保护页面与 API', async () => {

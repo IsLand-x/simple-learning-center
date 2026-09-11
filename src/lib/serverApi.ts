@@ -27,7 +27,7 @@ async function responseError(response: Response) {
   return { message: `服务器请求失败（${response.status}）` };
 }
 
-export async function serverRequest(path: string, init?: RequestInit) {
+export async function serverRequest(path: string, init?: RequestInit, allowedStatuses: number[] = []) {
   let response: Response;
   try {
     response = await fetch(path, {
@@ -39,7 +39,7 @@ export async function serverRequest(path: string, init?: RequestInit) {
     if (error instanceof Error && error.name === 'AbortError') throw error;
     throw new ServerApiError('无法连接学习中心服务，请确认服务已经启动', 0);
   }
-  if (!response.ok) {
+  if (!response.ok && !allowedStatuses.includes(response.status)) {
     if (response.status === 401 && !path.startsWith('/api/auth/')) {
       window.dispatchEvent(new Event(AUTHENTICATION_REQUIRED_EVENT));
     }

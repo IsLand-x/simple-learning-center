@@ -9,6 +9,7 @@ import {
 } from '../lib/readerThemes';
 import { markdownNoteTitle } from '../lib/markdownNotes';
 import { serverStateStorage } from '../lib/serverStateStorage';
+import { LEARNING_STORE_VERSION } from '../lib/stateDomains';
 import type {
   AiPreferences,
   BookItem,
@@ -16,6 +17,7 @@ import type {
   ChatMessage,
   ChatSession,
   DeletedBookTombstone,
+  DeletedHighlightTombstone,
   HighlightItem,
   NoteItem,
   OpenAICompatibleConfig,
@@ -48,6 +50,119 @@ const defaultReaderPreferences: ReaderPreferences = {
   panelWidth: 380,
   tocCollapsed: false,
 };
+
+const READER_STYLE_KEYS = new Set<keyof ReaderPreferences>([
+  'fontSize',
+  'lineHeight',
+  'theme',
+  'fontFamily',
+  'customStyle',
+]);
+const READER_LAYOUT_KEYS = new Set<keyof ReaderPreferences>([
+  'tocWidth',
+  'panelWidth',
+  'tocCollapsed',
+]);
+
+type PersistedReaderState = {
+  highlights?: HighlightItem[];
+  deletedHighlightTombstones?: DeletedHighlightTombstone[];
+  readerPreferences?: ReaderPreferences;
+  readerPreferencesUpdatedAt?: number;
+  readerStyleUpdatedAt?: number;
+  readerLayoutUpdatedAt?: number;
+};
+
+function readerStateTimestamp(
+  state: PersistedReaderState,
+  key: 'readerStyleUpdatedAt' | 'readerLayoutUpdatedAt',
+) {
+  const timestamp = state[key];
+  if (typeof timestamp === 'number' && Number.isFinite(timestamp)) return timestamp;
+  return typeof state.readerPreferencesUpdatedAt === 'number'
+    && Number.isFinite(state.readerPreferencesUpdatedAt)
+    ? state.readerPreferencesUpdatedAt
+    : 0;
+}
+
+function highlightUpdatedAt(highlight: HighlightItem) {
+  return highlight.updatedAt ?? highlight.commentUpdatedAt ?? highlight.createdAt;
+}
+
+function mergeReaderHighlights(
+  persisted: PersistedReaderState,
+  current: PersistedReaderState,
+) {
+  const highlights = new Map<string, HighlightItem>();
+  (current.highlights ?? []).forEach((highlight) => highlights.set(highlight.id, highlight));
+  (persisted.highlights ?? []).forEach((highlight) => {
+    const existing = highlights.get(highlight.id);
+    if (!existing || highlightUpdatedAt(highlight) >= highlightUpdatedAt(existing)) {
+      highlights.set(highlight.id, highlight);
+    }
+  });
+
+  const tombstones = new Map<string, DeletedHighlightTombstone>();
+  (current.deletedHighlightTombstones ?? []).forEach((tombstone) => {
+    tombstones.set(tombstone.highlightId, tombstone);
+  });
+  (persisted.deletedHighlightTombstones ?? []).forEach((tombstone) => {
+    const existing = tombstones.get(tombstone.highlightId);
+    if (!existing || tombstone.deletedAt >= existing.deletedAt) {
+      tombstones.set(tombstone.highlightId, tombstone);
+    }
+  });
+
+  return {
+    deletedHighlightTombstones: [...tombstones.values()],
+    highlights: [...highlights.values()]
+      .filter((highlight) => (
+        (tombstones.get(highlight.id)?.deletedAt ?? 0) < highlightUpdatedAt(highlight)
+      ))
+      .map((highlight) => ({ ...highlight, updatedAt: highlightUpdatedAt(highlight) })),
+  };
+}
+
+function mergeReaderPreferences(
+  persisted: PersistedReaderState,
+  current: PersistedReaderState,
+) {
+  const persistedPreferences = persisted.readerPreferences ?? defaultReaderPreferences;
+  const currentPreferences = current.readerPreferences ?? defaultReaderPreferences;
+  const persistedStyleUpdatedAt = readerStateTimestamp(persisted, 'readerStyleUpdatedAt');
+  const currentStyleUpdatedAt = readerStateTimestamp(current, 'readerStyleUpdatedAt');
+  const persistedLayoutUpdatedAt = readerStateTimestamp(persisted, 'readerLayoutUpdatedAt');
+  const currentLayoutUpdatedAt = readerStateTimestamp(current, 'readerLayoutUpdatedAt');
+  const styleSource = persistedStyleUpdatedAt >= currentStyleUpdatedAt
+    ? persistedPreferences
+    : currentPreferences;
+  const layoutSource = persistedLayoutUpdatedAt >= currentLayoutUpdatedAt
+    ? persistedPreferences
+    : currentPreferences;
+
+  return {
+    readerPreferences: {
+      ...currentPreferences,
+      ...persistedPreferences,
+      fontSize: styleSource.fontSize,
+      lineHeight: styleSource.lineHeight,
+      theme: styleSource.theme,
+      fontFamily: styleSource.fontFamily,
+      customStyle: styleSource.customStyle,
+      tocWidth: layoutSource.tocWidth,
+      panelWidth: layoutSource.panelWidth,
+      tocCollapsed: layoutSource.tocCollapsed,
+    },
+    readerStyleUpdatedAt: Math.max(persistedStyleUpdatedAt, currentStyleUpdatedAt),
+    readerLayoutUpdatedAt: Math.max(persistedLayoutUpdatedAt, currentLayoutUpdatedAt),
+    readerPreferencesUpdatedAt: Math.max(
+      persistedStyleUpdatedAt,
+      currentStyleUpdatedAt,
+      persistedLayoutUpdatedAt,
+      currentLayoutUpdatedAt,
+    ),
+  };
+}
 
 const defaultAiPreferences: AiPreferences = {
   provider: null,
@@ -131,6 +246,7 @@ interface LearningState {
   bookLists: BookList[];
   trashedBooks: TrashedBookItem[];
   deletedBookTombstones: DeletedBookTombstone[];
+  deletedHighlightTombstones: DeletedHighlightTombstone[];
   highlights: HighlightItem[];
   notes: NoteItem[];
   chats: ChatMessage[];
@@ -153,6 +269,9 @@ interface LearningState {
   navCollapsed: boolean;
   themeMode: ThemeMode;
   readerPreferences: ReaderPreferences;
+  readerPreferencesUpdatedAt: number;
+  readerStyleUpdatedAt: number;
+  readerLayoutUpdatedAt: number;
   addBooks: (books: BookItem[]) => void;
   setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
@@ -220,6 +339,7 @@ export const useLearningStore = create<LearningState>()(
       bookLists: [],
       trashedBooks: [],
       deletedBookTombstones: [],
+      deletedHighlightTombstones: [],
       highlights: [],
       notes: [],
       chats: [],
@@ -242,6 +362,9 @@ export const useLearningStore = create<LearningState>()(
       navCollapsed: false,
       themeMode: 'light',
       readerPreferences: defaultReaderPreferences,
+      readerPreferencesUpdatedAt: 0,
+      readerStyleUpdatedAt: 0,
+      readerLayoutUpdatedAt: 0,
       addBooks: (books) =>
         set((state) => ({ books: [...books, ...state.books.filter((book) => !books.some((next) => next.id === book.id))] })),
       setBookCovers: (covers) =>
@@ -322,6 +445,8 @@ export const useLearningStore = create<LearningState>()(
               : bookList
           )),
           highlights: state.highlights.filter((highlight) => highlight.bookId !== bookId),
+          deletedHighlightTombstones: state.deletedHighlightTombstones
+            .filter((tombstone) => tombstone.bookId !== bookId),
           notes: state.notes.filter((note) => note.bookId !== bookId),
           chats: state.chats.filter((message) => message.bookId !== bookId),
           chatSessions: state.chatSessions.filter((session) => session.bookId !== bookId),
@@ -386,22 +511,42 @@ export const useLearningStore = create<LearningState>()(
         })),
       addHighlight: (highlight) =>
         set((state) => ({
-          highlights: [highlight, ...state.highlights.filter((item) => item.id !== highlight.id)],
+          highlights: [
+            { ...highlight, updatedAt: highlight.updatedAt ?? highlight.createdAt },
+            ...state.highlights.filter((item) => item.id !== highlight.id),
+          ],
+          deletedHighlightTombstones: state.deletedHighlightTombstones
+            .filter((tombstone) => tombstone.highlightId !== highlight.id),
         })),
       updateHighlight: (highlightId, changes) =>
-        set((state) => ({
-          highlights: state.highlights.map((highlight) => {
-            if (highlight.id !== highlightId) return highlight;
-            const comment = changes.comment?.trim();
-            if (!comment) {
-              const { comment: _comment, commentUpdatedAt: _commentUpdatedAt, ...withoutComment } = highlight;
-              return withoutComment;
-            }
-            return { ...highlight, comment, commentUpdatedAt: Date.now() };
-          }),
-        })),
+        set((state) => {
+          const updatedAt = Date.now();
+          return {
+            highlights: state.highlights.map((highlight) => {
+              if (highlight.id !== highlightId) return highlight;
+              const comment = changes.comment?.trim();
+              if (!comment) {
+                const { comment: _comment, commentUpdatedAt: _commentUpdatedAt, ...withoutComment } = highlight;
+                return { ...withoutComment, updatedAt };
+              }
+              return { ...highlight, comment, commentUpdatedAt: updatedAt, updatedAt };
+            }),
+          };
+        }),
       deleteHighlight: (highlightId) =>
-        set((state) => ({ highlights: state.highlights.filter((item) => item.id !== highlightId) })),
+        set((state) => {
+          const highlight = state.highlights.find((item) => item.id === highlightId);
+          if (!highlight) return state;
+          const deletedAt = Date.now();
+          return {
+            highlights: state.highlights.filter((item) => item.id !== highlightId),
+            deletedHighlightTombstones: [
+              { highlightId, bookId: highlight.bookId, deletedAt },
+              ...state.deletedHighlightTombstones
+                .filter((tombstone) => tombstone.highlightId !== highlightId),
+            ],
+          };
+        }),
       addNote: (note) => set((state) => ({ notes: [note, ...state.notes] })),
       setBookNoteContent: (bookId, bookTitle, content) =>
         set((state) => {
@@ -731,13 +876,22 @@ export const useLearningStore = create<LearningState>()(
       setNavCollapsed: (navCollapsed) => set({ navCollapsed }),
       setThemeMode: (themeMode) => set({ themeMode }),
       setReaderPreferences: (changes) =>
-        set((state) => ({
-          readerPreferences: { ...state.readerPreferences, ...changes },
-        })),
+        set((state) => {
+          const updatedAt = Date.now();
+          const changedKeys = Object.keys(changes) as Array<keyof ReaderPreferences>;
+          const styleChanged = changedKeys.some((key) => READER_STYLE_KEYS.has(key));
+          const layoutChanged = changedKeys.some((key) => READER_LAYOUT_KEYS.has(key));
+          return {
+            readerPreferences: { ...state.readerPreferences, ...changes },
+            readerPreferencesUpdatedAt: updatedAt,
+            readerStyleUpdatedAt: styleChanged ? updatedAt : state.readerStyleUpdatedAt,
+            readerLayoutUpdatedAt: layoutChanged ? updatedAt : state.readerLayoutUpdatedAt,
+          };
+        }),
     }),
     {
       name: 'learning-center-state-v1',
-      version: 26,
+      version: LEARNING_STORE_VERSION,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
       migrate: (persistedState, version) => {
@@ -1002,57 +1156,97 @@ export const useLearningStore = create<LearningState>()(
               theme: normalizeReaderTheme(migrated.readerPreferences?.theme),
               customStyle: normalizeStoredCustomStyle(migrated.readerPreferences?.customStyle),
             },
+            highlights: (migrated.highlights ?? []).map((highlight) => ({
+              ...highlight,
+              updatedAt: highlight.updatedAt ?? highlight.commentUpdatedAt ?? highlight.createdAt,
+            })),
+            deletedHighlightTombstones: [],
+            readerPreferencesUpdatedAt: 0,
+          };
+        }
+        if (version < 28) {
+          const legacyPreferencesUpdatedAt = typeof migrated.readerPreferencesUpdatedAt === 'number'
+            ? migrated.readerPreferencesUpdatedAt
+            : 0;
+          migrated = {
+            ...migrated,
+            readerStyleUpdatedAt: legacyPreferencesUpdatedAt,
+            readerLayoutUpdatedAt: legacyPreferencesUpdatedAt,
           };
         }
         return migrated;
       },
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<LearningState>;
+        const mergedHighlights = mergeReaderHighlights(persisted, currentState);
+        const mergedPreferences = mergeReaderPreferences(persisted, currentState);
         return {
           ...currentState,
           ...persisted,
-          ...(Array.isArray(persisted.bookLists) ? { bookLists: persisted.bookLists } : {}),
-          ...(Array.isArray(persisted.trashedBooks) ? { trashedBooks: persisted.trashedBooks } : {}),
-          ...(Array.isArray(persisted.deletedBookTombstones)
-            ? { deletedBookTombstones: persisted.deletedBookTombstones }
-            : {}),
-          ...(Array.isArray(persisted.rssFolders) ? { rssFolders: persisted.rssFolders } : {}),
-          ...(Array.isArray(persisted.rssFeeds) ? {
-            rssFeeds: persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed)),
-          } : {}),
-          ...(Array.isArray(persisted.rssItems) ? { rssItems: persisted.rssItems } : {}),
-          ...(Array.isArray(persisted.rssAnnotations) ? { rssAnnotations: persisted.rssAnnotations } : {}),
-          ...(Array.isArray(persisted.rssDailyDigests) ? { rssDailyDigests: persisted.rssDailyDigests } : {}),
-          ...(Array.isArray(persisted.rssDigestRuns) ? { rssDigestRuns: persisted.rssDigestRuns } : {}),
-          ...(persisted.rssDigestSettings ? { rssDigestSettings: {
+          bookLists: Array.isArray(persisted.bookLists) ? persisted.bookLists : currentState.bookLists,
+          trashedBooks: Array.isArray(persisted.trashedBooks) ? persisted.trashedBooks : currentState.trashedBooks,
+          deletedBookTombstones: Array.isArray(persisted.deletedBookTombstones)
+            ? persisted.deletedBookTombstones
+            : currentState.deletedBookTombstones,
+          deletedHighlightTombstones: mergedHighlights.deletedHighlightTombstones,
+          highlights: mergedHighlights.highlights,
+          rssFolders: Array.isArray(persisted.rssFolders) ? persisted.rssFolders : currentState.rssFolders,
+          rssFeeds: Array.isArray(persisted.rssFeeds)
+            ? persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed))
+            : currentState.rssFeeds,
+          rssItems: Array.isArray(persisted.rssItems) ? persisted.rssItems : currentState.rssItems,
+          rssAnnotations: Array.isArray(persisted.rssAnnotations)
+            ? persisted.rssAnnotations
+            : currentState.rssAnnotations,
+          rssDailyDigests: Array.isArray(persisted.rssDailyDigests)
+            ? persisted.rssDailyDigests
+            : currentState.rssDailyDigests,
+          rssDigestRuns: Array.isArray(persisted.rssDigestRuns)
+            ? persisted.rssDigestRuns
+            : currentState.rssDigestRuns,
+          rssDigestSettings: {
             ...defaultRssDigestSettings,
-            ...persisted.rssDigestSettings,
-            times: Array.isArray(persisted.rssDigestSettings.times)
+            ...currentState.rssDigestSettings,
+            ...(persisted.rssDigestSettings ?? {}),
+            times: Array.isArray(persisted.rssDigestSettings?.times)
               ? persisted.rssDigestSettings.times
-              : defaultRssDigestSettings.times,
-          } } : {}),
-          ...(typeof persisted.rssPanelWidth === 'number' ? { rssPanelWidth: persisted.rssPanelWidth } : {}),
-          ...(Array.isArray(persisted.videoResources) ? { videoResources: persisted.videoResources } : {}),
-          ...(Array.isArray(persisted.videoTimestampNotes) ? { videoTimestampNotes: persisted.videoTimestampNotes } : {}),
-          ...(typeof persisted.videoPanelWidth === 'number' ? { videoPanelWidth: persisted.videoPanelWidth } : {}),
-          ...(persisted.readerPreferences ? { readerPreferences: {
+              : currentState.rssDigestSettings.times,
+          },
+          rssPanelWidth: typeof persisted.rssPanelWidth === 'number'
+            ? persisted.rssPanelWidth
+            : currentState.rssPanelWidth,
+          videoResources: Array.isArray(persisted.videoResources)
+            ? persisted.videoResources
+            : currentState.videoResources,
+          videoTimestampNotes: Array.isArray(persisted.videoTimestampNotes)
+            ? persisted.videoTimestampNotes
+            : currentState.videoTimestampNotes,
+          videoPanelWidth: typeof persisted.videoPanelWidth === 'number'
+            ? persisted.videoPanelWidth
+            : currentState.videoPanelWidth,
+          readerPreferences: {
             ...defaultReaderPreferences,
-            ...currentState.readerPreferences,
-            ...persisted.readerPreferences,
-            theme: normalizeReaderTheme(persisted.readerPreferences.theme),
-            fontFamily: normalizeReaderFont(persisted.readerPreferences.fontFamily),
-            customStyle: normalizeStoredCustomStyle(persisted.readerPreferences.customStyle),
-          } } : {}),
-          ...(persisted.aiPreferences ? { aiPreferences: {
-            provider: persisted.aiPreferences.provider?.startsWith('api:')
-              ? persisted.aiPreferences.provider
-              : null,
-            model: persisted.aiPreferences.model ?? '',
-          } } : {}),
-          ...(persisted.webSearchConfig ? { webSearchConfig: {
+            ...mergedPreferences.readerPreferences,
+            theme: normalizeReaderTheme(mergedPreferences.readerPreferences.theme),
+            fontFamily: normalizeReaderFont(mergedPreferences.readerPreferences.fontFamily),
+            customStyle: normalizeStoredCustomStyle(mergedPreferences.readerPreferences.customStyle),
+          },
+          readerPreferencesUpdatedAt: mergedPreferences.readerPreferencesUpdatedAt,
+          readerStyleUpdatedAt: mergedPreferences.readerStyleUpdatedAt,
+          readerLayoutUpdatedAt: mergedPreferences.readerLayoutUpdatedAt,
+          aiPreferences: {
+            provider: persisted.aiPreferences
+              ? persisted.aiPreferences.provider?.startsWith('api:')
+                ? persisted.aiPreferences.provider
+                : null
+              : currentState.aiPreferences.provider,
+            model: persisted.aiPreferences?.model ?? currentState.aiPreferences.model,
+          },
+          webSearchConfig: {
             ...defaultWebSearchConfig,
-            ...persisted.webSearchConfig,
-          } } : {}),
+            ...currentState.webSearchConfig,
+            ...(persisted.webSearchConfig ?? {}),
+          },
         };
       },
     },
