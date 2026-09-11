@@ -1,7 +1,15 @@
 import type { ReactNode, RefObject } from 'react';
 import { Allotment } from 'allotment';
 import { clamp } from '../lib/format';
-import type { BookItem, ChatSession, HighlightItem, ReaderPreferences, RightPanel, TocItem } from '../types';
+import type {
+  BookItem,
+  ChatMessage,
+  ChatSession,
+  HighlightItem,
+  ReaderPreferences,
+  RightPanel,
+  TocItem,
+} from '../types';
 import { ReaderActivityBar, ReaderRightPanel } from './ReaderRightSidebar';
 import type { ReaderSurfaceHandle } from './ReaderSurface';
 import { TableOfContents } from './TableOfContents';
@@ -16,7 +24,7 @@ interface ReaderWorkspaceProps {
   conversationId: string;
   desktop: boolean;
   focusedHighlightId?: string | null;
-  panelQuote?: string | null;
+  panelQuote?: NonNullable<ChatMessage['quote']> | null;
   preferences: ReaderPreferences;
   readerRef: RefObject<ReaderSurfaceHandle>;
   workspaceRef: RefObject<HTMLDivElement>;
@@ -120,7 +128,7 @@ export function ReaderWorkspace({
                     book={book}
                     activePanel={activePanel}
                     conversationId={conversationId}
-                    selectedText={panelQuote ?? undefined}
+                    selectedQuote={panelQuote ?? undefined}
                     getCurrentText={() => readerRef.current?.getCurrentText() ?? ''}
                     onClearSelectedText={onClearSelectedText}
                     onStartNewConversation={onStartNewConversation}
@@ -132,10 +140,7 @@ export function ReaderWorkspace({
               </Allotment.Pane>
             </Allotment>
             {desktop && (
-              <ReaderActivityBar
-                activePanel={activePanel}
-                onChangePanel={onChangePanel}
-              />
+              <ReaderActivityBar activePanel={activePanel} onChangePanel={onChangePanel} />
             )}
           </div>
         </Allotment.Pane>

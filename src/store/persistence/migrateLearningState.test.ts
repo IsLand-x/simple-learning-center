@@ -14,6 +14,7 @@ describe('learning state migrations', () => {
       model: 'test-model',
       assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
       autoHideReasoning: false,
+      hiddenPromptTemplateIds: [],
     });
   });
 
@@ -57,5 +58,34 @@ describe('learning state migrations', () => {
 
     expect(defaulted.aiPreferences?.autoHideReasoning).toBe(false);
     expect(preserved.aiPreferences?.autoHideReasoning).toBe(true);
+  });
+
+  it('adds and sanitizes the hidden reader shortcut preference', () => {
+    const defaulted = migrateLearningState(
+      {
+        aiPreferences: {
+          provider: null,
+          model: '',
+          assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+          autoHideReasoning: false,
+        },
+      },
+      30,
+    );
+    const sanitized = migrateLearningState(
+      {
+        aiPreferences: {
+          provider: null,
+          model: '',
+          assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+          autoHideReasoning: false,
+          hiddenPromptTemplateIds: ['summarize-book', 'unknown-template', 'summarize-book'],
+        },
+      },
+      30,
+    );
+
+    expect(defaulted.aiPreferences?.hiddenPromptTemplateIds).toEqual([]);
+    expect(sanitized.aiPreferences?.hiddenPromptTemplateIds).toEqual(['summarize-book']);
   });
 });

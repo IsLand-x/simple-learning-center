@@ -12,8 +12,10 @@ export function useMobileReaderOverlay({
   const mobileOverlayHistoryActiveRef = useRef(false);
 
   useEffect(() => {
-    const handlePopState = () => {
+    const handlePopState = (event: PopStateEvent) => {
       if (!mobileOverlayHistoryActiveRef.current) return;
+      const state = event.state as { learningCenterMobileOverlay?: boolean } | null;
+      if (state?.learningCenterMobileOverlay) return;
       mobileOverlayHistoryActiveRef.current = false;
       close();
     };
@@ -66,6 +68,10 @@ export function useMobileReaderOverlay({
       const deltaX = event.changedTouches[0].clientX - touchStart.x;
       const deltaY = event.changedTouches[0].clientY - touchStart.y;
       touchStart = null;
+      const currentState = window.history.state as {
+        learningCenterReaderAiSettings?: boolean;
+      } | null;
+      if (currentState?.learningCenterReaderAiSettings) return;
       if (Math.abs(deltaX) >= 64 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
         close();
       }

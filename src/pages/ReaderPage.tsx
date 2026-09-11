@@ -20,15 +20,19 @@ import {
   findChapterLabel,
   isReaderKeyboardEditingTarget,
 } from '../features/reader/model/readerSurfaceModel';
-import {
-  MissingReaderBook,
-  ReaderPageHeader,
-} from '../features/reader/ui/ReaderPageHeader';
+import { MissingReaderBook, ReaderPageHeader } from '../features/reader/ui/ReaderPageHeader';
 import { confirmDialog } from '../lib/confirmDialog';
 import { moveBookToTrash } from '../lib/epubStorage';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
-import type { BookItem, ChatSession, HighlightItem, ReaderHighlightTarget, ReaderSelection } from '../types';
+import type {
+  BookItem,
+  ChatMessage,
+  ChatSession,
+  HighlightItem,
+  ReaderHighlightTarget,
+  ReaderSelection,
+} from '../types';
 
 export function ReaderPage() {
   const { bookId = '' } = useParams();
@@ -54,12 +58,16 @@ export function ReaderPage() {
   const [compactTocOpen, setCompactTocOpen] = useState(false);
   const [conversationId, setConversationId] = useState<string>(() => createUuid());
   const [selection, setSelection] = useState<ReaderSelection | null>(null);
-  const [activeHighlightTarget, setActiveHighlightTarget] = useState<ReaderHighlightTarget | null>(null);
+  const [activeHighlightTarget, setActiveHighlightTarget] = useState<ReaderHighlightTarget | null>(
+    null,
+  );
   const [commentingHighlightId, setCommentingHighlightId] = useState<string | null>(null);
-  const [pendingCommentSelection, setPendingCommentSelection] = useState<ReaderSelection | null>(null);
+  const [pendingCommentSelection, setPendingCommentSelection] = useState<ReaderSelection | null>(
+    null,
+  );
   const [commentDraft, setCommentDraft] = useState('');
   const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
-  const [panelQuote, setPanelQuote] = useState<string | null>(null);
+  const [panelQuote, setPanelQuote] = useState<NonNullable<ChatMessage['quote']> | null>(null);
   const [stylePopoverVisible, setStylePopoverVisible] = useState(false);
   const [activeHref, setActiveHref] = useState(book?.toc[0]?.href);
   const highlights = useMemo(
@@ -82,8 +90,7 @@ export function ReaderPage() {
     setCompactTocOpen,
     setMobileChromeVisible,
   });
-  const mobileOverlayOpen = mobileReader
-    && (compactTocOpen || Boolean(activePanel));
+  const mobileOverlayOpen = mobileReader && (compactTocOpen || Boolean(activePanel));
 
   useMobileReaderOverlay({
     close: closeMobileOverlay,
@@ -154,34 +161,38 @@ export function ReaderPage() {
     return () => window.removeEventListener('keyup', handleKeyUp);
   }, []);
 
-  const handleLocationChange = useCallback((location: ReaderLocationUpdate) => {
-    const current = latestBookRef.current;
-    if (!current) return;
-    const chapter = findChapterLabel(current.toc, location.href) ?? current.currentChapter;
-    setActiveHref(location.href);
-    const roundedProgress = location.progress === undefined
-      ? current.progress
-      : Math.round(location.progress * 10) / 10;
-    const hasChanged =
-      Math.abs(current.progress - roundedProgress) >= 0.1 ||
-      current.currentCfi !== location.cfi ||
-      current.currentChapter !== chapter ||
-      current.currentPage !== location.page ||
-      current.totalPages !== location.totalPages;
-    if (!hasChanged) return;
-    recordReadingActivityRef.current?.();
-    const changes: Partial<BookItem> = {
-      progress: roundedProgress,
-      currentCfi: location.cfi ?? current.currentCfi,
-      currentChapter: chapter,
-      currentPage: location.page ?? current.currentPage,
-      totalPages: location.totalPages ?? current.totalPages,
-    };
-    queueLocationSave(current, changes);
-  }, [latestBookRef, queueLocationSave]);
+  const handleLocationChange = useCallback(
+    (location: ReaderLocationUpdate) => {
+      const current = latestBookRef.current;
+      if (!current) return;
+      const chapter = findChapterLabel(current.toc, location.href) ?? current.currentChapter;
+      setActiveHref(location.href);
+      const roundedProgress =
+        location.progress === undefined
+          ? current.progress
+          : Math.round(location.progress * 10) / 10;
+      const hasChanged =
+        Math.abs(current.progress - roundedProgress) >= 0.1 ||
+        current.currentCfi !== location.cfi ||
+        current.currentChapter !== chapter ||
+        current.currentPage !== location.page ||
+        current.totalPages !== location.totalPages;
+      if (!hasChanged) return;
+      recordReadingActivityRef.current?.();
+      const changes: Partial<BookItem> = {
+        progress: roundedProgress,
+        currentCfi: location.cfi ?? current.currentCfi,
+        currentChapter: chapter,
+        currentPage: location.page ?? current.currentPage,
+        totalPages: location.totalPages ?? current.totalPages,
+      };
+      queueLocationSave(current, changes);
+    },
+    [latestBookRef, queueLocationSave],
+  );
 
   const currentChapter = useMemo(
-    () => (book ? findChapterLabel(book.toc, activeHref) ?? book.currentChapter : ''),
+    () => (book ? (findChapterLabel(book.toc, activeHref) ?? book.currentChapter) : ''),
     [activeHref, book],
   );
   const readerHighlights = useMemo<HighlightItem[]>(() => {
@@ -343,10 +354,17 @@ export function ReaderPage() {
 
   const askAboutSelection = () => {
     if (!selection) return;
-    setPanelQuote(selection.text);
+    setPanelQuote({ text: selection.text, chapter: currentChapter || '当前章节' });
     changeActivePanel('ai');
     readerRef.current?.clearSelection();
     setSelection(null);
+  };
+
+  const askAboutHighlight = () => {
+    if (!activeHighlight) return;
+    setPanelQuote({ text: activeHighlight.text, chapter: activeHighlight.chapter || '当前章节' });
+    setActiveHighlightTarget(null);
+    changeActivePanel('ai');
   };
 
   const jumpToHighlight = (highlight: HighlightItem) => {
@@ -364,9 +382,10 @@ export function ReaderPage() {
       ? openAIConfigs.find((item) => session.provider === `api:${item.id}`)
       : undefined;
     if (session.provider && config) {
-      const model = session.model && config.models.includes(session.model)
-        ? session.model
-        : config.models[0] ?? '';
+      const model =
+        session.model && config.models.includes(session.model)
+          ? session.model
+          : (config.models[0] ?? '');
       setAiPreferences({ provider: session.provider, model });
     }
     setConversationId(session.id);
@@ -384,7 +403,9 @@ export function ReaderPage() {
   }
 
   return (
-    <main className={`reader-page${mobileReader && !mobileChromeVisible ? ' reader-page--mobile-immersive' : ''}`}>
+    <main
+      className={`reader-page${mobileReader && !mobileChromeVisible ? ' reader-page--mobile-immersive' : ''}`}
+    >
       <ReaderPageHeader
         book={book}
         currentChapter={currentChapter}
@@ -468,6 +489,7 @@ export function ReaderPage() {
           commentingHighlightId={commentingHighlightId}
           pendingCommentSelection={pendingCommentSelection}
           selection={selection}
+          onAskAboutHighlight={askAboutHighlight}
           onAskAboutSelection={askAboutSelection}
           onCancelCommentEditing={cancelCommentEditing}
           onCancelHighlight={cancelHighlight}

@@ -11,6 +11,7 @@ import { markdownNoteTitle } from '../../../lib/markdownNotes';
 import type {
   AiProvider,
   BookItem,
+  ChatMessage,
   ChatSession,
   HighlightItem,
   NoteItem,
@@ -22,7 +23,8 @@ export interface ReaderRightPanelProps {
   book: BookItem;
   activePanel: Exclude<RightPanel, null>;
   conversationId: string;
-  selectedText?: string;
+  selectedQuote?: NonNullable<ChatMessage['quote']>;
+  mobile?: boolean;
   getCurrentText: () => string;
   onClearSelectedText: () => void;
   onStartNewConversation: () => void;

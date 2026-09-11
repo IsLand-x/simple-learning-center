@@ -15,17 +15,12 @@ export type ReaderTheme =
   | 'graphite'
   | 'oled'
   | 'custom';
-export type ReaderFont =
-  | 'system-serif'
-  | 'source-serif'
-  | 'sans'
-  | 'kai'
-  | 'bright'
-  | 'pingfang';
+export type ReaderFont = 'system-serif' | 'source-serif' | 'sans' | 'kai' | 'bright' | 'pingfang';
 export type ReaderDensity = 'compact' | 'balanced' | 'relaxed';
 export type ReaderTexture = 'none' | 'paper' | 'grain' | 'linen';
 export type AiProvider = `api:${string}`;
-export type RightPanel = 'ai' | 'history' | 'notes' | 'highlights' | 'comments' | 'trajectory' | null;
+export type RightPanel =
+  'ai' | 'history' | 'notes' | 'highlights' | 'comments' | 'trajectory' | null;
 export type RssFeedType = 'article' | 'video' | 'social';
 export type RssSource =
   | { kind: 'rss'; feedUrl: string }
@@ -152,7 +147,8 @@ export interface RssDigestSettings {
 }
 
 type RssDigestRunTrigger = 'manual' | 'schedule';
-export type RssDigestRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled';
+export type RssDigestRunStatus =
+  'queued' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled';
 
 export interface RssDigestRun {
   id: string;
@@ -322,6 +318,7 @@ export interface AiPreferences {
   model: string;
   assistantPrompt: string;
   autoHideReasoning: boolean;
+  hiddenPromptTemplateIds: string[];
 }
 
 export interface ReadingSession {

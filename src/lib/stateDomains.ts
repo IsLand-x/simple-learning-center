@@ -1,20 +1,7 @@
 export const STATE_DOMAIN_FIELDS = {
-  library: [
-    'books',
-    'bookLists',
-    'trashedBooks',
-    'deletedBookTombstones',
-  ],
-  reading: [
-    'highlights',
-    'deletedHighlightTombstones',
-    'notes',
-    'readingSessions',
-  ],
-  conversations: [
-    'chats',
-    'chatSessions',
-  ],
+  library: ['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'],
+  reading: ['highlights', 'deletedHighlightTombstones', 'notes', 'readingSessions'],
+  conversations: ['chats', 'chatSessions'],
   rss: [
     'rssFolders',
     'rssFeeds',
@@ -25,11 +12,7 @@ export const STATE_DOMAIN_FIELDS = {
     'rssDigestSettings',
     'rssPanelWidth',
   ],
-  videos: [
-    'videoResources',
-    'videoTimestampNotes',
-    'videoPanelWidth',
-  ],
+  videos: ['videoResources', 'videoTimestampNotes', 'videoPanelWidth'],
   preferences: [
     'openAIConfigs',
     'webSearchConfig',
@@ -45,11 +28,9 @@ export const STATE_DOMAIN_FIELDS = {
 
 export type StateDomain = keyof typeof STATE_DOMAIN_FIELDS;
 
-export const LEARNING_STORE_VERSION = 30;
+export const LEARNING_STORE_VERSION = 31;
 
-export const ALL_STATE_DOMAINS = Object.freeze(
-  Object.keys(STATE_DOMAIN_FIELDS) as StateDomain[],
-);
+export const ALL_STATE_DOMAINS = Object.freeze(Object.keys(STATE_DOMAIN_FIELDS) as StateDomain[]);
 
 export const LIBRARY_STATE_DOMAINS = ['preferences', 'library'] as const;
 export const READER_STATE_DOMAINS = ['preferences', 'library', 'reading', 'conversations'] as const;

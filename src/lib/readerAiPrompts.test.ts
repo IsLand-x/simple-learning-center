@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_READER_AI_ASSISTANT_PROMPT, READER_AI_PROMPT_TEMPLATES } from './readerAiPrompts';
+import {
+  DEFAULT_READER_AI_ASSISTANT_PROMPT,
+  normalizeHiddenReaderAiPromptTemplateIds,
+  READER_AI_PROMPT_TEMPLATES,
+  visibleReaderAiPromptTemplates,
+} from './readerAiPrompts';
 
 describe('reader AI prompts', () => {
   it('provides a focused default assistant style', () => {
@@ -20,5 +25,19 @@ describe('reader AI prompts', () => {
       READER_AI_PROMPT_TEMPLATES.length,
     );
     expect(READER_AI_PROMPT_TEMPLATES.every((template) => template.prompt.length > 20)).toBe(true);
+  });
+
+  it('normalizes persisted shortcut visibility and filters the composer list', () => {
+    expect(
+      normalizeHiddenReaderAiPromptTemplateIds([
+        'summarize-book',
+        'unknown-template',
+        'summarize-book',
+        42,
+      ]),
+    ).toEqual(['summarize-book']);
+    expect(
+      visibleReaderAiPromptTemplates(['summarize-book']).map((template) => template.id),
+    ).not.toContain('summarize-book');
   });
 });

@@ -98,7 +98,10 @@
 }
 
 .ai-assistant-settings__heading > div,
-.ai-assistant-settings__field {
+.ai-assistant-settings__field,
+.ai-assistant-settings__section,
+.ai-assistant-settings__section-heading,
+.ai-assistant-settings__shortcut-list {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -111,6 +114,21 @@
 
 .ai-assistant-settings__field .semi-input-textarea {
   line-height: 1.65;
+}
+
+.ai-assistant-settings__section {
+  gap: 10px;
+}
+
+.ai-assistant-settings__shortcut-list {
+  gap: 0;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.ai-assistant-settings__shortcut-list .ai-assistant-settings__toggle {
+  min-height: 58px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--semi-color-border);
 }
 
 .ai-assistant-settings__toggle,
@@ -126,17 +144,25 @@
 }
 
 .ai-assistant-settings__toggle-copy {
+  flex: 1;
   flex-direction: column;
   gap: 2px;
+  overflow: hidden;
 }
 
-.ai-assistant-settings__toggle .semi-switch {
+.ai-assistant-settings__switch-target {
+  display: flex;
+  width: 54px;
+  min-width: 54px;
+  min-height: 44px;
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
-.ai-assistant-settings__toggle .semi-switch-native-control[type='checkbox'] {
-  top: -6px;
-  height: 44px;
+.ai-assistant-settings__switch-target .semi-switch {
+  flex: 0 0 auto;
 }
 
 .ai-assistant-settings__footer,

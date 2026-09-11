@@ -36,3 +36,25 @@ export const READER_AI_PROMPT_TEMPLATES = [
       '请基于当前章节生成 5 个由浅入深的自测问题，覆盖理解、联系、应用和反思；先只给问题，不提供答案，等我回答后再反馈。',
   },
 ] as const;
+
+const READER_AI_PROMPT_TEMPLATE_IDS = new Set<string>(
+  READER_AI_PROMPT_TEMPLATES.map((template) => template.id),
+);
+
+export function normalizeHiddenReaderAiPromptTemplateIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const hiddenIds = new Set(
+    value.filter(
+      (templateId): templateId is string =>
+        typeof templateId === 'string' && READER_AI_PROMPT_TEMPLATE_IDS.has(templateId),
+    ),
+  );
+  return READER_AI_PROMPT_TEMPLATES.filter((template) => hiddenIds.has(template.id)).map(
+    (template) => template.id,
+  );
+}
+
+export function visibleReaderAiPromptTemplates(hiddenTemplateIds: readonly string[]) {
+  const hiddenIds = new Set(hiddenTemplateIds);
+  return READER_AI_PROMPT_TEMPLATES.filter((template) => !hiddenIds.has(template.id));
+}

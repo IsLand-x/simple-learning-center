@@ -25,6 +25,7 @@ export const defaultAiPreferences: AiPreferences = {
   model: '',
   assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
   autoHideReasoning: false,
+  hiddenPromptTemplateIds: [],
 };
 
 export const LEGACY_RSS_DIGEST_PROMPT =

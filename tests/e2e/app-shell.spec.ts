@@ -190,7 +190,7 @@ test('reader AI user messages preserve authored line breaks on desktop and mobil
   await expectLineBreaks();
 });
 
-test('reader AI shortcuts, assistant style, and reasoning visibility persist', async ({
+test('reader AI highlight questions and in-panel settings persist across desktop and mobile', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
@@ -217,11 +217,53 @@ test('reader AI shortcuts, assistant style, and reasoning visibility persist', a
     model: 'mock-model',
     assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
     autoHideReasoning: false,
+    hiddenPromptTemplateIds: [],
   };
   const preferencesWrite = await page.request.put('/api/state/preferences', {
     data: preferences,
   });
   expect(preferencesWrite.status()).toBe(204);
+
+  const highlightedText = '复制意味着在通过网络连接的多台机器上保留同一份数据副本。';
+  const readingResponse = await page.request.get('/api/state/reading');
+  expect(readingResponse.ok()).toBe(true);
+  const reading = await readingResponse.json();
+  reading.state.highlights = [
+    ...(reading.state.highlights ?? []).filter(
+      (highlight: { id?: string }) => highlight.id !== 'e2e-ai-highlight',
+    ),
+    {
+      id: 'e2e-ai-highlight',
+      bookId: 'demo-data-intensive',
+      kind: 'highlight',
+      text: highlightedText,
+      cfi: 'demo:chapter-5:e2e-ai-highlight',
+      chapter: '第五章 · 复制',
+      page: 186,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  ];
+  const readingWrite = await page.request.put('/api/state/reading', { data: reading });
+  expect(readingWrite.status()).toBe(204);
+
+  const libraryResponse = await page.request.get('/api/state/library');
+  expect(libraryResponse.ok()).toBe(true);
+  const library = await libraryResponse.json();
+  library.state.books = library.state.books.map((book: { id?: string }) =>
+    book.id === 'demo-data-intensive'
+      ? {
+          ...book,
+          currentChapter: '第五章 · 复制',
+          currentCfi: 'demo:chapter-5:scroll:0',
+          currentPage: 186,
+          progress: 42,
+          updatedAt: timestamp,
+        }
+      : book,
+  );
+  const libraryWrite = await page.request.put('/api/state/library', { data: library });
+  expect(libraryWrite.status()).toBe(204);
 
   let submittedJob: SubmittedAiJob | undefined;
   await page.route('**/api/ai/jobs', async (route) => {
@@ -260,7 +302,18 @@ test('reader AI shortcuts, assistant style, and reasoning visibility persist', a
   });
 
   await page.goto('/books/demo-data-intensive');
-  await page.getByRole('button', { name: '打开 AI 助手并继续当前对话' }).click();
+  const highlight = page.getByRole('button', { name: highlightedText });
+  await expect(highlight).toBeVisible();
+  await highlight.click();
+  const highlightToolbar = page.getByRole('toolbar', { name: '已高亮内容操作' });
+  await expect(
+    highlightToolbar.getByRole('button', { name: '使用已高亮内容向 AI 提问' }),
+  ).toBeVisible();
+  await highlightToolbar.getByRole('button', { name: '使用已高亮内容向 AI 提问' }).click();
+  await expect(page.locator('.reader-ai-input .semi-aiChatInput-reference')).toContainText(
+    highlightedText,
+  );
+
   const shortcuts = page.getByRole('group', { name: 'AI 快捷提示词' });
   await expect(shortcuts).toBeVisible();
   await expect(shortcuts.getByRole('button')).toHaveCount(READER_AI_PROMPT_TEMPLATES.length);
@@ -274,10 +327,48 @@ test('reader AI shortcuts, assistant style, and reasoning visibility persist', a
     );
   await expect(page.locator('.csp-chat-reasoning')).toHaveAttribute('open', '');
 
+  const settingsButton = page.getByRole('button', { name: '打开 AI 助手设置' });
+  await expect(settingsButton).toBeVisible();
+  await settingsButton.click();
+  const settingsDialog = page.getByRole('dialog', { name: 'AI 助手设置' });
+  await expect(settingsDialog).toBeVisible();
+  const promptInput = settingsDialog.getByRole('textbox', { name: '阅读助手自定义 Prompt' });
+  const autoHideReasoning = settingsDialog.getByRole('switch', {
+    name: '自动隐藏思考过程',
+  });
+  const summarizeBookVisibility = settingsDialog.getByRole('switch', {
+    name: '显示快捷方式：总结全书',
+  });
+  const customPrompt = '请先用一句话给出结论，再用三个问题帮助我检查理解。';
+  await expect(promptInput).toHaveValue(DEFAULT_READER_AI_ASSISTANT_PROMPT);
+  await expect(autoHideReasoning).not.toBeChecked();
+  await expect(summarizeBookVisibility).toBeChecked();
+  await promptInput.fill(customPrompt);
+  await autoHideReasoning.check();
+  await summarizeBookVisibility.uncheck();
+  await settingsDialog.getByRole('button', { name: '保存设置' }).click();
+  await expect(settingsDialog).toBeHidden();
+  await expect(page.getByText('阅读助手设置已保存')).toBeVisible();
+  await expect(shortcuts.getByRole('button')).toHaveCount(READER_AI_PROMPT_TEMPLATES.length - 1);
+  await expect(page.getByRole('button', { name: '发送提示词：总结全书' })).toBeHidden();
+  await expect(page.locator('.csp-chat-reasoning')).not.toHaveAttribute('open');
+  await expect
+    .poll(async () => {
+      const response = await page.request.get('/api/state/preferences');
+      const snapshot = await response.json();
+      return snapshot.state.aiPreferences;
+    })
+    .toMatchObject({
+      assistantPrompt: customPrompt,
+      autoHideReasoning: true,
+      hiddenPromptTemplateIds: ['summarize-book'],
+    });
+
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/books/demo-data-intensive');
   await page.getByRole('button', { name: '打开更多功能，默认显示 AI 助手' }).click();
   await expect(shortcuts).toBeVisible();
+  await expect(shortcuts.getByRole('button')).toHaveCount(READER_AI_PROMPT_TEMPLATES.length - 1);
   const mobileShortcutHeight = await summarizeChapter.evaluate(
     (element) => element.getBoundingClientRect().height,
   );
@@ -288,34 +379,27 @@ test('reader AI shortcuts, assistant style, and reasoning visibility persist', a
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(mobileDimensions.scrollWidth).toBeLessThanOrEqual(mobileDimensions.clientWidth);
+  expect(Math.round((await settingsButton.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(44);
+  await settingsButton.click();
+  await expect(settingsDialog).toBeVisible();
+  await expect
+    .poll(() =>
+      summarizeBookVisibility.evaluate(
+        (element) => element.closest('label')?.getBoundingClientRect().height ?? 0,
+      ),
+    )
+    .toBeGreaterThanOrEqual(43.5);
+  await expect(summarizeBookVisibility).not.toBeChecked();
+  await page.evaluate(() => window.history.back());
+  await expect(settingsDialog).toBeHidden();
+  await expect(page.getByRole('navigation', { name: '切换更多功能' })).toBeVisible();
+  await expect(settingsButton).toBeVisible();
 
   await page.goto('/settings');
   await page.getByRole('tab', { name: 'AI 助手' }).click();
-  const promptInput = page.getByRole('textbox', { name: '阅读助手自定义 Prompt' });
-  const autoHideReasoning = page.getByRole('switch', { name: '自动隐藏思考过程' });
-  const customPrompt = '请先用一句话给出结论，再用三个问题帮助我检查理解。';
-  await expect(promptInput).toHaveValue(DEFAULT_READER_AI_ASSISTANT_PROMPT);
-  await expect(autoHideReasoning).not.toBeChecked();
-  expect(Math.round((await autoHideReasoning.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(
-    44,
+  await expect(page.getByRole('textbox', { name: '阅读助手自定义 Prompt' })).toHaveValue(
+    customPrompt,
   );
-  await promptInput.fill(customPrompt);
-  await autoHideReasoning.check();
-  await page.getByRole('button', { name: '保存设置' }).click();
-  await expect(page.getByText('阅读助手设置已保存')).toBeVisible();
-  await expect
-    .poll(async () => {
-      const response = await page.request.get('/api/state/preferences');
-      const snapshot = await response.json();
-      return snapshot.state.aiPreferences;
-    })
-    .toMatchObject({ assistantPrompt: customPrompt, autoHideReasoning: true });
-
-  await page.goto('/books/demo-data-intensive');
-  await page.getByRole('button', { name: '打开更多功能，默认显示 AI 助手' }).click();
-  await summarizeChapter.click();
-  const hiddenReasoning = page.locator('.csp-chat-reasoning');
-  await expect(hiddenReasoning).not.toHaveAttribute('open');
-  await hiddenReasoning.locator('summary').click();
-  await expect(hiddenReasoning).toHaveAttribute('open', '');
+  await expect(page.getByRole('switch', { name: '自动隐藏思考过程' })).toBeChecked();
+  await expect(page.getByRole('switch', { name: '显示快捷方式：总结全书' })).not.toBeChecked();
 });

@@ -1,7 +1,14 @@
 import type { RefObject } from 'react';
 import { SideSheet, Typography } from '@douyinfe/semi-ui';
 import { IconColorPalette } from '@douyinfe/semi-icons';
-import type { BookItem, ChatSession, HighlightItem, ReaderPreferences, TocItem } from '../types';
+import type {
+  BookItem,
+  ChatMessage,
+  ChatSession,
+  HighlightItem,
+  ReaderPreferences,
+  TocItem,
+} from '../types';
 import {
   ReaderMobilePanelTabs,
   ReaderRightPanel,
@@ -20,7 +27,7 @@ interface ReaderMobileChromeProps {
   compactTocOpen: boolean;
   conversationId: string;
   focusedHighlightId?: string | null;
-  panelQuote?: string | null;
+  panelQuote?: NonNullable<ChatMessage['quote']> | null;
   preferences: ReaderPreferences;
   readerRef: RefObject<ReaderSurfaceHandle>;
   visible: boolean;
@@ -101,7 +108,13 @@ export function ReaderMobileChrome({
       </SideSheet>
 
       <SideSheet
-        aria-label={activePanel === 'style' ? '阅读样式设置' : activePanel ? `阅读辅助工具：${activePanel}` : '阅读辅助工具'}
+        aria-label={
+          activePanel === 'style'
+            ? '阅读样式设置'
+            : activePanel
+              ? `阅读辅助工具：${activePanel}`
+              : '阅读辅助工具'
+        }
         bodyStyle={{ padding: 0, overflow: 'hidden' }}
         className="mobile-reader-sheet mobile-assistant-sheet"
         closable={false}
@@ -136,7 +149,8 @@ export function ReaderMobileChrome({
                 book={book}
                 activePanel={activePanel}
                 conversationId={conversationId}
-                selectedText={panelQuote ?? undefined}
+                selectedQuote={panelQuote ?? undefined}
+                mobile
                 getCurrentText={() => readerRef.current?.getCurrentText() ?? ''}
                 onClearSelectedText={onClearSelectedText}
                 onStartNewConversation={onStartNewConversation}
@@ -145,10 +159,7 @@ export function ReaderMobileChrome({
                 focusedHighlightId={focusedHighlightId}
               />
             )}
-            <ReaderMobilePanelTabs
-              activePanel={activePanel}
-              onChangePanel={onChangePanel}
-            />
+            <ReaderMobilePanelTabs activePanel={activePanel} onChangePanel={onChangePanel} />
           </>
         )}
       </SideSheet>

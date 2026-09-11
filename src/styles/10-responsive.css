@@ -688,6 +688,13 @@
     min-height: 44px;
   }
 
+  .right-panel .panel-titlebar__settings.semi-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+
   .mobile-panel-tabs {
     display: flex;
     height: calc(53px + env(safe-area-inset-bottom));
@@ -865,6 +872,32 @@
     min-width: 0;
     flex: 1;
     justify-content: center;
+  }
+
+  .selection-toolbar--highlight .selection-toolbar__label--full {
+    display: none;
+  }
+
+  .selection-toolbar--highlight .selection-toolbar__label--compact {
+    display: inline;
+  }
+
+  .reader-ai-settings-dialog.semi-modal {
+    max-height: calc(100dvh - 24px);
+  }
+
+  .reader-ai-settings-dialog .semi-modal-body {
+    max-height: calc(100dvh - 88px);
+  }
+
+  .reader-ai-settings-dialog .ai-assistant-settings {
+    padding: 14px;
+  }
+
+  .reader-ai-settings-dialog .ai-assistant-settings__footer {
+    bottom: -14px;
+    margin: 0 -14px -14px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
   }
 
   .highlight-comment-editor {

@@ -13,9 +13,9 @@ import { getBookPassages } from '../../../../lib/bookSearch';
 import { synchronizeLearningState } from '../../../../lib/learningStateSync';
 import { waitForServerStateWrites } from '../../../../lib/serverStateStorage';
 import { createUuid } from '../../../../lib/uuid';
-import { READER_AI_PROMPT_TEMPLATES } from '../../../../lib/readerAiPrompts';
+import { visibleReaderAiPromptTemplates } from '../../../../lib/readerAiPrompts';
 import { useLearningStore } from '../../../../store/useLearningStore';
-import type { AiDialogueContentItem, AiProvider, BookItem } from '../../../../types';
+import type { AiDialogueContentItem, AiProvider, BookItem, ChatMessage } from '../../../../types';
 import {
   AiConversationDialogue,
   AiModelSelector,
@@ -32,13 +32,13 @@ const { Text } = Typography;
 export function AiConversationPanel({
   book,
   conversationId,
-  selectedText,
+  selectedQuote,
   getCurrentText,
   onClearSelectedText,
 }: {
   book: BookItem;
   conversationId: string;
-  selectedText?: string;
+  selectedQuote?: NonNullable<ChatMessage['quote']>;
   getCurrentText: () => string;
   onClearSelectedText: () => void;
 }) {
@@ -50,6 +50,10 @@ export function AiConversationPanel({
   const createChatSession = useLearningStore((state) => state.createChatSession);
   const updateChatSession = useLearningStore((state) => state.updateChatSession);
   const addChatMessage = useLearningStore((state) => state.addChatMessage);
+  const visiblePromptTemplates = useMemo(
+    () => visibleReaderAiPromptTemplates(aiPreferences.hiddenPromptTemplateIds),
+    [aiPreferences.hiddenPromptTemplateIds],
+  );
   const chats = useMemo(
     () =>
       allChats.filter(
@@ -256,8 +260,8 @@ export function AiConversationPanel({
   }, [activeJobId, applyJob]);
 
   useEffect(() => {
-    if (!selectedText) return;
-    setQuote({ text: selectedText, chapter: book.currentChapter || '当前章节' });
+    if (!selectedQuote) return;
+    setQuote(selectedQuote);
     onClearSelectedText();
     let attempts = 0;
     let animationFrame = 0;
@@ -272,7 +276,7 @@ export function AiConversationPanel({
     };
     animationFrame = window.requestAnimationFrame(focusInput);
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [book.currentChapter, onClearSelectedText, selectedText]);
+  }, [onClearSelectedText, selectedQuote]);
 
   const chooseModel = (selection: unknown) => {
     if (status === 'generating') return;
@@ -489,21 +493,23 @@ export function AiConversationPanel({
         round
         renderTopSlot={() => (
           <div className="ai-composer-context">
-            <div className="ai-prompt-shortcuts" aria-label="AI 快捷提示词" role="group">
-              {READER_AI_PROMPT_TEMPLATES.map((template) => (
-                <Button
-                  aria-label={`发送提示词：${template.label}`}
-                  disabled={!canSend}
-                  key={template.id}
-                  size="small"
-                  theme="borderless"
-                  type="tertiary"
-                  onClick={() => void send(template.prompt)}
-                >
-                  {template.label}
-                </Button>
-              ))}
-            </div>
+            {visiblePromptTemplates.length > 0 && (
+              <div className="ai-prompt-shortcuts" aria-label="AI 快捷提示词" role="group">
+                {visiblePromptTemplates.map((template) => (
+                  <Button
+                    aria-label={`发送提示词：${template.label}`}
+                    disabled={!canSend}
+                    key={template.id}
+                    size="small"
+                    theme="borderless"
+                    type="tertiary"
+                    onClick={() => void send(template.prompt)}
+                  >
+                    {template.label}
+                  </Button>
+                ))}
+              </div>
+            )}
             <div className="ai-composer-context__row">
               <Tooltip
                 content="Agent 可按需读取章节、搜索整本书，并在已配置时联网检索"

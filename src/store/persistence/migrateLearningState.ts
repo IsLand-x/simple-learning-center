@@ -1,4 +1,5 @@
 import { markdownNoteTitle } from '../../lib/markdownNotes';
+import { normalizeHiddenReaderAiPromptTemplateIds } from '../../lib/readerAiPrompts';
 import { legacyReaderPaperColor, readerDensityFromLineHeight } from '../../lib/readerThemes';
 import type { AiPreferences, ChatMessage, ChatSession, HighlightItem, NoteItem } from '../../types';
 import {
@@ -341,6 +342,19 @@ export function migrateLearningState(persistedState: unknown, version: number) {
           typeof legacyAiPreferences?.autoHideReasoning === 'boolean'
             ? legacyAiPreferences.autoHideReasoning
             : defaultAiPreferences.autoHideReasoning,
+      },
+    };
+  }
+  if (version < 31) {
+    const legacyAiPreferences = migrated.aiPreferences as Partial<AiPreferences> | undefined;
+    migrated = {
+      ...migrated,
+      aiPreferences: {
+        ...defaultAiPreferences,
+        ...legacyAiPreferences,
+        hiddenPromptTemplateIds: normalizeHiddenReaderAiPromptTemplateIds(
+          legacyAiPreferences?.hiddenPromptTemplateIds,
+        ),
       },
     };
   }

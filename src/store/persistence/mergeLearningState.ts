@@ -11,6 +11,7 @@ import {
   normalizeRssFeedSource,
   normalizeStoredCustomStyle,
 } from '../normalizers';
+import { normalizeHiddenReaderAiPromptTemplateIds } from '../../lib/readerAiPrompts';
 import { mergeReaderHighlights, mergeReaderPreferences } from './readerStateMerge';
 
 export function mergeLearningState(
@@ -96,6 +97,11 @@ export function mergeLearningState(
           ? persisted.aiPreferences.autoHideReasoning
           : (currentState.aiPreferences.autoHideReasoning ??
             defaultAiPreferences.autoHideReasoning),
+      hiddenPromptTemplateIds: persisted.aiPreferences
+        ? normalizeHiddenReaderAiPromptTemplateIds(persisted.aiPreferences.hiddenPromptTemplateIds)
+        : normalizeHiddenReaderAiPromptTemplateIds(
+            currentState.aiPreferences.hiddenPromptTemplateIds,
+          ),
     },
     webSearchConfig: {
       ...defaultWebSearchConfig,
