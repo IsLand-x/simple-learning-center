@@ -58,6 +58,7 @@ test('PiAgent 通过 OpenAI 兼容端点流式返回对话', async () => {
     highlights: [],
     readingSessions: [],
     webSearchConfig: {},
+    assistantPrompt: '请使用苏格拉底式提问，并保持简洁。',
     signal: new AbortController().signal,
     onProgress: (value) => progress.push(value),
     runtimeFactory: runtimeFactoryFor(faux),
@@ -69,6 +70,12 @@ test('PiAgent 通过 OpenAI 兼容端点流式返回对话', async () => {
   assert.ok(requestContext.tools.some((item) => item.name === 'create_book_note'));
   assert.ok(requestContext.tools.some((item) => item.name === 'update_book_note'));
   assert.match(requestContext.systemPrompt, /你是个人学习中心里的阅读助手/);
+  assert.match(requestContext.systemPrompt, /优先级低于以上规则/);
+  assert.match(requestContext.systemPrompt, /请使用苏格拉底式提问，并保持简洁/);
+  assert.ok(
+    requestContext.systemPrompt.indexOf('你是个人学习中心里的阅读助手')
+      < requestContext.systemPrompt.indexOf('请使用苏格拉底式提问'),
+  );
   assert.equal(requestOptions.sessionId, 'conversation-a');
 });
 

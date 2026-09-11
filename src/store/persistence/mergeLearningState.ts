@@ -1,4 +1,5 @@
 import {
+  defaultAiPreferences,
   defaultReaderPreferences,
   defaultRssDigestSettings,
   defaultWebSearchConfig,
@@ -86,6 +87,10 @@ export function mergeLearningState(
           : null
         : currentState.aiPreferences.provider,
       model: persisted.aiPreferences?.model ?? currentState.aiPreferences.model,
+      assistantPrompt:
+        typeof persisted.aiPreferences?.assistantPrompt === 'string'
+          ? persisted.aiPreferences.assistantPrompt
+          : (currentState.aiPreferences.assistantPrompt ?? defaultAiPreferences.assistantPrompt),
     },
     webSearchConfig: {
       ...defaultWebSearchConfig,

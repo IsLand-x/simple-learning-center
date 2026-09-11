@@ -1,4 +1,17 @@
 import { expect, test, type Page } from '@playwright/test';
+import {
+  DEFAULT_READER_AI_ASSISTANT_PROMPT,
+  READER_AI_PROMPT_TEMPLATES,
+} from '../../src/lib/readerAiPrompts';
+
+interface SubmittedAiJob {
+  bookId: string;
+  conversationId: string;
+  userMessage: {
+    id: string;
+    content: string;
+  };
+}
 
 async function selectTheme(page: Page, theme: 'light' | 'dark') {
   const currentTheme = await page.locator('body').getAttribute('theme-mode');
@@ -9,12 +22,14 @@ async function selectTheme(page: Page, theme: 'light' | 'dark') {
 }
 
 async function expectInsideViewport(page: Page, selector: string) {
-  const bounds = await page.locator(selector).boundingBox();
-  const viewport = page.viewportSize();
-  expect(bounds).not.toBeNull();
-  expect(viewport).not.toBeNull();
-  expect(bounds!.y).toBeGreaterThanOrEqual(0);
-  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport!.height);
+  await expect
+    .poll(async () => {
+      const bounds = await page.locator(selector).boundingBox();
+      const viewport = page.viewportSize();
+      if (!bounds || !viewport) return false;
+      return bounds.y >= 0 && bounds.y + bounds.height <= viewport.height + 0.5;
+    })
+    .toBe(true);
 }
 
 test('all top-level routes load through their state-domain gates', async ({ page }, testInfo) => {
@@ -173,4 +188,112 @@ test('reader AI user messages preserve authored line breaks on desktop and mobil
   await page.setViewportSize({ width: 375, height: 812 });
   await expect(page.getByRole('dialog').getByText('第一段描述')).toBeVisible();
   await expectLineBreaks();
+});
+
+test('reader AI shortcuts send preset prompts and custom assistant style persists', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chrome');
+
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
+  const preferencesResponse = await page.request.get('/api/state/preferences');
+  expect(preferencesResponse.ok()).toBe(true);
+  const preferences = await preferencesResponse.json();
+  const timestamp = Date.now();
+  preferences.state.openAIConfigs = [
+    {
+      id: 'e2e-reader-prompts',
+      name: '快捷提示词测试模型',
+      baseUrl: 'https://example.invalid/v1',
+      apiKey: 'e2e-placeholder',
+      models: ['mock-model'],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  ];
+  preferences.state.aiPreferences = {
+    provider: 'api:e2e-reader-prompts',
+    model: 'mock-model',
+    assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+  };
+  const preferencesWrite = await page.request.put('/api/state/preferences', {
+    data: preferences,
+  });
+  expect(preferencesWrite.status()).toBe(204);
+
+  let submittedJob: SubmittedAiJob | undefined;
+  await page.route('**/api/ai/jobs', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    submittedJob = route.request().postDataJSON() as SubmittedAiJob;
+    const now = Date.now();
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        id: 'e2e-shortcut-job',
+        bookId: submittedJob.bookId,
+        resourceType: 'book',
+        purpose: 'chat',
+        conversationId: submittedJob.conversationId,
+        userMessageId: submittedJob.userMessage.id,
+        assistantMessageId: 'e2e-shortcut-assistant',
+        status: 'failed',
+        revision: 1,
+        content: '',
+        dialogueContent: [],
+        error: '测试已拦截模型请求',
+        createdAt: now,
+        updatedAt: now,
+        completedAt: now,
+      },
+    });
+  });
+
+  await page.goto('/books/demo-data-intensive');
+  await page.getByRole('button', { name: '打开 AI 助手并继续当前对话' }).click();
+  const shortcuts = page.getByRole('group', { name: 'AI 快捷提示词' });
+  await expect(shortcuts).toBeVisible();
+  await expect(shortcuts.getByRole('button')).toHaveCount(READER_AI_PROMPT_TEMPLATES.length);
+  const summarizeChapter = page.getByRole('button', { name: '发送提示词：总结本章' });
+  await expect(summarizeChapter).toBeEnabled();
+  await summarizeChapter.click();
+  await expect
+    .poll(() => submittedJob?.userMessage?.content)
+    .toBe(
+      READER_AI_PROMPT_TEMPLATES.find((template) => template.id === 'summarize-chapter')?.prompt,
+    );
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/books/demo-data-intensive');
+  await page.getByRole('button', { name: '打开更多功能，默认显示 AI 助手' }).click();
+  await expect(shortcuts).toBeVisible();
+  const mobileShortcutHeight = await summarizeChapter.evaluate(
+    (element) => element.getBoundingClientRect().height,
+  );
+  expect(Math.round(mobileShortcutHeight)).toBeGreaterThanOrEqual(44);
+  await expectInsideViewport(page, '.reader-ai-input');
+  const mobileDimensions = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(mobileDimensions.scrollWidth).toBeLessThanOrEqual(mobileDimensions.clientWidth);
+
+  await page.goto('/settings');
+  await page.getByRole('tab', { name: 'AI 助手' }).click();
+  const promptInput = page.getByRole('textbox', { name: '阅读助手自定义 Prompt' });
+  const customPrompt = '请先用一句话给出结论，再用三个问题帮助我检查理解。';
+  await expect(promptInput).toHaveValue(DEFAULT_READER_AI_ASSISTANT_PROMPT);
+  await promptInput.fill(customPrompt);
+  await page.getByRole('button', { name: '保存设置' }).click();
+  await expect(page.getByText('阅读助手 Prompt 已保存')).toBeVisible();
+  await expect
+    .poll(async () => {
+      const response = await page.request.get('/api/state/preferences');
+      const snapshot = await response.json();
+      return snapshot.state.aiPreferences?.assistantPrompt;
+    })
+    .toBe(customPrompt);
 });

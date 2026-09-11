@@ -1675,6 +1675,37 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   margin-bottom: 4px;
 }
 
+.ai-prompt-shortcuts {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.ai-prompt-shortcuts::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-prompt-shortcuts .semi-button {
+  min-height: 28px;
+  flex: 0 0 auto;
+  padding: 0 8px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-small);
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-1);
+}
+
+.ai-prompt-shortcuts .semi-button:not(.semi-button-disabled):hover {
+  border-color: var(--semi-color-primary-light-active);
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+}
+
 .ai-composer-context__row {
   display: flex;
   min-width: 0;

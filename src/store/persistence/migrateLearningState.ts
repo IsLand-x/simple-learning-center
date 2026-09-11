@@ -316,5 +316,19 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       readerLayoutUpdatedAt: legacyPreferencesUpdatedAt,
     };
   }
+  if (version < 29) {
+    const legacyAiPreferences = migrated.aiPreferences as Partial<AiPreferences> | undefined;
+    migrated = {
+      ...migrated,
+      aiPreferences: {
+        ...defaultAiPreferences,
+        ...legacyAiPreferences,
+        assistantPrompt:
+          typeof legacyAiPreferences?.assistantPrompt === 'string'
+            ? legacyAiPreferences.assistantPrompt
+            : defaultAiPreferences.assistantPrompt,
+      },
+    };
+  }
   return migrated;
 }

@@ -1,4 +1,5 @@
 import { demoBooks } from '../data/demo';
+import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../lib/readerAiPrompts';
 import { DEFAULT_READER_CUSTOM_STYLE } from '../lib/readerThemes';
 import type {
   AiPreferences,
@@ -22,6 +23,7 @@ export const defaultReaderPreferences: ReaderPreferences = {
 export const defaultAiPreferences: AiPreferences = {
   provider: null,
   model: '',
+  assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
 };
 
 export const LEGACY_RSS_DIGEST_PROMPT =

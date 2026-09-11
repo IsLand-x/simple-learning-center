@@ -379,6 +379,7 @@
 
   .settings-tab-actions .semi-button,
   .account-settings .semi-button,
+  .ai-assistant-settings .semi-button,
   .web-search-settings .semi-button,
   .api-config-card .semi-button,
   .api-config-summary .semi-button {
@@ -387,6 +388,7 @@
 
   .settings-notice,
   .web-search-settings,
+  .ai-assistant-settings,
   .settings-about,
   .account-settings,
   .api-config-card {
@@ -820,6 +822,20 @@
   .settings-page input,
   .settings-page textarea {
     font-size: 16px;
+  }
+
+  .ai-prompt-shortcuts .semi-button {
+    min-height: 44px;
+    padding: 0 12px;
+  }
+
+  .ai-assistant-settings__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-assistant-settings__actions {
+    justify-content: flex-end;
   }
 
   .selection-toolbar .semi-button {

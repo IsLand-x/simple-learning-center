@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { AIChatInput, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { AIChatInput, Button, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconBookOpenStroked } from '@douyinfe/semi-icons';
 import {
   cancelAiJob,
@@ -13,6 +13,7 @@ import { getBookPassages } from '../../../../lib/bookSearch';
 import { synchronizeLearningState } from '../../../../lib/learningStateSync';
 import { waitForServerStateWrites } from '../../../../lib/serverStateStorage';
 import { createUuid } from '../../../../lib/uuid';
+import { READER_AI_PROMPT_TEMPLATES } from '../../../../lib/readerAiPrompts';
 import { useLearningStore } from '../../../../store/useLearningStore';
 import type { AiDialogueContentItem, AiProvider, BookItem } from '../../../../types';
 import {
@@ -487,6 +488,21 @@ export function AiConversationPanel({
         round
         renderTopSlot={() => (
           <div className="ai-composer-context">
+            <div className="ai-prompt-shortcuts" aria-label="AI 快捷提示词" role="group">
+              {READER_AI_PROMPT_TEMPLATES.map((template) => (
+                <Button
+                  aria-label={`发送提示词：${template.label}`}
+                  disabled={!canSend}
+                  key={template.id}
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  onClick={() => void send(template.prompt)}
+                >
+                  {template.label}
+                </Button>
+              ))}
+            </div>
             <div className="ai-composer-context__row">
               <Tooltip
                 content="Agent 可按需读取章节、搜索整本书，并在已配置时联网检索"

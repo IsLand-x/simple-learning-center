@@ -320,6 +320,7 @@ export interface WebSearchConfig {
 export interface AiPreferences {
   provider: AiProvider | null;
   model: string;
+  assistantPrompt: string;
 }
 
 export interface ReadingSession {

@@ -573,6 +573,9 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         .sort((left, right) => right.startedAt - left.startedAt)
         .map((readingSession) => structuredClone(readingSession)),
       webSearchConfig: structuredClone(state.webSearchConfig ?? { provider: 'jina', apiKey: '' }),
+      assistantPrompt: resourceType === 'book'
+        ? optionalString(state.aiPreferences?.assistantPrompt, 4_000).trim()
+        : '',
     };
     queueMicrotask(() => void executeJob(job, context));
     return publicJob(job);

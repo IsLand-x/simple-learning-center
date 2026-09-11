@@ -44,6 +44,7 @@
 
 .settings-notice,
 .web-search-settings,
+.ai-assistant-settings,
 .content-source-settings,
 .settings-about,
 .account-settings,
@@ -84,6 +85,47 @@
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
   background: var(--semi-color-bg-1);
+}
+
+.ai-assistant-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-bg-1);
+}
+
+.ai-assistant-settings__heading > div,
+.ai-assistant-settings__field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-assistant-settings__heading h5 {
+  margin: 0;
+}
+
+.ai-assistant-settings__field .semi-input-textarea {
+  line-height: 1.65;
+}
+
+.ai-assistant-settings__footer,
+.ai-assistant-settings__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-assistant-settings__footer {
+  justify-content: space-between;
+}
+
+.ai-assistant-settings__footer > span {
+  min-width: 0;
 }
 
 .settings-about__heading {
