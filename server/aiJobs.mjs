@@ -43,6 +43,7 @@ function publicJob(job) {
     content: job.content,
     translationHtml: job.translationHtml,
     dialogueContent: job.dialogueContent,
+    notesRevision: job.notesRevision,
     error: job.error,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
@@ -261,6 +262,12 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
           if (job.status === 'cancelled') return;
           job.content = progress.content;
           job.dialogueContent = structuredClone(progress.dialogueContent);
+          job.updatedAt = Date.now();
+          job.revision += 1;
+          publishJob(job);
+        },
+        onNoteChange() {
+          job.notesRevision += 1;
           job.updatedAt = Date.now();
           job.revision += 1;
           publishJob(job);
@@ -513,6 +520,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       revision: 0,
       content: '',
       dialogueContent: [],
+      notesRevision: 0,
       createdAt: timestamp,
       updatedAt: timestamp,
       completedAt: undefined,

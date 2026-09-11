@@ -66,6 +66,8 @@ test('PiAgent 通过 OpenAI 兼容端点流式返回对话', async (t) => {
   assert.equal(result.content, '你好，读者。');
   assert.ok(progress.length > 0);
   assert.ok(requestContext.tools.some((item) => item.name === 'read_current_book'));
+  assert.ok(requestContext.tools.some((item) => item.name === 'create_book_note'));
+  assert.ok(requestContext.tools.some((item) => item.name === 'update_book_note'));
   assert.match(requestContext.systemPrompt, /你是个人学习中心里的阅读助手/);
   assert.equal(requestOptions.sessionId, 'conversation-a');
 });
@@ -111,6 +113,72 @@ test('PiAgent 执行阅读工具后继续生成最终回答', async (t) => {
   assert.equal(toolEntry?.name, 'read_current_book');
   assert.equal(toolEntry?.status, 'completed');
   assert.ok(progress.some((entry) => entry.dialogueContent.some((item) => item.type === 'function_call')));
+});
+
+test('PiAgent 先读取版本再编辑当前书籍笔记', async () => {
+  const faux = fauxProvider({ tokensPerSecond: 0 });
+  faux.setResponses([
+    fauxAssistantMessage(
+      fauxToolCall('read_book_notes', {}, { id: 'read-notes' }),
+      { stopReason: 'toolUse' },
+    ),
+    fauxAssistantMessage(
+      fauxToolCall('update_book_note', {
+        note_id: 'book-note:book-a',
+        expected_updated_at: 10,
+        content: '# AI 修订后的笔记',
+      }, { id: 'update-note' }),
+      { stopReason: 'toolUse' },
+    ),
+    fauxAssistantMessage('笔记已经按你的要求更新。'),
+  ]);
+  const calls = [];
+  const changedNotes = [];
+  const noteActions = {
+    async readBookNotes(bookId) {
+      calls.push(['read', bookId]);
+      return [{ id: 'book-note:book-a', content: '# 原笔记', updatedAt: 10 }];
+    },
+    async createBookNote() {
+      throw new Error('不应创建笔记');
+    },
+    async updateBookNote(bookId, noteId, expectedUpdatedAt, content) {
+      calls.push(['update', bookId, noteId, expectedUpdatedAt, content]);
+      return { id: noteId, content, updatedAt: 11 };
+    },
+  };
+
+  const result = await runServerAiChat({
+    config: { baseUrl: 'https://example.invalid/v1', apiKey: 'test-key' },
+    model: 'mock',
+    conversationId: 'conversation-note',
+    messages: [{ role: 'user', content: '请把我的笔记改成修订稿', createdAt: 1 }],
+    resourceType: 'book',
+    book: {
+      id: 'book-a',
+      title: '测试书',
+      author: '作者',
+      progress: 10,
+      currentChapter: '第一章',
+      toc: [],
+    },
+    currentText: '',
+    notes: [],
+    highlights: [],
+    readingSessions: [],
+    webSearchConfig: {},
+    signal: new AbortController().signal,
+    noteActions,
+    onNoteChange: (note) => changedNotes.push(note),
+    runtimeFactory: runtimeFactoryFor(faux),
+  });
+
+  assert.deepEqual(calls, [
+    ['read', 'book-a'],
+    ['update', 'book-a', 'book-note:book-a', 10, '# AI 修订后的笔记'],
+  ]);
+  assert.deepEqual(changedNotes, [{ id: 'book-note:book-a', content: '# AI 修订后的笔记', updatedAt: 11 }]);
+  assert.equal(result.content, '笔记已经按你的要求更新。');
 });
 
 test('PiAgent 在最后一轮关闭工具并按 SDK 生命周期停止', async () => {

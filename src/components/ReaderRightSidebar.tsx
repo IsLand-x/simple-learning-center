@@ -25,6 +25,7 @@ import {
 } from '../lib/aiJobs';
 import { getBookPassages } from '../lib/bookSearch';
 import { formatRelativeTime } from '../lib/format';
+import { synchronizeLearningState } from '../lib/learningStateSync';
 import { markdownNoteTitle } from '../lib/markdownNotes';
 import { waitForServerStateWrites } from '../lib/serverStateStorage';
 import { createUuid } from '../lib/uuid';
@@ -209,6 +210,8 @@ function AiPanel({
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const inputRef = useRef<ComponentRef<typeof AIChatInput>>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
+  const synchronizedNoteRevisionsRef = useRef(new Map<string, number>());
+  const noteSyncQueueRef = useRef(Promise.resolve());
 
   useEffect(() => {
     setStatusMessage('');
@@ -227,6 +230,17 @@ function AiPanel({
   }, [conversationId]);
 
   const applyJob = useCallback((job: AiJob) => {
+    const notesRevision = Number(job.notesRevision || 0);
+    const synchronizedRevision = synchronizedNoteRevisionsRef.current.get(job.id) ?? 0;
+    if (notesRevision > synchronizedRevision) {
+      synchronizedNoteRevisionsRef.current.set(job.id, notesRevision);
+      noteSyncQueueRef.current = noteSyncQueueRef.current
+        .catch(() => undefined)
+        .then(() => synchronizeLearningState());
+      void noteSyncQueueRef.current.catch((error) => {
+        console.warn('同步 AI 修改的阅读笔记失败', error);
+      });
+    }
     if (job.status === 'queued' || job.status === 'running') {
       setActiveJobId(job.id);
       setStreamingAssistant({

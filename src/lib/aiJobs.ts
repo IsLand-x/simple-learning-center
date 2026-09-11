@@ -19,6 +19,7 @@ export interface AiJob {
   content: string;
   translationHtml?: string;
   dialogueContent: AiDialogueContentItem[];
+  notesRevision?: number;
   error?: string;
   createdAt: number;
   updatedAt: number;
