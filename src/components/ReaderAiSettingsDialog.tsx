@@ -1,4 +1,4 @@
-import { Modal } from '@douyinfe/semi-ui';
+import { AppFormModal } from '../shared/ui/AppFormModal';
 import { ReaderAiSettingsForm } from './ReaderAiSettingsForm';
 
 export function ReaderAiSettingsDialog({
@@ -9,11 +9,10 @@ export function ReaderAiSettingsDialog({
   onCancel: () => void;
 }) {
   return (
-    <Modal
+    <AppFormModal
       bodyStyle={{ padding: 0 }}
       className="reader-ai-settings-dialog"
       closable={false}
-      footer={null}
       maskClosable
       title="AI 助手设置"
       visible={visible}
@@ -26,6 +25,6 @@ export function ReaderAiSettingsDialog({
         onCancel={onCancel}
         onSaved={onCancel}
       />
-    </Modal>
+    </AppFormModal>
   );
 }

@@ -155,6 +155,7 @@ git diff --check
 ### 组件、图标与交互状态
 
 - 优先复用 Semi Design 组件。主要提交或新建操作使用主色实心按钮；取消和低权重工具使用 `borderless tertiary`；删除使用 `danger`；筛选使用 `ButtonGroup`，当前项 solid、其余 borderless。
+- 带标题且在 body 内自定义操作按钮的表单弹窗必须使用 `src/shared/ui/AppFormModal.tsx`：桌面端标题顶部与操作区底部各保留 `24px`，`800px` 及以下各保留 `20px`，禁止让按钮贴住弹窗底边。使用内置 footer 的确认框继续走 `confirmDialog`；图片查看器等沉浸式例外可以不使用该组件，但必须在功能样式中明确处理边缘留白。滚动弹窗若用粘性操作区覆盖共享 body padding，必须自行提供不小于上述标准的等价底部留白，并计入 `env(safe-area-inset-bottom)`。
 - 图标统一使用 Semi Icons，颜色继承 `currentColor`。禁止混用 Emoji、字符图标或另一套图标库；桌面辅助栏图标约 `18px`，移动导航图标约 `19–20px`。
 - 纯图标操作必须使用 Semi `Button`，提供明确 `aria-label`；图标含义不能从上下文直接判断时增加 Tooltip。不要用带 `onClick` 的无语义 `div` 代替按钮。
 - 默认文本、悬停和选中必须保持同一状态语义：默认使用 `text-1/text-2`，hover 使用 `fill-0` 或浅主色背景，active/selected 使用 `fill-1` 或 `primary-light-default` 并配主色文字/边框；危险与 disabled 状态交给 Semi 语义，不自行用任意透明度模拟。

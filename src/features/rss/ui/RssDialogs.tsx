@@ -5,7 +5,6 @@ import {
   Dropdown,
   Empty,
   Input,
-  Modal,
   Select,
   SideSheet,
   Switch,
@@ -21,11 +20,11 @@ import {
   IconRefresh,
 } from '@douyinfe/semi-icons';
 import { formatRelativeTime } from '../../../lib/format';
+import { AppFormModal } from '../../../shared/ui/AppFormModal';
 import type { RssFeed, RssFeedType, RssFolder, RssItem } from '../../../types';
 import { sourceTypeLabel, type RssSourceKind } from '../model/rssPageModel';
 
 const { Text } = Typography;
-const rssModalBodyStyle = { paddingBottom: 24 };
 
 export interface RssSourceMenuState {
   feed: RssFeed;
@@ -73,14 +72,7 @@ export function RssAddSourceDialog({
   onSubmit: (event: FormEvent) => void;
 }) {
   return (
-    <Modal
-      bodyStyle={rssModalBodyStyle}
-      closable={false}
-      title="添加订阅源"
-      visible={visible}
-      footer={null}
-      onCancel={onCancel}
-    >
+    <AppFormModal closable={false} title="添加订阅源" visible={visible} onCancel={onCancel}>
       <form className="rss-dialog-form" onSubmit={onSubmit}>
         <label>
           <Text strong>内容源</Text>
@@ -163,7 +155,7 @@ export function RssAddSourceDialog({
           </Button>
         </div>
       </form>
-    </Modal>
+    </AppFormModal>
   );
 }
 
@@ -181,14 +173,7 @@ export function RssCreateFolderDialog({
   onSubmit: (event: FormEvent) => void;
 }) {
   return (
-    <Modal
-      bodyStyle={rssModalBodyStyle}
-      closable={false}
-      title="新建文件夹"
-      visible={visible}
-      footer={null}
-      onCancel={onCancel}
-    >
+    <AppFormModal closable={false} title="新建文件夹" visible={visible} onCancel={onCancel}>
       <form className="rss-dialog-form" onSubmit={onSubmit}>
         <label>
           <Text strong>文件夹名称</Text>
@@ -208,7 +193,7 @@ export function RssCreateFolderDialog({
           </Button>
         </div>
       </form>
-    </Modal>
+    </AppFormModal>
   );
 }
 

@@ -3,7 +3,6 @@ import {
   Button,
   Empty,
   Input,
-  Modal,
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
@@ -19,6 +18,7 @@ import { importYouTubeVideo } from '../lib/youtubeVideos';
 import { useLearningStore } from '../store/useLearningStore';
 import type { VideoResource } from '../types';
 import { useMediaQuery } from '../shared/browser/useMediaQuery';
+import { AppFormModal } from '../shared/ui/AppFormModal';
 import { type TranscriptMode, type VideoPanel } from '../features/video/model/videoTranscript';
 import {
   VideoActivityBar,
@@ -241,7 +241,7 @@ export function VideoStudyPage() {
         )}
       </div>
 
-      <Modal bodyStyle={{ padding: '16px 20px 20px' }} closable={false} footer={null} title="添加 YouTube 视频" visible={addVisible} onCancel={() => {
+      <AppFormModal closable={false} title="添加 YouTube 视频" visible={addVisible} onCancel={() => {
         if (!submitting) setAddVisible(false);
       }}>
         <form className="video-add-form" onSubmit={addVideo}>
@@ -255,7 +255,7 @@ export function VideoStudyPage() {
             <Button disabled={!videoUrl.trim()} htmlType="submit" loading={submitting} theme="solid" type="primary">读取视频</Button>
           </div>
         </form>
-      </Modal>
+      </AppFormModal>
     </main>
   );
 }

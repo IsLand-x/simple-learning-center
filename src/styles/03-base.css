@@ -96,3 +96,12 @@ button,
   white-space: nowrap !important;
   border: 0 !important;
 }
+
+.app-form-modal .semi-modal-header {
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.app-form-modal .semi-modal-body {
+  padding-bottom: 24px;
+}

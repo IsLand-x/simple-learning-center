@@ -139,6 +139,15 @@
     --mobile-reader-toolbar-height: 58px;
   }
 
+  .app-form-modal .semi-modal-header {
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+
+  .app-form-modal .semi-modal-body {
+    padding-bottom: 20px;
+  }
+
   .app-shell {
     flex-direction: column;
   }
@@ -897,7 +906,7 @@
   .reader-ai-settings-dialog .ai-assistant-settings__footer {
     bottom: -14px;
     margin: 0 -14px -14px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    padding: 10px 14px calc(20px + env(safe-area-inset-bottom));
   }
 
   .highlight-comment-editor {

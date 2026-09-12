@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { Button, Checkbox, Empty, Input, Modal, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Empty, Input, Typography } from '@douyinfe/semi-ui';
+import { AppFormModal } from '../../../shared/ui/AppFormModal';
 import type { BookItem, BookList } from '../../../types';
 import { BookCover } from './BookCover';
 
@@ -44,9 +45,8 @@ export function BookPicker({ visible, bookList, books, onCancel, onSave }: BookP
   };
 
   return (
-    <Modal
+    <AppFormModal
       closable={false}
-      footer={null}
       title={`管理“${bookList?.name ?? ''}”中的书`}
       visible={visible}
       width="min(520px, calc(100vw - 16px))"
@@ -106,6 +106,6 @@ export function BookPicker({ visible, bookList, books, onCancel, onSave }: BookP
           </span>
         </div>
       </div>
-    </Modal>
+    </AppFormModal>
   );
 }

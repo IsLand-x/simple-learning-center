@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { Button, Input, Modal, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { AppFormModal } from '../../../shared/ui/AppFormModal';
 import type { BookList } from '../../../types';
 
 const { Text } = Typography;
@@ -34,9 +35,8 @@ export function BookListEditor({ visible, bookList, onCancel, onSave }: BookList
   };
 
   return (
-    <Modal
+    <AppFormModal
       closable={false}
-      footer={null}
       title={bookList ? '编辑书单' : '新建书单'}
       visible={visible}
       width="min(520px, calc(100vw - 16px))"
@@ -75,6 +75,6 @@ export function BookListEditor({ visible, bookList, onCancel, onSave }: BookList
           </Button>
         </div>
       </form>
-    </Modal>
+    </AppFormModal>
   );
 }

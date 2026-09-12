@@ -1,7 +1,8 @@
 import { useRef, useState, type ComponentProps, type ComponentRef } from 'react';
-import { Button, Modal, Progress, Toast, Typography, Upload } from '@douyinfe/semi-ui';
+import { Button, Progress, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import { IconPlus, IconUpload } from '@douyinfe/semi-icons';
 import { saveEpubFile } from '../lib/epubStorage';
+import { AppFormModal } from '../shared/ui/AppFormModal';
 import { useLearningStore } from '../store/useLearningStore';
 import type { BookItem } from '../types';
 
@@ -104,11 +105,10 @@ export function ImportBooksButton() {
         <span className="import-books-button__mobile">导入</span>
       </Button>
 
-      <Modal
+      <AppFormModal
         centered
         className="epub-import-modal"
         closable={false}
-        footer={null}
         title="导入 EPUB"
         visible={visible}
         width="min(560px, calc(100vw - 16px))"
@@ -169,7 +169,7 @@ export function ImportBooksButton() {
             </Button>
           </div>
         </div>
-      </Modal>
+      </AppFormModal>
     </>
   );
 }

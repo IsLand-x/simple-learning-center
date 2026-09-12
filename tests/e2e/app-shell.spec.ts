@@ -32,6 +32,23 @@ async function expectInsideViewport(page: Page, selector: string) {
     .toBe(true);
 }
 
+async function expectFormModalEdgeSpacing(page: Page, minimumSpacing: number) {
+  await expect
+    .poll(async () => {
+      const [modalBounds, titleBounds, actionBounds] = await Promise.all([
+        page.locator('.epub-import-modal .semi-modal-content').boundingBox(),
+        page.locator('.epub-import-modal .semi-modal-title').boundingBox(),
+        page.locator('.epub-import-modal__actions').boundingBox(),
+      ]);
+      if (!modalBounds || !titleBounds || !actionBounds) return false;
+      const topSpacing = titleBounds.y - modalBounds.y;
+      const bottomSpacing =
+        modalBounds.y + modalBounds.height - (actionBounds.y + actionBounds.height);
+      return topSpacing >= minimumSpacing && bottomSpacing >= minimumSpacing;
+    })
+    .toBe(true);
+}
+
 test('all top-level routes load through their state-domain gates', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
 
@@ -94,6 +111,29 @@ test('representative viewport and theme combinations keep the shell stable', asy
         await expect(page.locator('.main-nav')).toBeVisible();
         await expect(page.locator('.mobile-main-nav')).toBeHidden();
       }
+    }
+  }
+});
+
+test('form modals preserve their top and bottom safe spacing', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chrome');
+
+  for (const theme of ['light', 'dark'] as const) {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto('/');
+    await selectTheme(page, theme);
+
+    for (const viewport of [
+      { width: 375, height: 812, minimumSpacing: 20 },
+      { width: 1440, height: 900, minimumSpacing: 24 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/');
+      await expect(page.locator('body')).toHaveAttribute('theme-mode', theme);
+      await page.getByRole('button', { name: '导入 EPUB' }).click();
+      await expect(page.getByRole('dialog', { name: '导入 EPUB' })).toBeVisible();
+      await expectFormModalEdgeSpacing(page, viewport.minimumSpacing);
+      await page.getByRole('button', { name: '取消' }).click();
     }
   }
 });
