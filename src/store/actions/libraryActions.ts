@@ -5,6 +5,7 @@ type LibraryActions = Pick<
   | 'addBooks'
   | 'setBookCovers'
   | 'updateBook'
+  | 'setBookPinned'
   | 'trashBook'
   | 'restoreBook'
   | 'deleteBookPermanently'
@@ -38,6 +39,16 @@ export function createLibraryActions(set: LearningStoreSet): LibraryActions {
             ? { ...book, ...changes, updatedAt: changes.updatedAt ?? Date.now() }
             : book,
         ),
+      })),
+    setBookPinned: (bookId, pinned, pinnedAt = Date.now()) =>
+      set((state) => ({
+        books: state.books.map((book) => {
+          if (book.id !== bookId) return book;
+          if (pinned) return book.pinnedAt ? book : { ...book, pinnedAt };
+          if (!book.pinnedAt) return book;
+          const { pinnedAt: _pinnedAt, ...unpinnedBook } = book;
+          return unpinnedBook;
+        }),
       })),
     trashBook: (bookId, deletedAt = Date.now()) =>
       set((state) => {

@@ -3,6 +3,7 @@ import {
   IconDeleteStroked,
   IconEditStroked,
   IconHandle,
+  IconImport,
   IconPlus,
 } from '@douyinfe/semi-icons';
 import { Button, Empty, Tooltip, Typography } from '@douyinfe/semi-ui';
@@ -57,15 +58,16 @@ export function BookListDetail({
           </Text>
         </div>
         <div className="book-list-detail__actions">
-          <Button
-            icon={<IconPlus />}
-            size="small"
-            theme="solid"
-            type="primary"
-            onClick={onManageBooks}
-          >
-            管理书籍
-          </Button>
+          <Tooltip content="管理书籍">
+            <Button
+              aria-label="管理书籍"
+              icon={<IconImport />}
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              onClick={onManageBooks}
+            />
+          </Tooltip>
           <Tooltip content="编辑书单">
             <Button
               aria-label="编辑书单"

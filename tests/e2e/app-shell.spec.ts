@@ -156,6 +156,144 @@ test('mobile library uses the bottom navigation without horizontal overflow', as
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 });
 
+test('library book context menu dismisses and manages pinning, lists, tags, and trash', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chrome');
+
+  await page.goto('/');
+  await selectTheme(page, 'light');
+  const libraryResponse = await page.request.get('/api/state/library');
+  expect(libraryResponse.ok()).toBe(true);
+  const library = await libraryResponse.json();
+  library.state.books = [
+    demoBooks[0],
+    ...(library.state.books ?? [])
+      .filter((book: { id?: string }) => book.id !== 'demo-data-intensive')
+      .map((book: Record<string, unknown>) => ({ ...book, pinnedAt: undefined })),
+  ];
+  library.state.bookLists = [
+    {
+      id: 'e2e-reading-list',
+      name: '技术学习',
+      note: '',
+      bookIds: ['demo-data-intensive'],
+      createdAt: 1,
+      updatedAt: 1,
+    },
+    {
+      id: 'e2e-backlog-list',
+      name: '待读',
+      note: '',
+      bookIds: [],
+      createdAt: 2,
+      updatedAt: 2,
+    },
+  ];
+  const libraryWrite = await page.request.put('/api/state/library', { data: library });
+  expect(libraryWrite.status()).toBe(204);
+  await page.reload();
+
+  const bookCard = page.locator('.book-card').filter({ hasText: 'Designing Data-Intensive' });
+  await expect(bookCard.getByText('技术学习', { exact: true })).toBeVisible();
+  await bookCard.click({ button: 'right', position: { x: 80, y: 80 } });
+  const contextMenu = page.locator('.library-book-context-menu');
+  await expect(contextMenu).toBeVisible();
+  const [cardBounds, menuBounds] = await Promise.all([
+    bookCard.boundingBox(),
+    contextMenu.boundingBox(),
+  ]);
+  expect(Math.abs((menuBounds?.x ?? 0) - ((cardBounds?.x ?? 0) + 80))).toBeLessThanOrEqual(1);
+  expect(Math.abs((menuBounds?.y ?? 0) - ((cardBounds?.y ?? 0) + 80))).toBeLessThanOrEqual(1);
+
+  await page.getByRole('heading', { name: '我的书架' }).click();
+  await expect(contextMenu).toBeHidden();
+
+  await bookCard.click({ button: 'right' });
+  await contextMenu.getByRole('menuitem', { name: /置顶$/ }).click();
+  const pinnedSection = page.getByRole('region', { name: '置顶书籍' });
+  const otherBooksSection = page.getByRole('region', { name: '其他书籍' });
+  await expect(pinnedSection).toContainText('Designing Data-Intensive Applications');
+  await expect(bookCard.getByRole('button', { name: /取消置顶《/ })).toHaveCount(0);
+  const [pinnedBounds, otherBooksBounds] = await Promise.all([
+    pinnedSection.boundingBox(),
+    otherBooksSection.boundingBox(),
+  ]);
+  expect((pinnedBounds?.y ?? 0) + (pinnedBounds?.height ?? 0)).toBeLessThanOrEqual(
+    otherBooksBounds?.y ?? 0,
+  );
+
+  await bookCard.click({ button: 'right' });
+  await contextMenu.getByRole('menuitem', { name: /取消置顶$/ }).click();
+  await expect(pinnedSection).toBeHidden();
+
+  await bookCard.click({ button: 'right' });
+  await contextMenu.getByRole('menuitem', { name: /移动到书单/ }).hover();
+  const listSubmenu = page.locator('.library-book-list-submenu');
+  await expect(listSubmenu).toBeVisible();
+  const listItems = listSubmenu.getByRole('menuitem');
+  await expect(listItems).toHaveCount(3);
+  await expect(listItems.nth(0)).toContainText('技术学习');
+  await expect(listItems.nth(1)).toContainText('待读');
+  await expect(listItems.nth(2)).toContainText('新建书单');
+  await expect(listItems.nth(0).getByRole('img', { name: 'tick' })).toBeVisible();
+  await listItems.nth(0).click();
+  await expect(listSubmenu).toBeVisible();
+  await expect(bookCard.getByText('技术学习', { exact: true })).toBeHidden();
+  await expect(listItems.nth(0).getByRole('img', { name: 'tick' })).toHaveCount(0);
+  await listItems.nth(0).click();
+  await expect(listSubmenu).toBeVisible();
+  await expect(bookCard.getByText('技术学习', { exact: true })).toBeVisible();
+  await expect(listItems.nth(0).getByRole('img', { name: 'tick' })).toBeVisible();
+  await listItems.nth(1).click();
+  await expect(listSubmenu).toBeVisible();
+  await expect(bookCard.getByText('待读', { exact: true })).toBeVisible();
+  await page.getByRole('heading', { name: '我的书架' }).click();
+  await expect(contextMenu).toBeHidden();
+
+  await bookCard.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: /移动到书单/ }).hover();
+  await page.locator('.library-book-list-submenu').getByText('新建书单').click();
+  const editor = page.getByRole('dialog', { name: '新建书单' });
+  await expect(editor).toBeVisible();
+  await editor.getByRole('textbox', { name: '名称' }).fill('章节精读');
+  await editor.getByRole('button', { name: '保存' }).click();
+  await expect(bookCard.getByText('章节精读', { exact: true })).toBeVisible();
+
+  await bookCard.click({ button: 'right' });
+  await page.locator('.library-book-context-menu').getByText('删除', { exact: true }).click();
+  const trashDialog = page.getByRole('dialog', {
+    name: '将《Designing Data-Intensive Applications》移到回收站？',
+  });
+  await expect(trashDialog).toBeVisible();
+  await expect(trashDialog).toContainText(
+    '书籍和相关学习记录会保留 30 天；期间可以恢复，也可以在回收站中彻底删除。',
+  );
+  await expect(trashDialog.getByText('移到回收站', { exact: true })).toBeVisible();
+  await trashDialog.getByRole('button', { name: 'cancel' }).click();
+  await expect(bookCard).toBeVisible();
+
+  await page.getByRole('button', { name: /书单/ }).click();
+  const bookListNavigation = page.getByRole('complementary', { name: '书单列表' });
+  const bookListDetail = page.locator('.book-list-detail');
+  await expect(bookListNavigation).toBeVisible();
+  await expect(bookListDetail).toBeVisible();
+  const [navigationBounds, detailBounds] = await Promise.all([
+    bookListNavigation.boundingBox(),
+    bookListDetail.boundingBox(),
+  ]);
+  expect(navigationBounds?.y).toBe(detailBounds?.y);
+  expect(Math.round(navigationBounds?.x ?? 0) + Math.round(navigationBounds?.width ?? 0)).toBe(
+    Math.round(detailBounds?.x ?? 0),
+  );
+
+  const manageBooksButton = bookListDetail.getByRole('button', { name: '管理书籍' });
+  await expect(manageBooksButton).toBeVisible();
+  await expect(manageBooksButton).toHaveText('');
+  await manageBooksButton.hover();
+  await expect(page.getByRole('tooltip')).toContainText('管理书籍');
+});
+
 test('reader AI composer preserves authored paragraphs on desktop and mobile', async ({
   page,
 }, testInfo) => {

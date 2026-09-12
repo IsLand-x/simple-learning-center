@@ -40,7 +40,9 @@
   }
 
   .book-list-nav__items {
+    flex: none;
     overflow-x: auto;
+    overflow-y: hidden;
     flex-direction: row;
     scrollbar-width: none;
   }
@@ -85,15 +87,12 @@
 
   .book-list-detail__actions {
     width: 100%;
+    justify-content: flex-end;
   }
 
   .book-list-detail__actions .semi-button {
     min-width: 44px;
     min-height: 44px;
-  }
-
-  .book-list-detail__actions .semi-button:first-child {
-    flex: 1;
   }
 
   .book-list-books {

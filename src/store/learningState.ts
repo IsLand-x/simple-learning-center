@@ -60,6 +60,7 @@ export interface LearningState {
   addBooks: (books: BookItem[]) => void;
   setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
+  setBookPinned: (bookId: string, pinned: boolean, pinnedAt?: number) => void;
   trashBook: (bookId: string, deletedAt?: number) => void;
   restoreBook: (bookId: string, restoredAt?: number) => void;
   deleteBookPermanently: (bookId: string, deletedAt?: number) => void;

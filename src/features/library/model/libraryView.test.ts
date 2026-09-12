@@ -3,7 +3,7 @@ import type { BookItem } from '../../../types';
 import {
   bookCoverTone,
   filterLibraryBooks,
-  sortBooksByUpdatedAt,
+  sortBooksByShelfOrder,
   trashDaysRemaining,
 } from './libraryView';
 
@@ -44,10 +44,24 @@ describe('library filtering', () => {
 
 describe('library ordering', () => {
   it('sorts a copy by most recently updated without mutating the store array', () => {
-    const sorted = sortBooksByUpdatedAt(books);
+    const sorted = sortBooksByShelfOrder(books);
 
     expect(sorted.map((book) => book.id)).toEqual(['reading', 'finished', 'unread']);
     expect(books.map((book) => book.id)).toEqual(['unread', 'reading', 'finished']);
+  });
+
+  it('keeps pinned books ahead of newer unpinned books in manual pin order', () => {
+    const sorted = sortBooksByShelfOrder([
+      createBook({ id: 'pinned-first', updatedAt: 1, pinnedAt: 10 }),
+      createBook({ id: 'recent-unpinned', updatedAt: 100 }),
+      createBook({ id: 'pinned-latest', updatedAt: 2, pinnedAt: 20 }),
+    ]);
+
+    expect(sorted.map((book) => book.id)).toEqual([
+      'pinned-latest',
+      'pinned-first',
+      'recent-unpinned',
+    ]);
   });
 });
 

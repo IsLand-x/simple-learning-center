@@ -16,8 +16,17 @@ export function bookCoverTone(bookId: string): CoverTone {
   return tones[hash % tones.length];
 }
 
-export function sortBooksByUpdatedAt(books: BookItem[]) {
-  return [...books].sort((left, right) => right.updatedAt - left.updatedAt);
+export function sortBooksByShelfOrder(books: BookItem[]) {
+  return [...books].sort((left, right) => {
+    const leftPinnedAt = left.pinnedAt ?? 0;
+    const rightPinnedAt = right.pinnedAt ?? 0;
+    if (leftPinnedAt || rightPinnedAt) {
+      if (!leftPinnedAt) return 1;
+      if (!rightPinnedAt) return -1;
+      if (leftPinnedAt !== rightPinnedAt) return rightPinnedAt - leftPinnedAt;
+    }
+    return right.updatedAt - left.updatedAt;
+  });
 }
 
 export function filterLibraryBooks(books: BookItem[], filter: LibraryFilter, query: string) {

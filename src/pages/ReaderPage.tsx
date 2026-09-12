@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { IconAlertTriangle } from '@douyinfe/semi-icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ReaderMobileChrome } from '../components/ReaderMobileChrome';
 import type { MobileReaderPanel } from '../components/ReaderRightSidebar';
@@ -21,9 +20,8 @@ import {
   isReaderKeyboardEditingTarget,
 } from '../features/reader/model/readerSurfaceModel';
 import { MissingReaderBook, ReaderPageHeader } from '../features/reader/ui/ReaderPageHeader';
-import { confirmDialog } from '../lib/confirmDialog';
 import { coerceAiReasoningEffort } from '../lib/aiReasoning';
-import { moveBookToTrash } from '../lib/epubStorage';
+import { confirmMoveBookToTrash } from '../lib/confirmBookTrash';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
 import type {
@@ -210,24 +208,9 @@ export function ReaderPage() {
   }
 
   const handleDelete = () => {
-    confirmDialog({
-      title: `将《${book.title}》移到回收站？`,
-      content: '书籍和相关学习记录会保留 30 天；期间可以恢复，也可以在回收站中彻底删除。',
-      icon: <IconAlertTriangle size="large" style={{ color: 'var(--semi-color-warning)' }} />,
-      okText: '移到回收站',
-      cancelText: '取消',
-      okButtonProps: { type: 'danger' },
-      onOk: async () => {
-        try {
-          const trashedBook = await moveBookToTrash(book.id);
-          trashBook(book.id, trashedBook.deletedAt);
-          Toast.success('已移到回收站，30 天内可以恢复');
-          navigate('/');
-        } catch (error) {
-          Toast.error(error instanceof Error ? error.message : '无法将书籍移到回收站');
-          throw error;
-        }
-      },
+    confirmMoveBookToTrash(book, (trashedBook) => {
+      trashBook(book.id, trashedBook.deletedAt);
+      navigate('/');
     });
   };
 

@@ -207,6 +207,7 @@ export interface BookItem {
   coverDataUrl?: string;
   createdAt: number;
   updatedAt: number;
+  pinnedAt?: number;
   progress: number;
   currentCfi?: string;
   currentChapter: string;

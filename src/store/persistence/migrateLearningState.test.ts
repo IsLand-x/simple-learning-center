@@ -120,4 +120,19 @@ describe('learning state migrations', () => {
     expect(defaulted.aiPreferences?.reasoningEffort).toBe('auto');
     expect(preserved.aiPreferences?.reasoningEffort).toBe('max');
   });
+
+  it('preserves valid book pins and removes invalid legacy values', () => {
+    const migrated = migrateLearningState(
+      {
+        books: [{ id: 'valid', pinnedAt: 100 }, { id: 'invalid', pinnedAt: -1 }, { id: 'unread' }],
+      },
+      32,
+    );
+
+    expect(migrated.books?.map((book) => ({ id: book.id, pinnedAt: book.pinnedAt }))).toEqual([
+      { id: 'valid', pinnedAt: 100 },
+      { id: 'invalid', pinnedAt: undefined },
+      { id: 'unread', pinnedAt: undefined },
+    ]);
+  });
 });

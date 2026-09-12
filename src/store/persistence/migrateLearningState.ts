@@ -376,5 +376,21 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       })),
     };
   }
+  if (version < 33) {
+    migrated = {
+      ...migrated,
+      books: (migrated.books ?? []).map((book) => {
+        if (
+          typeof book.pinnedAt === 'number' &&
+          Number.isFinite(book.pinnedAt) &&
+          book.pinnedAt > 0
+        ) {
+          return book;
+        }
+        const { pinnedAt: _pinnedAt, ...bookWithoutPin } = book;
+        return bookWithoutPin;
+      }),
+    };
+  }
   return migrated;
 }

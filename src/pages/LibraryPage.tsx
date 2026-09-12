@@ -1,5 +1,11 @@
-import { useMemo, useState } from 'react';
-import { IconDeleteStroked, IconFavoriteList, IconPlus, IconSearch } from '@douyinfe/semi-icons';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  IconDeleteStroked,
+  IconFavoriteList,
+  IconPlus,
+  IconSearch,
+  IconTop,
+} from '@douyinfe/semi-icons';
 import { Button, ButtonGroup, Empty, Input, Typography } from '@douyinfe/semi-ui';
 import { useNavigate } from 'react-router-dom';
 import { ImportBooksButton } from '../components/ImportBooksButton';
@@ -7,14 +13,18 @@ import {
   BookCard,
   BookListEditor,
   BookListsView,
+  LibraryBookContextMenu,
   TrashView,
   filterLibraryBooks,
-  sortBooksByUpdatedAt,
+  sortBooksByShelfOrder,
   type LibraryFilter,
+  type LibraryBookContextMenuState,
   type LibrarySection,
 } from '../features/library';
+import { confirmMoveBookToTrash } from '../lib/confirmBookTrash';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
+import type { BookItem, BookList } from '../types';
 
 const { Title, Text } = Typography;
 
@@ -24,18 +34,67 @@ export function LibraryPage() {
   const bookLists = useLearningStore((state) => state.bookLists);
   const trashedBooks = useLearningStore((state) => state.trashedBooks);
   const createBookList = useLearningStore((state) => state.createBookList);
+  const setBookPinned = useLearningStore((state) => state.setBookPinned);
+  const setBookListBooks = useLearningStore((state) => state.setBookListBooks);
+  const trashBook = useLearningStore((state) => state.trashBook);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<LibraryFilter>('all');
   const [section, setSection] = useState<LibrarySection>('shelf');
   const [createVisible, setCreateVisible] = useState(false);
+  const [createForBookId, setCreateForBookId] = useState<string | null>(null);
+  const [bookContextMenu, setBookContextMenu] = useState<LibraryBookContextMenuState | null>(null);
 
-  const sortedBooks = useMemo(() => sortBooksByUpdatedAt(books), [books]);
+  const sortedBooks = useMemo(() => sortBooksByShelfOrder(books), [books]);
   const filteredBooks = useMemo(
     () => filterLibraryBooks(sortedBooks, filter, query),
     [filter, query, sortedBooks],
   );
+  const pinnedBooks = useMemo(
+    () => filteredBooks.filter((book) => Boolean(book.pinnedAt)),
+    [filteredBooks],
+  );
+  const unpinnedBooks = useMemo(
+    () => filteredBooks.filter((book) => !book.pinnedAt),
+    [filteredBooks],
+  );
+  const bookListsByBookId = useMemo(() => {
+    const listsByBookId = new Map<string, BookList[]>();
+    bookLists.forEach((bookList) => {
+      bookList.bookIds.forEach((bookId) => {
+        const assignedLists = listsByBookId.get(bookId) ?? [];
+        assignedLists.push(bookList);
+        listsByBookId.set(bookId, assignedLists);
+      });
+    });
+    return listsByBookId;
+  }, [bookLists]);
 
   const openBook = (bookId: string) => navigate(`/books/${bookId}`);
+  const closeBookContextMenu = useCallback(() => setBookContextMenu(null), []);
+  const openCreateBookList = (bookId: string | null = null) => {
+    setCreateForBookId(bookId);
+    setCreateVisible(true);
+  };
+  const toggleBookList = (book: BookItem, bookList: BookList) => {
+    const nextBookIds = bookList.bookIds.includes(book.id)
+      ? bookList.bookIds.filter((bookId) => bookId !== book.id)
+      : [...bookList.bookIds, book.id];
+    setBookListBooks(bookList.id, nextBookIds);
+  };
+  const deleteBook = (book: BookItem) => {
+    confirmMoveBookToTrash(book, (trashedBook) => {
+      trashBook(book.id, trashedBook.deletedAt);
+    });
+  };
+  const renderBookCard = (book: BookItem) => (
+    <BookCard
+      book={book}
+      bookLists={bookListsByBookId.get(book.id) ?? []}
+      key={book.id}
+      onOpen={openBook}
+      onOpenContextMenu={(contextBook, x, y) => setBookContextMenu({ book: contextBook, x, y })}
+    />
+  );
 
   return (
     <main className="library-page">
@@ -118,7 +177,7 @@ export function LibraryPage() {
               icon={<IconPlus />}
               theme="solid"
               type="primary"
-              onClick={() => setCreateVisible(true)}
+              onClick={() => openCreateBookList()}
             >
               新建书单
             </Button>
@@ -128,11 +187,41 @@ export function LibraryPage() {
 
       {section === 'shelf' ? (
         filteredBooks.length ? (
-          <section className="book-grid" aria-label="书籍列表">
-            {filteredBooks.map((book) => (
-              <BookCard book={book} key={book.id} onOpen={openBook} />
-            ))}
-          </section>
+          <div className="library-shelf" aria-label="书籍列表">
+            {pinnedBooks.length > 0 && (
+              <section className="library-book-section" aria-labelledby="pinned-books-title">
+                <header className="library-book-section__header">
+                  <span className="library-book-section__title" id="pinned-books-title">
+                    <IconTop aria-hidden="true" />
+                    <Text strong>置顶书籍</Text>
+                  </span>
+                  <Text size="small" type="tertiary">
+                    {pinnedBooks.length}
+                  </Text>
+                </header>
+                <div className="book-grid">{pinnedBooks.map(renderBookCard)}</div>
+              </section>
+            )}
+            {unpinnedBooks.length > 0 && (
+              <section
+                aria-label={pinnedBooks.length > 0 ? undefined : '书籍列表'}
+                aria-labelledby={pinnedBooks.length > 0 ? 'other-books-title' : undefined}
+                className="library-book-section"
+              >
+                {pinnedBooks.length > 0 && (
+                  <header className="library-book-section__header">
+                    <span className="library-book-section__title" id="other-books-title">
+                      <Text strong>其他书籍</Text>
+                    </span>
+                    <Text size="small" type="tertiary">
+                      {unpinnedBooks.length}
+                    </Text>
+                  </header>
+                )}
+                <div className="book-grid">{unpinnedBooks.map(renderBookCard)}</div>
+              </section>
+            )}
+          </div>
         ) : (
           <div className="library-empty">
             <Empty
@@ -145,7 +234,7 @@ export function LibraryPage() {
         <BookListsView
           books={sortedBooks}
           onOpenBook={openBook}
-          onRequestCreate={() => setCreateVisible(true)}
+          onRequestCreate={() => openCreateBookList()}
         />
       ) : (
         <TrashView trashedBooks={trashedBooks} />
@@ -154,19 +243,35 @@ export function LibraryPage() {
       <BookListEditor
         visible={createVisible}
         bookList={null}
-        onCancel={() => setCreateVisible(false)}
+        onCancel={() => {
+          setCreateVisible(false);
+          setCreateForBookId(null);
+        }}
         onSave={({ name, note }) => {
           const timestamp = Date.now();
           createBookList({
             id: createUuid(),
             name,
             note,
-            bookIds: [],
+            bookIds:
+              createForBookId && books.some((book) => book.id === createForBookId)
+                ? [createForBookId]
+                : [],
             createdAt: timestamp,
             updatedAt: timestamp,
           });
           setCreateVisible(false);
+          setCreateForBookId(null);
         }}
+      />
+      <LibraryBookContextMenu
+        bookLists={bookLists}
+        menu={bookContextMenu}
+        onClose={closeBookContextMenu}
+        onDelete={deleteBook}
+        onPinnedChange={(book, pinned) => setBookPinned(book.id, pinned)}
+        onRequestCreateList={(book) => openCreateBookList(book.id)}
+        onToggleBookList={toggleBookList}
       />
     </main>
   );

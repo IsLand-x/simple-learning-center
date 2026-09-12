@@ -298,7 +298,7 @@
   }
 
   .book-card:hover,
-  .book-card:focus-visible {
+  .book-card:has(.book-card__open:focus-visible) {
     border-color: transparent;
     background: transparent;
     outline: 2px solid var(--semi-color-primary-light-active);
@@ -330,6 +330,16 @@
     display: none;
   }
 
+  .library-shelf {
+    gap: 20px;
+  }
+
+  .library-book-section__header {
+    min-height: 28px;
+    margin-bottom: 8px;
+    padding: 0;
+  }
+
   .book-meta > .semi-typography[strong] {
     margin-top: 1px;
   }
@@ -344,6 +354,15 @@
 
   .book-progress__label .semi-typography {
     font-size: 11px;
+  }
+
+  .book-card__lists {
+    gap: 3px;
+    margin-top: 6px;
+  }
+
+  .book-card__list-tag.semi-tag {
+    max-width: 100%;
   }
 
   .settings-header {

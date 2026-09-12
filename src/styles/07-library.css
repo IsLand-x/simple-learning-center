@@ -3,15 +3,49 @@
   gap: 12px;
 }
 
-.book-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-  gap: 16px;
+.library-shelf {
+  display: flex;
+  min-width: 0;
   max-width: 1180px;
+  flex-direction: column;
+  gap: 24px;
   margin: 0 auto;
 }
 
+.library-book-section {
+  min-width: 0;
+}
+
+.library-book-section__header {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.library-book-section__title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.library-book-section__title .semi-icon {
+  color: var(--semi-color-primary);
+}
+
+.book-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
+}
+
 .book-card {
+  position: relative;
   display: grid;
   grid-template-columns: 112px minmax(0, 1fr);
   gap: 16px;
@@ -25,11 +59,26 @@
 }
 
 .book-card:hover,
-.book-card:focus-visible {
+.book-card:has(.book-card__open:focus-visible) {
   border-color: var(--semi-color-primary-light-active);
   background: var(--semi-color-fill-0);
   outline: 2px solid transparent;
   box-shadow: 0 0 0 2px var(--semi-color-primary-light-default);
+}
+
+.book-card__open {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.book-card__open:focus-visible {
+  outline: none;
 }
 
 .book-cover,
@@ -123,6 +172,52 @@
   white-space: nowrap;
 }
 
+.book-card__lists {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.book-card__list-tag.semi-tag {
+  max-width: 100%;
+}
+
+.book-card__list-tag .semi-tag-content,
+.book-card__list-tag .semi-tag-content > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-book-context-menu .semi-dropdown-menu {
+  min-width: 168px;
+}
+
+.library-book-context-menu__submenu-label {
+  display: flex;
+  min-width: 132px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.library-book-list-submenu .semi-dropdown-menu {
+  width: min(220px, calc(100vw - 24px));
+  max-height: min(360px, calc(100vh - 24px));
+  overflow-y: auto;
+}
+
+.library-book-list-submenu__name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .epub-import-modal__body {
   display: flex;
   min-width: 0;
@@ -174,7 +269,7 @@
   display: grid;
   min-width: 0;
   min-height: 420px;
-  grid-template-columns: 240px minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   max-width: 1180px;
   margin: 0 auto;
   overflow: hidden;
@@ -184,7 +279,10 @@
 }
 
 .book-list-nav {
+  display: flex;
   min-width: 0;
+  min-height: 0;
+  flex-direction: column;
   border-right: 1px solid var(--semi-color-border);
 }
 
@@ -205,8 +303,11 @@
 .book-list-nav__items {
   display: flex;
   min-width: 0;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
   padding: 6px;
 }
 
