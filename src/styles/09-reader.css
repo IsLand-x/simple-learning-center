@@ -1573,6 +1573,7 @@
 }
 
 .semi-chat-area .ai-message--user {
+  flex-direction: column;
   color: var(--semi-color-primary);
   background: var(--semi-color-primary-light-default);
   white-space: pre-wrap;

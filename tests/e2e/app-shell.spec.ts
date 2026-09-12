@@ -3,6 +3,7 @@ import {
   DEFAULT_READER_AI_ASSISTANT_PROMPT,
   READER_AI_PROMPT_TEMPLATES,
 } from '../../src/lib/readerAiPrompts';
+import { demoBooks } from '../../src/data/demo';
 
 interface SubmittedAiJob {
   bookId: string;
@@ -154,7 +155,7 @@ test('mobile library uses the bottom navigation without horizontal overflow', as
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 });
 
-test('reader AI user messages preserve authored line breaks on desktop and mobile', async ({
+test('reader AI composer preserves authored paragraphs on desktop and mobile', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
@@ -162,72 +163,90 @@ test('reader AI user messages preserve authored line breaks on desktop and mobil
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
-  await expect
-    .poll(async () => {
-      const response = await page.request.get('/api/state/library');
-      return response.status();
-    })
-    .toBe(200);
+  const libraryResponse = await page.request.get('/api/state/library');
+  expect(libraryResponse.ok()).toBe(true);
+  const library = await libraryResponse.json();
+  library.state.books = [
+    ...(library.state.books ?? []).filter(
+      (book: { id?: string }) => book.id !== 'demo-data-intensive',
+    ),
+    demoBooks[0],
+  ];
+  const libraryWrite = await page.request.put('/api/state/library', { data: library });
+  expect(libraryWrite.status()).toBe(204);
 
-  const conversationsResponse = await page.request.get('/api/state/conversations');
-  expect(conversationsResponse.ok()).toBe(true);
-  const conversations = await conversationsResponse.json();
-  const createdAt = Date.now();
-  const conversationId = 'e2e-reader-line-breaks';
-  conversations.state.chatSessions = [
-    ...(conversations.state.chatSessions ?? []).filter(
-      (session: { id?: string }) => session.id !== conversationId,
-    ),
+  const preferencesResponse = await page.request.get('/api/state/preferences');
+  expect(preferencesResponse.ok()).toBe(true);
+  const preferences = await preferencesResponse.json();
+  const timestamp = Date.now();
+  preferences.state.openAIConfigs = [
     {
-      id: conversationId,
-      bookId: 'demo-data-intensive',
-      title: '分段消息显示验证',
-      createdAt,
-      updatedAt: createdAt,
+      id: 'e2e-reader-paragraphs',
+      name: '多段输入测试模型',
+      baseUrl: 'https://example.invalid/v1',
+      apiKey: 'e2e-placeholder',
+      models: ['mock-model'],
+      createdAt: timestamp,
+      updatedAt: timestamp,
     },
   ];
-  conversations.state.chats = [
-    ...(conversations.state.chats ?? []).filter(
-      (message: { conversationId?: string }) => message.conversationId !== conversationId,
-    ),
-    {
-      id: 'e2e-reader-line-breaks-message',
-      bookId: 'demo-data-intensive',
-      conversationId,
-      role: 'user',
-      content: '第一段描述\n第二段描述',
-      createdAt,
-    },
-  ];
-  const writeResponse = await page.request.put('/api/state/conversations', {
-    data: conversations,
+  preferences.state.aiPreferences = {
+    ...(preferences.state.aiPreferences ?? {}),
+    provider: 'api:e2e-reader-paragraphs',
+    model: 'mock-model',
+  };
+  const preferencesWrite = await page.request.put('/api/state/preferences', {
+    data: preferences,
   });
-  expect(writeResponse.status()).toBe(204);
+  expect(preferencesWrite.status()).toBe(204);
+
+  let submittedJob: SubmittedAiJob | undefined;
+  await page.route('**/api/ai/jobs', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    submittedJob = route.request().postDataJSON() as SubmittedAiJob;
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      json: { error: '测试已拦截模型请求' },
+    });
+  });
 
   await page.goto('/books/demo-data-intensive');
-  await page.getByRole('button', { name: '打开对话历史' }).click();
-  await page.getByRole('button', { name: /分段消息显示验证/ }).click();
+  await page.getByRole('button', { name: /打开 AI 助手/ }).click();
+  const editor = page.locator('.reader-ai-input .tiptap');
+  await editor.click();
+  await editor.pressSequentially('第一段描述');
+  await editor.press('Shift+Enter');
+  await editor.press('Shift+Enter');
+  await editor.pressSequentially('第二段描述');
+  await page.locator('.reader-ai-input .semi-aiChatInput-footer-action-button').click();
+  await expect.poll(() => submittedJob?.userMessage.content).toBe('第一段描述\n\n第二段描述');
 
-  const userParagraph = page.locator('.ai-message--user p').filter({ hasText: '第一段描述' });
-  await expect(userParagraph).toContainText('第二段描述');
-  const expectLineBreaks = async () => {
-    const lineMetrics = await userParagraph.evaluate((element) => {
-      const style = window.getComputedStyle(element);
+  const userBubble = page.locator('.ai-message--user').last();
+  const expectParagraphStack = async () => {
+    await expect(userBubble.locator('p')).toHaveCount(2);
+    const layout = await userBubble.evaluate((element) => {
+      const paragraphs = Array.from(element.querySelectorAll('p')).map((paragraph) => {
+        const bounds = paragraph.getBoundingClientRect();
+        return { top: bounds.top, bottom: bounds.bottom };
+      });
       return {
-        height: element.getBoundingClientRect().height,
-        lineHeight: Number.parseFloat(style.lineHeight),
-        whiteSpace: style.whiteSpace,
+        flexDirection: window.getComputedStyle(element).flexDirection,
+        paragraphs,
       };
     });
-    expect(lineMetrics.whiteSpace).toBe('pre-wrap');
-    expect(lineMetrics.height).toBeGreaterThan(lineMetrics.lineHeight * 1.5);
+    expect(layout.flexDirection).toBe('column');
+    expect(layout.paragraphs[1].top).toBeGreaterThanOrEqual(layout.paragraphs[0].bottom);
   };
 
-  await expectLineBreaks();
+  await expectParagraphStack();
 
   await page.setViewportSize({ width: 375, height: 812 });
-  await expect(page.getByRole('dialog').getByText('第一段描述')).toBeVisible();
-  await expectLineBreaks();
+  await expect(userBubble).toBeVisible();
+  await expectParagraphStack();
 });
 
 test('reader AI highlight questions and in-panel settings persist across desktop and mobile', async ({
