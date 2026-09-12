@@ -845,6 +845,11 @@
     padding: 0 12px;
   }
 
+  .ai-composer-model-cascader.semi-cascader,
+  .ai-composer-reasoning-select.semi-select {
+    min-height: 44px;
+  }
+
   .ai-assistant-settings__footer {
     align-items: stretch;
     flex-direction: column;

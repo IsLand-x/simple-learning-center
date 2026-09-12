@@ -1,4 +1,4 @@
-import type { AiDialogueContentItem, ChatSession } from '../types';
+import type { AiDialogueContentItem, AiReasoningEffort, ChatSession } from '../types';
 import { serverRequest } from './serverApi';
 
 type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -29,6 +29,7 @@ export interface AiJob {
 export interface StartAiJobInput {
   configId: string;
   model: string;
+  reasoningEffort?: Exclude<AiReasoningEffort, 'auto'>;
   bookId: string;
   resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
   rssItemId?: string;
@@ -61,11 +62,7 @@ export async function getAiJob(jobId: string) {
   return response.json() as Promise<AiJob>;
 }
 
-export async function watchAiJob(
-  jobId: string,
-  onJob: (job: AiJob) => void,
-  signal: AbortSignal,
-) {
+export async function watchAiJob(jobId: string, onJob: (job: AiJob) => void, signal: AbortSignal) {
   const response = await serverRequest(`/api/ai/jobs/${encodeURIComponent(jobId)}/events`, {
     headers: { Accept: 'text/event-stream' },
     signal,
@@ -103,7 +100,7 @@ export async function watchAiJob(
 export async function listAiJobs(bookId: string, conversationId: string) {
   const search = new URLSearchParams({ bookId, conversationId });
   const response = await serverRequest(`/api/ai/jobs?${search}`);
-  const payload = await response.json() as { jobs?: AiJob[] };
+  const payload = (await response.json()) as { jobs?: AiJob[] };
   return Array.isArray(payload.jobs) ? payload.jobs : [];
 }
 

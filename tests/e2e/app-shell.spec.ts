@@ -8,6 +8,7 @@ import { demoBooks } from '../../src/data/demo';
 interface SubmittedAiJob {
   bookId: string;
   conversationId: string;
+  reasoningEffort?: string;
   userMessage: {
     id: string;
     content: string;
@@ -216,6 +217,10 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
 
   await page.goto('/books/demo-data-intensive');
   await page.getByRole('button', { name: /打开 AI 助手/ }).click();
+  const reasoningSelector = page.getByRole('combobox', { name: '选择 AI 推理强度' });
+  await expect(reasoningSelector).toBeVisible();
+  await reasoningSelector.click();
+  await page.getByRole('option', { name: 'tick 高 high', exact: true }).click();
   const editor = page.locator('.reader-ai-input .tiptap');
   await editor.click();
   await editor.pressSequentially('第一段描述');
@@ -224,6 +229,7 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
   await editor.pressSequentially('第二段描述');
   await page.locator('.reader-ai-input .semi-aiChatInput-footer-action-button').click();
   await expect.poll(() => submittedJob?.userMessage.content).toBe('第一段描述\n\n第二段描述');
+  expect(submittedJob?.reasoningEffort).toBe('high');
 
   const userBubble = page.locator('.ai-message--user').last();
   const expectParagraphStack = async () => {
@@ -247,6 +253,9 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
   await page.setViewportSize({ width: 375, height: 812 });
   await expect(userBubble).toBeVisible();
   await expectParagraphStack();
+  expect(Math.round((await reasoningSelector.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(
+    44,
+  );
 });
 
 test('reader AI highlight questions and in-panel settings persist across desktop and mobile', async ({

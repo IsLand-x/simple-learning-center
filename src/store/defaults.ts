@@ -23,6 +23,7 @@ export const defaultReaderPreferences: ReaderPreferences = {
 export const defaultAiPreferences: AiPreferences = {
   provider: null,
   model: '',
+  reasoningEffort: 'auto',
   assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
   autoHideReasoning: false,
   hiddenPromptTemplateIds: [],

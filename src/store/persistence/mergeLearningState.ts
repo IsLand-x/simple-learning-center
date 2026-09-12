@@ -12,6 +12,7 @@ import {
   normalizeStoredCustomStyle,
 } from '../normalizers';
 import { normalizeHiddenReaderAiPromptTemplateIds } from '../../lib/readerAiPrompts';
+import { normalizeAiReasoningEffort } from '../../lib/aiReasoning';
 import { mergeReaderHighlights, mergeReaderPreferences } from './readerStateMerge';
 
 export function mergeLearningState(
@@ -88,6 +89,9 @@ export function mergeLearningState(
           : null
         : currentState.aiPreferences.provider,
       model: persisted.aiPreferences?.model ?? currentState.aiPreferences.model,
+      reasoningEffort: persisted.aiPreferences
+        ? normalizeAiReasoningEffort(persisted.aiPreferences.reasoningEffort)
+        : normalizeAiReasoningEffort(currentState.aiPreferences.reasoningEffort),
       assistantPrompt:
         typeof persisted.aiPreferences?.assistantPrompt === 'string'
           ? persisted.aiPreferences.assistantPrompt

@@ -22,6 +22,7 @@ import {
 } from '../features/reader/model/readerSurfaceModel';
 import { MissingReaderBook, ReaderPageHeader } from '../features/reader/ui/ReaderPageHeader';
 import { confirmDialog } from '../lib/confirmDialog';
+import { coerceAiReasoningEffort } from '../lib/aiReasoning';
 import { moveBookToTrash } from '../lib/epubStorage';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
@@ -49,6 +50,7 @@ export function ReaderPage() {
   const setPreferences = useLearningStore((state) => state.setReaderPreferences);
   const upsertReadingSession = useLearningStore((state) => state.upsertReadingSession);
   const openAIConfigs = useLearningStore((state) => state.openAIConfigs);
+  const aiPreferences = useLearningStore((state) => state.aiPreferences);
   const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
   const readerRef = useRef<ReaderSurfaceHandle>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -386,7 +388,12 @@ export function ReaderPage() {
         session.model && config.models.includes(session.model)
           ? session.model
           : (config.models[0] ?? '');
-      setAiPreferences({ provider: session.provider, model });
+      const reasoningEffort = coerceAiReasoningEffort(
+        session.reasoningEffort ?? aiPreferences.reasoningEffort,
+        config,
+        model,
+      );
+      setAiPreferences({ provider: session.provider, model, reasoningEffort });
     }
     setConversationId(session.id);
     setPanelQuote(null);

@@ -28,7 +28,7 @@ export const STATE_DOMAIN_FIELDS = {
 
 export type StateDomain = keyof typeof STATE_DOMAIN_FIELDS;
 
-export const LEARNING_STORE_VERSION = 31;
+export const LEARNING_STORE_VERSION = 32;
 
 export const ALL_STATE_DOMAINS = Object.freeze(Object.keys(STATE_DOMAIN_FIELDS) as StateDomain[]);
 

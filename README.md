@@ -102,6 +102,7 @@ npm run verify:full
 ### AI 阅读助手
 
 - 支持管理多个 OpenAI 兼容供应商和模型。
+- AI 输入区可在模型右侧选择对话级推理强度，并使用 OpenAI Chat Completions 的顶层 `reasoning_effort` 字段发送；“自动”会省略该字段并沿用模型默认值。DeepSeek 与 Kimi K3 使用其原生的低、高、最大档位，Kimi K2.x 因不支持该字段会保持自动。
 - 模型请求由 Node 服务端发出，不受浏览器 CORS 限制，可用于 Kimi for Coding 等不开放浏览器跨域访问的兼容端点。
 - 底层使用 PiAgent 编排流式对话、思考片段与多步工具调用；生成过程通过服务端事件流实时推送到页面，并在工具调用接近上限时自动收束为完整回答。
 - 对话以服务端异步任务运行；关闭或刷新网页不会取消生成，重新打开同一对话后会主动补齐期间已经完成的消息，并自动继续显示仍在生成的进度。页面同时使用事件流和低频状态查询收敛完成态，事件流被代理缓冲时也不会一直停在加载状态。
@@ -214,16 +215,16 @@ npm start
 
 可用环境变量：
 
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `LEARNING_CENTER_MODE` | `local` | `local` 仅本机访问，`remote` 开启远程访问和认证 |
-| `LEARNING_CENTER_USERNAME` | `admin` | 数据目录首次初始化时使用的登录账号 |
-| `LEARNING_CENTER_PASSWORD` | `password` | 数据目录首次初始化时使用的登录密码 |
-| `LEARNING_CENTER_PORT` | `4174` | Node 服务端口 |
-| `LEARNING_CENTER_DATA_DIR` | `./data` | 用户数据目录 |
-| `LEARNING_CENTER_RSS_REFRESH_INTERVAL_MS` | `1800000` | RSS 服务端刷新周期，最小 60000 毫秒 |
-| `LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS` | `15000` | 服务启动后首次安排 RSS 刷新的延迟 |
-| `LEARNING_CENTER_YOUTUBE_PROXY` | 空 | 仅用于 YouTube 元数据与字幕请求的 `http`、`https` 或 `socks5` 代理 URL；也可使用标准 `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` |
+| 变量                                           | 默认值     | 说明                                                                                                                           |
+| ---------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `LEARNING_CENTER_MODE`                         | `local`    | `local` 仅本机访问，`remote` 开启远程访问和认证                                                                                |
+| `LEARNING_CENTER_USERNAME`                     | `admin`    | 数据目录首次初始化时使用的登录账号                                                                                             |
+| `LEARNING_CENTER_PASSWORD`                     | `password` | 数据目录首次初始化时使用的登录密码                                                                                             |
+| `LEARNING_CENTER_PORT`                         | `4174`     | Node 服务端口                                                                                                                  |
+| `LEARNING_CENTER_DATA_DIR`                     | `./data`   | 用户数据目录                                                                                                                   |
+| `LEARNING_CENTER_RSS_REFRESH_INTERVAL_MS`      | `1800000`  | RSS 服务端刷新周期，最小 60000 毫秒                                                                                            |
+| `LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS` | `15000`    | 服务启动后首次安排 RSS 刷新的延迟                                                                                              |
+| `LEARNING_CENTER_YOUTUBE_PROXY`                | 空         | 仅用于 YouTube 元数据与字幕请求的 `http`、`https` 或 `socks5` 代理 URL；也可使用标准 `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` |
 
 浏览器里开启的 VPN 或代理通常不会自动传给 Node 进程。YouTube 频道 Feed、视频元数据与字幕共用同一服务端代理配置；如果连接超时，可用例如 `LEARNING_CENTER_YOUTUBE_PROXY=http://127.0.0.1:7890 npm run dev` 启动。端口需替换为代理软件实际监听端口。Docker 或远程服务器中的代理地址必须能从容器内部访问，不能直接填写宿主机或个人电脑的 `127.0.0.1`。启动日志只会说明是否启用了代理，不会输出代理 URL 或凭据。
 

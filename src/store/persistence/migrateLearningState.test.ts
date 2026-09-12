@@ -12,6 +12,7 @@ describe('learning state migrations', () => {
     expect(migrated.aiPreferences).toEqual({
       provider: null,
       model: 'test-model',
+      reasoningEffort: 'auto',
       assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
       autoHideReasoning: false,
       hiddenPromptTemplateIds: [],
@@ -87,5 +88,36 @@ describe('learning state migrations', () => {
 
     expect(defaulted.aiPreferences?.hiddenPromptTemplateIds).toEqual([]);
     expect(sanitized.aiPreferences?.hiddenPromptTemplateIds).toEqual(['summarize-book']);
+  });
+
+  it('adds and sanitizes the reasoning effort preference', () => {
+    const defaulted = migrateLearningState(
+      {
+        aiPreferences: {
+          provider: null,
+          model: '',
+          assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+          autoHideReasoning: false,
+          hiddenPromptTemplateIds: [],
+        },
+      },
+      31,
+    );
+    const preserved = migrateLearningState(
+      {
+        aiPreferences: {
+          provider: null,
+          model: '',
+          reasoningEffort: 'max',
+          assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
+          autoHideReasoning: false,
+          hiddenPromptTemplateIds: [],
+        },
+      },
+      31,
+    );
+
+    expect(defaulted.aiPreferences?.reasoningEffort).toBe('auto');
+    expect(preserved.aiPreferences?.reasoningEffort).toBe('max');
   });
 });

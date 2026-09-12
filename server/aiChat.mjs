@@ -1,17 +1,13 @@
 import { Agent } from '@earendil-works/pi-agent-core';
-import {
-  createModels,
-  createProvider,
-  envApiKeyAuth,
-  Type,
-} from '@earendil-works/pi-ai';
+import { createModels, createProvider, envApiKeyAuth, Type } from '@earendil-works/pi-ai';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { readBookPassage, searchBookContent } from './aiBookSearch.mjs';
 import { createBookNote, readBookNotes, updateBookNote } from './aiNotes.mjs';
 import { readWebPage, searchWeb } from './webSearch.mjs';
 
 const MAX_AGENT_TURNS = 16;
-const FINAL_TURN_INSTRUCTION = '这是最后一次模型请求：不得再调用工具，必须根据已有信息给出最终回答。';
+const FINAL_TURN_INSTRUCTION =
+  '这是最后一次模型请求：不得再调用工具，必须根据已有信息给出最终回答。';
 const DEFAULT_NOTE_ACTIONS = { createBookNote, readBookNotes, updateBookNote };
 const EMPTY_USAGE = {
   input: 0,
@@ -45,9 +41,7 @@ function flattenToc(items = []) {
 
 function formatDuration(durationMs) {
   const minutes = Math.max(1, Math.round(durationMs / 60_000));
-  return minutes < 60
-    ? `${minutes} 分钟`
-    : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟`;
+  return minutes < 60 ? `${minutes} 分钟` : `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟`;
 }
 
 function normalizeBaseUrl(baseUrl) {
@@ -57,16 +51,18 @@ function normalizeBaseUrl(baseUrl) {
     : normalized;
 }
 
-export function createOpenAICompatiblePiRuntime(config, modelId) {
+export function createOpenAICompatiblePiRuntime(config, modelId, reasoningEffort) {
   const baseUrl = normalizeBaseUrl(config.baseUrl);
   const providerId = `learning-center:${config.id || 'openai-compatible'}`;
+  const modelSignature = `${config.name || ''} ${baseUrl} ${modelId}`.toLowerCase();
+  const isKimiK3 = /(?:^|[\s/:])kimi-k3(?:$|[-_.])/.test(modelSignature);
   const piModel = {
     id: modelId,
     name: modelId,
     api: 'openai-completions',
     provider: providerId,
     baseUrl,
-    reasoning: false,
+    reasoning: Boolean(reasoningEffort),
     input: ['text'],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128_000,
@@ -74,21 +70,30 @@ export function createOpenAICompatiblePiRuntime(config, modelId) {
     compat: {
       supportsStore: false,
       supportsDeveloperRole: false,
-      supportsReasoningEffort: false,
+      supportsReasoningEffort: Boolean(reasoningEffort),
+      ...(isKimiK3
+        ? {
+            thinkingFormat: 'openai',
+            requiresReasoningContentOnAssistantMessages: true,
+            deferredToolsMode: 'kimi',
+          }
+        : {}),
       supportsStrictMode: false,
     },
   };
   const models = createModels();
-  models.setProvider(createProvider({
-    id: providerId,
-    name: config.name || 'OpenAI Compatible',
-    baseUrl,
-    auth: {
-      apiKey: envApiKeyAuth(`${config.name || 'OpenAI Compatible'} API Key`, []),
-    },
-    models: [piModel],
-    api: openAICompletionsApi(),
-  }));
+  models.setProvider(
+    createProvider({
+      id: providerId,
+      name: config.name || 'OpenAI Compatible',
+      baseUrl,
+      auth: {
+        apiKey: envApiKeyAuth(`${config.name || 'OpenAI Compatible'} API Key`, []),
+      },
+      models: [piModel],
+      api: openAICompletionsApi(),
+    }),
+  );
   const registeredModel = models.getModel(providerId, modelId);
   if (!registeredModel) throw new Error('Pi AI 未能注册所选模型');
   return { models, model: registeredModel };
@@ -116,19 +121,26 @@ function createAgentTools({
 }) {
   const webTools = {
     web_search: {
-      description: '搜索互联网以获取外部信息、最新资料或事实来源。返回网页标题、URL 和内容摘要；重要结论应标注来源 URL。',
+      description:
+        '搜索互联网以获取外部信息、最新资料或事实来源。返回网页标题、URL 和内容摘要；重要结论应标注来源 URL。',
       inputSchema: Type.Object({
         query: Type.String({ minLength: 1, description: '适合搜索引擎使用的查询词' }),
-        max_results: Type.Optional(Type.Integer({ minimum: 1, maximum: 5, description: '返回结果数量，默认 5' })),
+        max_results: Type.Optional(
+          Type.Integer({ minimum: 1, maximum: 5, description: '返回结果数量，默认 5' }),
+        ),
       }),
-      execute: async ({ query, max_results }, signal) => (
-        searchWeb(webSearchConfig, query, max_results ?? 5, signal)
-      ),
+      execute: async ({ query, max_results }, signal) =>
+        searchWeb(webSearchConfig, query, max_results ?? 5, signal),
     },
     read_web_page: {
-      description: '读取一个公开 HTTP/HTTPS 网页的正文。通常用于深入阅读 web_search 返回的 URL；引用网页信息时应保留 URL。',
+      description:
+        '读取一个公开 HTTP/HTTPS 网页的正文。通常用于深入阅读 web_search 返回的 URL；引用网页信息时应保留 URL。',
       inputSchema: Type.Object({
-        url: Type.String({ minLength: 1, pattern: '^https?://', description: '要读取的完整网页 URL' }),
+        url: Type.String({
+          minLength: 1,
+          pattern: '^https?://',
+          description: '要读取的完整网页 URL',
+        }),
       }),
       execute: async ({ url }, signal) => readWebPage(webSearchConfig, url, signal),
     },
@@ -137,10 +149,13 @@ function createAgentTools({
     const feedById = new Map(digestFeeds.map((feed) => [feed.id, feed]));
     return {
       read_daily_feed_items: {
-        description: '分批读取当天需要整理进日报的 RSS 内容。返回标题、订阅源、时间、链接和正文；必须覆盖全部批次后再生成日报。',
+        description:
+          '分批读取当天需要整理进日报的 RSS 内容。返回标题、订阅源、时间、链接和正文；必须覆盖全部批次后再生成日报。',
         inputSchema: Type.Object({
           offset: Type.Optional(Type.Integer({ minimum: 0, description: '从第几条开始，默认 0' })),
-          limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 25, description: '本批数量，默认 20' })),
+          limit: Type.Optional(
+            Type.Integer({ minimum: 1, maximum: 25, description: '本批数量，默认 20' }),
+          ),
         }),
         execute: async ({ offset = 0, limit = 20 }) => ({
           total: digestItems.length,
@@ -152,7 +167,10 @@ function createAgentTools({
             source: feedById.get(item.feedId)?.title || '未知订阅源',
             publishedAt: new Date(item.publishedAt).toISOString(),
             link: item.link,
-            content: (item.fullContentText || item.contentText).replace(/\s+/g, ' ').trim().slice(0, 2_400),
+            content: (item.fullContentText || item.contentText)
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 2_400),
           })),
         }),
       },
@@ -165,9 +183,10 @@ function createAgentTools({
   }
   if (resourceType === 'rss') {
     const readCurrentFeedItem = {
-      description: purpose === 'translation'
-        ? '读取当前 RSS 内容中需要翻译的稳定文本片段。每个片段必须按原 id 返回，不能修改 id 或 HTML 结构。'
-        : '读取当前 RSS 内容的标题、来源、发布时间、链接和正文。',
+      description:
+        purpose === 'translation'
+          ? '读取当前 RSS 内容中需要翻译的稳定文本片段。每个片段必须按原 id 返回，不能修改 id 或 HTML 结构。'
+          : '读取当前 RSS 内容的标题、来源、发布时间、链接和正文。',
       inputSchema: Type.Object({}),
       execute: async () => ({
         title: rssItem.title,
@@ -175,15 +194,17 @@ function createAgentTools({
         type: rssFeed?.type || 'article',
         publishedAt: new Date(rssItem.publishedAt).toISOString(),
         link: rssItem.link,
-        ...(purpose === 'translation' ? {
-          translation: {
-            version: 1,
-            truncated: Boolean(translationSource?.truncated),
-            segments: (translationSource?.segments || []).map(({ id, text }) => ({ id, text })),
-          },
-        } : {
-          content: (rssItem.fullContentText || rssItem.contentText).slice(0, 30_000),
-        }),
+        ...(purpose === 'translation'
+          ? {
+              translation: {
+                version: 1,
+                truncated: Boolean(translationSource?.truncated),
+                segments: (translationSource?.segments || []).map(({ id, text }) => ({ id, text })),
+              },
+            }
+          : {
+              content: (rssItem.fullContentText || rssItem.contentText).slice(0, 30_000),
+            }),
       }),
     };
     if (purpose === 'translation') {
@@ -194,14 +215,17 @@ function createAgentTools({
       read_related_feed_items: {
         description: '读取当前订阅源最近的其他内容，用于比较主题、变化和时间线。',
         inputSchema: Type.Object({
-          max_results: Type.Optional(Type.Integer({ minimum: 1, maximum: 20, description: '返回数量，默认 10' })),
+          max_results: Type.Optional(
+            Type.Integer({ minimum: 1, maximum: 20, description: '返回数量，默认 10' }),
+          ),
         }),
-        execute: async ({ max_results }) => relatedRssItems.slice(0, max_results ?? 10).map((item) => ({
-          title: item.title,
-          publishedAt: new Date(item.publishedAt).toISOString(),
-          link: item.link,
-          excerpt: (item.fullContentText || item.contentText).slice(0, 800),
-        })),
+        execute: async ({ max_results }) =>
+          relatedRssItems.slice(0, max_results ?? 10).map((item) => ({
+            title: item.title,
+            publishedAt: new Date(item.publishedAt).toISOString(),
+            link: item.link,
+            excerpt: (item.fullContentText || item.contentText).slice(0, 800),
+          })),
       },
       ...webTools,
     };
@@ -211,23 +235,29 @@ function createAgentTools({
       read_video_transcript: {
         description: '读取当前视频的标题、频道和带时间点字幕。可选择原文、中文或双语。',
         inputSchema: Type.Object({
-          language: Type.Optional(Type.Union([
-            Type.Literal('original'),
-            Type.Literal('chinese'),
-            Type.Literal('bilingual'),
-          ], { description: '字幕语言，默认双语' })),
+          language: Type.Optional(
+            Type.Union(
+              [Type.Literal('original'), Type.Literal('chinese'), Type.Literal('bilingual')],
+              { description: '字幕语言，默认双语' },
+            ),
+          ),
         }),
         execute: async ({ language = 'bilingual' }) => {
           const original = Array.isArray(video.captions?.original) ? video.captions.original : [];
           const chinese = Array.isArray(video.captions?.chinese) ? video.captions.chinese : [];
-          const byStart = new Map(chinese.map((cue) => [Math.round(cue.startSeconds * 10), cue.text]));
-          const cues = language === 'chinese'
-            ? chinese.map((cue) => ({ time: cue.startSeconds, text: cue.text }))
-            : original.map((cue) => ({
-              time: cue.startSeconds,
-              original: cue.text,
-              ...(language === 'bilingual' ? { chinese: byStart.get(Math.round(cue.startSeconds * 10)) || '' } : {}),
-            }));
+          const byStart = new Map(
+            chinese.map((cue) => [Math.round(cue.startSeconds * 10), cue.text]),
+          );
+          const cues =
+            language === 'chinese'
+              ? chinese.map((cue) => ({ time: cue.startSeconds, text: cue.text }))
+              : original.map((cue) => ({
+                  time: cue.startSeconds,
+                  original: cue.text,
+                  ...(language === 'bilingual'
+                    ? { chinese: byStart.get(Math.round(cue.startSeconds * 10)) || '' }
+                    : {}),
+                }));
           return {
             title: video.title,
             channel: video.channelTitle,
@@ -248,7 +278,9 @@ function createAgentTools({
             quoteOriginal: note.quoteOriginal,
             quoteChinese: note.quoteChinese,
           })),
-          studyNotes: notes.slice(0, 20).map((note) => ({ title: note.title, content: note.content })),
+          studyNotes: notes
+            .slice(0, 20)
+            .map((note) => ({ title: note.title, content: note.content })),
         }),
       },
       ...webTools,
@@ -277,59 +309,85 @@ function createAgentTools({
       }),
     },
     read_book_notes: {
-      description: '读取当前书籍最新的 Markdown 阅读笔记。编辑前必须先调用本工具，使用返回的 id 和 updatedAt 防止覆盖较新的用户修改。',
+      description:
+        '读取当前书籍最新的 Markdown 阅读笔记。编辑前必须先调用本工具，使用返回的 id 和 updatedAt 防止覆盖较新的用户修改。',
       inputSchema: Type.Object({}),
       execute: async () => noteActions.readBookNotes(book.id),
     },
     create_book_note: {
-      description: '仅在用户明确要求写入笔记、且 read_book_notes 确认当前书籍没有笔记时，新建 Markdown 阅读笔记。已有笔记时必须改用 update_book_note。',
+      description:
+        '仅在用户明确要求写入笔记、且 read_book_notes 确认当前书籍没有笔记时，新建 Markdown 阅读笔记。已有笔记时必须改用 update_book_note。',
       inputSchema: Type.Object({
-        content: Type.String({ minLength: 1, maxLength: 100_000, description: '要保存的完整 Markdown 笔记正文' }),
+        content: Type.String({
+          minLength: 1,
+          maxLength: 100_000,
+          description: '要保存的完整 Markdown 笔记正文',
+        }),
       }),
       execute: async ({ content }) => noteActions.createBookNote(book.id, book.title, content),
     },
     update_book_note: {
-      description: '仅在用户明确要求修改笔记时，替换当前书籍的一篇 Markdown 笔记。必须先调用 read_book_notes，并原样使用最新的 id 与 updatedAt。',
+      description:
+        '仅在用户明确要求修改笔记时，替换当前书籍的一篇 Markdown 笔记。必须先调用 read_book_notes，并原样使用最新的 id 与 updatedAt。',
       inputSchema: Type.Object({
-        note_id: Type.String({ minLength: 1, maxLength: 200, description: 'read_book_notes 返回的笔记 id' }),
-        expected_updated_at: Type.Integer({ minimum: 0, description: 'read_book_notes 返回的 updatedAt，用于避免覆盖并发修改' }),
-        content: Type.String({ minLength: 1, maxLength: 100_000, description: '编辑完成后的完整 Markdown 笔记正文' }),
+        note_id: Type.String({
+          minLength: 1,
+          maxLength: 200,
+          description: 'read_book_notes 返回的笔记 id',
+        }),
+        expected_updated_at: Type.Integer({
+          minimum: 0,
+          description: 'read_book_notes 返回的 updatedAt，用于避免覆盖并发修改',
+        }),
+        content: Type.String({
+          minLength: 1,
+          maxLength: 100_000,
+          description: '编辑完成后的完整 Markdown 笔记正文',
+        }),
       }),
-      execute: async ({ note_id, expected_updated_at, content }) => (
-        noteActions.updateBookNote(book.id, note_id, expected_updated_at, content)
-      ),
+      execute: async ({ note_id, expected_updated_at, content }) =>
+        noteActions.updateBookNote(book.id, note_id, expected_updated_at, content),
     },
     read_book_highlights: {
       description: '读取当前书籍的高亮及读者为高亮添加的评论。',
       inputSchema: Type.Object({}),
-      execute: async () => highlights.slice(0, 80).map((item) => ({
-        kind: item.kind ?? 'highlight',
-        text: item.text,
-        chapter: item.chapter,
-        page: item.page,
-        comment: item.comment,
-      })),
+      execute: async () =>
+        highlights.slice(0, 80).map((item) => ({
+          kind: item.kind ?? 'highlight',
+          text: item.text,
+          chapter: item.chapter,
+          page: item.page,
+          comment: item.comment,
+        })),
     },
     read_reading_history: {
       description: '读取当前书籍最近的阅读时长记录。',
       inputSchema: Type.Object({}),
-      execute: async () => readingSessions.slice(0, 40).map((item) => ({
-        startedAt: new Date(item.startedAt).toISOString(),
-        duration: formatDuration(item.durationMs),
-      })),
+      execute: async () =>
+        readingSessions.slice(0, 40).map((item) => ({
+          startedAt: new Date(item.startedAt).toISOString(),
+          duration: formatDuration(item.durationMs),
+        })),
     },
     search_book_content: {
-      description: '在当前 EPUB 整本书的正文中搜索关键词或主题。返回匹配章节、段落内容和 passageId；需要更多上下文时继续调用 read_book_passage。',
+      description:
+        '在当前 EPUB 整本书的正文中搜索关键词或主题。返回匹配章节、段落内容和 passageId；需要更多上下文时继续调用 read_book_passage。',
       inputSchema: Type.Object({
         query: Type.String({ minLength: 1, description: '需要在书中查找的关键词、短语或主题' }),
-        max_results: Type.Optional(Type.Integer({ minimum: 1, maximum: 10, description: '返回结果数量，默认 6' })),
+        max_results: Type.Optional(
+          Type.Integer({ minimum: 1, maximum: 10, description: '返回结果数量，默认 6' }),
+        ),
       }),
       execute: async ({ query, max_results }) => searchBookContent(book, query, max_results ?? 6),
     },
     read_book_passage: {
-      description: '根据书内搜索返回的 passageId，读取该段落及相邻上下文。passageId 必须来自 search_book_content。',
+      description:
+        '根据书内搜索返回的 passageId，读取该段落及相邻上下文。passageId 必须来自 search_book_content。',
       inputSchema: Type.Object({
-        passage_id: Type.String({ minLength: 1, description: 'search_book_content 返回的 passageId' }),
+        passage_id: Type.String({
+          minLength: 1,
+          description: 'search_book_content 返回的 passageId',
+        }),
       }),
       execute: async ({ passage_id }) => readBookPassage(book, passage_id),
     },
@@ -346,29 +404,35 @@ function streamEntriesToProgress(entries, status) {
   const dialogueContent = entries.flatMap((entry) => {
     if (entry.kind === 'reasoning') {
       if (!entry.text) return [];
-      return [{
-        type: 'reasoning',
-        status: entry.status,
-        summary: [{ type: 'summary_text', text: entry.text }],
-      }];
+      return [
+        {
+          type: 'reasoning',
+          status: entry.status,
+          summary: [{ type: 'summary_text', text: entry.text }],
+        },
+      ];
     }
     if (entry.kind === 'tool') {
-      return [{
-        id: entry.key,
-        call_id: entry.key,
-        type: 'function_call',
-        name: entry.name,
-        arguments: entry.arguments,
-        status: entry.status,
-      }];
+      return [
+        {
+          id: entry.key,
+          call_id: entry.key,
+          type: 'function_call',
+          name: entry.name,
+          arguments: entry.arguments,
+          status: entry.status,
+        },
+      ];
     }
     if (!entry.text) return [];
-    return [{
-      type: 'message',
-      role: 'assistant',
-      status: entry.status,
-      content: [{ type: 'output_text', text: entry.text }],
-    }];
+    return [
+      {
+        type: 'message',
+        role: 'assistant',
+        status: entry.status,
+        content: [{ type: 'output_text', text: entry.text }],
+      },
+    ];
   });
   return { content, dialogueContent, status };
 }
@@ -415,10 +479,13 @@ function agentSystemPrompt(resourceType, purpose, assistantPrompt) {
       ? '只有用户明确要求写入或修改阅读笔记时，才可调用 create_book_note 或 update_book_note。修改前必须先调用 read_book_notes 获取最新版本；不得擅自改写或删除用户笔记。'
       : '',
     '工具调用完成后必须继续综合结果并给出完整答案，不要停在工具结果，也不要让读者再发送“继续”。',
-  ].filter(Boolean).join('\n');
-  const customPrompt = resourceType === 'book' && typeof assistantPrompt === 'string'
-    ? assistantPrompt.trim().slice(0, 4_000)
-    : '';
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const customPrompt =
+    resourceType === 'book' && typeof assistantPrompt === 'string'
+      ? assistantPrompt.trim().slice(0, 4_000)
+      : '';
   if (!customPrompt) return builtInPrompt;
   return [
     builtInPrompt,
@@ -462,6 +529,7 @@ function toPiMessage(message, piModel) {
 export async function runServerAiChat({
   config,
   model,
+  reasoningEffort,
   conversationId,
   messages,
   resourceType = 'book',
@@ -488,7 +556,7 @@ export async function runServerAiChat({
   runtimeFactory = createOpenAICompatiblePiRuntime,
   noteActions = DEFAULT_NOTE_ACTIONS,
 }) {
-  const runtime = runtimeFactory(config, model);
+  const runtime = runtimeFactory(config, model, reasoningEffort);
   const piModel = runtime.model;
   const trackedNoteActions = {
     readBookNotes: noteActions.readBookNotes,
@@ -547,7 +615,7 @@ export async function runServerAiChat({
     initialState: {
       systemPrompt: agentSystemPrompt(resourceType, purpose, assistantPrompt),
       model: piModel,
-      thinkingLevel: 'off',
+      thinkingLevel: reasoningEffort || 'off',
       tools,
       messages: requestMessages.slice(0, -1).map((message) => toPiMessage(message, piModel)),
     },
@@ -555,14 +623,14 @@ export async function runServerAiChat({
     sessionId: conversationId,
     maxRetryDelayMs: 30_000,
     toolExecution: 'parallel',
-    streamFn: (activeModel, context, options) => runtime.models.streamSimple(
-      activeModel,
-      context,
-      { ...options, maxRetries: 1 },
-    ),
-    shouldStopAfterTurn: ({ newMessages }) => (
-      newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS
-    ),
+    streamFn: (activeModel, context, options) =>
+      runtime.models.streamSimple(activeModel, context, {
+        ...options,
+        ...(reasoningEffort ? { reasoning: reasoningEffort } : {}),
+        maxRetries: 1,
+      }),
+    shouldStopAfterTurn: ({ newMessages }) =>
+      newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS,
     prepareNextTurnWithContext: ({ context, newMessages }) => {
       const completedTurns = newMessages.filter((message) => message.role === 'assistant').length;
       if (completedTurns !== MAX_AGENT_TURNS - 1) return undefined;
@@ -599,7 +667,11 @@ export async function runServerAiChat({
       } else if (part.type === 'text_end') {
         ensureEntry('message', `message:${step}:${part.contentIndex}`).status = 'completed';
         publish();
-      } else if (part.type === 'toolcall_start' || part.type === 'toolcall_delta' || part.type === 'toolcall_end') {
+      } else if (
+        part.type === 'toolcall_start' ||
+        part.type === 'toolcall_delta' ||
+        part.type === 'toolcall_end'
+      ) {
         const toolCall = event.message.content[part.contentIndex];
         if (toolCall?.type === 'toolCall') {
           const entry = ensureEntry('tool', `tool:${toolCall.id}`, {

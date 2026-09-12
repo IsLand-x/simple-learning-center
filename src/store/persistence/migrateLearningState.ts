@@ -1,4 +1,5 @@
 import { markdownNoteTitle } from '../../lib/markdownNotes';
+import { normalizeAiReasoningEffort } from '../../lib/aiReasoning';
 import { normalizeHiddenReaderAiPromptTemplateIds } from '../../lib/readerAiPrompts';
 import { legacyReaderPaperColor, readerDensityFromLineHeight } from '../../lib/readerThemes';
 import type { AiPreferences, ChatMessage, ChatSession, HighlightItem, NoteItem } from '../../types';
@@ -356,6 +357,23 @@ export function migrateLearningState(persistedState: unknown, version: number) {
           legacyAiPreferences?.hiddenPromptTemplateIds,
         ),
       },
+    };
+  }
+  if (version < 32) {
+    const legacyAiPreferences = migrated.aiPreferences as Partial<AiPreferences> | undefined;
+    migrated = {
+      ...migrated,
+      aiPreferences: {
+        ...defaultAiPreferences,
+        ...legacyAiPreferences,
+        reasoningEffort: normalizeAiReasoningEffort(legacyAiPreferences?.reasoningEffort),
+      },
+      chatSessions: (migrated.chatSessions ?? []).map((session) => ({
+        ...session,
+        ...(session.reasoningEffort
+          ? { reasoningEffort: normalizeAiReasoningEffort(session.reasoningEffort) }
+          : {}),
+      })),
     };
   }
   return migrated;

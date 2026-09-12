@@ -294,6 +294,7 @@ export interface ChatSession {
   title: string;
   provider?: AiProvider;
   model?: string;
+  reasoningEffort?: AiReasoningEffort;
   createdAt: number;
   updatedAt: number;
 }
@@ -313,9 +314,12 @@ export interface WebSearchConfig {
   apiKey: string;
 }
 
+export type AiReasoningEffort = 'auto' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
 export interface AiPreferences {
   provider: AiProvider | null;
   model: string;
+  reasoningEffort: AiReasoningEffort;
   assistantPrompt: string;
   autoHideReasoning: boolean;
   hiddenPromptTemplateIds: string[];

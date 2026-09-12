@@ -1,6 +1,7 @@
-import type { ComponentProps } from 'react';
-import { AIChatDialogue, Cascader, Empty } from '@douyinfe/semi-ui';
-import type { AiProvider, OpenAICompatibleConfig } from '../types';
+import { useId, type ComponentProps } from 'react';
+import { AIChatDialogue, Cascader, Empty, Select, Tooltip } from '@douyinfe/semi-ui';
+import { coerceAiReasoningEffort, getAiReasoningProfile } from '../lib/aiReasoning';
+import type { AiProvider, AiReasoningEffort, OpenAICompatibleConfig } from '../types';
 import { CspSafeChatContent } from './CspSafeChatContent';
 
 type DialogueChats = NonNullable<ComponentProps<typeof AIChatDialogue>['chats']>;
@@ -22,7 +23,9 @@ export function AiConversationDialogue({
 }) {
   if (!chats.length) return <Empty title={emptyTitle} description={emptyDescription} />;
   const quoteByMessageId = new Map(
-    chats.flatMap((message) => message.quote ? [[String(message.id), message.quote] as const] : []),
+    chats.flatMap((message) =>
+      message.quote ? [[String(message.id), message.quote] as const] : [],
+    ),
   );
   return (
     <AIChatDialogue
@@ -77,9 +80,61 @@ export function AiModelSelector({
       disabled={disabled}
       showNext="hover"
       changeOnSelect={false}
-      displayRender={(labels) => Array.isArray(labels) ? labels.at(-1) ?? '' : ''}
+      displayRender={(labels) => (Array.isArray(labels) ? (labels.at(-1) ?? '') : '')}
       onChange={onChange}
       className={`ai-composer-model-cascader${className ? ` ${className}` : ''}`}
     />
+  );
+}
+
+export function AiReasoningEffortSelector({
+  config,
+  model,
+  value,
+  disabled,
+  onChange,
+}: {
+  config?: OpenAICompatibleConfig;
+  model: string;
+  value: AiReasoningEffort;
+  disabled: boolean;
+  onChange: (effort: AiReasoningEffort) => void;
+}) {
+  const profile = getAiReasoningProfile(config, model);
+  const effectiveValue = coerceAiReasoningEffort(value, config, model);
+  const selectedLabel =
+    profile.options.find((option) => option.value === effectiveValue)?.label ?? '自动';
+  const labelId = useId();
+  return (
+    <Tooltip content={profile.description} position="top">
+      <span className="ai-composer-reasoning-control">
+        <span className="visually-hidden" id={labelId}>
+          选择 AI 推理强度
+        </span>
+        <Select
+          aria-labelledby={labelId}
+          className="ai-composer-reasoning-select"
+          disabled={disabled || profile.kind === 'unsupported'}
+          prefix={
+            <span aria-hidden="true" className="ai-composer-reasoning-select__prefix">
+              推理
+            </span>
+          }
+          renderSelectedItem={() => selectedLabel}
+          size="small"
+          value={effectiveValue}
+          onChange={(nextValue) => onChange(nextValue as AiReasoningEffort)}
+        >
+          {profile.options.map((option) => (
+            <Select.Option key={option.value} value={option.value}>
+              <span className="ai-reasoning-option">
+                <span>{option.label}</span>
+                <code>{option.value === 'auto' ? 'default' : option.value}</code>
+              </span>
+            </Select.Option>
+          ))}
+        </Select>
+      </span>
+    </Tooltip>
   );
 }

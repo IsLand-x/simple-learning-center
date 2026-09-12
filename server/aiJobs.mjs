@@ -7,6 +7,7 @@ import { mutatePersistedState, readPersistedState } from './storage.mjs';
 const JOB_RETENTION_MS = 24 * 60 * 60 * 1_000;
 const MAX_RETAINED_JOBS = 100;
 const MAX_RETAINED_DIGEST_RUNS = 100;
+const AI_REASONING_EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 
 function upsertDigestRun(state, run) {
   const runs = Array.isArray(state.rssDigestRuns) ? state.rssDigestRuns : [];
@@ -24,6 +25,12 @@ function requiredString(value, label, maxLength) {
 
 function optionalString(value, maxLength) {
   return typeof value === 'string' ? value.slice(0, maxLength) : '';
+}
+
+function optionalReasoningEffort(value) {
+  if (value === undefined || value === null || value === '' || value === 'auto') return undefined;
+  if (!AI_REASONING_EFFORTS.has(value)) throw statusError(400, '推理强度不正确');
+  return value;
 }
 
 function publicJob(job) {
@@ -52,7 +59,10 @@ function publicJob(job) {
 }
 
 function makeConversationTitle(content) {
-  const lines = content.split('\n').map((line) => line.trim()).filter(Boolean);
+  const lines = content
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
   return (lines.at(-1) || '关于本书的对话').replace(/\s+/g, ' ').slice(0, 32);
 }
 
@@ -69,12 +79,14 @@ function normalizedMessage(message) {
   return {
     role,
     content: optionalString(message?.content, 100_000),
-    ...(role === 'user' && message?.quote?.text ? {
-      quote: {
-        text: optionalString(message.quote.text, 20_000),
-        chapter: optionalString(message.quote.chapter, 500),
-      },
-    } : {}),
+    ...(role === 'user' && message?.quote?.text
+      ? {
+          quote: {
+            text: optionalString(message.quote.text, 20_000),
+            chapter: optionalString(message.quote.chapter, 500),
+          },
+        }
+      : {}),
   };
 }
 
@@ -142,10 +154,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
   function pruneJobs() {
     const now = Date.now();
     for (const [id, job] of jobs) {
-      if (
-        !['queued', 'running'].includes(job.status)
-        && now - job.updatedAt > JOB_RETENTION_MS
-      ) {
+      if (!['queued', 'running'].includes(job.status) && now - job.updatedAt > JOB_RETENTION_MS) {
         jobs.delete(id);
       }
     }
@@ -175,37 +184,39 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       };
       const chats = Array.isArray(state.chats) ? state.chats : [];
       state.chats = [...chats.filter((item) => item.id !== message.id), message];
-      state.chatSessions = sessions.map((session) => (
+      state.chatSessions = sessions.map((session) =>
         session.id === job.conversationId
           ? { ...session, updatedAt: Math.max(session.updatedAt, message.createdAt) }
-          : session
-      ));
+          : session,
+      );
       if (job.resourceType === 'rss' && job.purpose === 'summary') {
         const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-        state.rssItems = rssItems.map((item) => (
+        state.rssItems = rssItems.map((item) =>
           item.id === job.rssItemId
             ? {
-              ...item,
-              aiSummary: result.content,
-              aiSummaryUpdatedAt: job.assistantCreatedAt,
-              aiSummaryVersion: 2,
-            }
-            : item
-        ));
+                ...item,
+                aiSummary: result.content,
+                aiSummaryUpdatedAt: job.assistantCreatedAt,
+                aiSummaryVersion: 2,
+              }
+            : item,
+        );
       }
       if (job.resourceType === 'rss' && job.purpose === 'translation') {
         const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-        state.rssItems = rssItems.map((item) => (
+        state.rssItems = rssItems.map((item) =>
           item.id === job.rssItemId
             ? {
-              ...item,
-              aiTranslation: result.content,
-              aiTranslationHtml: result.translationHtml,
-              aiTranslationUpdatedAt: job.assistantCreatedAt,
-              aiTranslationSourceFetchedAt: Number(item.fullContentFetchedAt || item.fetchedAt || 0),
-            }
-            : item
-        ));
+                ...item,
+                aiTranslation: result.content,
+                aiTranslationHtml: result.translationHtml,
+                aiTranslationUpdatedAt: job.assistantCreatedAt,
+                aiTranslationSourceFetchedAt: Number(
+                  item.fullContentFetchedAt || item.fetchedAt || 0,
+                ),
+              }
+            : item,
+        );
       }
       if (job.resourceType === 'rssDigest' && job.purpose === 'digest') {
         const completedAt = Date.now();
@@ -223,8 +234,9 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
           generatedAt: previous?.generatedAt || job.assistantCreatedAt,
           updatedAt: job.assistantCreatedAt,
         };
-        state.rssDailyDigests = [digest, ...digests.filter((item) => item.id !== digest.id)]
-          .sort((left, right) => right.date.localeCompare(left.date));
+        state.rssDailyDigests = [digest, ...digests.filter((item) => item.id !== digest.id)].sort(
+          (left, right) => right.date.localeCompare(left.date),
+        );
         state.rssDigestSettings = {
           ...(state.rssDigestSettings || {}),
           lastCompletedAt: completedAt,
@@ -274,17 +286,24 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         },
       });
       if (job.controller.signal.aborted || job.status === 'cancelled') return;
-      const result = job.resourceType === 'rss' && job.purpose === 'translation'
-        ? (() => {
-          const translation = completeRssTranslation(rawResult.content, context.translationSource);
-          return {
-            ...rawResult,
-            content: translation.text,
-            dialogueContent: translatedDialogueContent(rawResult.dialogueContent, translation.text),
-            translationHtml: translation.html,
-          };
-        })()
-        : rawResult;
+      const result =
+        job.resourceType === 'rss' && job.purpose === 'translation'
+          ? (() => {
+              const translation = completeRssTranslation(
+                rawResult.content,
+                context.translationSource,
+              );
+              return {
+                ...rawResult,
+                content: translation.text,
+                dialogueContent: translatedDialogueContent(
+                  rawResult.dialogueContent,
+                  translation.text,
+                ),
+                translationHtml: translation.html,
+              };
+            })()
+          : rawResult;
       job.finalResult = structuredClone(result);
       await persistAssistant(job, result);
       job.content = result.content;
@@ -296,12 +315,19 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       job.revision += 1;
       publishJob(job);
     } catch (error) {
-      if (job.controller.signal.aborted || job.status === 'cancelled' || error?.name === 'AbortError') {
+      if (
+        job.controller.signal.aborted ||
+        job.status === 'cancelled' ||
+        error?.name === 'AbortError'
+      ) {
         job.status = 'cancelled';
         job.error = undefined;
       } else {
         job.status = 'failed';
-        job.error = safeErrorMessage(error, [context.config.apiKey, context.webSearchConfig.apiKey]);
+        job.error = safeErrorMessage(error, [
+          context.config.apiKey,
+          context.webSearchConfig.apiKey,
+        ]);
         console.error(`AI task ${job.id} failed`);
       }
       job.completedAt = Date.now();
@@ -338,67 +364,87 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
 
   async function start(input) {
     pruneJobs();
-    const resourceType = input?.resourceType === 'rss'
-      ? 'rss'
-      : input?.resourceType === 'video'
-        ? 'video'
-        : input?.resourceType === 'rssDigest' ? 'rssDigest' : 'book';
-    const purpose = resourceType === 'rss'
-      ? input?.purpose === 'summary' ? 'summary' : input?.purpose === 'translation' ? 'translation' : 'chat'
-      : resourceType === 'rssDigest' ? 'digest' : 'chat';
+    const resourceType =
+      input?.resourceType === 'rss'
+        ? 'rss'
+        : input?.resourceType === 'video'
+          ? 'video'
+          : input?.resourceType === 'rssDigest'
+            ? 'rssDigest'
+            : 'book';
+    const purpose =
+      resourceType === 'rss'
+        ? input?.purpose === 'summary'
+          ? 'summary'
+          : input?.purpose === 'translation'
+            ? 'translation'
+            : 'chat'
+        : resourceType === 'rssDigest'
+          ? 'digest'
+          : 'chat';
     const configId = requiredString(input?.configId, '模型配置', 200);
     const model = requiredString(input?.model, '模型名称', 300);
+    const reasoningEffort = optionalReasoningEffort(input?.reasoningEffort);
     const bookId = requiredString(input?.bookId, resourceType === 'book' ? '书籍' : '内容', 240);
-    const rssItemId = resourceType === 'rss'
-      ? requiredString(input?.rssItemId, 'RSS 内容', 240)
-      : undefined;
-    const videoId = resourceType === 'video'
-      ? requiredString(input?.videoId, '视频', 240)
-      : undefined;
-    const digestDate = resourceType === 'rssDigest'
-      ? requiredString(input?.digestDate, '日报日期', 10)
-      : undefined;
-    if (digestDate && !/^\d{4}-\d{2}-\d{2}$/.test(digestDate)) throw statusError(400, '日报日期不正确');
-    const digestRunId = resourceType === 'rssDigest'
-      ? optionalString(input?.digestRunId, 200).trim() || randomUUID()
-      : undefined;
-    const digestTrigger = resourceType === 'rssDigest' && input?.digestTrigger === 'schedule'
-      ? 'schedule'
-      : 'manual';
-    const digestScheduleKey = resourceType === 'rssDigest'
-      ? optionalString(input?.digestScheduleKey, 200).trim() || undefined
-      : undefined;
-    const digestRunStartedAt = resourceType === 'rssDigest' && Number.isFinite(input?.digestRunStartedAt)
-      ? input.digestRunStartedAt
-      : Date.now();
+    const rssItemId =
+      resourceType === 'rss' ? requiredString(input?.rssItemId, 'RSS 内容', 240) : undefined;
+    const videoId =
+      resourceType === 'video' ? requiredString(input?.videoId, '视频', 240) : undefined;
+    const digestDate =
+      resourceType === 'rssDigest' ? requiredString(input?.digestDate, '日报日期', 10) : undefined;
+    if (digestDate && !/^\d{4}-\d{2}-\d{2}$/.test(digestDate))
+      throw statusError(400, '日报日期不正确');
+    const digestRunId =
+      resourceType === 'rssDigest'
+        ? optionalString(input?.digestRunId, 200).trim() || randomUUID()
+        : undefined;
+    const digestTrigger =
+      resourceType === 'rssDigest' && input?.digestTrigger === 'schedule' ? 'schedule' : 'manual';
+    const digestScheduleKey =
+      resourceType === 'rssDigest'
+        ? optionalString(input?.digestScheduleKey, 200).trim() || undefined
+        : undefined;
+    const digestRunStartedAt =
+      resourceType === 'rssDigest' && Number.isFinite(input?.digestRunStartedAt)
+        ? input.digestRunStartedAt
+        : Date.now();
     const conversationId = requiredString(input?.conversationId, '对话', 200);
     const messageInput = input?.userMessage;
     const userMessageId = requiredString(messageInput?.id, '消息', 200);
     const content = requiredString(messageInput?.content, '问题内容', 50_000);
-    const createdAt = Number.isFinite(messageInput?.createdAt) ? messageInput.createdAt : Date.now();
+    const createdAt = Number.isFinite(messageInput?.createdAt)
+      ? messageInput.createdAt
+      : Date.now();
     const quoteText = optionalString(messageInput?.quote?.text, 20_000).trim();
-    const quote = quoteText ? {
-      text: quoteText,
-      chapter: optionalString(messageInput?.quote?.chapter, 500),
-    } : undefined;
+    const quote = quoteText
+      ? {
+          text: quoteText,
+          chapter: optionalString(messageInput?.quote?.chapter, 500),
+        }
+      : undefined;
     const currentText = optionalString(input?.currentText, 30_000);
 
     const persistedState = await readPersistedState();
     if (!persistedState?.state) throw statusError(409, '服务端尚未初始化');
     const state = persistedState.state;
-    const config = (Array.isArray(state.openAIConfigs) ? state.openAIConfigs : [])
-      .find((item) => item.id === configId);
+    const config = (Array.isArray(state.openAIConfigs) ? state.openAIConfigs : []).find(
+      (item) => item.id === configId,
+    );
     if (!config) throw statusError(404, '找不到所选模型配置');
     if (!Array.isArray(config.models) || !config.models.includes(model)) {
       throw statusError(400, '所选模型不属于当前配置');
     }
-    const book = resourceType === 'book'
-      ? (Array.isArray(state.books) ? state.books : []).find((item) => item.id === bookId)
-      : undefined;
+    const book =
+      resourceType === 'book'
+        ? (Array.isArray(state.books) ? state.books : []).find((item) => item.id === bookId)
+        : undefined;
     if (resourceType === 'book' && !book) throw statusError(404, '找不到当前书籍');
-    const rssItem = resourceType === 'rss'
-      ? (Array.isArray(state.rssItems) ? state.rssItems : []).find((item) => item.id === rssItemId)
-      : undefined;
+    const rssItem =
+      resourceType === 'rss'
+        ? (Array.isArray(state.rssItems) ? state.rssItems : []).find(
+            (item) => item.id === rssItemId,
+          )
+        : undefined;
     if (resourceType === 'rss' && (!rssItem || bookId !== `rss:${rssItem.id}`)) {
       throw statusError(404, '找不到当前 RSS 内容');
     }
@@ -411,40 +457,59 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       }
     }
     const rssFeed = rssItem
-      ? (Array.isArray(state.rssFeeds) ? state.rssFeeds : []).find((feed) => feed.id === rssItem.feedId)
+      ? (Array.isArray(state.rssFeeds) ? state.rssFeeds : []).find(
+          (feed) => feed.id === rssItem.feedId,
+        )
       : undefined;
-    const video = resourceType === 'video'
-      ? (Array.isArray(state.videoResources) ? state.videoResources : []).find((item) => item.id === videoId)
-      : undefined;
+    const video =
+      resourceType === 'video'
+        ? (Array.isArray(state.videoResources) ? state.videoResources : []).find(
+            (item) => item.id === videoId,
+          )
+        : undefined;
     if (resourceType === 'video' && (!video || bookId !== `video:${video.id}`)) {
       throw statusError(404, '找不到当前视频');
     }
-    const digestItemIds = resourceType === 'rssDigest' && Array.isArray(input?.digestItemIds)
-      ? [...new Set(input.digestItemIds)].slice(0, 1_000)
-      : [];
-    const digestItems = resourceType === 'rssDigest'
-      ? digestItemIds.flatMap((itemId) => {
-        const item = (Array.isArray(state.rssItems) ? state.rssItems : []).find((candidate) => candidate.id === itemId);
-        return item ? [item] : [];
-      })
-      : [];
-    if (resourceType === 'rssDigest' && (bookId !== `rss-digest:${digestDate}` || !digestItems.length)) {
+    const digestItemIds =
+      resourceType === 'rssDigest' && Array.isArray(input?.digestItemIds)
+        ? [...new Set(input.digestItemIds)].slice(0, 1_000)
+        : [];
+    const digestItems =
+      resourceType === 'rssDigest'
+        ? digestItemIds.flatMap((itemId) => {
+            const item = (Array.isArray(state.rssItems) ? state.rssItems : []).find(
+              (candidate) => candidate.id === itemId,
+            );
+            return item ? [item] : [];
+          })
+        : [];
+    if (
+      resourceType === 'rssDigest' &&
+      (bookId !== `rss-digest:${digestDate}` || !digestItems.length)
+    ) {
       throw statusError(404, '找不到可用于当前日报的 RSS 内容');
     }
-    const digestFeeds = resourceType === 'rssDigest'
-      ? (Array.isArray(state.rssFeeds) ? state.rssFeeds : []).filter((feed) => digestItems.some((item) => item.feedId === feed.id))
-      : [];
-    const previousDigest = resourceType === 'rssDigest'
-      ? (Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : []).find((digest) => digest.date === digestDate)
-      : undefined;
+    const digestFeeds =
+      resourceType === 'rssDigest'
+        ? (Array.isArray(state.rssFeeds) ? state.rssFeeds : []).filter((feed) =>
+            digestItems.some((item) => item.feedId === feed.id),
+          )
+        : [];
+    const previousDigest =
+      resourceType === 'rssDigest'
+        ? (Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : []).find(
+            (digest) => digest.date === digestDate,
+          )
+        : undefined;
 
     const existingChats = (Array.isArray(state.chats) ? state.chats : [])
-      .filter((message) => (
-        message.bookId === bookId
-        && message.conversationId === conversationId
-        && message.id !== userMessageId
-        && (message.role === 'user' || message.role === 'assistant')
-      ))
+      .filter(
+        (message) =>
+          message.bookId === bookId &&
+          message.conversationId === conversationId &&
+          message.id !== userMessageId &&
+          (message.role === 'user' || message.role === 'assistant'),
+      )
       .sort((left, right) => left.createdAt - right.createdAt)
       .slice(-40)
       .map(normalizedMessage);
@@ -468,21 +533,25 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       title: optionalString(sessionInput?.title, 100).trim() || makeConversationTitle(content),
       provider,
       model,
+      reasoningEffort: reasoningEffort || 'auto',
       createdAt: sessionCreatedAt,
       updatedAt: createdAt,
     };
     const timestamp = Date.now();
-    const digestRun = resourceType === 'rssDigest' ? {
-      id: digestRunId,
-      date: digestDate,
-      trigger: digestTrigger,
-      status: 'queued',
-      ...(digestScheduleKey ? { scheduleKey: digestScheduleKey } : {}),
-      model,
-      itemCount: digestItems.length,
-      startedAt: digestRunStartedAt,
-      updatedAt: timestamp,
-    } : undefined;
+    const digestRun =
+      resourceType === 'rssDigest'
+        ? {
+            id: digestRunId,
+            date: digestDate,
+            trigger: digestTrigger,
+            status: 'queued',
+            ...(digestScheduleKey ? { scheduleKey: digestScheduleKey } : {}),
+            model,
+            itemCount: digestItems.length,
+            startedAt: digestRunStartedAt,
+            updatedAt: timestamp,
+          }
+        : undefined;
 
     await mutatePersistedState((nextPersistedState) => {
       const next = nextPersistedState.state;
@@ -490,7 +559,13 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       const existingSession = sessions.find((item) => item.id === conversationId);
       next.chatSessions = [
         existingSession
-          ? { ...existingSession, provider, model, updatedAt: Math.max(existingSession.updatedAt, createdAt) }
+          ? {
+              ...existingSession,
+              provider,
+              model,
+              reasoningEffort: reasoningEffort || 'auto',
+              updatedAt: Math.max(existingSession.updatedAt, createdAt),
+            }
           : session,
         ...sessions.filter((item) => item.id !== conversationId),
       ];
@@ -511,6 +586,7 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       digestScheduleKey,
       digestItems: digestItems.map((item) => structuredClone(item)),
       model,
+      reasoningEffort,
       purpose,
       conversationId,
       userMessageId,
@@ -534,33 +610,43 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     const context = {
       config: structuredClone(config),
       model,
+      reasoningEffort,
       conversationId,
       messages: [...existingChats, normalizedMessage(userMessage)],
       resourceType,
       purpose,
       ...(book ? { book: structuredClone(book) } : {}),
-      ...(rssItem ? {
-        rssItem: structuredClone(rssItem),
-        rssFeed: rssFeed ? structuredClone(rssFeed) : undefined,
-        ...(translationSource ? { translationSource: structuredClone(translationSource) } : {}),
-        relatedRssItems: (Array.isArray(state.rssItems) ? state.rssItems : [])
-          .filter((item) => item.feedId === rssItem.feedId && item.id !== rssItem.id)
-          .sort((left, right) => right.publishedAt - left.publishedAt)
-          .slice(0, 30)
-          .map((item) => structuredClone(item)),
-      } : {}),
-      ...(video ? {
-        video: structuredClone(video),
-        videoTimestampNotes: (Array.isArray(state.videoTimestampNotes) ? state.videoTimestampNotes : [])
-          .filter((note) => note.videoId === video.id)
-          .sort((left, right) => left.timeSeconds - right.timeSeconds)
-          .map((note) => structuredClone(note)),
-      } : {}),
-      ...(resourceType === 'rssDigest' ? {
-        digestItems: digestItems.map((item) => structuredClone(item)),
-        digestFeeds: digestFeeds.map((feed) => structuredClone(feed)),
-        previousDigest: previousDigest ? structuredClone(previousDigest) : undefined,
-      } : {}),
+      ...(rssItem
+        ? {
+            rssItem: structuredClone(rssItem),
+            rssFeed: rssFeed ? structuredClone(rssFeed) : undefined,
+            ...(translationSource ? { translationSource: structuredClone(translationSource) } : {}),
+            relatedRssItems: (Array.isArray(state.rssItems) ? state.rssItems : [])
+              .filter((item) => item.feedId === rssItem.feedId && item.id !== rssItem.id)
+              .sort((left, right) => right.publishedAt - left.publishedAt)
+              .slice(0, 30)
+              .map((item) => structuredClone(item)),
+          }
+        : {}),
+      ...(video
+        ? {
+            video: structuredClone(video),
+            videoTimestampNotes: (Array.isArray(state.videoTimestampNotes)
+              ? state.videoTimestampNotes
+              : []
+            )
+              .filter((note) => note.videoId === video.id)
+              .sort((left, right) => left.timeSeconds - right.timeSeconds)
+              .map((note) => structuredClone(note)),
+          }
+        : {}),
+      ...(resourceType === 'rssDigest'
+        ? {
+            digestItems: digestItems.map((item) => structuredClone(item)),
+            digestFeeds: digestFeeds.map((feed) => structuredClone(feed)),
+            previousDigest: previousDigest ? structuredClone(previousDigest) : undefined,
+          }
+        : {}),
       currentText,
       notes: (Array.isArray(state.notes) ? state.notes : [])
         .filter((note) => note.bookId === bookId)
@@ -573,24 +659,27 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         .sort((left, right) => right.startedAt - left.startedAt)
         .map((readingSession) => structuredClone(readingSession)),
       webSearchConfig: structuredClone(state.webSearchConfig ?? { provider: 'jina', apiKey: '' }),
-      assistantPrompt: resourceType === 'book'
-        ? optionalString(state.aiPreferences?.assistantPrompt, 4_000).trim()
-        : '',
+      assistantPrompt:
+        resourceType === 'book'
+          ? optionalString(state.aiPreferences?.assistantPrompt, 4_000).trim()
+          : '',
     };
     queueMicrotask(() => void executeJob(job, context));
     return publicJob(job);
   }
 
   async function startDigest({ date, force = false, trigger = 'manual', scheduleKey } = {}) {
-    const digestDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
-      ? date
-      : new Date().toLocaleDateString('en-CA');
+    const digestDate =
+      typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? date
+        : new Date().toLocaleDateString('en-CA');
     const digestTrigger = trigger === 'schedule' ? 'schedule' : 'manual';
-    const activeJob = [...jobs.values()].find((job) => (
-      job.resourceType === 'rssDigest'
-      && job.digestDate === digestDate
-      && (job.status === 'queued' || job.status === 'running')
-    ));
+    const activeJob = [...jobs.values()].find(
+      (job) =>
+        job.resourceType === 'rssDigest' &&
+        job.digestDate === digestDate &&
+        (job.status === 'queued' || job.status === 'running'),
+    );
     if (activeJob) return { job: publicJob(activeJob), skipped: false };
 
     const persistedState = await readPersistedState();
@@ -623,16 +712,22 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       });
     };
     const settings = state.rssDigestSettings || {};
-    const configuredProvider = typeof settings.provider === 'string' && settings.provider.startsWith('api:')
-      ? settings.provider
-      : null;
+    const configuredProvider =
+      typeof settings.provider === 'string' && settings.provider.startsWith('api:')
+        ? settings.provider
+        : null;
     const provider = configuredProvider || state.aiPreferences?.provider;
     const configId = typeof provider === 'string' ? provider.slice('api:'.length) : '';
     const configs = Array.isArray(state.openAIConfigs) ? state.openAIConfigs : [];
-    const config = configs.find((item) => item.id === configId) || (!configuredProvider ? configs[0] : undefined);
-    const configuredModel = typeof settings.model === 'string' && settings.model.trim() ? settings.model : '';
+    const config =
+      configs.find((item) => item.id === configId) ||
+      (!configuredProvider ? configs[0] : undefined);
+    const configuredModel =
+      typeof settings.model === 'string' && settings.model.trim() ? settings.model : '';
     const model = configuredModel
-      ? config?.models?.includes(configuredModel) ? configuredModel : undefined
+      ? config?.models?.includes(configuredModel)
+        ? configuredModel
+        : undefined
       : config?.models?.includes(state.aiPreferences?.model)
         ? state.aiPreferences.model
         : config?.models?.[0];
@@ -644,20 +739,25 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
 
     const dayStart = new Date(`${digestDate}T00:00:00`).getTime();
     const dayEnd = new Date(`${digestDate}T23:59:59.999`).getTime();
-    if (!Number.isFinite(dayStart) || !Number.isFinite(dayEnd)) throw statusError(400, '日报日期不正确');
+    if (!Number.isFinite(dayStart) || !Number.isFinite(dayEnd))
+      throw statusError(400, '日报日期不正确');
     const allItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-    const dayItems = allItems.filter((item) => (
-      item.publishedAt >= dayStart && item.publishedAt <= dayEnd
-    ));
-    const previous = (Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [])
-      .find((digest) => digest.date === digestDate);
+    const dayItems = allItems.filter(
+      (item) => item.publishedAt >= dayStart && item.publishedAt <= dayEnd,
+    );
+    const previous = (Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : []).find(
+      (digest) => digest.date === digestDate,
+    );
     const previousIds = new Set(previous?.sourceItemIds || []);
     const newItems = dayItems.filter((item) => !previousIds.has(item.id));
     if (!force && previous && !newItems.length) {
       await persistAttempt({ status: 'skipped', message: '没有新的内容', model });
       return { skipped: true };
     }
-    const includedIds = new Set([...(previous?.sourceItemIds || []), ...dayItems.map((item) => item.id)]);
+    const includedIds = new Set([
+      ...(previous?.sourceItemIds || []),
+      ...dayItems.map((item) => item.id),
+    ]);
     const digestItems = allItems
       .filter((item) => includedIds.has(item.id))
       .sort((left, right) => right.publishedAt - left.publishedAt);
@@ -680,10 +780,12 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
       };
     });
     const configuredPrompt = optionalString(settings.prompt, 12_000).trim();
-    const legacyDefaultPrompt = '请把当天尚未读过的 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
-    const prompt = configuredPrompt && configuredPrompt !== legacyDefaultPrompt
-      ? configuredPrompt
-      : '请把当天全部 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
+    const legacyDefaultPrompt =
+      '请把当天尚未读过的 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
+    const prompt =
+      configuredPrompt && configuredPrompt !== legacyDefaultPrompt
+        ? configuredPrompt
+        : '请把当天全部 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
     const createdAt = Date.now();
     try {
       const job = await start({
@@ -766,19 +868,17 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
     let rssDailyDigests = Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [];
     for (const job of jobs.values()) {
       const hasSession = sessions.some((session) => session.id === job.conversationId);
-      const resumableRssTask = job.resourceType === 'rss'
-        && (job.purpose === 'summary' || job.purpose === 'translation')
-        && rssItems.some((item) => item.id === job.rssItemId);
+      const resumableRssTask =
+        job.resourceType === 'rss' &&
+        (job.purpose === 'summary' || job.purpose === 'translation') &&
+        rssItems.some((item) => item.id === job.rssItemId);
       const resumableDigest = job.resourceType === 'rssDigest' && job.purpose === 'digest';
       if (!hasSession && !resumableRssTask && !resumableDigest) continue;
       if (!hasSession) sessions.push(structuredClone(job.session));
       if (!chats.some((message) => message.id === job.userMessage.id)) {
         chats.push(structuredClone(job.userMessage));
       }
-      if (
-        job.finalResult
-        && !chats.some((message) => message.id === job.assistantMessageId)
-      ) {
+      if (job.finalResult && !chats.some((message) => message.id === job.assistantMessageId)) {
         chats.push({
           id: job.assistantMessageId,
           bookId: job.bookId,
@@ -790,29 +890,31 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
         });
       }
       if (job.resourceType === 'rss' && job.purpose === 'summary' && job.finalResult) {
-        rssItems = rssItems.map((item) => (
+        rssItems = rssItems.map((item) =>
           item.id === job.rssItemId
             ? {
-              ...item,
-              aiSummary: job.finalResult.content,
-              aiSummaryUpdatedAt: job.assistantCreatedAt,
-              aiSummaryVersion: 2,
-            }
-            : item
-        ));
+                ...item,
+                aiSummary: job.finalResult.content,
+                aiSummaryUpdatedAt: job.assistantCreatedAt,
+                aiSummaryVersion: 2,
+              }
+            : item,
+        );
       }
       if (job.resourceType === 'rss' && job.purpose === 'translation' && job.finalResult) {
-        rssItems = rssItems.map((item) => (
+        rssItems = rssItems.map((item) =>
           item.id === job.rssItemId
             ? {
-              ...item,
-              aiTranslation: job.finalResult.content,
-              aiTranslationHtml: job.finalResult.translationHtml,
-              aiTranslationUpdatedAt: job.assistantCreatedAt,
-              aiTranslationSourceFetchedAt: Number(item.fullContentFetchedAt || item.fetchedAt || 0),
-            }
-            : item
-        ));
+                ...item,
+                aiTranslation: job.finalResult.content,
+                aiTranslationHtml: job.finalResult.translationHtml,
+                aiTranslationUpdatedAt: job.assistantCreatedAt,
+                aiTranslationSourceFetchedAt: Number(
+                  item.fullContentFetchedAt || item.fetchedAt || 0,
+                ),
+              }
+            : item,
+        );
       }
       if (job.resourceType === 'rssDigest' && job.purpose === 'digest' && job.finalResult) {
         const previous = rssDailyDigests.find((digest) => digest.date === job.digestDate);
@@ -827,8 +929,9 @@ export function createAiJobManager({ runChat = runServerAiChat } = {}) {
           generatedAt: previous?.generatedAt || job.assistantCreatedAt,
           updatedAt: job.assistantCreatedAt,
         };
-        rssDailyDigests = [digest, ...rssDailyDigests.filter((item) => item.id !== digest.id)]
-          .sort((left, right) => right.date.localeCompare(left.date));
+        rssDailyDigests = [digest, ...rssDailyDigests.filter((item) => item.id !== digest.id)].sort(
+          (left, right) => right.date.localeCompare(left.date),
+        );
       }
     }
     state.chatSessions = sessions;

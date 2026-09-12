@@ -10,6 +10,7 @@ import {
   type AiJob,
 } from '../../../../lib/aiJobs';
 import { getBookPassages } from '../../../../lib/bookSearch';
+import { coerceAiReasoningEffort, requestReasoningEffort } from '../../../../lib/aiReasoning';
 import { synchronizeLearningState } from '../../../../lib/learningStateSync';
 import { waitForServerStateWrites } from '../../../../lib/serverStateStorage';
 import { createUuid } from '../../../../lib/uuid';
@@ -19,6 +20,7 @@ import type { AiDialogueContentItem, AiProvider, BookItem, ChatMessage } from '.
 import {
   AiConversationDialogue,
   AiModelSelector,
+  AiReasoningEffortSelector,
 } from '../../../../components/AiConversationPrimitives';
 import {
   extractInputText,
@@ -69,6 +71,11 @@ export function AiConversationPanel({
   const model = selectedConfig?.models.includes(aiPreferences.model)
     ? aiPreferences.model
     : (selectedConfig?.models[0] ?? '');
+  const reasoningEffort = coerceAiReasoningEffort(
+    aiPreferences.reasoningEffort,
+    selectedConfig,
+    model,
+  );
   const [status, setStatus] = useState<AiStatus>(() =>
     selectedConfig && model ? 'ready' : 'unavailable',
   );
@@ -102,13 +109,20 @@ export function AiConversationPanel({
       return;
     }
     if (!activeJobId) setStatus(selectedConfig && model ? 'ready' : 'unavailable');
-    if (selectedConfig && model !== aiPreferences.model) setAiPreferences({ model });
+    if (
+      selectedConfig &&
+      (model !== aiPreferences.model || reasoningEffort !== aiPreferences.reasoningEffort)
+    ) {
+      setAiPreferences({ model, reasoningEffort });
+    }
   }, [
     activeJobId,
     aiPreferences.model,
+    aiPreferences.reasoningEffort,
     configs,
     model,
     provider,
+    reasoningEffort,
     selectedConfig,
     setAiPreferences,
   ]);
@@ -283,10 +297,30 @@ export function AiConversationPanel({
     if (!Array.isArray(selection) || selection.length < 2) return;
     const nextProvider = String(selection[0]) as AiProvider;
     const nextModel = String(selection[1]);
+    const nextConfig = configs.find((config) => nextProvider === `api:${config.id}`);
+    const nextReasoningEffort = coerceAiReasoningEffort(reasoningEffort, nextConfig, nextModel);
     setStatusMessage('');
-    setAiPreferences({ provider: nextProvider, model: nextModel });
-    if (currentSession)
-      updateChatSession(currentSession.id, { provider: nextProvider, model: nextModel });
+    setAiPreferences({
+      provider: nextProvider,
+      model: nextModel,
+      reasoningEffort: nextReasoningEffort,
+    });
+    if (currentSession) {
+      updateChatSession(currentSession.id, {
+        provider: nextProvider,
+        model: nextModel,
+        reasoningEffort: nextReasoningEffort,
+      });
+    }
+  };
+
+  const chooseReasoningEffort = (nextValue: typeof reasoningEffort) => {
+    if (status === 'generating') return;
+    const nextReasoningEffort = coerceAiReasoningEffort(nextValue, selectedConfig, model);
+    setAiPreferences({ reasoningEffort: nextReasoningEffort });
+    if (currentSession) {
+      updateChatSession(currentSession.id, { reasoningEffort: nextReasoningEffort });
+    }
   };
 
   const ensureSession = (question: string) => {
@@ -298,6 +332,7 @@ export function AiConversationPanel({
       title: makeConversationTitle(question),
       ...(provider ? { provider } : {}),
       ...(model ? { model } : {}),
+      reasoningEffort,
       createdAt: timestamp,
       updatedAt: timestamp,
     });
@@ -352,6 +387,7 @@ export function AiConversationPanel({
       const job = await startAiJob({
         configId: selectedConfig.id,
         model,
+        reasoningEffort: requestReasoningEffort(reasoningEffort),
         bookId: book.id,
         conversationId,
         userMessage: {
@@ -538,13 +574,22 @@ export function AiConversationPanel({
           </div>
         )}
         renderConfigureArea={() => (
-          <AiModelSelector
-            configs={configs}
-            provider={provider}
-            model={model}
-            disabled={status === 'generating'}
-            onChange={chooseModel}
-          />
+          <>
+            <AiModelSelector
+              configs={configs}
+              provider={provider}
+              model={model}
+              disabled={status === 'generating'}
+              onChange={chooseModel}
+            />
+            <AiReasoningEffortSelector
+              config={selectedConfig}
+              model={model}
+              value={reasoningEffort}
+              disabled={status === 'generating'}
+              onChange={chooseReasoningEffort}
+            />
+          </>
         )}
         className="reader-ai-input"
       />

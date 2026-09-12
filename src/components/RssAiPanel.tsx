@@ -9,11 +9,16 @@ import {
   watchAiJob,
   type AiJob,
 } from '../lib/aiJobs';
+import { coerceAiReasoningEffort, requestReasoningEffort } from '../lib/aiReasoning';
 import { waitForServerStateWrites } from '../lib/serverStateStorage';
 import { createUuid } from '../lib/uuid';
 import { useLearningStore } from '../store/useLearningStore';
 import type { AiDialogueContentItem, AiProvider, RssItem, VideoResource } from '../types';
-import { AiConversationDialogue, AiModelSelector } from './AiConversationPrimitives';
+import {
+  AiConversationDialogue,
+  AiModelSelector,
+  AiReasoningEffortSelector,
+} from './AiConversationPrimitives';
 
 const { Text } = Typography;
 
@@ -21,18 +26,25 @@ type AiStatus = 'unavailable' | 'ready' | 'generating' | 'error';
 
 function extractInputText(inputContents?: Array<Record<string, unknown>>) {
   return (inputContents ?? [])
-    .map((item) => item.type === 'text' && typeof item.text === 'string' ? item.text : '')
+    .map((item) => (item.type === 'text' && typeof item.text === 'string' ? item.text : ''))
     .join('')
     .trim();
 }
 
-function providerLabel(provider: AiProvider | undefined, configs: ReturnType<typeof useLearningStore.getState>['openAIConfigs']) {
+function providerLabel(
+  provider: AiProvider | undefined,
+  configs: ReturnType<typeof useLearningStore.getState>['openAIConfigs'],
+) {
   if (!provider) return 'AI';
   return configs.find((config) => provider === `api:${config.id}`)?.name ?? 'AI';
 }
 
 function makeConversationTitle(content: string) {
-  const title = content.split('\n').map((line) => line.trim()).find(Boolean) || '关于当前内容的对话';
+  const title =
+    content
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) || '关于当前内容的对话';
   return title.replace(/\s+/g, ' ').slice(0, 32);
 }
 
@@ -59,7 +71,10 @@ function LearningResourceAiPanel({
   const updateChatSession = useLearningStore((state) => state.updateChatSession);
   const addChatMessage = useLearningStore((state) => state.addChatMessage);
   const chats = useMemo(
-    () => allChats.filter((message) => message.bookId === resourceId && message.conversationId === conversationId),
+    () =>
+      allChats.filter(
+        (message) => message.bookId === resourceId && message.conversationId === conversationId,
+      ),
     [allChats, conversationId, resourceId],
   );
   const currentSession = allSessions.find((session) => session.id === conversationId);
@@ -69,8 +84,15 @@ function LearningResourceAiPanel({
     : undefined;
   const model = selectedConfig?.models.includes(aiPreferences.model)
     ? aiPreferences.model
-    : selectedConfig?.models[0] ?? '';
-  const [status, setStatus] = useState<AiStatus>(() => selectedConfig && model ? 'ready' : 'unavailable');
+    : (selectedConfig?.models[0] ?? '');
+  const reasoningEffort = coerceAiReasoningEffort(
+    aiPreferences.reasoningEffort,
+    selectedConfig,
+    model,
+  );
+  const [status, setStatus] = useState<AiStatus>(() =>
+    selectedConfig && model ? 'ready' : 'unavailable',
+  );
   const [statusMessage, setStatusMessage] = useState('');
   const [quote, setQuote] = useState<{ text: string; chapter: string } | null>(null);
   const [optimisticUserMessage, setOptimisticUserMessage] = useState<{
@@ -98,8 +120,23 @@ function LearningResourceAiPanel({
       return;
     }
     if (!activeJobId) setStatus(selectedConfig && model ? 'ready' : 'unavailable');
-    if (selectedConfig && model !== aiPreferences.model) setAiPreferences({ model });
-  }, [activeJobId, aiPreferences.model, configs, model, provider, selectedConfig, setAiPreferences]);
+    if (
+      selectedConfig &&
+      (model !== aiPreferences.model || reasoningEffort !== aiPreferences.reasoningEffort)
+    ) {
+      setAiPreferences({ model, reasoningEffort });
+    }
+  }, [
+    activeJobId,
+    aiPreferences.model,
+    aiPreferences.reasoningEffort,
+    configs,
+    model,
+    provider,
+    reasoningEffort,
+    selectedConfig,
+    setAiPreferences,
+  ]);
 
   useEffect(() => {
     setQuote(null);
@@ -170,17 +207,20 @@ function LearningResourceAiPanel({
 
   useEffect(() => {
     let disposed = false;
-    void listAiJobs(resourceId, conversationId).then((jobs) => {
-      if (disposed) return;
-      jobs
-        .filter((job) => job.status === 'completed')
-        .sort((left, right) => left.createdAt - right.createdAt)
-        .forEach(applyJob);
-      const runningJob = jobs.find((job) => job.status === 'queued' || job.status === 'running');
-      if (runningJob) applyJob(runningJob);
-    }).catch((error) => {
-      if (!disposed) setStatusMessage(error instanceof Error ? error.message : '无法读取服务端任务');
-    });
+    void listAiJobs(resourceId, conversationId)
+      .then((jobs) => {
+        if (disposed) return;
+        jobs
+          .filter((job) => job.status === 'completed')
+          .sort((left, right) => left.createdAt - right.createdAt)
+          .forEach(applyJob);
+        const runningJob = jobs.find((job) => job.status === 'queued' || job.status === 'running');
+        if (runningJob) applyJob(runningJob);
+      })
+      .catch((error) => {
+        if (!disposed)
+          setStatusMessage(error instanceof Error ? error.message : '无法读取服务端任务');
+      });
     return () => {
       disposed = true;
     };
@@ -197,7 +237,8 @@ function LearningResourceAiPanel({
         const job = await getAiJob(activeJobId);
         if (disposed) return;
         applyJob(job);
-        if (job.status === 'queued' || job.status === 'running') timer = window.setTimeout(poll, 1_000);
+        if (job.status === 'queued' || job.status === 'running')
+          timer = window.setTimeout(poll, 1_000);
       } catch (error) {
         if (disposed) return;
         setActiveJobId(null);
@@ -211,9 +252,13 @@ function LearningResourceAiPanel({
       void poll();
     };
     timer = window.setTimeout(startPolling, 1_000);
-    void watchAiJob(activeJobId, (job) => {
-      if (!disposed) applyJob(job);
-    }, controller.signal).catch((error) => {
+    void watchAiJob(
+      activeJobId,
+      (job) => {
+        if (!disposed) applyJob(job);
+      },
+      controller.signal,
+    ).catch((error) => {
       if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
       startPolling();
     });
@@ -228,8 +273,29 @@ function LearningResourceAiPanel({
     if (status === 'generating' || !Array.isArray(selection) || selection.length < 2) return;
     const nextProvider = String(selection[0]) as AiProvider;
     const nextModel = String(selection[1]);
-    setAiPreferences({ provider: nextProvider, model: nextModel });
-    if (currentSession) updateChatSession(currentSession.id, { provider: nextProvider, model: nextModel });
+    const nextConfig = configs.find((config) => nextProvider === `api:${config.id}`);
+    const nextReasoningEffort = coerceAiReasoningEffort(reasoningEffort, nextConfig, nextModel);
+    setAiPreferences({
+      provider: nextProvider,
+      model: nextModel,
+      reasoningEffort: nextReasoningEffort,
+    });
+    if (currentSession) {
+      updateChatSession(currentSession.id, {
+        provider: nextProvider,
+        model: nextModel,
+        reasoningEffort: nextReasoningEffort,
+      });
+    }
+  };
+
+  const chooseReasoningEffort = (nextValue: typeof reasoningEffort) => {
+    if (status === 'generating') return;
+    const nextReasoningEffort = coerceAiReasoningEffort(nextValue, selectedConfig, model);
+    setAiPreferences({ reasoningEffort: nextReasoningEffort });
+    if (currentSession) {
+      updateChatSession(currentSession.id, { reasoningEffort: nextReasoningEffort });
+    }
   };
 
   const ensureSession = (question: string) => {
@@ -241,6 +307,7 @@ function LearningResourceAiPanel({
       title: makeConversationTitle(question),
       ...(provider ? { provider } : {}),
       ...(model ? { model } : {}),
+      reasoningEffort,
       createdAt: timestamp,
       updatedAt: timestamp,
     });
@@ -288,28 +355,33 @@ function LearningResourceAiPanel({
     setStatusMessage('');
     try {
       await waitForServerStateWrites();
-      applyJob(await startAiJob({
-        configId: selectedConfig.id,
-        model,
-        bookId: resourceId,
-        resourceType: resource.type,
-        ...(resource.type === 'rss' ? { rssItemId: resource.item.id } : { videoId: resource.video.id }),
-        purpose: 'chat',
-        conversationId,
-        userMessage: {
-          id: userMessageId,
-          content: question,
-          ...(quoteForMessage ? { quote: quoteForMessage } : {}),
-          createdAt,
-        },
-        session: {
-          title: currentSession?.title || makeConversationTitle(question),
-          createdAt: currentSession?.createdAt ?? createdAt,
-        },
-        currentText: '',
-      }));
+      applyJob(
+        await startAiJob({
+          configId: selectedConfig.id,
+          model,
+          reasoningEffort: requestReasoningEffort(reasoningEffort),
+          bookId: resourceId,
+          resourceType: resource.type,
+          ...(resource.type === 'rss'
+            ? { rssItemId: resource.item.id }
+            : { videoId: resource.video.id }),
+          purpose: 'chat',
+          conversationId,
+          userMessage: {
+            id: userMessageId,
+            content: question,
+            ...(quoteForMessage ? { quote: quoteForMessage } : {}),
+            createdAt,
+          },
+          session: {
+            title: currentSession?.title || makeConversationTitle(question),
+            createdAt: currentSession?.createdAt ?? createdAt,
+          },
+          currentText: '',
+        }),
+      );
     } catch (error) {
-      setStreamingAssistant((message) => message ? { ...message, status: 'failed' } : null);
+      setStreamingAssistant((message) => (message ? { ...message, status: 'failed' } : null));
       setStatus('error');
       setStatusMessage(error instanceof Error ? error.message : '请求失败');
     }
@@ -340,29 +412,43 @@ function LearningResourceAiPanel({
           chats={dialogueMessages}
           assistantName={providerLabel(provider ?? undefined, configs)}
           emptyTitle={isVideo ? '询问当前视频' : '询问当前内容'}
-          emptyDescription={isVideo ? 'AI 可以读取字幕、结合时间点笔记总结和解释视频' : 'AI 可以读取正文、比较同一订阅源的近期内容，并按需联网核对'}
+          emptyDescription={
+            isVideo
+              ? 'AI 可以读取字幕、结合时间点笔记总结和解释视频'
+              : 'AI 可以读取正文、比较同一订阅源的近期内容，并按需联网核对'
+          }
         />
       </div>
       <AIChatInput
         ref={inputRef}
-        references={quote ? [{
-          id: 'rss-selection',
-          type: 'text',
-          content: `${isVideo ? '字幕引用' : '文章引用'} · ${resourceTitle}：${quote.text}`,
-        }] : []}
+        references={
+          quote
+            ? [
+                {
+                  id: 'rss-selection',
+                  type: 'text',
+                  content: `${isVideo ? '字幕引用' : '文章引用'} · ${resourceTitle}：${quote.text}`,
+                },
+              ]
+            : []
+        }
         showReference
         onReferenceDelete={() => setQuote(null)}
         keepSkillAfterSend={false}
         placeholder={isVideo ? '询问这个视频…' : '询问这篇内容…'}
         canSend={canSend}
         generating={status === 'generating'}
-        onMessageSend={({ inputContents }) => void send(extractInputText(inputContents as Array<Record<string, unknown>>))}
+        onMessageSend={({ inputContents }) =>
+          void send(extractInputText(inputContents as Array<Record<string, unknown>>))
+        }
         onStopGenerate={() => {
           if (!activeJobId) return;
-          void cancelAiJob(activeJobId).then(applyJob).catch((error) => {
-            setStatus('error');
-            setStatusMessage(error instanceof Error ? error.message : '停止任务失败');
-          });
+          void cancelAiJob(activeJobId)
+            .then(applyJob)
+            .catch((error) => {
+              setStatus('error');
+              setStatusMessage(error instanceof Error ? error.message : '停止任务失败');
+            });
         }}
         showUploadButton={false}
         showTemplateButton={false}
@@ -370,22 +456,53 @@ function LearningResourceAiPanel({
         renderTopSlot={() => (
           <div className="ai-composer-context">
             <div className="ai-composer-context__row">
-              <Tooltip content={isVideo ? 'AI 可读取当前视频字幕与时间点笔记' : 'AI 可读取当前 RSS 正文与同一来源的近期内容'} position="topLeft">
-                <div className="ai-book-context" aria-label={`当前${isVideo ? '视频' : ' RSS 内容'}：${resourceTitle}`}>
+              <Tooltip
+                content={
+                  isVideo
+                    ? 'AI 可读取当前视频字幕与时间点笔记'
+                    : 'AI 可读取当前 RSS 正文与同一来源的近期内容'
+                }
+                position="topLeft"
+              >
+                <div
+                  className="ai-book-context"
+                  aria-label={`当前${isVideo ? '视频' : ' RSS 内容'}：${resourceTitle}`}
+                >
                   {isVideo ? <IconVideo size="small" /> : <IconArticle size="small" />}
-                  <Text size="small" ellipsis={{ showTooltip: true }}>{resourceTitle}</Text>
+                  <Text size="small" ellipsis={{ showTooltip: true }}>
+                    {resourceTitle}
+                  </Text>
                 </div>
               </Tooltip>
             </div>
             {(statusMessage || status === 'unavailable') && (
-              <Text size="small" type={status === 'error' ? 'danger' : 'tertiary'} className="ai-composer-message">
+              <Text
+                size="small"
+                type={status === 'error' ? 'danger' : 'tertiary'}
+                className="ai-composer-message"
+              >
                 {statusMessage || '请先到设置页添加 OpenAI 兼容模型。'}
               </Text>
             )}
           </div>
         )}
         renderConfigureArea={() => (
-          <AiModelSelector configs={configs} provider={provider} model={model} disabled={status === 'generating'} onChange={chooseModel} />
+          <>
+            <AiModelSelector
+              configs={configs}
+              provider={provider}
+              model={model}
+              disabled={status === 'generating'}
+              onChange={chooseModel}
+            />
+            <AiReasoningEffortSelector
+              config={selectedConfig}
+              model={model}
+              value={reasoningEffort}
+              disabled={status === 'generating'}
+              onChange={chooseReasoningEffort}
+            />
+          </>
         )}
         className="reader-ai-input rss-ai-input"
       />
@@ -398,7 +515,13 @@ export function RssAiPanel(props: {
   selectedText?: string;
   onClearSelectedText?: () => void;
 }) {
-  return <LearningResourceAiPanel resource={{ type: 'rss', item: props.item }} selectedText={props.selectedText} onClearSelectedText={props.onClearSelectedText} />;
+  return (
+    <LearningResourceAiPanel
+      resource={{ type: 'rss', item: props.item }}
+      selectedText={props.selectedText}
+      onClearSelectedText={props.onClearSelectedText}
+    />
+  );
 }
 
 export function VideoAiPanel(props: {
@@ -406,5 +529,11 @@ export function VideoAiPanel(props: {
   selectedText?: string;
   onClearSelectedText?: () => void;
 }) {
-  return <LearningResourceAiPanel resource={{ type: 'video', video: props.video }} selectedText={props.selectedText} onClearSelectedText={props.onClearSelectedText} />;
+  return (
+    <LearningResourceAiPanel
+      resource={{ type: 'video', video: props.video }}
+      selectedText={props.selectedText}
+      onClearSelectedText={props.onClearSelectedText}
+    />
+  );
 }
