@@ -1822,26 +1822,6 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   min-width: 0;
 }
 
-.ai-composer-reasoning-select__prefix {
-  color: var(--semi-color-text-2);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.ai-reasoning-option {
-  display: flex;
-  width: 100%;
-  min-width: 128px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.ai-reasoning-option code {
-  color: var(--semi-color-text-2);
-  font-size: 11px;
-}
-
 .reader-ai-input .semi-aiChatInput-footer-action {
   flex: 0 0 auto;
 }

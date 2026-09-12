@@ -109,28 +109,21 @@ export function AiReasoningEffortSelector({
     <Tooltip content={profile.description} position="top">
       <span className="ai-composer-reasoning-control">
         <span className="visually-hidden" id={labelId}>
-          选择 AI 推理强度
+          选择 AI 强度
         </span>
         <Select
           aria-labelledby={labelId}
           className="ai-composer-reasoning-select"
           disabled={disabled || profile.kind === 'unsupported'}
-          prefix={
-            <span aria-hidden="true" className="ai-composer-reasoning-select__prefix">
-              推理
-            </span>
-          }
-          renderSelectedItem={() => selectedLabel}
+          renderSelectedItem={() => `强度 · ${selectedLabel}`}
+          showArrow={false}
           size="small"
           value={effectiveValue}
           onChange={(nextValue) => onChange(nextValue as AiReasoningEffort)}
         >
           {profile.options.map((option) => (
             <Select.Option key={option.value} value={option.value}>
-              <span className="ai-reasoning-option">
-                <span>{option.label}</span>
-                <code>{option.value === 'auto' ? 'default' : option.value}</code>
-              </span>
+              {option.label}
             </Select.Option>
           ))}
         </Select>

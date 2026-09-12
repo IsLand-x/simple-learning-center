@@ -223,10 +223,14 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
   expect(desktopReaderCursor).toContain('data:image/svg+xml');
   expect(desktopReaderCursor).toContain('14 14');
   await page.getByRole('button', { name: /打开 AI 助手/ }).click();
-  const reasoningSelector = page.getByRole('combobox', { name: '选择 AI 推理强度' });
+  const reasoningSelector = page.getByRole('combobox', { name: '选择 AI 强度' });
   await expect(reasoningSelector).toBeVisible();
+  await expect(reasoningSelector).toContainText('强度 · 自动');
+  await expect(reasoningSelector).not.toContainText('推理');
+  await expect(reasoningSelector.locator('.semi-select-arrow')).toHaveCount(0);
   await reasoningSelector.click();
-  await page.getByRole('option', { name: 'tick 高 high', exact: true }).click();
+  await page.getByRole('option', { name: 'tick 高', exact: true }).click();
+  await expect(reasoningSelector).toContainText('强度 · 高');
   const editor = page.locator('.reader-ai-input .tiptap');
   await editor.click();
   await editor.pressSequentially('第一段描述');

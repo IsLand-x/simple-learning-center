@@ -57,7 +57,7 @@ export function getAiReasoningProfile(
     return {
       kind: 'unsupported',
       options: [AUTO_OPTION],
-      description: '选择模型后可设置推理强度',
+      description: '选择模型后可设置强度',
     };
   }
 
@@ -90,7 +90,7 @@ export function getAiReasoningProfile(
   return {
     kind: 'openai',
     options: OPENAI_OPTIONS,
-    description: 'OpenAI Compatible：通过 reasoning_effort 控制推理强度',
+    description: 'OpenAI Compatible：通过 reasoning_effort 控制强度',
   };
 }
 
