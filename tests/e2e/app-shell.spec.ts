@@ -313,6 +313,7 @@ test('reader AI highlight questions and in-panel settings persist across desktop
   await expect(page.locator('.reader-ai-input .semi-aiChatInput-reference')).toContainText(
     highlightedText,
   );
+  await expect(page.getByRole('button', { name: '新建 AI 对话' })).toBeVisible();
 
   const shortcuts = page.getByRole('group', { name: 'AI 快捷提示词' });
   await expect(shortcuts).toBeVisible();

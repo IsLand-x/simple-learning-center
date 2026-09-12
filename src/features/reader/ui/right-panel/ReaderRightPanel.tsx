@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { IconPlus, IconSetting } from '@douyinfe/semi-icons';
 import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ReaderAiSettingsDialog } from '../../../../components/ReaderAiSettingsDialog';
-import { useLearningStore } from '../../../../store/useLearningStore';
 import { panelMeta, type ReaderRightPanelProps } from '../../model/rightPanelModel';
 import { AiConversationPanel } from './AiConversationPanel';
 import { BookNotePanel } from './BookNotePanel';
@@ -29,11 +28,6 @@ export function ReaderRightPanel({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const settingsHistoryActiveRef = useRef(false);
   const ActivePanelIcon = panelMeta[activePanel].Icon;
-  const hasCurrentConversation = useLearningStore(
-    (state) =>
-      state.chatSessions.some((session) => session.id === conversationId) ||
-      state.chats.some((message) => message.conversationId === conversationId),
-  );
 
   useEffect(() => {
     if (!mobile) return undefined;
@@ -84,19 +78,17 @@ export function ReaderRightPanel({
         </div>
         {activePanel === 'ai' && (
           <div className="panel-titlebar__actions">
-            {hasCurrentConversation && (
-              <Button
-                aria-label="新建 AI 对话"
-                className="panel-titlebar__new-chat"
-                icon={<IconPlus />}
-                size="small"
-                theme="borderless"
-                type="tertiary"
-                onClick={onStartNewConversation}
-              >
-                新建对话
-              </Button>
-            )}
+            <Button
+              aria-label="新建 AI 对话"
+              className="panel-titlebar__new-chat"
+              icon={<IconPlus />}
+              size="small"
+              theme="borderless"
+              type="tertiary"
+              onClick={onStartNewConversation}
+            >
+              新建对话
+            </Button>
             <Tooltip content="AI 助手设置" position="bottomRight">
               <Button
                 aria-label="打开 AI 助手设置"
