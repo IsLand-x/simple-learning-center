@@ -2,6 +2,7 @@ import 'foliate-js/view.js?learning-center-srcdoc-v1';
 import { Overlayer, type FoliateOverlayRect } from 'foliate-js/overlayer.js';
 import type { FoliateAnnotation, FoliateBook, FoliateRendererContent, View as FoliateView } from 'foliate-js/view.js';
 import { getReaderFontStylesheet, READER_FONT_STACKS } from './readerFonts';
+import { createReaderTextSelectionCursor } from './readerTextCursor';
 import { getReaderTextureStyle, resolveReaderStyle } from './readerThemes';
 import type { HighlightItem, ReaderPreferences } from '../types';
 
@@ -149,9 +150,27 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
   const fontFamily = READER_FONT_STACKS[style.fontFamily];
   const fontStylesheet = getReaderFontStylesheet(style.fontFamily);
   const pagePadding = compactLayout ? 'clamp(12px, 4vw, 18px)' : style.density.pagePadding;
+  const textSelectionCursor = createReaderTextSelectionCursor(style);
   const mobileSelectionStyles = compactLayout
     ? `html, body, body * { -webkit-touch-callout: none !important; }`
     : '';
+  const desktopTextCursorStyles = compactLayout
+    ? ''
+    : `
+      @media (hover: hover) and (pointer: fine) {
+        html, body {
+          cursor: ${textSelectionCursor};
+        }
+        body :where(a, button, input, textarea, select, option, label, summary, img, svg, video, [role="button"], [contenteditable="true"]) {
+          cursor: auto;
+        }
+      }
+      @media (forced-colors: active) {
+        html, body {
+          cursor: text !important;
+        }
+      }
+    `;
   return `
     ${fontStylesheet ? `@import url("${fontStylesheet}");` : ''}
     @namespace epub "http://www.idpf.org/2007/ops";
@@ -184,6 +203,7 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
       -webkit-touch-callout: none !important;
     }
     ${mobileSelectionStyles}
+    ${desktopTextCursorStyles}
     body {
       box-sizing: border-box !important;
       padding-inline: ${pagePadding} !important;

@@ -216,6 +216,12 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
   });
 
   await page.goto('/books/demo-data-intensive');
+  const readerArticle = page.locator('.demo-reader article');
+  const desktopReaderCursor = await readerArticle.evaluate(
+    (element) => getComputedStyle(element).cursor,
+  );
+  expect(desktopReaderCursor).toContain('data:image/svg+xml');
+  expect(desktopReaderCursor).toContain('14 14');
   await page.getByRole('button', { name: /打开 AI 助手/ }).click();
   const reasoningSelector = page.getByRole('combobox', { name: '选择 AI 推理强度' });
   await expect(reasoningSelector).toBeVisible();
@@ -253,6 +259,7 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
   await page.setViewportSize({ width: 375, height: 812 });
   await expect(userBubble).toBeVisible();
   await expectParagraphStack();
+  await expect(readerArticle).toHaveCSS('cursor', 'text');
   expect(Math.round((await reasoningSelector.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(
     44,
   );

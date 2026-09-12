@@ -17,6 +17,7 @@ import { getDemoContent } from '../data/demo';
 import { flattenToc } from '../features/reader/model/readerSurfaceModel';
 import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../lib/readerFonts';
 import { isTextSelectionHold } from '../lib/readerGestures';
+import { createReaderTextSelectionCursor } from '../lib/readerTextCursor';
 import { getReaderTextureStyle, resolveReaderStyle } from '../lib/readerThemes';
 import type {
   BookItem,
@@ -572,6 +573,9 @@ function DemoReader({
     '--reader-callout-color': readerStyle.calloutColor,
     '--reader-highlight-color': readerStyle.highlightColor,
     '--reader-highlight-icon-color': readerStyle.textColor,
+    '--reader-text-selection-cursor': compactLayout
+      ? 'text'
+      : createReaderTextSelectionCursor(readerStyle),
     '--reader-highlight-vertical-padding': `${Math.max(
       0,
       (readerStyle.fontSize * readerStyle.density.lineHeight - readerStyle.fontSize) / 2,

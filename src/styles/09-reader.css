@@ -529,6 +529,18 @@
   padding: clamp(40px, 7vh, 76px) clamp(28px, 6vw, 72px) 88px;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .demo-reader article {
+    cursor: var(--reader-text-selection-cursor, text);
+  }
+}
+
+@media (forced-colors: active) {
+  .demo-reader article {
+    cursor: text;
+  }
+}
+
 .demo-reader article,
 .demo-reader article * {
   color: inherit !important;
