@@ -114,3 +114,7 @@ Web 单元测试位于 `src/**/*.test.{ts,tsx}`，Node 服务端测试当前位�
 凭据以 0600 权限原子写入独立 `ai-oauth.json`，所有写入和刷新在单服务进程内串行，退出与刷新共用队列；同一数据目录不支持多个服务进程并行写入。SDK 错误可能含供应商响应，因此授权和 OAuth 模型失败使用固定的安全错误消息。
 
 模型配置沿用 `LearningState.openAIConfigs` 和 preferences 分区，增加可选的 `oauthProvider` 字段；缺省仍走现有 API Key 协议。默认值、actions、双方分区映射及合并保留原结构，store version 保持 32，因为这是无需转换旧数据的可选字段扩展；迁移测试覆盖旧配置与 OAuth 配置保留。OAuth 模型使用 SDK 原生目录，任务仍由 PiAgent 执行并保留工具调用上限与服务端持久化。
+
+## 运行机器信息
+
+`server/app/systemInfo.mjs` 通过 Node.js `os` 读取运行环境信息，`server/routes/systemInfoRoutes.mjs` 提供只读的 `/api/settings/system-info` 接口，由 `server/app.mjs` 在统一认证 middleware 之后挂载。返回主机名、操作系统、架构、CPU、内存、Node.js 版本和非回环网卡 IP，不返回 MAC 地址或环境变量，也不查询外部服务。数据按请求读取，不写入 LearningState。设置 feature 的 `AboutSettings` 在进入“关于”或手动刷新时请求，离开页面时取消请求；远程访问沿用会话认证。

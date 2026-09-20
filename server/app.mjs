@@ -25,6 +25,7 @@ import { registerAiRoutes } from './routes/aiRoutes.mjs';
 import { registerApiKeyRoutes } from './routes/apiKeyRoutes.mjs';
 import { registerAuthRoutes } from './routes/authRoutes.mjs';
 import { registerBookRoutes } from './routes/bookRoutes.mjs';
+import { registerSystemInfoRoutes } from './routes/systemInfoRoutes.mjs';
 import { registerHealthRoutes } from './routes/healthRoutes.mjs';
 import {
   registerRssArticleRoutes,
@@ -68,6 +69,7 @@ export function createApp({
   registerMcpRoutes(app);
   registerAuthRoutes(app, { auth, mode });
   registerHealthRoutes(app, { mode });
+  registerSystemInfoRoutes(app);
   registerStateRoutes(app, { aiJobs });
   registerApiKeyRoutes(app);
   registerAiOAuthRoutes(app, { oauth });

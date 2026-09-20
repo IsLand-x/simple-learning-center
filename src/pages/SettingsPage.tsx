@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TabPane, Tabs, Typography } from '@douyinfe/semi-ui';
 import {
+  AboutSettings,
   AccountSettings,
   OpenApiSettings,
   McpSettings,
@@ -10,7 +11,6 @@ import {
   ModelSettings,
   WebSearchSettings,
 } from '../features/settings/ui';
-import { appMetadata, formatAppUpdatedAt } from '../lib/appMetadata';
 
 const { Title, Text } = Typography;
 
@@ -77,19 +77,7 @@ export function SettingsPage() {
           <OpenApiSettings />
         </TabPane>
         <TabPane itemKey="about" tab="关于">
-          <section className="settings-about" aria-labelledby="settings-about-title">
-            <div className="settings-about__heading">
-              <div>
-                <Title id="settings-about-title" heading={5}>
-                  软件信息
-                </Title>
-                <Text size="small" type="tertiary">
-                  更新于 {formatAppUpdatedAt(appMetadata.updatedAt)}
-                </Text>
-              </div>
-              <code className="settings-about__version">{appMetadata.version}</code>
-            </div>
-          </section>
+          <AboutSettings />
         </TabPane>
       </Tabs>
     </main>
