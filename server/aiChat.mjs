@@ -1,3 +1,5 @@
+import { statusError } from './errors.mjs';
+import { oauthService } from './aiAuth/service.mjs';
 import { Agent } from '@earendil-works/pi-agent-core';
 import { createModels, createProvider, envApiKeyAuth, Type } from '@earendil-works/pi-ai';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
@@ -554,9 +556,12 @@ export async function runServerAiChat({
   onProgress,
   onNoteChange,
   runtimeFactory = createOpenAICompatiblePiRuntime,
+  oauth = oauthService,
   noteActions = DEFAULT_NOTE_ACTIONS,
 }) {
-  const runtime = runtimeFactory(config, model, reasoningEffort);
+  const runtime = config.oauthProvider
+    ? await oauth.runtime(config.oauthProvider, model, signal)
+    : await runtimeFactory(config, model, reasoningEffort);
   const piModel = runtime.model;
   const trackedNoteActions = {
     readBookNotes: noteActions.readBookNotes,
@@ -619,7 +624,7 @@ export async function runServerAiChat({
       tools,
       messages: requestMessages.slice(0, -1).map((message) => toPiMessage(message, piModel)),
     },
-    getApiKey: () => config.apiKey || undefined,
+    getApiKey: () => config.oauthProvider ? undefined : config.apiKey || undefined,
     sessionId: conversationId,
     maxRetryDelayMs: 30_000,
     toolExecution: 'parallel',
@@ -712,11 +717,17 @@ export async function runServerAiChat({
     const prompt = requestMessages.at(-1);
     if (!prompt || prompt.role !== 'user') throw new Error('AI 对话缺少用户消息');
     await agent.prompt(toPiMessage(prompt, piModel));
+  } catch (error) {
+    // Do not retain SDK error causes: provider responses may contain OAuth tokens.
+    if (config.oauthProvider && !signal?.aborted) throw statusError(502, 'OAuth 模型请求失败，请检查账号额度或在设置中重新登录');
+    throw error;
   } finally {
     signal?.removeEventListener('abort', abortAgent);
   }
   if (signal?.aborted) throw new DOMException('请求已取消', 'AbortError');
-  if (agent.state.errorMessage) throw new Error(errorMessage(agent.state.errorMessage));
+  if (agent.state.errorMessage) throw new Error(config.oauthProvider
+    ? 'OAuth 模型请求失败，请检查账号额度或在设置中重新登录'
+    : errorMessage(agent.state.errorMessage));
 
   const completed = streamEntriesToProgress(entries, 'completed');
   if (!completed.content) {

@@ -1,3 +1,4 @@
+import { OAuthProviders } from './OAuthProviders';
 import { Button, Empty, Typography } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
 import { createUuid } from '../../../lib/uuid';
@@ -44,21 +45,24 @@ export function ModelSettings({ editingConfigId, onEditingConfigChange }: ModelS
           CORS。远程模式请务必启用访问认证和 HTTPS。
         </Text>
       </section>
+      <OAuthProviders />
       <section className="api-config-list" aria-label="AI 模型配置列表">
-        {configs.length ? (
-          configs.map((config) => (
-            <ConfigEditor
-              key={config.id}
-              config={config}
-              editing={editingConfigId === config.id}
-              onEdit={() => onEditingConfigChange(config.id)}
-              onClose={() => onEditingConfigChange(null)}
-            />
-          ))
+        {configs.some((config) => !config.oauthProvider) ? (
+          configs
+            .filter((config) => !config.oauthProvider)
+            .map((config) => (
+              <ConfigEditor
+                key={config.id}
+                config={config}
+                editing={editingConfigId === config.id}
+                onEdit={() => onEditingConfigChange(config.id)}
+                onClose={() => onEditingConfigChange(null)}
+              />
+            ))
         ) : (
           <Empty
-            title="还没有 AI 模型"
-            description="添加一个 OpenAI 兼容模型后，就能在阅读器侧栏开始对话"
+            title="还没有 API Key 模型"
+            description="添加 API Key 模型，或在上方完成账号授权后开始对话"
           />
         )}
       </section>

@@ -106,3 +106,11 @@ Web 单元测试位于 `src/**/*.test.{ts,tsx}`，Node 服务端测试当前位�
 `server/mcp/library.mjs` 编排书架查询与书单编辑；写入复用状态队列，已有书单按 `updatedAt` 保留较新版本，避免过时的浏览器快照覆盖 MCP 修改；书单删除仍走现有客户端行为。未新增持久化状态字段或版本。回收站与 EPUB 导入直接复用已有服务。
 
 设置页直接生成 `type: http`、`url` 与 `headers.Authorization` 配置，不再提供 stdio 脚本或脚本下载路由。HTTP MCP 的 `upload_book` 接收文件名与 Base64（最大 10 MiB）；需要客户端自行读取本地文件。大文件继续通过同一 Token 的二进制 HTTP 上传接口（最大 100 MiB），服务端不会读取客户端传入的本地路径。
+
+## AI 供应商 OAuth
+
+`server/aiAuth/service.mjs` 注册 Pi AI 的 `openai-codex` 与 `kimi-coding` 原生供应商，管理设备码登录、取消、超时和凭据刷新。`server/routes/aiOAuthRoutes.mjs` 提供同源、受应用会话保护的状态与授权接口；前端设置 hook 轮询公开状态，UI 提供官方授权链接。浏览器不接收 access/refresh token。
+
+凭据以 0600 权限原子写入独立 `ai-oauth.json`，所有写入和刷新在单服务进程内串行，退出与刷新共用队列；同一数据目录不支持多个服务进程并行写入。SDK 错误可能含供应商响应，因此授权和 OAuth 模型失败使用固定的安全错误消息。
+
+模型配置沿用 `LearningState.openAIConfigs` 和 preferences 分区，增加可选的 `oauthProvider` 字段；缺省仍走现有 API Key 协议。默认值、actions、双方分区映射及合并保留原结构，store version 保持 32，因为这是无需转换旧数据的可选字段扩展；迁移测试覆盖旧配置与 OAuth 配置保留。OAuth 模型使用 SDK 原生目录，任务仍由 PiAgent 执行并保留工具调用上限与服务端持久化。

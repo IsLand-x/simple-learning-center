@@ -300,6 +300,7 @@ export interface ChatSession {
 }
 
 export interface OpenAICompatibleConfig {
+  oauthProvider?: 'openai-codex' | 'kimi-coding';
   id: string;
   name: string;
   baseUrl: string;

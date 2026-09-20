@@ -105,6 +105,8 @@ npm run verify:full
 - 支持管理多个 OpenAI 兼容供应商和模型。
 - AI 输入区可在模型右侧选择对话级推理强度，并使用 OpenAI Chat Completions 的顶层 `reasoning_effort` 字段发送；“自动”会省略该字段并沿用模型默认值。DeepSeek 与 Kimi K3 使用其原生的低、高、最大档位，Kimi K2.x 因不支持该字段会保持自动。
 - 模型请求由 Node 服务端发出，不受浏览器 CORS 限制，可用于 Kimi for Coding 等不开放浏览器跨域访问的兼容端点。
+- 设置 → AI 模型支持 ChatGPT / Codex 与 Kimi Coding 的 OAuth 设备码登录：点击登录，打开官方授权页并输入设备验证码，返回后自动加入供应商和模型选择器。ChatGPT 需在账号安全设置中启用设备码登录，使用 Codex 权益；Kimi 使用 Kimi Coding 权益。可用模型与额度以账号授权为准。原有 API Key 供应商可以同时保留。
+- OAuth 凭据独立保存在 `data/ai-oauth.json`（仅当前系统用户可读写），由服务端 Pi AI 自动刷新，不返回浏览器，也不包含在 API Key 导出中。设置页支持取消、重新登录和退出；退出仅删除本机服务端授权，保留模型配置与对话。授权等待最多 15 分钟，服务重启后需重新发起未完成的登录；已保存授权可恢复。每家 OAuth 供应商当前支持一个账号，同一数据目录仅运行一个服务进程。
 - 底层使用 PiAgent 编排流式对话、思考片段与多步工具调用；生成过程通过服务端事件流实时推送到页面，并在工具调用接近上限时自动收束为完整回答。
 - 对话以服务端异步任务运行；关闭或刷新网页不会取消生成，重新打开同一对话后会主动补齐期间已经完成的消息，并自动继续显示仍在生成的进度。页面同时使用事件流和低频状态查询收敛完成态，事件流被代理缓冲时也不会一直停在加载状态。
 - 使用 Semi Design AI Chat 展示用户消息、助手消息、模型思考和工具调用过程；发送后会先即时显示用户消息，再进入模型生成状态。
@@ -324,7 +326,7 @@ B站 Cookie 在“设置 → 内容源”中保存到独立的 `source-secrets.j
 - Semi Design、Semi Icons、Allotment
 - Foliate.js、epub.js
 - Zustand、Tiptap Markdown、React Router
-- PiAgent、Pi AI（OpenAI Compatible `/chat/completions`）
+- PiAgent、Pi AI（OpenAI Compatible `/chat/completions`、ChatGPT/Codex OAuth、Kimi Coding OAuth）
 - youtubei.js、YouTube IFrame Player API
 - vite-plugin-pwa
 

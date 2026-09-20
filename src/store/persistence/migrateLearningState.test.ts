@@ -121,3 +121,29 @@ describe('learning state migrations', () => {
     expect(preserved.aiPreferences?.reasoningEffort).toBe('max');
   });
 });
+
+it('preserves API key and additive OAuth configs without changing their state domain', () => {
+  const configs = [
+    {
+      id: 'old',
+      name: '旧供应商',
+      baseUrl: 'https://example.com',
+      apiKey: 'test',
+      models: ['old-model'],
+      createdAt: 1,
+      updatedAt: 1,
+    },
+    {
+      id: 'oauth',
+      oauthProvider: 'openai-codex' as const,
+      name: 'ChatGPT',
+      baseUrl: 'https://chatgpt.com/backend-api',
+      apiKey: '',
+      models: ['test-model'],
+      createdAt: 2,
+      updatedAt: 2,
+    },
+  ];
+  const migrated = migrateLearningState({ openAIConfigs: configs }, 32);
+  expect(migrated.openAIConfigs).toEqual(configs);
+});

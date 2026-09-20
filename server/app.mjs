@@ -1,3 +1,5 @@
+import { oauthService } from './aiAuth/service.mjs';
+import { registerAiOAuthRoutes } from './routes/aiOAuthRoutes.mjs';
 import { join } from 'node:path';
 import { DATA_DIRECTORY } from './config.mjs';
 import { createOpenApiTokenService } from './openapi/token.mjs';
@@ -49,6 +51,7 @@ export function createApp({
   sourceSecrets = sourceSecretsService,
   youtubeVideoFetcher = fetchYouTubeVideo,
   aiJobManager,
+  oauth = oauthService,
   openApiTokenFile = join(DATA_DIRECTORY, 'openapi-token.json'),
 } = {}) {
   const app = new Hono();
@@ -67,6 +70,7 @@ export function createApp({
   registerHealthRoutes(app, { mode });
   registerStateRoutes(app, { aiJobs });
   registerApiKeyRoutes(app);
+  registerAiOAuthRoutes(app, { oauth });
   registerRssFeedRoutes(app, {
     rssFetcher,
     rssSourceFetcher,

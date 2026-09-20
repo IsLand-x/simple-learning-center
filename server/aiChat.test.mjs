@@ -323,3 +323,30 @@ test('PiAgent 在最后一轮关闭工具并按 SDK 生命周期停止', async (
   assert.equal(faux.state.callCount, 16);
   assert.equal(result.content, '已根据现有信息收束回答。');
 });
+
+test('OAuth 对话使用供应商运行时，不把配置中的 API Key 带入请求', async () => {
+  const faux = fauxProvider({ tokensPerSecond: 0 });
+  let requestedOptions;
+  faux.setResponses([(context, options) => {
+    requestedOptions = options;
+    return fauxAssistantMessage('OAuth 对话成功');
+  }]);
+  const result = await runServerAiChat({
+    config: { oauthProvider: 'kimi-coding', apiKey: 'must-not-be-used', baseUrl: 'https://untrusted.invalid' },
+    model: 'oauth-model',
+    oauth: { runtime: async (provider, model) => {
+      assert.equal(provider, 'kimi-coding');
+      assert.equal(model, 'oauth-model');
+      return runtimeFactoryFor(faux)();
+    } },
+    runtimeFactory: () => assert.fail('不应走兼容 API'),
+    conversationId: 'oauth-conversation',
+    messages: [{ role: 'user', content: '你好', createdAt: 1 }],
+    resourceType: 'book',
+    book: { id: 'book', title: '测试', author: '', toc: [] },
+    notes: [], highlights: [], readingSessions: [], webSearchConfig: {},
+    signal: new AbortController().signal,
+  });
+  assert.equal(result.content, 'OAuth 对话成功');
+  assert.notEqual(requestedOptions.apiKey, 'must-not-be-used');
+});
