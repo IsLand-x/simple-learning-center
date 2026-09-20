@@ -504,7 +504,7 @@ export function mutatePersistedState(mutator) {
     await persistState(nextState, false);
     return result;
   });
-  stateWriteQueue = operation.then(() => undefined);
+  stateWriteQueue = operation.then(() => undefined, () => undefined);
   return operation;
 }
 

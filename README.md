@@ -339,3 +339,69 @@ B站 Cookie 在“设置 → 内容源”中保存到独立的 `source-secrets.j
 - AI 能力取决于所配置端点的 OpenAI 兼容程度和模型能力。
 
 协作开发前请阅读 [AGENTS.md](./AGENTS.md)。
+
+### OpenAPI：从外部导入 EPUB
+
+在「设置 → OpenAPI」生成 Token。可在 MCP 设置中重新查看带 Token 的配置，请妥善保存；重新生成或撤销会立即使旧 Token 失效。Token 专用于 `/api/openapi/` 下的开放接口，后续开放能力沿用同一凭据，不可代替浏览器登录或管理设置。本地模式的开放接口也要求 Token。
+
+先打开应用一次完成数据初始化，再调用：
+
+```bash
+# 将 Token 放入当前终端的 LC_OPENAPI_TOKEN 环境变量
+curl --fail-with-body -X POST \
+  'http://127.0.0.1:4174/api/openapi/v1/books?filename=example.epub' \
+  -H "Authorization: Bearer $LC_OPENAPI_TOKEN" \
+  -H 'Content-Type: application/epub+zip' \
+  --data-binary '@example.epub'
+```
+
+请求正文为 EPUB 二进制文件，最大 100 MiB；可选的 `filename` 参数须 URL 编码，默认 `导入书籍.epub`。成功返回 HTTP 201 和 `{ "book": { ... } }`，包含书籍 ID、标题、作者、文件大小和目录。元数据与支持的图片封面在服务端解析并写入现有数据目录，不发送到第三方。导入后刷新书架即可查看，搜索索引继续由现有阅读流程建立。同一文件重复调用会创建多本书籍，客户端不要在结果不明时盲目重试。
+
+错误以 `{ "error": "说明" }` 返回：400 表示空文件、无效 EPUB 或无效文件名；401 表示 Token 缺失、无效或已撤销；409 表示应用数据尚未初始化；413 表示上传超限；415 表示 Content-Type 不支持。ZIP 条目上限 20,000，单个 XML 最大 4 MiB、封面最大 8 MiB；不支持 XML 内部实体声明。支持 EPUB 3 导航与 EPUB 2 NCX 目录，保留目录层级。
+
+Token 及其校验摘要独立保存在 `data/openapi-token.json`（或配置的数据目录），不进入应用状态、浏览器持久化或 API Key 导出；文件权限为 0600。远程模式仍需启用登录认证并使用 HTTPS 反向代理；上传脚本直接使用 Token，无需登录 Cookie。同时提供 MCP 服务，配置方式见下节。
+
+
+### MCP：让 AI 操作书架及导入本机 EPUB
+
+「设置 → MCP」顶部展示带 Token 的配置 JSON，中间按书架模块列出工具。MCP 与 OpenAPI 共用 Token，重新生成或撤销将同时使旧 MCP 配置失效。旧版本仅保存摘要的 Token 仍可验证，但无法恢复明文，需重新生成后才能复制完整配置。
+
+1. 在 **AI 客户端所在电脑**安装 Node.js >=22.19.0。
+2. 在 MCP 设置中下载 `learning-center-mcp.mjs`，将下载后的本机绝对路径填入设置页。
+3. 生成 Token，将页面给出的 JSON 加入支持 stdio 的 MCP 客户端配置，然后重新连接。
+4. 对 AI 说“将本机 `/path/to/book.epub` 导入书架”，即可调用 `upload_book`。脚本流式读取本机文件并上传，最大 100 MiB，无需将整本书编码到模型上下文。修改后刷新应用查看结果；重复导入会创建副本。
+
+配置使用 `mcpServers.learning-center`，其 `command` 为 `node`，`args` 为下载脚本的绝对路径，`env` 中的 `LEARNING_CENTER_MCP_URL` 为当前站点 `/api/openapi/mcp`，`LEARNING_CENTER_MCP_TOKEN` 为设置页生成的 Token。AI 所在电脑必须能访问该地址；`127.0.0.1` 只适用于应用服务也运行在同一电脑的情况。远程访问请使用 HTTPS。配置 JSON 含访问凭据，请仅提供给你选择的 AI 客户端；该客户端可读取书籍元数据、笔记、高亮和评论，并修改书单、上传书籍或移入回收站。
+
+| 工具 | 参数与行为 |
+| --- | --- |
+| `list_book` | `offset` / `limit` 分页，返回书名、作者、0–100 阅读进度、所属书单。 |
+| `edit_book` | `book_id`、完整 `book_list_ids`；只调整所属书单，空数组移出所有书单。 |
+| `list_book_highlight_and_comment` | `book_id`、`offset` / `limit`；返回高亮、评论、原文及位置。 |
+| `read_book_note` | `book_id`、可选 `note_id`、正文 `offset` / `limit`；返回 Markdown 笔记及下一段偏移。 |
+| `trash_book` | `book_id`；进入现有回收站，可恢复，30 天后自动清理。 |
+| `list_book_list` | `offset` / `limit`；列出书单 ID、名称、说明、书籍 ID 和更新时间。 |
+| `edit_book_list` | `book_list_id`、`expected_updated_at`，可修改 `name`、`note`、完整 `book_ids`；仅编辑已有书单，版本冲突需重新查询。 |
+| `upload_book` | 本机 stdio 连接接收 `file_path`（绝对路径），自动流式上传 EPUB。 |
+
+服务端提供标准无会话 Streamable HTTP MCP，地址 `/api/openapi/mcp`，所有请求必须携带 `Authorization: Bearer <Token>`，不接受登录 Cookie 替代。支持标准初始化、工具发现与调用。直接连接 HTTP 的客户端也可调用其他工具；其 `upload_book` 参数为 `file_name` 和 `epub_base64`，上限 10 MiB，建议本机文件使用下载的 stdio 脚本。脚本独立运行、仅依赖 Node.js 内置模块，不需要额外 npm 安装；读取路径发生在客户端电脑，服务器不会读取客户端传入的本地路径。
+
+无桌面 Chrome 的 Linux 环境可安装 Playwright 的无头 Chromium 执行 E2E（默认仍使用 Chrome）：
+
+```bash
+npx playwright install chromium --only-shell
+LEARNING_CENTER_E2E_BROWSER=chromium npm run test:e2e
+```
+
+该模式覆盖桌面与移动视口；它验证 Chromium 行为，不能替代真实移动设备或其他浏览器的兼容性测试。
+
+资源受限时可直接验收生产包，避免同时运行 Vite 开发服务器：
+
+```bash
+npm run build
+LEARNING_CENTER_E2E_BROWSER=chromium LEARNING_CENTER_E2E_PRODUCTION=1 npm run test:e2e
+```
+
+E2E 使用独立临时数据目录，退出时清理，不会修改日常数据。
+
+中文截图验收还需在测试环境安装可用的本机中文字体（例如 Noto Sans CJK SC），否则无头浏览器会把中文渲染成方框。

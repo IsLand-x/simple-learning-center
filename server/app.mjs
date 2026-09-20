@@ -1,3 +1,8 @@
+import { join } from 'node:path';
+import { DATA_DIRECTORY } from './config.mjs';
+import { createOpenApiTokenService } from './openapi/token.mjs';
+import { registerOpenApiRoutes } from './routes/openApiRoutes.mjs';
+import { registerMcpRoutes } from './routes/mcpRoutes.mjs';
 import { Hono } from 'hono';
 import { createAiJobManager } from './aiJobs.mjs';
 import { createAuthService } from './auth.mjs';
@@ -44,6 +49,7 @@ export function createApp({
   sourceSecrets = sourceSecretsService,
   youtubeVideoFetcher = fetchYouTubeVideo,
   aiJobManager,
+  openApiTokenFile = join(DATA_DIRECTORY, 'openapi-token.json'),
 } = {}) {
   const app = new Hono();
   const auth = createAuthService({
@@ -53,7 +59,10 @@ export function createApp({
   });
   const aiJobs = aiJobManager || createAiJobManager({ runChat: aiJobRunner });
 
-  registerApiMiddleware(app, { auth, mode });
+  const openApiTokens = createOpenApiTokenService(openApiTokenFile);
+  registerApiMiddleware(app, { auth, mode, openApiTokens });
+  registerOpenApiRoutes(app, { openApiTokens });
+  registerMcpRoutes(app);
   registerAuthRoutes(app, { auth, mode });
   registerHealthRoutes(app, { mode });
   registerStateRoutes(app, { aiJobs });

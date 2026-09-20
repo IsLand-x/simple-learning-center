@@ -76,10 +76,12 @@ export function protectBookTrashStateFromClient(persistedState, currentPersisted
   }
 
   const activeBookIds = new Set(protectedState.state.books.map((book) => book.id));
-  protectedState.state.bookLists = stateArray(protectedState.state, 'bookLists').map((bookList) => ({
-    ...bookList,
-    bookIds: stateArray(bookList, 'bookIds').filter((bookId) => activeBookIds.has(bookId)),
-  }));
+  const currentLists = new Map(stateArray(currentPersistedState.state, 'bookLists').map((list) => [list.id, list]));
+  protectedState.state.bookLists = stateArray(protectedState.state, 'bookLists').map((bookList) => {
+    const currentList = currentLists.get(bookList.id);
+    const latest = currentList && currentList.updatedAt > bookList.updatedAt ? currentList : bookList;
+    return { ...latest, bookIds: stateArray(latest, 'bookIds').filter((bookId) => activeBookIds.has(bookId)) };
+  });
   protectedState.version = Math.max(incomingVersion, currentVersion, BOOK_TRASH_STATE_VERSION);
   return protectedState;
 }

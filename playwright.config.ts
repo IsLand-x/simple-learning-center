@@ -8,7 +8,7 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: 'http://127.0.0.1:15173',
-    channel: 'chrome',
+    channel: process.env.LEARNING_CENTER_E2E_BROWSER === 'chromium' ? undefined : 'chrome',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
@@ -19,7 +19,7 @@ export default defineConfig({
     },
     {
       name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'], channel: 'chrome' },
+      use: { ...devices['Pixel 5'] },
     },
   ],
   webServer: {

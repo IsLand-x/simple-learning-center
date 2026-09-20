@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { TabPane, Tabs, Typography } from '@douyinfe/semi-ui';
 import {
   AccountSettings,
+  OpenApiSettings,
+  McpSettings,
   AiAssistantSettings,
   ApiKeyTransferActions,
   ContentSourceSettings,
@@ -67,6 +69,12 @@ export function SettingsPage() {
             </Text>
           </section>
           <WebSearchSettings />
+        </TabPane>
+        <TabPane itemKey="mcp" tab="MCP">
+          <McpSettings />
+        </TabPane>
+        <TabPane itemKey="openapi" tab="OpenAPI">
+          <OpenApiSettings />
         </TabPane>
         <TabPane itemKey="about" tab="关于">
           <section className="settings-about" aria-labelledby="settings-about-title">

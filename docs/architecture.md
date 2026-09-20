@@ -91,3 +91,18 @@ npm run test:e2e
 Web 单元测试位于 `src/**/*.test.{ts,tsx}`，Node 服务端测试当前位于 `server/*.test.mjs`，Playwright E2E 位于 `tests/e2e/`。lint 保持 0 warning；TypeScript 拒绝未使用局部变量和参数；Knip 检查不可达文件、无消费者导出和未使用依赖。新增或重构目录必须纳入 `format:check`，独立运行入口必须在 `knip.json` 中精确登记。
 
 `knip.json` 中的 `scripts/start-e2e-server.mjs` 由 Playwright `webServer` 间接启动，`public/server/index.js` 是 Sites/Cloudflare 托管入口；两者不是应用静态 import 图的一部分，因此作为独立入口登记。
+
+### OpenAPI 导入边界
+
+`server/openapi/` 负责独立 Token 凭据持久化、受限 ZIP/XML 元数据读取及 EPUB 入库；`server/routes/openApiRoutes.mjs` 负责设置管理和版本化 HTTP transport，由 `server/app.mjs` 统一装配。`/api/openapi/*` 在通用 middleware 中强制 Bearer 鉴权，不接受登录 Cookie 作为替代；Token 不授权其他 `/api/*` 路由。设置管理沿用本地/远程登录边界，并要求同源请求与自定义请求头。
+
+导入复用受限流式文件写入和 `mutatePersistedState` 队列，失败清理 EPUB 与封面；状态至少提升到已有版本 25，以复用服务端书籍生命周期合并保护。未新增 LearningState 字段或状态分区。Token 文件独立于 `state.json`，保留明文以供已授权设置页生成 MCP 配置，同时使用摘要校验；浏览器仅在组件内存中使用凭据。
+
+
+### MCP 服务与本机文件连接
+
+`server/mcp/server.mjs` 使用官方 MCP SDK 注册书架工具及 Zod 参数校验；`server/routes/mcpRoutes.mjs` 通过 Web Standard Streamable HTTP transport 接入 Hono，按请求创建无会话服务并在响应完成后释放。鉴权复用 OpenAPI middleware，设置与私有 API 不接受该 Bearer 凭据。
+
+`server/mcp/library.mjs` 编排书架查询与书单编辑；写入复用状态队列，已有书单按 `updatedAt` 保留较新版本，避免过时的浏览器快照覆盖 MCP 修改；书单删除仍走现有客户端行为。未新增持久化状态字段或版本。回收站与 EPUB 导入直接复用已有服务。
+
+`server/mcp/local-client.mjs` 是可下载的独立 stdio 入口（已精确登记于 `knip.json`）。它代理 MCP JSON-RPC，仅将 `upload_book` 适配为本机 `file_path`，使用 Node 内置文件流上传，不把书籍 Base64 放进模型上下文；其他工具交给服务端 SDK 校验与执行。此文件必须保持无第三方运行依赖，stdout 仅用于 MCP 消息。

@@ -471,3 +471,61 @@
   gap: 8px;
   padding-top: 2px;
 }
+
+.openapi-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.openapi-settings__token,
+.openapi-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.openapi-settings__token .settings-field {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 800px) {
+  .openapi-settings .semi-button { min-height: 44px; }
+  .openapi-settings .semi-input { font-size: 16px; }
+}
+
+.mcp-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  color: var(--semi-color-text-0);
+}
+.mcp-settings .account-settings { width: 100%; min-width: 0; }
+.mcp-settings h5 { margin: 0; }
+.mcp-settings__config {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--semi-color-bg-0);
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-small);
+  font-family: var(--semi-font-family-monospace);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.mcp-settings__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.mcp-settings__tools { list-style: none; padding: 0; margin: 0; }
+.mcp-settings__tools li { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; min-width: 0; overflow-wrap: anywhere; }
+.mcp-settings__tools li + li { border-top: 1px solid var(--semi-color-border); }
+.mcp-settings__tools code { color: var(--semi-color-text-1); font-family: var(--semi-font-family-monospace); font-size: 13px; }
+@media (max-width: 800px) {
+  .mcp-settings .semi-button { min-height: 44px; }
+  .mcp-settings .semi-input { font-size: 16px; }
+}
