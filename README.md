@@ -366,12 +366,25 @@ Token 及其校验摘要独立保存在 `data/openapi-token.json`（或配置的
 
 「设置 → MCP」顶部展示带 Token 的配置 JSON，中间按书架模块列出工具。MCP 与 OpenAPI 共用 Token，重新生成或撤销将同时使旧 MCP 配置失效。旧版本仅保存摘要的 Token 仍可验证，但无法恢复明文，需重新生成后才能复制完整配置。
 
-1. 在 **AI 客户端所在电脑**安装 Node.js >=22.19.0。
-2. 在 MCP 设置中下载 `learning-center-mcp.mjs`，将下载后的本机绝对路径填入设置页。
-3. 生成 Token，将页面给出的 JSON 加入支持 stdio 的 MCP 客户端配置，然后重新连接。
-4. 对 AI 说“将本机 `/path/to/book.epub` 导入书架”，即可调用 `upload_book`。脚本流式读取本机文件并上传，最大 100 MiB，无需将整本书编码到模型上下文。修改后刷新应用查看结果；重复导入会创建副本。
+1. 在「设置 → MCP」生成 Token，复制顶部 JSON。
+2. 将 JSON 加入支持 **Streamable HTTP 与自定义请求头**的 MCP 客户端，重新连接；无需安装 Node.js 或下载脚本。
+3. 对 AI 说“列出我的书籍”即可调用工具。修改后刷新应用查看结果；重复导入会创建副本。
 
-配置使用 `mcpServers.learning-center`，其 `command` 为 `node`，`args` 为下载脚本的绝对路径，`env` 中的 `LEARNING_CENTER_MCP_URL` 为当前站点 `/api/openapi/mcp`，`LEARNING_CENTER_MCP_TOKEN` 为设置页生成的 Token。AI 所在电脑必须能访问该地址；`127.0.0.1` 只适用于应用服务也运行在同一电脑的情况。远程访问请使用 HTTPS。配置 JSON 含访问凭据，请仅提供给你选择的 AI 客户端；该客户端可读取书籍元数据、笔记、高亮和评论，并修改书单、上传书籍或移入回收站。
+配置使用 `mcpServers.learning-center`，例如：
+
+```json
+{
+  "mcpServers": {
+    "learning-center": {
+      "type": "http",
+      "url": "https://你的域名/api/openapi/mcp",
+      "headers": { "Authorization": "Bearer <Token>" }
+    }
+  }
+}
+```
+
+不同客户端的配置格式可能不同；若客户端单独填写连接信息，选择 Streamable HTTP，填入 URL 和 Authorization 请求头。AI 客户端必须能访问该地址；`127.0.0.1` 只适用于应用服务也运行在同一电脑的情况。远程访问请使用 HTTPS。配置 JSON 含访问凭据，请仅提供给你选择的 AI 客户端；该客户端可读取书籍元数据、笔记、高亮和评论，并修改书单、上传书籍或移入回收站。旧 stdio 配置请替换为页面中的 HTTP 配置。
 
 | 工具 | 参数与行为 |
 | --- | --- |
@@ -382,9 +395,11 @@ Token 及其校验摘要独立保存在 `data/openapi-token.json`（或配置的
 | `trash_book` | `book_id`；进入现有回收站，可恢复，30 天后自动清理。 |
 | `list_book_list` | `offset` / `limit`；列出书单 ID、名称、说明、书籍 ID 和更新时间。 |
 | `edit_book_list` | `book_list_id`、`expected_updated_at`，可修改 `name`、`note`、完整 `book_ids`；仅编辑已有书单，版本冲突需重新查询。 |
-| `upload_book` | 本机 stdio 连接接收 `file_path`（绝对路径），自动流式上传 EPUB。 |
+| `upload_book` | `file_name` 和 `epub_base64`（不带 data: 前缀），最大 10 MiB。 |
 
-服务端提供标准无会话 Streamable HTTP MCP，地址 `/api/openapi/mcp`，所有请求必须携带 `Authorization: Bearer <Token>`，不接受登录 Cookie 替代。支持标准初始化、工具发现与调用。直接连接 HTTP 的客户端也可调用其他工具；其 `upload_book` 参数为 `file_name` 和 `epub_base64`，上限 10 MiB，建议本机文件使用下载的 stdio 脚本。脚本独立运行、仅依赖 Node.js 内置模块，不需要额外 npm 安装；读取路径发生在客户端电脑，服务器不会读取客户端传入的本地路径。
+服务端提供标准无会话 Streamable HTTP MCP，地址 `/api/openapi/mcp`，所有请求必须携带 `Authorization: Bearer <Token>`，不接受登录 Cookie 替代。支持标准初始化、工具发现与调用。
+
+**本机文件导入限制：** HTTP 服务无法读取 AI 电脑上的本地路径。AI 客户端必须具备文件读取能力，将 EPUB 编码后调用 `upload_book`；文件内容可能进入该客户端的工具调用上下文。较大文件或希望避免 Base64 上下文开销时，可让具备终端或 HTTP 文件上传能力的 AI 使用上节的 `curl --data-binary` 示例，携带同一 Token 直接上传，最大 100 MiB，无需额外连接脚本。仅支持远程 MCP 调用、没有本地文件读取能力的客户端不能直接导入电脑上的文件。
 
 无桌面 Chrome 的 Linux 环境可安装 Playwright 的无头 Chromium 执行 E2E（默认仍使用 Chrome）：
 

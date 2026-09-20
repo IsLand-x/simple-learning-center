@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { importBook } from '../openapi/importBook.mjs';
 import { methodNotAllowed } from '../app/http.mjs';
 
@@ -18,11 +17,6 @@ export function registerOpenApiRoutes(app, { openApiTokens }) {
     if (c.req.method !== 'GET' && c.req.header('x-learning-center-request') !== '1')
       return c.json({ error: '缺少设置请求标识' }, 403);
     return next();
-  });
-  app.get(`${tokenPath}/mcp-client`, async (c) => {
-    c.header('Content-Type', 'text/javascript; charset=utf-8');
-    c.header('Content-Disposition', 'attachment; filename="learning-center-mcp.mjs"');
-    return c.body(await readFile(new URL('../mcp/local-client.mjs', import.meta.url), 'utf8'));
   });
   app.get(`${tokenPath}/mcp`, async (c) => c.json(await openApiTokens.reveal()));
   app.get(tokenPath, async (c) => c.json(await openApiTokens.status()));

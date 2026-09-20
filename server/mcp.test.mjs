@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { serve } from '@hono/node-server';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const directory = await mkdtemp(join(tmpdir(), 'learning-mcp-'));
@@ -14,7 +13,7 @@ const { createApp } = await import('./app.mjs');
 const { writePersistedState, readPersistedState } = await import('./storage.mjs');
 after(() => rm(directory, { force: true, recursive: true }));
 
-test('MCP HTTP 与本机 stdio 连接可调用全部书架工具，并保持权限和数据隔离', async () => {
+test('MCP HTTP 直连可调用全部书架工具，并保持权限和数据隔离', async () => {
   const app = createApp({ mode: 'local', serveFrontend: false });
   await writePersistedState({ version: 25, state: { books: [{ id: 'b1', title: '测试书', kind: 'epub', progress: 42, updatedAt: 1 }], bookLists: [{ id: 'l1', name: '学习', note: '', bookIds: [], createdAt: 1, updatedAt: 1 }], notes: [{ id: 'n1', bookId: 'b1', title: '笔记', content: 'abcdef', updatedAt: 1 }], highlights: [{ id: 'h1', bookId: 'b1', text: '摘录', comment: '见解', kind: 'highlight', updatedAt: 1 }] } });
   const tokenPath = '/api/settings/openapi-token';
@@ -22,9 +21,6 @@ test('MCP HTTP 与本机 stdio 连接可调用全部书架工具，并保持权�
   assert.equal((await app.request('/api/openapi/mcp', { method: 'POST' })).status, 401);
   assert.equal((await app.request('/api/openapi/mcp', { method: 'POST', headers: { Authorization: `Bearer ${token}`, Origin: 'https://other.example' } })).status, 403);
   assert.equal((await (await app.request(`${tokenPath}/mcp`)).json()).token, token);
-  const downloaded = await (await app.request(`${tokenPath}/mcp-client`)).text();
-  assert.match(downloaded, /LEARNING_CENTER_MCP_TOKEN/);
-  assert.ok(!downloaded.includes(token));
   const malformed = await app.request('/api/openapi/mcp', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{invalid' });
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error.code, -32700);
@@ -34,7 +30,6 @@ test('MCP HTTP 与本机 stdio 连接可调用全部书架工具，并保持权�
   await new Promise((resolve) => http.once('listening', resolve));
   const url = `http://127.0.0.1:${http.address().port}/api/openapi/mcp`;
   const client = new Client({ name: 'test', version: '1.0.0' });
-  const bridge = new Client({ name: 'local-test', version: '1.0.0' });
   try {
     await client.connect(new StreamableHTTPClientTransport(new URL(url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
     const tools = await client.listTools();
@@ -59,21 +54,16 @@ test('MCP HTTP 与本机 stdio 连接可调用全部书架工具，并保持权�
     assert.equal(note.content, 'bcd'); assert.equal(note.nextOffset, 4);
     const fixture = await readFile(new URL('../tests/fixtures/openapi-sample.epub', import.meta.url));
     assert.equal((await call('upload_book', { file_name: 'sample.epub', epub_base64: fixture.toString('base64') })).book.title, '接口测试书籍');
-    await bridge.connect(new StdioClientTransport({ command: process.execPath, args: [resolve('server/mcp/local-client.mjs')], env: { LEARNING_CENTER_MCP_URL: url, LEARNING_CENTER_MCP_TOKEN: token }, stderr: 'pipe' }));
-    const localTools = await bridge.listTools();
-    assert.deepEqual(localTools.tools.find((tool) => tool.name === 'upload_book').inputSchema.required, ['file_path']);
-    const imported = await bridge.callTool({ name: 'upload_book', arguments: { file_path: resolve('tests/fixtures/openapi-sample.epub') } });
-    assert.ok(!imported.isError, JSON.stringify(imported));
-    assert.equal(imported.structuredContent.book.title, '接口测试书籍');
-    assert.equal((await bridge.callTool({ name: 'upload_book', arguments: { file_path: 'relative.epub' } })).isError, true);
+    assert.equal((await client.callTool({ name: 'upload_book', arguments: { file_path: '/tmp/book.epub' } })).isError, true);
+    assert.equal((await client.callTool({ name: 'upload_book', arguments: { file_name: 'bad.epub', epub_base64: 'invalid=' } })).isError, true);
     await call('trash_book', { book_id: 'b1' });
     assert.equal((await call('list_book')).items.some((book) => book.id === 'b1'), false);
     assert.equal((await readPersistedState()).state.trashedBooks[0].book.id, 'b1');
     assert.equal((await client.callTool({ name: 'read_book_note', arguments: { book_id: 'b1' } })).isError, true);
     await app.request(tokenPath, { method: 'DELETE', headers: { 'X-Learning-Center-Request': '1' } });
-    assert.equal((await bridge.callTool({ name: 'list_book', arguments: {} })).isError, true);
+    await assert.rejects(client.callTool({ name: 'list_book', arguments: {} }));
   } finally {
-    await bridge.close(); await client.close();
+    await client.close();
     http.closeAllConnections();
     await new Promise((resolve) => http.close(resolve));
   }

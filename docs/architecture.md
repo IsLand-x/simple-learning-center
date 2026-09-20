@@ -99,10 +99,10 @@ Web 单元测试位于 `src/**/*.test.{ts,tsx}`，Node 服务端测试当前位�
 导入复用受限流式文件写入和 `mutatePersistedState` 队列，失败清理 EPUB 与封面；状态至少提升到已有版本 25，以复用服务端书籍生命周期合并保护。未新增 LearningState 字段或状态分区。Token 文件独立于 `state.json`，保留明文以供已授权设置页生成 MCP 配置，同时使用摘要校验；浏览器仅在组件内存中使用凭据。
 
 
-### MCP 服务与本机文件连接
+### MCP HTTP 直连
 
 `server/mcp/server.mjs` 使用官方 MCP SDK 注册书架工具及 Zod 参数校验；`server/routes/mcpRoutes.mjs` 通过 Web Standard Streamable HTTP transport 接入 Hono，按请求创建无会话服务并在响应完成后释放。鉴权复用 OpenAPI middleware，设置与私有 API 不接受该 Bearer 凭据。
 
 `server/mcp/library.mjs` 编排书架查询与书单编辑；写入复用状态队列，已有书单按 `updatedAt` 保留较新版本，避免过时的浏览器快照覆盖 MCP 修改；书单删除仍走现有客户端行为。未新增持久化状态字段或版本。回收站与 EPUB 导入直接复用已有服务。
 
-`server/mcp/local-client.mjs` 是可下载的独立 stdio 入口（已精确登记于 `knip.json`）。它代理 MCP JSON-RPC，仅将 `upload_book` 适配为本机 `file_path`，使用 Node 内置文件流上传，不把书籍 Base64 放进模型上下文；其他工具交给服务端 SDK 校验与执行。此文件必须保持无第三方运行依赖，stdout 仅用于 MCP 消息。
+设置页直接生成 `type: http`、`url` 与 `headers.Authorization` 配置，不再提供 stdio 脚本或脚本下载路由。HTTP MCP 的 `upload_book` 接收文件名与 Base64（最大 10 MiB）；需要客户端自行读取本地文件。大文件继续通过同一 Token 的二进制 HTTP 上传接口（最大 100 MiB），服务端不会读取客户端传入的本地路径。

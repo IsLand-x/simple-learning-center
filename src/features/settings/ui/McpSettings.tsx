@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Button, Input, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Toast, Typography } from '@douyinfe/semi-ui';
 import { confirmDialog } from '../../../lib/confirmDialog';
 import { requestOpenApiToken } from '../application/openApiToken';
-import {
-  downloadMcpClient,
-  libraryMcpTools,
-  mcpConfig,
-  readMcpToken,
-} from '../application/mcpConfig';
+import { libraryMcpTools, mcpConfig, readMcpToken } from '../application/mcpConfig';
 
 const { Title, Text } = Typography;
 
@@ -16,9 +11,7 @@ export function McpSettings() {
     configured: boolean;
     token: string | null;
   } | null>(null);
-  const [scriptPath, setScriptPath] = useState('');
   const [busy, setBusy] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
@@ -33,11 +26,7 @@ export function McpSettings() {
       active = false;
     };
   }, []);
-  const config = mcpConfig(
-    window.location.origin,
-    credentials?.token || '<请先生成 Token>',
-    scriptPath.trim() || '<本机连接脚本的绝对路径>',
-  );
+  const config = mcpConfig(window.location.origin, credentials?.token || '<请先生成 Token>');
   async function update(method: 'POST' | 'DELETE' | 'GET') {
     setBusy(true);
     setError('');
@@ -73,7 +62,7 @@ export function McpSettings() {
         <div className="mcp-settings__actions">
           <Button
             theme="solid"
-            disabled={!credentials?.token || busy || !scriptPath.trim()}
+            disabled={!credentials?.token || busy}
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(config);
@@ -126,35 +115,16 @@ export function McpSettings() {
             重试
           </Button>
         )}
-        <label className="settings-field">
-          <Text strong>本机连接脚本路径</Text>
-          <Input
-            aria-label="本机连接脚本路径"
-            placeholder="例如 /Users/me/Downloads/learning-center-mcp.mjs"
-            value={scriptPath}
-            onChange={setScriptPath}
-          />
-        </label>
         <Text type="tertiary">
-          在 AI 所在电脑安装 Node.js 22.19 或更新版本，下载连接脚本，将其绝对路径填入上方，然后把
-          JSON 加入支持 stdio 的 MCP 客户端配置。文件由本机脚本上传，无需把书籍正文放入模型上下文。
+          将 JSON 加入支持 Streamable HTTP 和自定义请求头的 MCP 客户端配置，即可直接连接，无需安装
+          Node.js 或下载本地脚本。若客户端单独填写连接信息，使用 JSON 中的 URL 和 Authorization
+          请求头。
         </Text>
-        <Button
-          loading={downloading}
-          disabled={downloading}
-          onClick={async () => {
-            setDownloading(true);
-            try {
-              await downloadMcpClient();
-            } catch (reason) {
-              Toast.error(reason instanceof Error ? reason.message : '下载连接脚本失败');
-            } finally {
-              setDownloading(false);
-            }
-          }}
-        >
-          下载本地连接脚本
-        </Button>
+        <Text type="tertiary">
+          导入本机 EPUB 时，AI 客户端需先读取文件，再将文件名和 Base64 内容传给 upload_book（最大 10
+          MiB）。较大文件可携带同一 Token 调用 POST /api/openapi/v1/books，使用 application/epub+zip
+          直接上传文件（最大 100 MiB）。服务端无法读取客户端的本地路径。
+        </Text>
         <Text type="tertiary" size="small">
           配置包含访问书架、笔记、高亮和评论的凭据，请妥善保存。Token
           仅保存在服务器数据目录；远程连接使用 HTTPS，客户端必须能访问配置中的服务地址。

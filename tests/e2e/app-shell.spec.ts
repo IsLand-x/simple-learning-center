@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import {
   DEFAULT_READER_AI_ASSISTANT_PROMPT,
@@ -562,29 +561,21 @@ test('MCP settings show reusable token config and library tools', async ({ page 
   const panel = page.locator('.mcp-settings');
   await panel.getByRole('button', { name: '生成 Token', exact: true }).click();
   await expect(panel.getByLabel('MCP 配置 JSON')).toContainText('lc_');
-  await panel
-    .getByRole('textbox', { name: '本机连接脚本路径' })
-    .fill('/home/me/learning-center-mcp.mjs');
   await expect(panel.getByRole('button', { name: '复制配置 JSON' })).toBeEnabled();
   await expect(panel.locator('.mcp-settings__tools li')).toHaveCount(8);
   const config = JSON.parse(await panel.getByLabel('MCP 配置 JSON').innerText());
-  const token = config.mcpServers['learning-center'].env.LEARNING_CENTER_MCP_TOKEN;
-  expect(config.mcpServers['learning-center'].args).toEqual(['/home/me/learning-center-mcp.mjs']);
-  const response = await page.request.post('/api/openapi/mcp', {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json, text/event-stream' },
+  const connection = config.mcpServers['learning-center'];
+  const token = connection.headers.Authorization.slice('Bearer '.length);
+  expect(connection.type).toBe('http');
+  expect(connection.url).toBe(new URL('/api/openapi/mcp', page.url()).href);
+  expect(connection.command).toBeUndefined();
+  await expect(panel.getByRole('button', { name: '下载本地连接脚本' })).toHaveCount(0);
+  const response = await page.request.post(connection.url, {
+    headers: { ...connection.headers, Accept: 'application/json, text/event-stream' },
     data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
   });
   expect(response.ok()).toBe(true);
   expect((await response.json()).result.tools).toHaveLength(8);
-  const downloaded = page.waitForEvent('download');
-  await panel.getByRole('button', { name: '下载本地连接脚本' }).click();
-  const download = await downloaded;
-  expect(download.suggestedFilename()).toBe('learning-center-mcp.mjs');
-  expect(await download.failure()).toBeNull();
-  const script = await readFile((await download.path())!, 'utf8');
-  expect(script).toContain('LEARNING_CENTER_MCP_TOKEN');
-  expect(script).not.toContain('<!doctype html>');
-  expect(script).not.toContain(token);
   for (const theme of ['light', 'dark'] as const) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await selectTheme(page, theme);

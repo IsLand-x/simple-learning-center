@@ -1,18 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { libraryMcpTools, mcpConfig } from './mcpConfig';
 
-describe('MCP 本机连接配置', () => {
-  it('正确转义本机路径并将 Token 放入连接进程环境', () => {
-    const value = JSON.parse(
-      mcpConfig('https://reading.example', 'test-token', 'C:\\我的书籍\\learning-center-mcp.mjs'),
-    );
+describe('MCP HTTP 连接配置', () => {
+  it('使用 HTTP URL 和 Bearer 请求头直接连接', () => {
+    const value = JSON.parse(mcpConfig('https://reading.example', 'test-token'));
     expect(value.mcpServers['learning-center']).toEqual({
-      command: 'node',
-      args: ['C:\\我的书籍\\learning-center-mcp.mjs'],
-      env: {
-        LEARNING_CENTER_MCP_URL: 'https://reading.example/api/openapi/mcp',
-        LEARNING_CENTER_MCP_TOKEN: 'test-token',
-      },
+      type: 'http',
+      url: 'https://reading.example/api/openapi/mcp',
+      headers: { Authorization: 'Bearer test-token' },
     });
     expect(libraryMcpTools.map(([name]) => name)).toEqual([
       'list_book',
