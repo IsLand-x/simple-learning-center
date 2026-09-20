@@ -39,6 +39,7 @@ interface ReaderMobileChromeProps {
   onPrev: () => void;
   onResumeConversation: (session: ChatSession) => void;
   onSelectToc: (item: TocItem) => void;
+  onReturnToProgress?: () => void;
   onStartNewConversation: () => void;
   onToggleToc: () => void;
   onUpdatePreferences: (changes: Partial<ReaderPreferences>) => void;
@@ -63,6 +64,7 @@ export function ReaderMobileChrome({
   onPrev,
   onResumeConversation,
   onSelectToc,
+  onReturnToProgress,
   onStartNewConversation,
   onToggleToc,
   onUpdatePreferences,
@@ -103,6 +105,7 @@ export function ReaderMobileChrome({
           activeHref={activeHref}
           currentPage={book.currentPage}
           progress={book.progress}
+          onReturnToProgress={onReturnToProgress}
           onSelect={onSelectToc}
         />
       </SideSheet>

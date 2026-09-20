@@ -1936,3 +1936,24 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   height: 100%;
   background: var(--semi-color-bg-0);
 }
+
+.toc-panel__return {
+  flex: 0 0 auto;
+  padding: 8px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: var(--semi-color-bg-1);
+}
+
+.toc-panel__return .semi-button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.reading-total-card__estimate {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}

@@ -3,9 +3,14 @@ import { Empty, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { useLearningStore } from '../../../../store/useLearningStore';
 import { dateKey, formatDuration } from '../../model/rightPanelModel';
 
+import { estimateRemainingReadingMs } from '../../model/readingEstimate';
+
 const { Text } = Typography;
 
 export function ReadingTrajectoryPanel({ bookId }: { bookId: string }) {
+  const progress = useLearningStore(
+    (state) => state.books.find((book) => book.id === bookId)?.progress ?? 0,
+  );
   const allSessions = useLearningStore((state) => state.readingSessions);
   const sessions = useMemo(
     () =>
@@ -50,6 +55,7 @@ export function ReadingTrajectoryPanel({ bookId }: { bookId: string }) {
     return Array.from(groups.values()).sort((left, right) => right.startedAt - left.startedAt);
   }, [sessions]);
   const total = sessions.reduce((sum, session) => sum + session.durationMs, 0);
+  const remaining = estimateRemainingReadingMs(total, progress);
   const heatmap = useMemo(() => {
     const totals = new Map(dailyHistory.map((day) => [day.key, day.durationMs]));
     const today = new Date();
@@ -100,6 +106,20 @@ export function ReadingTrajectoryPanel({ bookId }: { bookId: string }) {
           累计阅读时间
         </Text>
         <strong>{formatDuration(total)}</strong>
+        <div className="reading-total-card__estimate">
+          <Tooltip content="按累计阅读时间和当前进度估算剩余时间；跳读或重读会影响结果。至少阅读 1 分钟且进度达到 1% 后显示。">
+            <Text size="small" type="tertiary">
+              预计阅读时间
+            </Text>
+          </Tooltip>
+          <Text>
+            {remaining === null
+              ? '待估算'
+              : remaining === 0
+                ? '已读完'
+                : `还需约 ${formatDuration(remaining)}`}
+          </Text>
+        </div>
         <Text size="small" type="tertiary">
           共阅读 {dailyHistory.length} 天 · {sessions.length} 次
         </Text>

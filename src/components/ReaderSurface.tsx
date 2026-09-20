@@ -347,6 +347,8 @@ function DemoReader({
   );
   const readerStyle = resolveReaderStyle(preferences);
   const lastLocationCfiRef = useRef(book.currentCfi);
+  const pendingDemoTargetRef = useRef<string | null>(null);
+  const [demoNavigationRevision, setDemoNavigationRevision] = useState(0);
   const swipeStartRef = useRef<SwipeStart | null>(null);
   const suppressCenterTapUntilRef = useRef(0);
   const wheelSwipeRef = useRef<WheelSwipeState>(createWheelSwipeState());
@@ -442,7 +444,11 @@ function DemoReader({
           .split(':')[0]
           .split('#')[0];
         const index = chapters.findIndex((item) => item.href.split('#')[0] === normalized);
-        if (index >= 0) setChapterIndex(index);
+        if (index >= 0) {
+          pendingDemoTargetRef.current = target;
+          setChapterIndex(index);
+          setDemoNavigationRevision((revision) => revision + 1);
+        }
       },
       clearSelection: () => window.getSelection()?.removeAllRanges(),
       getCurrentText: () => [content.heading, ...content.paragraphs].join('\n\n'),
@@ -453,7 +459,11 @@ function DemoReader({
   useLayoutEffect(() => {
     const readerRoot = readerRootRef.current;
     if (!readerRoot || !chapter) return;
-    const savedRatio = getDemoScrollRatio(lastLocationCfiRef.current, chapter.href);
+    const savedRatio = getDemoScrollRatio(
+      pendingDemoTargetRef.current ?? lastLocationCfiRef.current,
+      chapter.href,
+    );
+    pendingDemoTargetRef.current = null;
     let restored = false;
     let currentRatio = savedRatio;
     let saveTimer: number | null = null;
@@ -503,7 +513,7 @@ function DemoReader({
       if (saveTimer) window.clearTimeout(saveTimer);
       reportLocation(currentRatio);
     };
-  }, [book.totalPages, chapter, chapterIndex, chapters.length, onLocationChange]);
+  }, [book.totalPages, chapter, chapterIndex, chapters.length, demoNavigationRevision, onLocationChange]);
 
   const handleMouseUp = (event: MouseEvent<HTMLElement>) => {
     reportCurrentSelection(event.clientX, event.clientY);

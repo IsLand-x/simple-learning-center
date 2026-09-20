@@ -33,6 +33,7 @@ import type {
   HighlightItem,
   ReaderHighlightTarget,
   ReaderSelection,
+  TocItem,
 } from '../types';
 
 export function ReaderPage() {
@@ -71,6 +72,7 @@ export function ReaderPage() {
   const [focusedHighlightId, setFocusedHighlightId] = useState<string | null>(null);
   const [panelQuote, setPanelQuote] = useState<NonNullable<ChatMessage['quote']> | null>(null);
   const [stylePopoverVisible, setStylePopoverVisible] = useState(false);
+  const [returnCfi, setReturnCfi] = useState<string | null>(null);
   const [activeHref, setActiveHref] = useState(book?.toc[0]?.href);
   const highlights = useMemo(
     () => allHighlights.filter((item) => item.bookId === bookId),
@@ -115,6 +117,7 @@ export function ReaderPage() {
     setCompactTocOpen(false);
     setMobileChromeVisible(true);
     setConversationId(createUuid());
+    setReturnCfi(null);
     // Transient reader UI resets only when switching books; progress updates must not reset it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book?.id]);
@@ -192,6 +195,21 @@ export function ReaderPage() {
     },
     [latestBookRef, queueLocationSave],
   );
+
+  const selectToc = (item: TocItem, closeOverlay = true) => {
+    const cfi = latestBookRef.current?.currentCfi;
+    if (cfi) setReturnCfi((original) => original ?? cfi);
+    setActiveHref(item.href);
+    readerRef.current?.display(item.href, item.label);
+    if (closeOverlay) setCompactTocOpen(false);
+  };
+  const returnToProgress = returnCfi
+    ? () => {
+        readerRef.current?.display(returnCfi);
+        setReturnCfi(null);
+        setCompactTocOpen(false);
+      }
+    : undefined;
 
   const currentChapter = useMemo(
     () => (book ? (findChapterLabel(book.toc, activeHref) ?? book.currentChapter) : ''),
@@ -460,11 +478,8 @@ export function ReaderPage() {
         onClearSelectedText={() => setPanelQuote(null)}
         onJumpHighlight={jumpToHighlight}
         onResumeConversation={resumeConversation}
-        onSelectToc={(item, closeOverlay) => {
-          setActiveHref(item.href);
-          readerRef.current?.display(item.href, item.label);
-          if (closeOverlay) setCompactTocOpen(false);
-        }}
+        onSelectToc={selectToc}
+        onReturnToProgress={returnToProgress}
         onStartNewConversation={startNewConversation}
         onUpdatePreferences={setPreferences}
       >
@@ -527,11 +542,8 @@ export function ReaderPage() {
           onNext={() => readerRef.current?.next()}
           onPrev={() => readerRef.current?.prev()}
           onResumeConversation={resumeConversation}
-          onSelectToc={(item) => {
-            setActiveHref(item.href);
-            readerRef.current?.display(item.href, item.label);
-            setCompactTocOpen(false);
-          }}
+          onSelectToc={selectToc}
+          onReturnToProgress={returnToProgress}
           onStartNewConversation={startNewConversation}
           onToggleToc={() => {
             const nextOpen = !compactTocOpen;

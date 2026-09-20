@@ -1,4 +1,4 @@
-import { Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconBookOpenStroked } from '@douyinfe/semi-icons';
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import type { TocItem } from '../types';
@@ -13,6 +13,7 @@ interface TableOfContentsProps {
   currentPage?: number;
   progress: number;
   onSelect: (item: TocItem) => void;
+  onReturnToProgress?: () => void;
 }
 
 function normalizeHref(href?: string) {
@@ -94,6 +95,7 @@ export function TableOfContents({
   currentPage,
   progress,
   onSelect,
+  onReturnToProgress,
 }: TableOfContentsProps) {
   const listRef = useRef<HTMLElement>(null);
   const safeProgress = Math.max(0, Math.min(100, progress));
@@ -154,6 +156,11 @@ export function TableOfContents({
           />
         ))}
       </nav>
+      {onReturnToProgress && (
+        <div className="toc-panel__return">
+          <Button block theme="light" onClick={onReturnToProgress}>回到原进度</Button>
+        </div>
+      )}
     </aside>
   );
 }

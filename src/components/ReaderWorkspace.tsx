@@ -33,6 +33,7 @@ interface ReaderWorkspaceProps {
   onJumpHighlight: (highlight: HighlightItem) => void;
   onResumeConversation: (session: ChatSession) => void;
   onSelectToc: (item: TocItem, closeOverlay: boolean) => void;
+  onReturnToProgress?: () => void;
   onStartNewConversation: () => void;
   onUpdatePreferences: (changes: Partial<ReaderPreferences>) => void;
 }
@@ -56,6 +57,7 @@ export function ReaderWorkspace({
   onJumpHighlight,
   onResumeConversation,
   onSelectToc,
+  onReturnToProgress,
   onStartNewConversation,
   onUpdatePreferences,
 }: ReaderWorkspaceProps) {
@@ -71,6 +73,7 @@ export function ReaderWorkspace({
             activeHref={activeHref}
             currentPage={book.currentPage}
             progress={book.progress}
+            onReturnToProgress={onReturnToProgress}
             onSelect={(item) => onSelectToc(item, true)}
           />
         </div>
@@ -96,6 +99,7 @@ export function ReaderWorkspace({
               activeHref={activeHref}
               currentPage={book.currentPage}
               progress={book.progress}
+              onReturnToProgress={onReturnToProgress}
               onSelect={(item) => onSelectToc(item, false)}
             />
           </div>
