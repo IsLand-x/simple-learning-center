@@ -46,46 +46,4 @@ export function useMobileReaderOverlay({
   useEffect(() => {
     if (open) setMobileChromeVisible(true);
   }, [open, setMobileChromeVisible]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    let touchStart: { x: number; y: number } | null = null;
-    const handleTouchStart = (event: TouchEvent) => {
-      if (event.touches.length !== 1) {
-        touchStart = null;
-        return;
-      }
-      touchStart = {
-        x: event.touches[0].clientX,
-        y: event.touches[0].clientY,
-      };
-    };
-    const handleTouchEnd = (event: TouchEvent) => {
-      if (!touchStart || event.changedTouches.length !== 1) {
-        touchStart = null;
-        return;
-      }
-      const deltaX = event.changedTouches[0].clientX - touchStart.x;
-      const deltaY = event.changedTouches[0].clientY - touchStart.y;
-      touchStart = null;
-      const currentState = window.history.state as {
-        learningCenterReaderAiSettings?: boolean;
-      } | null;
-      if (currentState?.learningCenterReaderAiSettings) return;
-      if (Math.abs(deltaX) >= 64 && Math.abs(deltaX) > Math.abs(deltaY) * 1.25) {
-        close();
-      }
-    };
-    const resetTouch = () => {
-      touchStart = null;
-    };
-    document.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
-    document.addEventListener('touchend', handleTouchEnd, { capture: true, passive: true });
-    document.addEventListener('touchcancel', resetTouch, { capture: true, passive: true });
-    return () => {
-      document.removeEventListener('touchstart', handleTouchStart, true);
-      document.removeEventListener('touchend', handleTouchEnd, true);
-      document.removeEventListener('touchcancel', resetTouch, true);
-    };
-  }, [close, open]);
 }
