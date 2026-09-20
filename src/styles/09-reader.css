@@ -836,12 +836,12 @@
 }
 
 .reader-ai-settings-dialog.semi-modal {
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-2);
 }
 
 .reader-ai-settings-dialog .semi-modal-header,
 .reader-ai-settings-dialog .semi-modal-body {
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-2);
 }
 
 .reader-ai-settings-dialog .semi-modal-body {
@@ -854,7 +854,7 @@
   padding: 16px 20px 20px;
   border: 0;
   border-radius: 0;
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-2);
 }
 
 .reader-ai-settings-dialog .ai-assistant-settings__footer {
@@ -864,7 +864,7 @@
   margin: 0 -20px -20px;
   padding: 12px 20px calc(24px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--semi-color-border);
-  background: var(--semi-color-bg-0);
+  background: var(--semi-color-bg-2);
 }
 
 .activity-bar {
