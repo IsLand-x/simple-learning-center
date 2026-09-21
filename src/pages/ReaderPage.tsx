@@ -55,7 +55,9 @@ export function ReaderPage() {
   const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
   const readerRef = useRef<ReaderSurfaceHandle>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
-  const recordReadingActivityRef = useRef<(() => void) | null>(null);
+  const recordPageChangeRef = useRef<((page?: number, href?: string, cfi?: string) => void) | null>(
+    null,
+  );
   const [activePanel, setActivePanel] = useState<MobileReaderPanel | null>(null);
   const [mobileChromeVisible, setMobileChromeVisible] = useState(true);
   const [compactTocOpen, setCompactTocOpen] = useState(false);
@@ -148,7 +150,7 @@ export function ReaderPage() {
     }
   }, [activeHighlight, activeHighlightTarget]);
 
-  useReadingSession(book?.id, upsertReadingSession, recordReadingActivityRef);
+  useReadingSession(book?.id, upsertReadingSession, recordPageChangeRef);
 
   useEffect(() => {
     const handleKeyUp = (event: KeyboardEvent) => {
@@ -170,6 +172,7 @@ export function ReaderPage() {
     (location: ReaderLocationUpdate) => {
       const current = latestBookRef.current;
       if (!current) return;
+      recordPageChangeRef.current?.(location.page, location.href, location.cfi);
       const chapter = findChapterLabel(current.toc, location.href) ?? current.currentChapter;
       setActiveHref(location.href);
       const roundedProgress =
@@ -183,7 +186,6 @@ export function ReaderPage() {
         current.currentPage !== location.page ||
         current.totalPages !== location.totalPages;
       if (!hasChanged) return;
-      recordReadingActivityRef.current?.();
       const changes: Partial<BookItem> = {
         progress: roundedProgress,
         currentCfi: location.cfi ?? current.currentCfi,

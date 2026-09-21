@@ -10,17 +10,19 @@ type UpsertReadingSession = (session: ReadingSession) => void;
 export function useReadingSession(
   bookId: string | undefined,
   upsertReadingSession: UpsertReadingSession,
-  recordReadingActivityRef: MutableRefObject<(() => void) | null>,
+  recordPageChangeRef: MutableRefObject<
+    ((page?: number, href?: string, cfi?: string) => void) | null
+  >,
 ) {
   useEffect(() => {
     if (!bookId) return;
     const sessionId = createUuid();
-    const startedAt = Date.now();
+    let startedAt: number | null = null;
     let accumulatedMs = 0;
-    let lastCountedAt = startedAt;
-    let windowFocused = document.hasFocus();
-    let activeSince = document.visibilityState === 'visible' && windowFocused ? startedAt : null;
-    let idleDeadline = startedAt + READING_IDLE_TIMEOUT_MS;
+    let lastCountedAt = 0;
+    let activeSince: number | null = null;
+    let idleDeadline = 0;
+    let lastPageKey: string | null = null;
 
     const accumulateUntil = (now: number) => {
       if (activeSince === null) return;
@@ -30,13 +32,13 @@ export function useReadingSession(
       lastCountedAt = countedUntil;
     };
 
-    const canTimeReading = () => document.visibilityState === 'visible' && windowFocused;
+    const canTimeReading = () => document.visibilityState === 'visible' && document.hasFocus();
 
     const persistSession = (continueTiming: boolean) => {
       const now = Date.now();
       accumulateUntil(now);
       activeSince = continueTiming && canTimeReading() && now < idleDeadline ? now : null;
-      if (accumulatedMs < 1000) return;
+      if (startedAt === null || accumulatedMs < 1000) return;
       upsertReadingSession({
         id: sessionId,
         bookId,
@@ -46,54 +48,54 @@ export function useReadingSession(
       });
     };
 
-    const recordReadingActivity = () => {
+    const recordPageChange = (page?: number, href?: string, cfi?: string) => {
+      const pageKey = Number.isFinite(page) ? `${href ?? ''}:page:${page}` : cfi;
+      if (!pageKey || pageKey === lastPageKey) return;
       const now = Date.now();
       accumulateUntil(now);
+      if (startedAt === null) startedAt = now;
+      lastPageKey = pageKey;
       idleDeadline = now + READING_IDLE_TIMEOUT_MS;
       activeSince = canTimeReading() ? now : null;
     };
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        recordReadingActivity();
+        const now = Date.now();
+        activeSince = startedAt !== null && canTimeReading() && now < idleDeadline ? now : null;
       } else {
         persistSession(false);
       }
     };
     const handleFocus = () => {
-      windowFocused = true;
-      recordReadingActivity();
+      const now = Date.now();
+      activeSince = startedAt !== null && canTimeReading() && now < idleDeadline ? now : null;
     };
     const handleBlur = () => {
       persistSession(false);
-      windowFocused = false;
+      // Moving focus into an EPUB iframe can blur the outer window while the document stays focused.
+      queueMicrotask(handleFocus);
     };
     const handlePageHide = () => persistSession(false);
     const interval = window.setInterval(
       () => persistSession(true),
       READING_SESSION_PERSIST_INTERVAL_MS,
     );
-    recordReadingActivityRef.current = recordReadingActivity;
+    recordPageChangeRef.current = recordPageChange;
     document.addEventListener('visibilitychange', handleVisibility);
-    document.addEventListener('pointerdown', recordReadingActivity, true);
-    document.addEventListener('keydown', recordReadingActivity, true);
-    document.addEventListener('wheel', recordReadingActivity, { capture: true, passive: true });
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
     window.addEventListener('pagehide', handlePageHide);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibility);
-      document.removeEventListener('pointerdown', recordReadingActivity, true);
-      document.removeEventListener('keydown', recordReadingActivity, true);
-      document.removeEventListener('wheel', recordReadingActivity, true);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('pagehide', handlePageHide);
-      if (recordReadingActivityRef.current === recordReadingActivity) {
-        recordReadingActivityRef.current = null;
+      if (recordPageChangeRef.current === recordPageChange) {
+        recordPageChangeRef.current = null;
       }
       persistSession(false);
     };
-  }, [bookId, recordReadingActivityRef, upsertReadingSession]);
+  }, [bookId, recordPageChangeRef, upsertReadingSession]);
 }
