@@ -1348,6 +1348,11 @@
   overflow: hidden;
 }
 
+.ai-dialogue-scroll-host {
+  height: 100%;
+  min-height: 0;
+}
+
 .semi-chat-area .semi-ai-chat-dialogue-list {
   min-width: 0;
   max-width: 100%;
