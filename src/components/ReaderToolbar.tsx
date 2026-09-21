@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Button, ButtonGroup, ColorPicker, InputNumber, Popover, Select, Tooltip } from '@douyinfe/semi-ui';
 import { IconApps, IconChevronLeft, IconChevronRight, IconColorPalette, IconSidebar } from '@douyinfe/semi-icons';
 import { ensureReaderFontStylesheet, READER_FONT_OPTIONS, READER_FONT_STACKS } from '../lib/readerFonts';
+import { ReaderAiActivityIcon } from '../features/reader/ui/ReaderAiActivityIcon';
+import { useReaderAiActivity } from '../features/reader/hooks/useReaderAiActivity';
+import { readerAiActivityLabel } from '../features/reader/model/readerAiActivity';
 import {
   DEFAULT_READER_CUSTOM_STYLE,
   getReaderThemeName,
@@ -285,6 +288,8 @@ export function ReaderMobileToolbar({
   moreOpen,
   onToggleMore,
 }: ReaderMobileToolbarProps) {
+  const { status } = useReaderAiActivity();
+  const statusLabel = readerAiActivityLabel(status);
   return (
     <div className="reader-toolbar reader-toolbar--mobile" aria-label="移动端阅读工具栏">
       <Button
@@ -304,15 +309,19 @@ export function ReaderMobileToolbar({
         下一页
       </Button>
       <Button
-        aria-label={moreOpen ? '收起更多功能' : '打开更多功能，默认显示 AI 助手'}
+        aria-label={
+          statusLabel
+            ? `${moreOpen ? '收起' : '打开'}更多功能，${statusLabel}`
+            : moreOpen ? '收起更多功能' : '打开更多功能，默认显示 AI 助手'
+        }
         aria-pressed={moreOpen}
         className={moreOpen ? 'mobile-reader-tool--active' : ''}
-        icon={<IconApps />}
+        icon={status === 'idle' ? <IconApps /> : <ReaderAiActivityIcon />}
         theme="borderless"
         type="tertiary"
         onClick={onToggleMore}
       >
-        更多功能
+        {status === 'running' ? 'AI 运行中' : status === 'unread' ? 'AI 未读' : '更多功能'}
       </Button>
     </div>
   );

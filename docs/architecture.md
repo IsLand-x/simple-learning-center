@@ -57,6 +57,10 @@ Node/Hono routes -> domain services -> filesystem / remote sources / PiAgent
 
 结构发生变化时必须同步更新 `LearningState`、默认值、所属 action、客户端与服务端 `STATE_DOMAIN_FIELDS`、store version、`src/store/persistence/` 中的迁移与合并规则以及对应测试。每个持久化字段必须且只能归属一个状态分区；顶层路由通过 lazy loading 与 `StateDomainGate` 激活所需分区。服务端仍负责最终的状态保护和原子写入。
 
+阅读页的 `ReaderAiActivityProvider` 按书籍追踪任务，生命周期独立于桌面 AI 面板与移动抽屉；创建中的请求、服务端运行状态与最终回复由同一上下文向各入口提供，面板重新挂载时接回最新任务。SSE 断开只停止前端订阅，不取消服务端任务。
+
+会话回复的 `ChatMessage.readAt` 仍归属 conversations 分区的 `chats`，不新增顶层字段或分区；默认消息不含已读时间。store version 33 将旧助手回复迁移为已读，客户端合并和 `server/chatReadState.mjs` 保留同一消息较新的已读时间，删除消息不复活。面板可见、文档在前台且滚动到末尾才记录已读。
+
 ## 服务端模块
 
 - `server/app.mjs`：创建应用、构造依赖并按稳定顺序挂载模块。
@@ -113,7 +117,7 @@ Web 单元测试位于 `src/**/*.test.{ts,tsx}`，Node 服务端测试当前位�
 
 凭据以 0600 权限原子写入独立 `ai-oauth.json`，所有写入和刷新在单服务进程内串行，退出与刷新共用队列；同一数据目录不支持多个服务进程并行写入。SDK 错误可能含供应商响应，因此授权和 OAuth 模型失败使用固定的安全错误消息。
 
-模型配置沿用 `LearningState.openAIConfigs` 和 preferences 分区，增加可选的 `oauthProvider` 字段；缺省仍走现有 API Key 协议。默认值、actions、双方分区映射及合并保留原结构，store version 保持 32，因为这是无需转换旧数据的可选字段扩展；迁移测试覆盖旧配置与 OAuth 配置保留。OAuth 模型使用 SDK 原生目录，任务仍由 PiAgent 执行并保留工具调用上限与服务端持久化。
+模型配置沿用 `LearningState.openAIConfigs` 和 preferences 分区，增加可选的 `oauthProvider` 字段；缺省仍走现有 API Key 协议。默认值、actions、双方分区映射及合并保留原结构，该扩展无需转换旧数据，因此引入时 store version 保持 32；迁移测试覆盖旧配置与 OAuth 配置保留。OAuth 模型使用 SDK 原生目录，任务仍由 PiAgent 执行并保留工具调用上限与服务端持久化。
 
 ## 运行机器信息
 

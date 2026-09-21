@@ -376,5 +376,15 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       })),
     };
   }
+  if (version < 33) {
+    migrated = {
+      ...migrated,
+      chats: (migrated.chats ?? []).map((message) =>
+        message.role === 'assistant'
+          ? { ...message, readAt: message.readAt ?? Math.max(1, message.createdAt) }
+          : message,
+      ),
+    };
+  }
   return migrated;
 }

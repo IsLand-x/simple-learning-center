@@ -1,3 +1,6 @@
+import { ReaderAiActivityIcon } from '../ReaderAiActivityIcon';
+import { useReaderAiActivity } from '../../hooks/useReaderAiActivity';
+import { readerAiActivityLabel } from '../../model/readerAiActivity';
 import { Button } from '@douyinfe/semi-ui';
 import { ActivityRailButton } from '../../../../components/ActivityRailButton';
 import type { RightPanel } from '../../../../types';
@@ -16,14 +19,16 @@ export function ReaderMobilePanelTabs({
   activePanel: MobileReaderPanel;
   onChangePanel: (panel: MobileReaderPanel) => void;
 }) {
+  const { status } = useReaderAiActivity();
+  const statusLabel = readerAiActivityLabel(status);
   return (
     <nav className="mobile-panel-tabs" aria-label="切换更多功能">
       {mobilePanelItems.map(({ panel, label, ariaLabel, Icon }) => (
         <Button
-          aria-label={ariaLabel}
+          aria-label={panel === 'ai' && statusLabel ? `${ariaLabel}，${statusLabel}` : ariaLabel}
           aria-pressed={activePanel === panel}
           className={activePanel === panel ? 'mobile-panel-tabs__button--active' : ''}
-          icon={<Icon />}
+          icon={panel === 'ai' ? <ReaderAiActivityIcon /> : <Icon />}
           key={panel}
           size="small"
           theme="borderless"
@@ -46,6 +51,8 @@ function ActivityButton({
   activePanel: RightPanel;
   onClick: () => void;
 }) {
+  const { status } = useReaderAiActivity();
+  const statusLabel = panel === 'ai' ? readerAiActivityLabel(status) : '';
   const active = panel === activePanel;
   const meta = panelMeta[panel];
   const PanelIcon = meta.Icon;
@@ -68,10 +75,16 @@ function ActivityButton({
   return (
     <ActivityRailButton
       active={active}
-      ariaLabel={ariaLabel}
-      icon={<PanelIcon className="panel-tool-icon" />}
+      ariaLabel={statusLabel ? `${ariaLabel}，${statusLabel}` : ariaLabel}
+      icon={
+        panel === 'ai' ? (
+          <ReaderAiActivityIcon className="panel-tool-icon" />
+        ) : (
+          <PanelIcon className="panel-tool-icon" />
+        )
+      }
       label={activityLabel(panel)}
-      tooltip={tooltip}
+      tooltip={statusLabel || tooltip}
       onClick={onClick}
     />
   );

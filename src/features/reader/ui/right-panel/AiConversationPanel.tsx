@@ -1,3 +1,5 @@
+import { useReaderAiActivity } from '../../hooks/useReaderAiActivity';
+import { useReadAiReplies } from '../../hooks/useReadAiReplies';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { AIChatInput, Button, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconBookOpenStroked } from '@douyinfe/semi-icons';
@@ -44,6 +46,13 @@ export function AiConversationPanel({
   getCurrentText: () => string;
   onClearSelectedText: () => void;
 }) {
+  const {
+    reportJob,
+    jobs: trackedJobs,
+    startingConversations,
+    setStarting,
+  } = useReaderAiActivity();
+  const starting = startingConversations.includes(conversationId);
   const allChats = useLearningStore((state) => state.chats);
   const allSessions = useLearningStore((state) => state.chatSessions);
   const configs = useLearningStore((state) => state.openAIConfigs);
@@ -99,6 +108,8 @@ export function AiConversationPanel({
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const inputRef = useRef<ComponentRef<typeof AIChatInput>>(null);
   const chatAreaRef = useRef<HTMLDivElement>(null);
+  useReadAiReplies(chatAreaRef, chats);
+  const lastAppliedJobRef = useRef<AiJob>();
   const synchronizedNoteRevisionsRef = useRef(new Map<string, number>());
   const noteSyncQueueRef = useRef(Promise.resolve());
 
@@ -108,7 +119,8 @@ export function AiConversationPanel({
       setAiPreferences({ provider: `api:${configs[0].id}`, model: configs[0].models[0] ?? '' });
       return;
     }
-    if (!activeJobId) setStatus(selectedConfig && model ? 'ready' : 'unavailable');
+    if (!activeJobId)
+      setStatus(starting ? 'generating' : selectedConfig && model ? 'ready' : 'unavailable');
     if (
       selectedConfig &&
       (model !== aiPreferences.model || reasoningEffort !== aiPreferences.reasoningEffort)
@@ -117,6 +129,7 @@ export function AiConversationPanel({
     }
   }, [
     activeJobId,
+    starting,
     aiPreferences.model,
     aiPreferences.reasoningEffort,
     configs,
@@ -134,66 +147,85 @@ export function AiConversationPanel({
     setActiveJobId(null);
   }, [conversationId]);
 
-  const applyJob = useCallback((job: AiJob) => {
-    const notesRevision = Number(job.notesRevision || 0);
-    const synchronizedRevision = synchronizedNoteRevisionsRef.current.get(job.id) ?? 0;
-    if (notesRevision > synchronizedRevision) {
-      synchronizedNoteRevisionsRef.current.set(job.id, notesRevision);
-      noteSyncQueueRef.current = noteSyncQueueRef.current
-        .catch(() => undefined)
-        .then(() => synchronizeLearningState());
-      void noteSyncQueueRef.current.catch((error) => {
-        console.warn('同步 AI 修改的阅读笔记失败', error);
-      });
-    }
-    if (job.status === 'queued' || job.status === 'running') {
-      setActiveJobId(job.id);
+  const applyJob = useCallback(
+    (job: AiJob) => {
+      reportJob(job);
+      const previous = lastAppliedJobRef.current;
+      if (
+        previous &&
+        (previous.createdAt > job.createdAt ||
+          (previous.id === job.id && previous.revision >= job.revision))
+      )
+        return;
+      lastAppliedJobRef.current = job;
+      const notesRevision = Number(job.notesRevision || 0);
+      const synchronizedRevision = synchronizedNoteRevisionsRef.current.get(job.id) ?? 0;
+      if (notesRevision > synchronizedRevision) {
+        synchronizedNoteRevisionsRef.current.set(job.id, notesRevision);
+        noteSyncQueueRef.current = noteSyncQueueRef.current
+          .catch(() => undefined)
+          .then(() => synchronizeLearningState());
+        void noteSyncQueueRef.current.catch((error) => {
+          console.warn('同步 AI 修改的阅读笔记失败', error);
+        });
+      }
+      if (job.status === 'queued' || job.status === 'running') {
+        setActiveJobId(job.id);
+        setStreamingAssistant({
+          id: job.assistantMessageId,
+          role: 'assistant',
+          content: job.dialogueContent?.length ? job.dialogueContent : job.content,
+          status: job.status === 'queued' ? 'queued' : 'in_progress',
+          createdAt: job.createdAt,
+        });
+        setStatus('generating');
+        setStatusMessage('');
+        return;
+      }
+      setActiveJobId(null);
+      if (job.status === 'completed') {
+        const store = useLearningStore.getState();
+        if (!store.chats.some((message) => message.id === job.assistantMessageId)) {
+          store.addChatMessage({
+            id: job.assistantMessageId,
+            bookId: job.bookId,
+            conversationId: job.conversationId,
+            role: 'assistant',
+            content: job.content,
+            dialogueContent: job.dialogueContent,
+            createdAt: job.createdAt,
+          });
+        }
+        setStreamingAssistant(null);
+        setStatus('ready');
+        setStatusMessage('');
+        return;
+      }
+      if (job.status === 'cancelled') {
+        setStreamingAssistant(null);
+        setStatus('ready');
+        setStatusMessage('已停止生成');
+        return;
+      }
       setStreamingAssistant({
         id: job.assistantMessageId,
         role: 'assistant',
         content: job.dialogueContent?.length ? job.dialogueContent : job.content,
-        status: job.status === 'queued' ? 'queued' : 'in_progress',
+        status: 'failed',
         createdAt: job.createdAt,
       });
-      setStatus('generating');
-      setStatusMessage('');
-      return;
-    }
-    setActiveJobId(null);
-    if (job.status === 'completed') {
-      const store = useLearningStore.getState();
-      if (!store.chats.some((message) => message.id === job.assistantMessageId)) {
-        store.addChatMessage({
-          id: job.assistantMessageId,
-          bookId: job.bookId,
-          conversationId: job.conversationId,
-          role: 'assistant',
-          content: job.content,
-          dialogueContent: job.dialogueContent,
-          createdAt: job.createdAt,
-        });
-      }
-      setStreamingAssistant(null);
-      setStatus('ready');
-      setStatusMessage('');
-      return;
-    }
-    if (job.status === 'cancelled') {
-      setStreamingAssistant(null);
-      setStatus('ready');
-      setStatusMessage('已停止生成');
-      return;
-    }
-    setStreamingAssistant({
-      id: job.assistantMessageId,
-      role: 'assistant',
-      content: job.dialogueContent?.length ? job.dialogueContent : job.content,
-      status: 'failed',
-      createdAt: job.createdAt,
-    });
-    setStatus('error');
-    setStatusMessage(job.error || '模型请求失败');
-  }, []);
+      setStatus('error');
+      setStatusMessage(job.error || '模型请求失败');
+    },
+    [reportJob],
+  );
+
+  const latestTrackedJob = trackedJobs
+    .filter((job) => job.conversationId === conversationId)
+    .sort((left, right) => right.createdAt - left.createdAt)[0];
+  useEffect(() => {
+    if (latestTrackedJob) applyJob(latestTrackedJob);
+  }, [applyJob, latestTrackedJob]);
 
   useEffect(() => {
     let disposed = false;
@@ -381,6 +413,8 @@ export function AiConversationPanel({
     });
     setStatus('generating');
     setStatusMessage('');
+    setStarting(conversationId, true);
+    const currentText = getCurrentText();
     try {
       await getBookPassages(book);
       await waitForServerStateWrites();
@@ -400,13 +434,16 @@ export function AiConversationPanel({
           title: currentSession?.title || makeConversationTitle(question),
           createdAt: currentSession?.createdAt ?? createdAt,
         },
-        currentText: getCurrentText(),
+        currentText,
       });
       applyJob(job);
     } catch (error) {
       setStreamingAssistant((message) => (message ? { ...message, status: 'failed' } : null));
       setStatus('error');
       setStatusMessage(error instanceof Error ? error.message : '请求失败');
+      Toast.error(error instanceof Error ? error.message : '请求失败');
+    } finally {
+      setStarting(conversationId, false);
     }
   };
 

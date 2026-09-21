@@ -1,3 +1,4 @@
+import { protectChatReadState } from './chatReadState.mjs';
 import { createReadStream, createWriteStream } from 'node:fs';
 import {
   access,
@@ -455,7 +456,7 @@ async function persistState(persistedState, protectClientSnapshot = true) {
       currentPersistedState,
     )
     : persistedState;
-  const stateForDisk = await prepareStateForDisk(protectedState);
+  const stateForDisk = await prepareStateForDisk(protectChatReadState(protectedState, currentPersistedState));
   await atomicWrite(STATE_FILE, `${JSON.stringify({
     formatVersion: 1,
     updatedAt: new Date().toISOString(),

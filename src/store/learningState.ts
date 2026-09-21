@@ -79,6 +79,7 @@ export interface LearningState {
     changes: Partial<Pick<NoteItem, 'title' | 'content' | 'fileName'>>,
   ) => void;
   deleteNote: (noteId: string) => void;
+  markChatMessagesRead: (messageIds: string[]) => void;
   createChatSession: (session: ChatSession) => void;
   updateChatSession: (sessionId: string, changes: Partial<ChatSession>) => void;
   deleteChatSession: (sessionId: string) => void;

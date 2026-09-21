@@ -105,6 +105,7 @@ export function ReaderRightPanel({
       </div>
       {activePanel === 'ai' && (
         <AiConversationPanel
+          key={conversationId}
           book={book}
           conversationId={conversationId}
           selectedQuote={selectedQuote}

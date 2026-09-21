@@ -97,8 +97,9 @@ export async function watchAiJob(jobId: string, onJob: (job: AiJob) => void, sig
   if (buffer.trim()) processEvent(buffer);
 }
 
-export async function listAiJobs(bookId: string, conversationId: string) {
-  const search = new URLSearchParams({ bookId, conversationId });
+export async function listAiJobs(bookId: string, conversationId?: string) {
+  const search = new URLSearchParams({ bookId });
+  if (conversationId) search.set('conversationId', conversationId);
   const response = await serverRequest(`/api/ai/jobs?${search}`);
   const payload = (await response.json()) as { jobs?: AiJob[] };
   return Array.isArray(payload.jobs) ? payload.jobs : [];

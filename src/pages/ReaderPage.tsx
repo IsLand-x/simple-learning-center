@@ -11,6 +11,8 @@ import {
 } from '../components/ReaderSurface';
 import { ReaderSelectionOverlays } from '../components/ReaderSelectionOverlays';
 import { ReaderWorkspace } from '../components/ReaderWorkspace';
+import { ReaderAiActivityProvider } from '../features/reader/ui/ReaderAiActivityProvider';
+import { useReaderAiActivity } from '../features/reader/hooks/useReaderAiActivity';
 import { useDeferredBookLocation } from '../features/reader/hooks/useDeferredBookLocation';
 import { useMobileReaderOverlay } from '../features/reader/hooks/useMobileReaderOverlay';
 import { useReaderResponsiveLayout } from '../features/reader/hooks/useReaderResponsiveLayout';
@@ -38,6 +40,16 @@ import type {
 
 export function ReaderPage() {
   const { bookId = '' } = useParams();
+  return (
+    <ReaderAiActivityProvider key={bookId} bookId={bookId}>
+      <ReaderPageContent />
+    </ReaderAiActivityProvider>
+  );
+}
+
+function ReaderPageContent() {
+  const { bookId = '' } = useParams();
+  const aiActivity = useReaderAiActivity();
   const navigate = useNavigate();
   const book = useLearningStore((state) => state.books.find((item) => item.id === bookId));
   const allHighlights = useLearningStore((state) => state.highlights);
@@ -420,6 +432,19 @@ export function ReaderPage() {
     changeActivePanel('ai');
   };
 
+  function openActivityPanel(panel: MobileReaderPanel | null) {
+    if (panel === 'ai' && aiActivity.conversationId && aiActivity.conversationId !== conversationId) {
+      const session = useLearningStore.getState().chatSessions.find(
+        (item) => item.id === aiActivity.conversationId,
+      );
+      if (session) {
+        resumeConversation(session);
+        return;
+      }
+    }
+    changeActivePanel(panel);
+  }
+
   function changeActivePanel(panel: MobileReaderPanel | null) {
     if (mobileReader && panel) setCompactTocOpen(false);
     if (mobileReader && panel) setStylePopoverVisible(false);
@@ -476,7 +501,7 @@ export function ReaderPage() {
         preferences={preferences}
         readerRef={readerRef}
         workspaceRef={workspaceRef}
-        onChangePanel={changeActivePanel}
+        onChangePanel={openActivityPanel}
         onClearSelectedText={() => setPanelQuote(null)}
         onJumpHighlight={jumpToHighlight}
         onResumeConversation={resumeConversation}
@@ -537,7 +562,7 @@ export function ReaderPage() {
           preferences={preferences}
           readerRef={readerRef}
           visible={mobileChromeVisible}
-          onChangePanel={changeActivePanel}
+          onChangePanel={openActivityPanel}
           onClearSelectedText={() => setPanelQuote(null)}
           onCloseToc={() => setCompactTocOpen(false)}
           onJumpHighlight={jumpToHighlight}

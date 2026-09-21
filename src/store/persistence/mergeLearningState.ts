@@ -22,9 +22,15 @@ export function mergeLearningState(
   const persisted = persistedState as Partial<LearningState>;
   const mergedHighlights = mergeReaderHighlights(persisted, currentState);
   const mergedPreferences = mergeReaderPreferences(persisted, currentState);
+  const localChats = new Map(currentState.chats.map((message) => [message.id, message]));
   return {
     ...currentState,
     ...persisted,
+    chats: (persisted.chats ?? currentState.chats).map((message) => {
+      const local = localChats.get(message.id);
+      const readAt = Math.max(message.readAt ?? 0, local?.readAt ?? 0);
+      return readAt ? { ...message, readAt } : message;
+    }),
     bookLists: Array.isArray(persisted.bookLists) ? persisted.bookLists : currentState.bookLists,
     trashedBooks: Array.isArray(persisted.trashedBooks)
       ? persisted.trashedBooks

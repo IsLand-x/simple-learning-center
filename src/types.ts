@@ -275,6 +275,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   dialogueContent?: AiDialogueContentItem[];
+  readAt?: number;
   quote?: {
     text: string;
     chapter: string;

@@ -1962,3 +1962,8 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   margin-top: 8px;
   font-variant-numeric: tabular-nums;
 }
+
+.reader-ai-activity.reader-ai-activity--running,
+.reader-ai-activity.reader-ai-activity--unread {
+  color: var(--semi-color-primary);
+}

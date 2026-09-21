@@ -69,6 +69,8 @@ test('目录连续跳转可恢复原位置，轨迹在同一区域展示剩余�
       await openToc();
       const back = toc.getByRole('button', { name: '回到原进度' });
       await expect(back).toBeVisible();
+      // Semi reports the sheet as visible while its entrance transform is still active.
+      await expect.poll(async () => (await back.boundingBox())?.x ?? -1).toBeGreaterThanOrEqual(0);
       const bounds = (await back.boundingBox())!;
       expect(bounds.height).toBeGreaterThanOrEqual(44);
       expect(bounds.x).toBeGreaterThanOrEqual(0);
