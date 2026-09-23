@@ -1447,6 +1447,17 @@
   line-height: 1.5;
 }
 
+.semi-chat-area .semi-ai-chat-dialogue-content-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Keep reasoning, tools, quotes and text on the same spacing rhythm. */
+.semi-chat-area .semi-ai-chat-dialogue-content-inner > * {
+  margin-block: 0;
+}
+
 .semi-chat-area .semi-ai-chat-dialogue-content-bubble,
 .semi-chat-area .semi-ai-chat-dialogue-content-userBubble {
   min-width: 0;
@@ -1634,14 +1645,7 @@
 }
 
 .semi-chat-area .semi-ai-chat-dialogue-reasoning-wrapper {
-  margin-top: 4px;
   border-radius: var(--semi-border-radius-medium);
-}
-
-.semi-chat-area .semi-ai-chat-dialogue-reasoning-wrapper + .semi-ai-chat-dialogue-content-bubble,
-.semi-chat-area .semi-ai-chat-dialogue-reasoning-wrapper + .semi-ai-chat-dialogue-content-userBubble,
-.semi-chat-area .semi-ai-chat-dialogue-reasoning-wrapper + .semi-ai-chat-dialogue-content-no-bubble {
-  margin-top: 8px;
 }
 
 .semi-chat-area .semi-ai-chat-dialogue-reasoning-header {
