@@ -34,6 +34,15 @@ function hrefsMatch(left?: string, right?: string) {
     || normalizedRight.endsWith(`/${normalizedLeft}`);
 }
 
+function findActiveItem(items: TocItem[], activeHref?: string): TocItem | undefined {
+  for (const item of items) {
+    if (hrefsMatch(item.href, activeHref)) return item;
+    const child = item.subitems && findActiveItem(item.subitems, activeHref);
+    if (child) return child;
+  }
+  return undefined;
+}
+
 function TocRow({
   item,
   depth,
@@ -98,13 +107,15 @@ export function TableOfContents({
   onReturnToProgress,
 }: TableOfContentsProps) {
   const listRef = useRef<HTMLElement>(null);
+  // Server synchronization recreates items; only a different selected chapter should scroll.
+  const activeItemHref = findActiveItem(items, activeHref)?.href;
   const safeProgress = Math.max(0, Math.min(100, progress));
   const safeCurrentPage = typeof currentPage === 'number' && Number.isFinite(currentPage)
     ? Math.max(1, Math.round(currentPage))
     : undefined;
 
   useEffect(() => {
-    if (!activeItemVisible || !activeHref) return undefined;
+    if (!activeItemVisible || !activeItemHref) return undefined;
     const frame = window.requestAnimationFrame(() => {
       const list = listRef.current;
       const activeItem = list?.querySelector<HTMLElement>('.toc-item--selected');
@@ -125,7 +136,7 @@ export function TableOfContents({
       );
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [activeHref, activeItemAlignment, activeItemVisible, items]);
+  }, [activeItemHref, activeItemAlignment, activeItemVisible]);
 
   return (
     <aside className="toc-panel">

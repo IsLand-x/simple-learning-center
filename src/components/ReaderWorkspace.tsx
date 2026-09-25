@@ -95,6 +95,7 @@ export function ReaderWorkspace({
         >
           <div className="toc-column">
             <TableOfContents
+              activeItemVisible={tocVisible}
               items={book.toc}
               activeHref={activeHref}
               currentPage={book.currentPage}
