@@ -30,3 +30,84 @@
   height: 100%;
   background: var(--semi-color-bg-0);
 }
+
+/* Immersive image viewer: controls and canvas keep safe-area edge spacing. */
+.expandable-image.semi-button {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  height: auto;
+  padding: 0;
+  cursor: zoom-in;
+  white-space: normal;
+}
+
+.expandable-image .semi-button-content {
+  min-width: 0;
+}
+
+.expandable-image.semi-button:focus-visible {
+  outline: 2px solid var(--semi-color-focus-border);
+  outline-offset: 2px;
+}
+
+.image-viewer .semi-modal-content {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0;
+  background: var(--semi-color-bg-0);
+}
+
+.image-viewer .semi-modal-body {
+  margin: 0;
+}
+
+.image-viewer__content {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+}
+
+.image-viewer__toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  gap: 8px;
+  padding: calc(6px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+  background: var(--semi-color-bg-1);
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.image-viewer__toolbar .semi-button {
+  min-width: 44px;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.image-viewer__canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+
+.image-viewer__stage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.image-viewer__status {
+  position: absolute;
+  inset: 24px;
+  text-align: center;
+  color: var(--semi-color-text-1);
+}

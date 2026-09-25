@@ -2,6 +2,7 @@ import { IconAISearchLevel2, IconAlertCircle, IconChevronDown, IconWrench } from
 import { useEffect, useState, type SyntheticEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { ExpandableImage } from '../shared/ui/ExpandableImage';
 
 interface ChatRenderMessage {
   role?: string;
@@ -21,9 +22,13 @@ function markdown(text: string, key: string, className = '') {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noreferrer">{children}</a>
-          ),
+          img: ExpandableImage,
+          a: ({ children, href, node }) =>
+            node?.children.some((child) => child.type === 'element' && child.tagName === 'img') ? (
+              <>{children}</>
+            ) : (
+              <a href={href} target="_blank" rel="noreferrer">{children}</a>
+            ),
         }}
       >
         {text}

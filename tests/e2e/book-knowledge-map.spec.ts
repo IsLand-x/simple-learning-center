@@ -87,7 +87,7 @@ for (const width of [375, 768, 1024, 1440]) {
       await expect(shortcut).toBeFocused();
       await shortcut.click();
       await expect(shortcut).toBeDisabled();
-      const image = page.getByRole('img', { name: '全景知识地图' });
+      const image = page.locator('.expandable-image img');
       await expect(image).toBeVisible();
       await expect(page.getByRole('link', { name: '查看或保存原图' })).toHaveAttribute(
         'href',
@@ -98,6 +98,51 @@ for (const width of [375, 768, 1024, 1440]) {
       ).toBe(true);
       expect(cancelled).toBe(false);
       await page.screenshot({ path: testInfo.outputPath(`map-${width}-${theme}.png`) });
+      const trigger = page.getByRole('button', { name: '全屏查看图片：全景知识地图' });
+      await trigger.focus();
+      await page.keyboard.press('Enter');
+      const viewer = page.getByLabel('全屏图片查看器');
+      await expect(viewer).toBeVisible();
+      const bounds = await viewer.boundingBox();
+      expect(bounds?.x).toBe(0);
+      expect(bounds?.y).toBe(0);
+      expect(bounds?.width).toBe(width);
+      expect(bounds?.height).toBe(900);
+      await expect(viewer.getByRole('img', { name: '全景知识地图' })).toHaveJSProperty(
+        'naturalWidth',
+        1200,
+      );
+      await viewer.getByRole('button', { name: '放大图片', exact: true }).click();
+      await expect(viewer.getByRole('button', { name: '恢复图片适应屏幕' })).toHaveText('125%');
+      await page.keyboard.press('+');
+      await expect(viewer.getByRole('button', { name: '恢复图片适应屏幕' })).toHaveText('150%');
+      expect(
+        await viewer
+          .locator('.image-viewer__canvas')
+          .evaluate(
+            (element) =>
+              element.scrollWidth > element.clientWidth &&
+              element.scrollHeight > element.clientHeight,
+          ),
+      ).toBe(true);
+      for (const button of await viewer.getByRole('button').all()) {
+        const size = await button.boundingBox();
+        expect(size?.width).toBeGreaterThanOrEqual(44);
+        expect(size?.height).toBeGreaterThanOrEqual(44);
+      }
+      await page.keyboard.press('0');
+      await expect(viewer.getByRole('button', { name: '恢复图片适应屏幕' })).toHaveText('100%');
+      await page.screenshot({ path: testInfo.outputPath(`viewer-${width}-${theme}.png`) });
+      await page.goBack();
+      await expect(viewer).toHaveCount(0);
+      await expect(trigger).toBeVisible();
+      await expect(trigger).toBeFocused();
+      await trigger.click();
+      await expect(viewer).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(viewer).toHaveCount(0);
+      await expect(trigger).toBeVisible();
+
       const snapshot = await (await page.request.get('/api/state/conversations')).json();
       snapshot.state.chatSessions = [
         { id: conversationId, bookId: book.id, title: '全景知识地图', createdAt: 1, updatedAt: 2 },
@@ -120,7 +165,12 @@ for (const width of [375, 768, 1024, 1440]) {
       // Open the persisted conversation through the existing history panel.
       await page.getByRole('button', { name: /对话历史/ }).click();
       await page.getByText('全景知识地图', { exact: true }).last().click();
-      await expect(page.getByRole('img', { name: '全景知识地图' })).toBeVisible();
+      await expect(image).toBeVisible();
+      await trigger.click();
+      await expect(viewer).toBeVisible();
+      await viewer.getByRole('button', { name: '关闭图片' }).click();
+      await expect(viewer).toHaveCount(0);
+      await expect(trigger).toBeVisible();
     });
   }
 }
