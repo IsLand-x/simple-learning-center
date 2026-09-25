@@ -19,7 +19,7 @@
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "check:dead-code": "knip --reporter compact",
     "lint": "eslint src server scripts tests vite.config.ts vitest.config.ts playwright.config.ts --max-warnings 0",
-    "format:check": "prettier --check package.json knip.json .prettierrc.json eslint.config.js vitest.config.ts playwright.config.ts scripts server/aiAuth server/app server/routes server/openapi server/mcp tests src/app src/features src/shared src/store/actions src/store/persistence src/store/defaults.ts src/store/learningState.ts src/store/normalizers.ts src/test \"src/**/*.test.{ts,tsx}\"",
+    "format:check": "prettier --check package.json knip.json .prettierrc.json eslint.config.js vitest.config.ts playwright.config.ts scripts server/knowledgeMaps server/aiAuth server/app server/routes server/openapi server/mcp tests src/app src/features src/shared src/store/actions src/store/persistence src/store/defaults.ts src/store/learningState.ts src/store/normalizers.ts src/test \"src/**/*.test.{ts,tsx}\"",
     "build": "npm run check:server && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "verify": "npm run lint && npm run format:check && npm run check:boundaries && npm run check:dead-code && npm test && npm run build",
     "verify:full": "npm run verify && npm run test:e2e",

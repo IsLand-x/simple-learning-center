@@ -55,6 +55,10 @@ export function searchIndexPath(bookId) {
   return join(SEARCH_INDEX_DIRECTORY, `${encodedId(bookId)}.json`);
 }
 
+export function knowledgeMapDirectoryPath(bookId) {
+  return join(DATA_DIRECTORY, 'knowledge-maps', encodedId(bookId));
+}
+
 export function noteDirectoryPath(bookId) {
   return join(NOTE_DIRECTORY, encodedId(bookId));
 }

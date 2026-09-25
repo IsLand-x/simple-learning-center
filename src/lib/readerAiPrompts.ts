@@ -3,6 +3,11 @@ export const DEFAULT_READER_AI_ASSISTANT_PROMPT =
 
 export const READER_AI_PROMPT_TEMPLATES = [
   {
+    id: 'book-knowledge-map',
+    label: '全景知识地图',
+    prompt: '请使用全景知识地图工具，逐段分析本书全部已提取正文，生成一张全景知识地图图片，讲清全书主题、作者核心观点、论据、观点之间的关系与含义，并标注章节出处和覆盖限制。我同意将正文与分析发送至当前选择的 ChatGPT/Codex 账号并消耗订阅额度。',
+  },
+  {
     id: 'summarize-book',
     label: '总结全书',
     prompt:

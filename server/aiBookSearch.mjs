@@ -10,7 +10,7 @@ function normalizeText(value) {
     .trim();
 }
 
-async function loadBookPassages(book) {
+export async function loadBookPassages(book) {
   let stored;
   try {
     stored = JSON.parse(await readFile(searchIndexPath(book.id), 'utf8'));

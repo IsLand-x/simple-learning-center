@@ -1971,3 +1971,21 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 .reader-ai-activity.reader-ai-activity--unread {
   color: var(--semi-color-primary);
 }
+
+.csp-chat-markdown img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.knowledge-map-hint {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 800px) {
+  .ai-prompt-shortcuts .semi-button {
+    min-height: 44px;
+  }
+}

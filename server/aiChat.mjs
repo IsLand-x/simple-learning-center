@@ -1,3 +1,4 @@
+import { generateBookKnowledgeMap } from './knowledgeMaps/service.mjs';
 import { statusError } from './errors.mjs';
 import { oauthService } from './aiAuth/service.mjs';
 import { Agent } from '@earendil-works/pi-agent-core';
@@ -120,6 +121,7 @@ function createAgentTools({
   readingSessions,
   webSearchConfig,
   noteActions,
+  knowledgeMapAction,
 }) {
   const webTools = {
     web_search: {
@@ -289,6 +291,13 @@ function createAgentTools({
     };
   }
   return {
+    ...(knowledgeMapAction ? {
+      generate_book_knowledge_map: {
+        description: '仅在读者明确要求生成全书知识地图图片时调用。自动分段分析全部已提取正文，再使用当前 ChatGPT 订阅生图；无需预先搜索或传入正文。会消耗订阅额度，可能需要数分钟。返回已保存图片地址、全书分析和覆盖范围。每个请求最多生成一次。',
+        inputSchema: Type.Object({}),
+        execute: async (_params, signal) => knowledgeMapAction(signal),
+      },
+    } : {}),
     read_current_book: {
       description: '读取当前书籍的书名、作者、目录与阅读进度。只包含元数据和目录，不包含整本正文。',
       inputSchema: Type.Object({}),
@@ -558,6 +567,7 @@ export async function runServerAiChat({
   runtimeFactory = createOpenAICompatiblePiRuntime,
   oauth = oauthService,
   noteActions = DEFAULT_NOTE_ACTIONS,
+  knowledgeMapGenerator = generateBookKnowledgeMap,
 }) {
   const runtime = config.oauthProvider
     ? await oauth.runtime(config.oauthProvider, model, signal)
@@ -581,6 +591,28 @@ export async function runServerAiChat({
     content: requestMessageContent(message, resourceType, book, rssItem, video),
     createdAt: message.createdAt,
   }));
+  let knowledgeMapResult;
+  let knowledgeMapRun;
+  const knowledgeMapAction = config.oauthProvider === 'openai-codex' ? (toolSignal) => {
+    knowledgeMapRun ??= knowledgeMapGenerator({
+      book, runtime, signal: toolSignal,
+      onStage: (stage) => {
+        const entry = ensureEntry('tool', 'knowledge-map-stage', { name: '全景知识地图', arguments: '' });
+        entry.arguments = stage;
+        publish();
+      },
+    }).then((result) => {
+      knowledgeMapResult = result;
+      ensureEntry('tool', 'knowledge-map-stage').status = 'completed';
+      publish();
+      return result;
+    }).catch((error) => {
+      ensureEntry('tool', 'knowledge-map-stage').status = 'failed';
+      publish();
+      throw error;
+    });
+    return knowledgeMapRun;
+  } : undefined;
   const toolMap = createAgentTools({
     resourceType,
     purpose,
@@ -600,6 +632,7 @@ export async function runServerAiChat({
     readingSessions,
     webSearchConfig,
     noteActions: trackedNoteActions,
+    knowledgeMapAction,
   });
   const tools = Object.entries(toolMap).map(([name, definition]) => piTool(name, definition));
 
@@ -635,7 +668,7 @@ export async function runServerAiChat({
         maxRetries: 1,
       }),
     shouldStopAfterTurn: ({ newMessages }) =>
-      newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS,
+      Boolean(knowledgeMapResult) || newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS,
     prepareNextTurnWithContext: ({ context, newMessages }) => {
       const completedTurns = newMessages.filter((message) => message.role === 'assistant').length;
       if (completedTurns !== MAX_AGENT_TURNS - 1) return undefined;
@@ -729,6 +762,10 @@ export async function runServerAiChat({
     ? 'OAuth 模型请求失败，请检查账号额度或在设置中重新登录'
     : errorMessage(agent.state.errorMessage));
 
+  if (knowledgeMapResult) {
+    const result = knowledgeMapResult;
+    entries.push({ kind: 'message', key: 'knowledge-map-result', status: 'completed', text: `![全景知识地图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})\n\n${result.outline}\n\n已分析 ${result.passages} 个正文段落（${result.batches} 批）。${result.coverage}` });
+  }
   const completed = streamEntriesToProgress(entries, 'completed');
   if (!completed.content) {
     completed.content = '接口返回了空内容。';

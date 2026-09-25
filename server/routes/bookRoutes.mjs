@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+import { knowledgeMapDirectoryPath } from '../storage.mjs';
 import {
   movePersistedBookToTrash,
   permanentlyDeletePersistedBook,
@@ -11,6 +13,18 @@ import { storedFileResponse } from './storedFileResponse.mjs';
 const BOOK_ROUTE = '/api/books/:bookId';
 
 export function registerBookRoutes(app) {
+  app.on(['GET', 'HEAD'], `${BOOK_ROUTE}/knowledge-maps/:imageId`, async (c) => {
+    const id = c.req.param('imageId');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))
+      return c.json({ error: '图片标识不正确' }, 400);
+    const response = await storedFileResponse(
+      c,
+      join(knowledgeMapDirectoryPath(c.req.param('bookId')), `${id}.png`),
+    );
+    response.headers.set('Cache-Control', 'private, no-store');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    return response;
+  });
   app.on(['GET', 'HEAD'], `${BOOK_ROUTE}/cover`, async (c) => {
     const path = await findBookCoverPath(c.req.param('bookId'));
     if (!path) return c.json({ error: '书籍封面不存在' }, 404);

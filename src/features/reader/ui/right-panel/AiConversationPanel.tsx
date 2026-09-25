@@ -571,7 +571,16 @@ export function AiConversationPanel({
                 {visiblePromptTemplates.map((template) => (
                   <Button
                     aria-label={`发送提示词：${template.label}`}
-                    disabled={!canSend}
+                    disabled={
+                      !canSend ||
+                      (template.id === 'book-knowledge-map' &&
+                        selectedConfig?.oauthProvider !== 'openai-codex')
+                    }
+                    title={
+                      template.id === 'book-knowledge-map'
+                        ? '使用所选 ChatGPT/Codex 订阅分析全部已提取正文并生图，会消耗订阅额度；请先选择 ChatGPT 模型。'
+                        : undefined
+                    }
                     key={template.id}
                     size="small"
                     theme="borderless"
@@ -582,6 +591,13 @@ export function AiConversationPanel({
                   </Button>
                 ))}
               </div>
+            )}
+            {visiblePromptTemplates.some((template) => template.id === 'book-knowledge-map') && (
+              <Text type="tertiary" className="knowledge-map-hint">
+                {selectedConfig?.oauthProvider === 'openai-codex'
+                  ? '知识地图会发送全书已提取正文至 ChatGPT，并消耗订阅额度。'
+                  : '全景知识地图需要先选择已登录的 ChatGPT/Codex 模型。'}
+              </Text>
             )}
             <div className="ai-composer-context__row">
               <Tooltip

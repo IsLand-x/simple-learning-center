@@ -122,3 +122,9 @@ Web 单元测试位于 `src/**/*.test.{ts,tsx}`，Node 服务端测试当前位�
 ## 运行机器信息
 
 `server/app/systemInfo.mjs` 通过 Node.js `os` 读取运行环境信息，`server/routes/systemInfoRoutes.mjs` 提供只读的 `/api/settings/system-info` 接口，由 `server/app.mjs` 在统一认证 middleware 之后挂载。返回主机名、操作系统、架构、CPU、内存、Node.js 版本和非回环网卡 IP，不返回 MAC 地址或环境变量，也不查询外部服务。数据按请求读取，不写入 LearningState。设置 feature 的 `AboutSettings` 在进入“关于”或手动刷新时请求，离开页面时取消请求；远程访问沿用会话认证。
+
+### 全书知识地图
+
+`server/knowledgeMaps/service.mjs` 从现有 Foliate 正文索引读取全部段落，在 Pi AI 所选 OAuth 运行时中顺序分析、分层汇总，再交给 `server/aiAuth/codexImage.mjs` 调用固定的 Codex Responses 生图端点。该适配器复用 Pi OAuth 刷新，不返回凭据；SSE 有大小限制、超时、取消和完成状态检查，供应商原始错误不会写入对话或日志。生图与书籍分析都只向读者当前选择的 ChatGPT/Codex 账号发送，不为其他供应商隐式启用。
+
+PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户请求至多执行一次；阶段变化使用现有任务流展示。生成结果由服务端确定性追加到最终对话，保留原图 URL、分析正文和覆盖范围。PNG 保存在独立的 knowledge-maps 文件目录中，写入与书籍删除状态串行校验；读取走现有认证 middleware，删除走书籍文件清理。对话沿用 conversations 分区，无新顶层字段与 store 迁移。
