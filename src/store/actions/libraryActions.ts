@@ -11,6 +11,7 @@ type LibraryActions = Pick<
   | 'createBookList'
   | 'updateBookList'
   | 'deleteBookList'
+  | 'moveBookList'
   | 'setBookListBooks'
   | 'moveBookInList'
   | 'removeBookFromList'
@@ -133,6 +134,22 @@ export function createLibraryActions(set: LearningStoreSet): LibraryActions {
       set((state) => ({
         bookLists: state.bookLists.filter((bookList) => bookList.id !== bookListId),
       })),
+    moveBookList: (bookListId, destinationIndex) =>
+      set((state) => {
+        const sourceIndex = state.bookLists.findIndex((bookList) => bookList.id === bookListId);
+        if (
+          sourceIndex < 0 ||
+          sourceIndex === destinationIndex ||
+          !Number.isInteger(destinationIndex) ||
+          destinationIndex < 0 ||
+          destinationIndex >= state.bookLists.length
+        )
+          return state;
+        const bookLists = [...state.bookLists];
+        const [bookList] = bookLists.splice(sourceIndex, 1);
+        bookLists.splice(destinationIndex, 0, bookList);
+        return { bookLists };
+      }),
     setBookListBooks: (bookListId, bookIds) =>
       set((state) => {
         const availableBookIds = new Set(state.books.map((book) => book.id));

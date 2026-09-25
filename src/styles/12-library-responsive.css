@@ -43,6 +43,7 @@
     overflow-x: auto;
     flex-direction: row;
     scrollbar-width: none;
+    touch-action: pan-x;
   }
 
   .book-list-nav__items::-webkit-scrollbar {
@@ -53,7 +54,18 @@
     width: 180px;
     min-width: 180px;
     min-height: 44px;
-    padding-left: 10px;
+    flex-shrink: 0;
+  }
+
+  .book-list-nav .book-list-nav__handle {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .book-list-nav__select {
+    min-height: 44px;
   }
 
   .book-list-nav__item::before {
