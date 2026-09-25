@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, type ComponentType, type ComponentProps } from 'react';
 import { AIChatDialogue, Cascader, Empty, Select, Tooltip } from '@douyinfe/semi-ui';
 import { coerceAiReasoningEffort, getAiReasoningProfile } from '../lib/aiReasoning';
 import type { AiProvider, AiReasoningEffort, OpenAICompatibleConfig } from '../types';
@@ -14,12 +14,14 @@ export function AiConversationDialogue({
   emptyTitle,
   emptyDescription,
   autoHideReasoning = false,
+  ImageComponent,
 }: {
   chats: DialogueChat[];
   assistantName: string;
   emptyTitle: string;
   emptyDescription: string;
   autoHideReasoning?: boolean;
+  ImageComponent?: ComponentType<{ src?: string; alt?: string }>;
 }) {
   const dialogueRef = useRef<HTMLDivElement>(null);
   const followLatestRef = useRef(true);
@@ -75,6 +77,7 @@ export function AiConversationDialogue({
               bubbleClassName={`${className} ai-message--${message?.role ?? 'assistant'}`}
               quote={message ? quoteByMessageId.get(String(message.id)) : undefined}
               autoHideReasoning={autoHideReasoning}
+              ImageComponent={message?.role === 'assistant' ? ImageComponent : undefined}
             />
           ),
         }}

@@ -1,3 +1,4 @@
+import { BookResourcesPanel, BookResourcesProvider } from './BookResourcesPanel';
 import { useEffect, useRef, useState } from 'react';
 import { IconPlus, IconSetting } from '@douyinfe/semi-icons';
 import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
@@ -67,75 +68,78 @@ export function ReaderRightPanel({
   }, [mobile, settingsVisible]);
 
   return (
-    <aside
-      className={`right-panel${activePanel === 'ai' ? ' right-panel--ai' : ''}`}
-      aria-label={panelMeta[activePanel].label}
-    >
-      <div className="panel-titlebar">
-        <div className="panel-titlebar__title">
-          <ActivePanelIcon size="large" className="panel-tool-icon" />
-          <Text strong>{panelMeta[activePanel].label}</Text>
-        </div>
-        {activePanel === 'ai' && (
-          <div className="panel-titlebar__actions">
-            <Button
-              aria-label="新建 AI 对话"
-              className="panel-titlebar__new-chat"
-              icon={<IconPlus />}
-              size="small"
-              theme="borderless"
-              type="tertiary"
-              onClick={onStartNewConversation}
-            >
-              新建对话
-            </Button>
-            <Tooltip content="AI 助手设置" position="bottomRight">
+    <BookResourcesProvider key={book.id} bookId={book.id}>
+      <aside
+        className={`right-panel${activePanel === 'ai' ? ' right-panel--ai' : ''}`}
+        aria-label={panelMeta[activePanel].label}
+      >
+        <div className="panel-titlebar">
+          <div className="panel-titlebar__title">
+            <ActivePanelIcon size="large" className="panel-tool-icon" />
+            <Text strong>{panelMeta[activePanel].label}</Text>
+          </div>
+          {activePanel === 'ai' && (
+            <div className="panel-titlebar__actions">
               <Button
-                aria-label="打开 AI 助手设置"
-                className="panel-titlebar__settings"
-                icon={<IconSetting />}
+                aria-label="新建 AI 对话"
+                className="panel-titlebar__new-chat"
+                icon={<IconPlus />}
                 size="small"
                 theme="borderless"
                 type="tertiary"
-                onClick={() => setSettingsVisible(true)}
-              />
-            </Tooltip>
-          </div>
+                onClick={onStartNewConversation}
+              >
+                新建对话
+              </Button>
+              <Tooltip content="AI 助手设置" position="bottomRight">
+                <Button
+                  aria-label="打开 AI 助手设置"
+                  className="panel-titlebar__settings"
+                  icon={<IconSetting />}
+                  size="small"
+                  theme="borderless"
+                  type="tertiary"
+                  onClick={() => setSettingsVisible(true)}
+                />
+              </Tooltip>
+            </div>
+          )}
+        </div>
+        {activePanel === 'ai' && (
+          <AiConversationPanel
+            key={conversationId}
+            book={book}
+            conversationId={conversationId}
+            selectedQuote={selectedQuote}
+            getCurrentText={getCurrentText}
+            onClearSelectedText={onClearSelectedText}
+          />
         )}
-      </div>
-      {activePanel === 'ai' && (
-        <AiConversationPanel
-          key={conversationId}
-          book={book}
-          conversationId={conversationId}
-          selectedQuote={selectedQuote}
-          getCurrentText={getCurrentText}
-          onClearSelectedText={onClearSelectedText}
+        {activePanel === 'history' && (
+          <ConversationHistoryPanel
+            bookId={book.id}
+            activeConversationId={conversationId}
+            onResumeConversation={onResumeConversation}
+          />
+        )}
+        {activePanel === 'resources' && <BookResourcesPanel />}
+        {activePanel === 'notes' && <BookNotePanel book={book} />}
+        {activePanel === 'highlights' && (
+          <HighlightsPanel
+            bookId={book.id}
+            focusedHighlightId={focusedHighlightId}
+            onJumpHighlight={onJumpHighlight}
+          />
+        )}
+        {activePanel === 'comments' && (
+          <CommentsPanel bookId={book.id} onJumpHighlight={onJumpHighlight} />
+        )}
+        {activePanel === 'trajectory' && <ReadingTrajectoryPanel bookId={book.id} />}
+        <ReaderAiSettingsDialog
+          visible={activePanel === 'ai' && settingsVisible}
+          onCancel={() => setSettingsVisible(false)}
         />
-      )}
-      {activePanel === 'history' && (
-        <ConversationHistoryPanel
-          bookId={book.id}
-          activeConversationId={conversationId}
-          onResumeConversation={onResumeConversation}
-        />
-      )}
-      {activePanel === 'notes' && <BookNotePanel book={book} />}
-      {activePanel === 'highlights' && (
-        <HighlightsPanel
-          bookId={book.id}
-          focusedHighlightId={focusedHighlightId}
-          onJumpHighlight={onJumpHighlight}
-        />
-      )}
-      {activePanel === 'comments' && (
-        <CommentsPanel bookId={book.id} onJumpHighlight={onJumpHighlight} />
-      )}
-      {activePanel === 'trajectory' && <ReadingTrajectoryPanel bookId={book.id} />}
-      <ReaderAiSettingsDialog
-        visible={activePanel === 'ai' && settingsVisible}
-        onCancel={() => setSettingsVisible(false)}
-      />
-    </aside>
+      </aside>
+    </BookResourcesProvider>
   );
 }

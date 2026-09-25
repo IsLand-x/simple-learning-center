@@ -20,7 +20,7 @@ export type ReaderDensity = 'compact' | 'balanced' | 'relaxed';
 export type ReaderTexture = 'none' | 'paper' | 'grain' | 'linen';
 export type AiProvider = `api:${string}`;
 export type RightPanel =
-  'ai' | 'history' | 'notes' | 'highlights' | 'comments' | 'trajectory' | null;
+  'ai' | 'history' | 'resources' | 'notes' | 'highlights' | 'comments' | 'trajectory' | null;
 export type RssFeedType = 'article' | 'video' | 'social';
 export type RssSource =
   | { kind: 'rss'; feedUrl: string }

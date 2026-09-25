@@ -1,5 +1,5 @@
 import { IconAISearchLevel2, IconAlertCircle, IconChevronDown, IconWrench } from '@douyinfe/semi-icons';
-import { useEffect, useState, type SyntheticEvent } from 'react';
+import { useEffect, useState, type ComponentType, type SyntheticEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExpandableImage } from '../shared/ui/ExpandableImage';
@@ -15,14 +15,19 @@ function textValue(value: unknown) {
   return typeof value === 'string' ? value : '';
 }
 
-function markdown(text: string, key: string, className = '') {
+function markdown(
+  text: string,
+  key: string,
+  className = '',
+  ImageComponent: ComponentType<{ src?: string; alt?: string }> = ExpandableImage,
+) {
   if (!text) return null;
   return (
     <div className={`${className} csp-chat-markdown`.trim()} key={key}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          img: ExpandableImage,
+          img: ImageComponent,
           a: ({ children, href, node }) =>
             node?.children.some((child) => child.type === 'element' && child.tagName === 'img') ? (
               <>{children}</>
@@ -112,12 +117,13 @@ function renderItem(
   index: number,
   bubbleClassName: string,
   autoHideReasoning: boolean,
+  ImageComponent?: ComponentType<{ src?: string; alt?: string }>,
 ) {
   if (!item || typeof item !== 'object') return null;
   const value = item as Record<string, unknown>;
   const type = textValue(value.type);
   if (type === 'message' || !type) {
-    return markdown(messageText(value), `message-${index}`, bubbleClassName);
+    return markdown(messageText(value), `message-${index}`, bubbleClassName, ImageComponent);
   }
   if (type === 'reasoning') {
     const text = reasoningText(value);
@@ -154,22 +160,24 @@ export function CspSafeChatContent({
   bubbleClassName = '',
   quote,
   autoHideReasoning = false,
+  ImageComponent,
 }: {
   message?: ChatRenderMessage;
   bubbleClassName?: string;
   quote?: { text: string; chapter: string };
   autoHideReasoning?: boolean;
+  ImageComponent?: ComponentType<{ src?: string; alt?: string }>;
 }) {
   const content = message?.content;
   const children = typeof content === 'string'
-    ? markdown(content, 'content', bubbleClassName)
+    ? markdown(content, 'content', bubbleClassName, ImageComponent)
     : Array.isArray(content)
       ? content
           .map((item, index) =>
-            renderItem(item, index, bubbleClassName, autoHideReasoning),
+            renderItem(item, index, bubbleClassName, autoHideReasoning, ImageComponent),
           )
           .filter(Boolean)
-      : markdown(message?.output_text ?? '', 'output', bubbleClassName);
+      : markdown(message?.output_text ?? '', 'output', bubbleClassName, ImageComponent);
   const hasContent = Array.isArray(children) ? children.length > 0 : Boolean(children);
   const loading = ['queued', 'in_progress'].includes(message?.status ?? '') && !hasContent;
   return (

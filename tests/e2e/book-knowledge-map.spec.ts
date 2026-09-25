@@ -118,15 +118,17 @@ for (const scenario of [
         await expect(viewer.getByRole('button', { name: '恢复图片适应屏幕' })).toHaveText('125%');
         await page.keyboard.press('+');
         await expect(viewer.getByRole('button', { name: '恢复图片适应屏幕' })).toHaveText('150%');
-        expect(
-          await viewer
-            .locator('.image-viewer__canvas')
-            .evaluate(
-              (element) =>
-                element.scrollWidth > element.clientWidth &&
-                element.scrollHeight > element.clientHeight,
-            ),
-        ).toBe(true);
+        await expect
+          .poll(() =>
+            viewer
+              .locator('.image-viewer__canvas')
+              .evaluate(
+                (element) =>
+                  element.scrollWidth > element.clientWidth &&
+                  element.scrollHeight > element.clientHeight,
+              ),
+          )
+          .toBe(true);
         for (const button of await viewer.getByRole('button').all()) {
           const size = await button.boundingBox();
           expect(size?.width).toBeGreaterThanOrEqual(44);

@@ -1,18 +1,45 @@
 import { join } from 'node:path';
-import { knowledgeMapDirectoryPath } from '../storage.mjs';
+import {
+  listBookResources,
+  saveBookResource,
+  removeBookResource,
+} from '../knowledgeMaps/resources.mjs';
 import {
   movePersistedBookToTrash,
   permanentlyDeletePersistedBook,
   restorePersistedBookFromTrash,
 } from '../bookTrash.mjs';
 import { MAX_BOOK_BYTES } from '../config.mjs';
-import { bookPath, exists, findBookCoverPath, writeRequestToFile } from '../storage.mjs';
+import {
+  bookPath,
+  exists,
+  findBookCoverPath,
+  knowledgeMapDirectoryPath,
+  readJsonRequest,
+  writeRequestToFile,
+} from '../storage.mjs';
 import { methodNotAllowed, noContent } from '../app/http.mjs';
 import { storedFileResponse } from './storedFileResponse.mjs';
 
 const BOOK_ROUTE = '/api/books/:bookId';
 
 export function registerBookRoutes(app) {
+  app.get(`${BOOK_ROUTE}/resources`, async (c) =>
+    c.json({ resources: await listBookResources(c.req.param('bookId')) }),
+  );
+  app.post(`${BOOK_ROUTE}/resources`, async (c) =>
+    c.json({
+      resources: await saveBookResource(
+        c.req.param('bookId'),
+        await readJsonRequest(c.req.raw, 4096),
+      ),
+    }),
+  );
+  app.delete(`${BOOK_ROUTE}/resources/:imageId`, async (c) =>
+    c.json({ resources: await removeBookResource(c.req.param('bookId'), c.req.param('imageId')) }),
+  );
+  app.all(`${BOOK_ROUTE}/resources`, methodNotAllowed);
+  app.all(`${BOOK_ROUTE}/resources/:imageId`, methodNotAllowed);
   app.on(['GET', 'HEAD'], `${BOOK_ROUTE}/knowledge-maps/:imageId`, async (c) => {
     const id = c.req.param('imageId');
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))

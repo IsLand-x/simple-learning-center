@@ -6,6 +6,7 @@ import {
   IconEditStroked,
   IconHistogram,
   IconHistory,
+  IconImage,
 } from '@douyinfe/semi-icons';
 import { markdownNoteTitle } from '../../../lib/markdownNotes';
 import type {
@@ -41,6 +42,7 @@ export interface ReaderActivityBarProps {
 export const panelMeta = {
   ai: { label: 'AI 助手', Icon: IconAIStrokedLevel1 },
   history: { label: '对话历史', Icon: IconHistory },
+  resources: { label: '资源库', Icon: IconImage },
   notes: { label: '笔记', Icon: IconEditStroked },
   highlights: { label: '高亮', Icon: IconBookmark },
   comments: { label: '评论', Icon: IconComment },
@@ -57,6 +59,7 @@ export const mobilePanelItems: Array<{
 }> = [
   { panel: 'ai', label: 'AI', ariaLabel: '打开 AI 助手', Icon: IconAIStrokedLevel1 },
   { panel: 'history', label: '历史', ariaLabel: '打开对话历史', Icon: IconHistory },
+  { panel: 'resources', label: '资源库', ariaLabel: '打开资源库', Icon: IconImage },
   { panel: 'notes', label: '笔记', ariaLabel: '打开笔记', Icon: IconEditStroked },
   { panel: 'highlights', label: '高亮', ariaLabel: '打开高亮', Icon: IconBookmark },
   { panel: 'comments', label: '评论', ariaLabel: '打开评论', Icon: IconComment },

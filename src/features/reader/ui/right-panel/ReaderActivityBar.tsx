@@ -97,6 +97,11 @@ export function ReaderActivityBar({ activePanel, onChangePanel }: ReaderActivity
     <nav className="activity-bar" aria-label="阅读辅助工具">
       <ActivityButton panel="ai" activePanel={activePanel} onClick={() => toggle('ai')} />
       <ActivityButton panel="history" activePanel={activePanel} onClick={() => toggle('history')} />
+      <ActivityButton
+        panel="resources"
+        activePanel={activePanel}
+        onClick={() => toggle('resources')}
+      />
       <ActivityButton panel="notes" activePanel={activePanel} onClick={() => toggle('notes')} />
       <ActivityButton
         panel="comments"

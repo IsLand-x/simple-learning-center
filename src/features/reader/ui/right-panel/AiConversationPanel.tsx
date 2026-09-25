@@ -1,3 +1,4 @@
+import { BookResourceImage } from './BookResourcesPanel';
 import { useReaderAiActivity } from '../../hooks/useReaderAiActivity';
 import { useReadAiReplies } from '../../hooks/useReadAiReplies';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
@@ -530,6 +531,7 @@ export function AiConversationPanel({
           </nav>
         )}
         <AiConversationDialogue
+          ImageComponent={BookResourceImage}
           chats={dialogueMessages}
           assistantName={providerLabel(provider ?? undefined, configs)}
           emptyTitle="开始新的对话"

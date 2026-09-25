@@ -1984,3 +1984,84 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
     min-height: 44px;
   }
 }
+
+.book-resource-image {
+  display: block;
+  min-width: 0;
+}
+
+.book-resource-image__save.semi-button {
+  min-height: 44px;
+  white-space: normal;
+}
+
+.book-resources {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  color: var(--semi-color-text-0);
+}
+
+.book-resources__status {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  padding: 24px 12px;
+}
+
+.book-resources__list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.book-resources__item {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-bg-0);
+}
+
+.book-resources__item .expandable-image {
+  display: flex;
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+}
+
+.book-resources__item .expandable-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.book-resources__details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.book-resources__caption {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.book-resources__details .semi-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.book-resources__item .expandable-image .semi-button-content {
+  width: 100%;
+  height: 100%;
+}
+
+.book-resources .semi-empty .semi-button {
+  min-width: 44px;
+  min-height: 44px;
+}
