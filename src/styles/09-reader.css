@@ -1979,11 +1979,6 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   border-radius: var(--semi-border-radius-medium);
 }
 
-.knowledge-map-hint {
-  font-size: 12px;
-  line-height: 1.45;
-}
-
 @media (max-width: 800px) {
   .ai-prompt-shortcuts .semi-button {
     min-height: 44px;

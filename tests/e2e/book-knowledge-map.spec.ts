@@ -59,7 +59,6 @@ for (const scenario of [
           if (request.method() === 'POST') {
             const input = request.postDataJSON();
             expect(input.userMessage.content).toContain(scenario.prompt);
-            expect(input.userMessage.content).toContain('订阅额度');
             conversationId = input.conversationId;
             job = {
               id: 'map-job',
@@ -87,11 +86,6 @@ for (const scenario of [
         else await page.locator('.activity-bar button').first().click();
         const shortcut = page.getByRole('button', { name: `发送提示词：${scenario.label}` });
         await expect(shortcut).toBeEnabled();
-        await expect(
-          page.getByText(
-            '信息图会发送相关内容与方案至 ChatGPT；全景知识地图会发送全书已提取正文。均消耗订阅额度。',
-          ),
-        ).toBeVisible();
         if (width <= 800) expect((await shortcut.boundingBox())?.height).toBeGreaterThanOrEqual(44);
         await shortcut.focus();
         await expect(shortcut).toBeFocused();

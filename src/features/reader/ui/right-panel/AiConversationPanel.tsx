@@ -578,9 +578,9 @@ export function AiConversationPanel({
                     }
                     title={
                       template.id === 'infographic'
-                        ? '根据当前问题自动选择六种读书图型，先整理内容稿与来源，再用所选 ChatGPT/Codex 账号生图，会消耗订阅额度。也可在输入框指定图型和样式。'
+                        ? '根据当前问题选择合适的图型，先整理内容稿与来源，再生成图片。也可在输入框指定图型和样式。'
                         : template.id === 'book-knowledge-map'
-                          ? '使用所选 ChatGPT/Codex 订阅分析全部已提取正文并生图，会消耗订阅额度；请先选择 ChatGPT 模型。'
+                          ? '分析全书已提取正文，生成包含主题、观点及其关系的知识地图。'
                           : undefined
                     }
                     key={template.id}
@@ -593,15 +593,6 @@ export function AiConversationPanel({
                   </Button>
                 ))}
               </div>
-            )}
-            {visiblePromptTemplates.some(
-              (template) => template.id === 'book-knowledge-map' || template.id === 'infographic',
-            ) && (
-              <Text type="tertiary" className="knowledge-map-hint">
-                {selectedConfig?.oauthProvider === 'openai-codex'
-                  ? '信息图会发送相关内容与方案至 ChatGPT；全景知识地图会发送全书已提取正文。均消耗订阅额度。'
-                  : '信息图与全景知识地图需要先选择已登录的 ChatGPT/Codex 模型。'}
-              </Text>
             )}
             <div className="ai-composer-context__row">
               <Tooltip
