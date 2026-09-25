@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { IconPlus } from '@douyinfe/semi-icons';
-import { Button, Empty, Typography } from '@douyinfe/semi-ui';
+import { Button, Empty } from '@douyinfe/semi-ui';
 import {
   type DragStart,
   type DragUpdate,
@@ -12,9 +12,8 @@ import { useLearningStore } from '../../../store/useLearningStore';
 import type { BookItem, BookList } from '../../../types';
 import { BookListDetail } from './BookListDetail';
 import { BookListEditor } from './BookListEditor';
+import { BookListNavigation } from './BookListNavigation';
 import { BookPicker } from './BookPicker';
-
-const { Text } = Typography;
 
 export interface BookListsViewProps {
   books: BookItem[];
@@ -26,6 +25,7 @@ export function BookListsView({ books, onOpenBook, onRequestCreate }: BookListsV
   const bookLists = useLearningStore((state) => state.bookLists);
   const updateBookList = useLearningStore((state) => state.updateBookList);
   const deleteBookList = useLearningStore((state) => state.deleteBookList);
+  const moveBookList = useLearningStore((state) => state.moveBookList);
   const setBookListBooks = useLearningStore((state) => state.setBookListBooks);
   const moveBookInList = useLearningStore((state) => state.moveBookInList);
   const removeBookFromList = useLearningStore((state) => state.removeBookFromList);
@@ -99,30 +99,12 @@ export function BookListsView({ books, onOpenBook, onRequestCreate }: BookListsV
   return (
     <>
       <section className="book-lists-workspace" aria-label="书单">
-        <aside className="book-list-nav" aria-label="书单列表">
-          <div className="book-list-nav__heading">
-            <Text strong>全部书单</Text>
-            <Text size="small" type="tertiary">
-              {bookLists.length}
-            </Text>
-          </div>
-          <div className="book-list-nav__items">
-            {bookLists.map((bookList) => (
-              <button
-                aria-current={selectedList?.id === bookList.id ? 'true' : undefined}
-                className={`book-list-nav__item${selectedList?.id === bookList.id ? ' book-list-nav__item--active' : ''}`}
-                key={bookList.id}
-                type="button"
-                onClick={() => setSelectedListId(bookList.id)}
-              >
-                <span>{bookList.name}</span>
-                <Text size="small" type="tertiary">
-                  {bookList.bookIds.length}
-                </Text>
-              </button>
-            ))}
-          </div>
-        </aside>
+        <BookListNavigation
+          bookLists={bookLists}
+          selectedListId={selectedList?.id ?? null}
+          onSelect={setSelectedListId}
+          onMove={moveBookList}
+        />
 
         {selectedList && (
           <BookListDetail

@@ -218,14 +218,50 @@
   min-height: 40px;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 0 10px 0 13px;
+  gap: 2px;
+  padding: 0 4px;
   border: 0;
   border-radius: var(--semi-border-radius-small);
   color: var(--semi-color-text-1);
   background: transparent;
-  cursor: pointer;
   transition: color 160ms ease, background-color 160ms ease;
+}
+
+.book-list-nav__select {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--semi-border-radius-small);
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.book-list-nav .book-list-nav__handle {
+  width: 32px;
+  height: 40px;
+  min-width: 32px;
+  min-height: 40px;
+  flex-shrink: 0;
+  color: inherit;
+  cursor: grab;
+  touch-action: none;
+}
+
+.book-list-nav__item--dragging {
+  background: var(--semi-color-bg-2);
+  outline: 1px solid var(--semi-color-primary);
+}
+
+.book-list-nav__item--dragging .book-list-nav__handle {
+  cursor: grabbing;
 }
 
 .book-list-nav__item::before {
@@ -243,7 +279,8 @@
   background: var(--semi-color-fill-0);
 }
 
-.book-list-nav__item:focus-visible {
+.book-list-nav__select:focus-visible,
+.book-list-nav .book-list-nav__handle:focus-visible {
   outline: 2px solid var(--semi-color-focus-border);
   outline-offset: -2px;
 }
@@ -257,11 +294,15 @@
   background: var(--semi-color-primary);
 }
 
-.book-list-nav__item > span:first-child {
+.book-list-nav__select > span:first-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.book-list-nav__select > span:last-child {
+  flex-shrink: 0;
 }
 
 .book-list-detail {

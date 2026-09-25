@@ -66,6 +66,7 @@ export interface LearningState {
   createBookList: (bookList: BookList) => void;
   updateBookList: (bookListId: string, changes: Partial<Pick<BookList, 'name' | 'note'>>) => void;
   deleteBookList: (bookListId: string) => void;
+  moveBookList: (bookListId: string, destinationIndex: number) => void;
   setBookListBooks: (bookListId: string, bookIds: string[]) => void;
   moveBookInList: (bookListId: string, sourceIndex: number, destinationIndex: number) => void;
   removeBookFromList: (bookListId: string, bookId: string) => void;

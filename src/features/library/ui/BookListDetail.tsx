@@ -104,7 +104,12 @@ export function BookListDetail({
                 className={`book-list-books${dropSnapshot.isDraggingOver ? ' book-list-books--dragging-over' : ''}`}
               >
                 {books.map((book, index) => (
-                  <Draggable draggableId={`book-list-item:${book.id}`} index={index} key={book.id}>
+                  <Draggable
+                    draggableId={`book-list-item:${book.id}`}
+                    index={index}
+                    key={book.id}
+                    disableInteractiveElementBlocking
+                  >
                     {(dragProvided, dragSnapshot) => (
                       <article
                         ref={dragProvided.innerRef}
