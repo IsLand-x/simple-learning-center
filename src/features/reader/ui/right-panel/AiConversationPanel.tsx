@@ -573,13 +573,15 @@ export function AiConversationPanel({
                     aria-label={`发送提示词：${template.label}`}
                     disabled={
                       !canSend ||
-                      (template.id === 'book-knowledge-map' &&
+                      ((template.id === 'book-knowledge-map' || template.id === 'infographic') &&
                         selectedConfig?.oauthProvider !== 'openai-codex')
                     }
                     title={
-                      template.id === 'book-knowledge-map'
-                        ? '使用所选 ChatGPT/Codex 订阅分析全部已提取正文并生图，会消耗订阅额度；请先选择 ChatGPT 模型。'
-                        : undefined
+                      template.id === 'infographic'
+                        ? '根据当前问题自动选择六种读书图型，先整理内容稿与来源，再用所选 ChatGPT/Codex 账号生图，会消耗订阅额度。也可在输入框指定图型和样式。'
+                        : template.id === 'book-knowledge-map'
+                          ? '使用所选 ChatGPT/Codex 订阅分析全部已提取正文并生图，会消耗订阅额度；请先选择 ChatGPT 模型。'
+                          : undefined
                     }
                     key={template.id}
                     size="small"
@@ -592,11 +594,13 @@ export function AiConversationPanel({
                 ))}
               </div>
             )}
-            {visiblePromptTemplates.some((template) => template.id === 'book-knowledge-map') && (
+            {visiblePromptTemplates.some(
+              (template) => template.id === 'book-knowledge-map' || template.id === 'infographic',
+            ) && (
               <Text type="tertiary" className="knowledge-map-hint">
                 {selectedConfig?.oauthProvider === 'openai-codex'
-                  ? '知识地图会发送全书已提取正文至 ChatGPT，并消耗订阅额度。'
-                  : '全景知识地图需要先选择已登录的 ChatGPT/Codex 模型。'}
+                  ? '信息图会发送相关内容与方案至 ChatGPT；全景知识地图会发送全书已提取正文。均消耗订阅额度。'
+                  : '信息图与全景知识地图需要先选择已登录的 ChatGPT/Codex 模型。'}
               </Text>
             )}
             <div className="ai-composer-context__row">

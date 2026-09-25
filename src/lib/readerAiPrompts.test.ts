@@ -14,6 +14,7 @@ describe('reader AI prompts', () => {
 
   it('provides unique templates for the core study workflows', () => {
     expect(READER_AI_PROMPT_TEMPLATES.map((template) => template.label)).toEqual([
+      '生成信息图',
       '全景知识地图',
       '总结全书',
       '总结本章',

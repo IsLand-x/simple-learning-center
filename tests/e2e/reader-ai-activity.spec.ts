@@ -110,6 +110,7 @@ test('查看旧内容时保持未读，滚动到回复末尾才标记已读', as
   const jobs = await mockJobs(page);
   await page.goto(`/books/${book.id}`);
   await entry(page, mobile).click();
+  await expect(page.getByRole('button', { name: '发送提示词：生成信息图' })).toBeDisabled();
   await send(page);
   await expect(page.getByText('正在后台继续生成', { exact: true })).toBeVisible();
   jobs.progress(

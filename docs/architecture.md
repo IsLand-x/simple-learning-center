@@ -128,3 +128,11 @@ Web 单元测试位于 `src/**/*.test.{ts,tsx}`，Node 服务端测试当前位�
 `server/knowledgeMaps/service.mjs` 从现有 Foliate 正文索引读取全部段落，在 Pi AI 所选 OAuth 运行时中顺序分析、分层汇总，再交给 `server/aiAuth/codexImage.mjs` 调用固定的 Codex Responses 生图端点。该适配器复用 Pi OAuth 刷新，不返回凭据；SSE 有大小限制、超时、取消和完成状态检查，供应商原始错误不会写入对话或日志。生图与书籍分析都只向读者当前选择的 ChatGPT/Codex 账号发送，不为其他供应商隐式启用。
 
 PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户请求至多执行一次；阶段变化使用现有任务流展示。生成结果由服务端确定性追加到最终对话，保留原图 URL、分析正文和覆盖范围。PNG 保存在独立的 knowledge-maps 文件目录中，写入与书籍删除状态串行校验；读取走现有认证 middleware，删除走书籍文件清理。对话沿用 conversations 分区，无新顶层字段与 store 迁移。
+
+### 信息图结构规划与生图
+
+`server/knowledgeMaps/infographic.mjs` 提供 `plan_infographic` 和 `generate_infographic`，仅在阅读任务选择 `openai-codex` 时挂载。方案使用 TypeBox schema 限定标题、目的、布局、节点、关系、出处、限制和样式，并校验节点唯一性和关系引用；生成时必须携带当前请求最新方案的随机 ID。方案仅保留在任务内存中，其可读文本与图片结果通过现有消息流写入 conversations 分区，不增加 Zustand 字段或迁移。
+
+规划阶段先发布可读方案，生图复用 `codexImage.mjs` 与 `saveKnowledgeMap` 的鉴权、取消、超时、原子写入和删除竞态保护。并行的重复生图调用共享同一个 Promise，包括失败结果；与全书地图共用单次尝试额度，禁止失败后切换工具自动重试。服务端直接发布最终图片消息，成功后结束 Agent 轮次，避免依赖模型重新输出图片 URL。前端复用既有快捷提示词、Semi AI Chat 和图片查看器。
+
+`server/knowledgeMaps/presets.mjs` 集中维护六种预设的问题类型、图示规则与内容约束，同时供 Agent 指令、规划 schema 和实际绘图 Prompt 使用。Agent 结合读者问题选择 `preset` 并填写理由，不做关键词硬匹配。节点必须声明原文/概括/解释类型及来源 ID，原文文字须匹配所引用来源片段；来源唯一性、引用完整性和内容容量在服务端校验。内容稿先发布，生图时由预设规则和该份内容稿构成绘图 Prompt；未采用的子主题仅作为后续拆图建议，不自动触发多张付费生成。

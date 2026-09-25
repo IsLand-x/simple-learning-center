@@ -1,4 +1,6 @@
 import { generateBookKnowledgeMap } from './knowledgeMaps/service.mjs';
+import { createInfographicTools } from './knowledgeMaps/infographic.mjs';
+import { INFOGRAPHIC_GUIDANCE } from './knowledgeMaps/presets.mjs';
 import { statusError } from './errors.mjs';
 import { oauthService } from './aiAuth/service.mjs';
 import { Agent } from '@earendil-works/pi-agent-core';
@@ -122,6 +124,7 @@ function createAgentTools({
   webSearchConfig,
   noteActions,
   knowledgeMapAction,
+  infographicTools,
 }) {
   const webTools = {
     web_search: {
@@ -291,6 +294,7 @@ function createAgentTools({
     };
   }
   return {
+    ...infographicTools,
     ...(knowledgeMapAction ? {
       generate_book_knowledge_map: {
         description: '仅在读者明确要求生成全书知识地图图片时调用。自动分段分析全部已提取正文，再使用当前 ChatGPT 订阅生图；无需预先搜索或传入正文。会消耗订阅额度，可能需要数分钟。返回已保存图片地址、全书分析和覆盖范围。每个请求最多生成一次。',
@@ -489,7 +493,11 @@ function agentSystemPrompt(resourceType, purpose, assistantPrompt) {
     resourceType === 'book'
       ? '只有用户明确要求写入或修改阅读笔记时，才可调用 create_book_note 或 update_book_note。修改前必须先调用 read_book_notes 获取最新版本；不得擅自改写或删除用户笔记。'
       : '',
+    resourceType === 'book'
+      ? '只有读者明确要求生成图片或信息图时才生图。对于指定主题、章节、选区的流程图、对比图、时间线或结构图，先按需读取相关材料，分析要表达的节点和关系，再调用 plan_infographic 展示结构方案；获得 plan_id 后在下一轮调用 generate_infographic。不要只给提示词或用文字假装已生图；信息不足时先询问，不得虚构出处。全书全景知识地图使用 generate_book_knowledge_map。图片工具仅在当前选择的 ChatGPT/Codex 供应商下可用，不可用时说明需先选择该供应商，不得偷偷切换账号。每条请求最多尝试生图一次，失败后如实说明，不再调用另一生图工具重试。'
+      : '',
     '工具调用完成后必须继续综合结果并给出完整答案，不要停在工具结果，也不要让读者再发送“继续”。',
+    resourceType === 'book' ? INFOGRAPHIC_GUIDANCE : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -568,6 +576,8 @@ export async function runServerAiChat({
   oauth = oauthService,
   noteActions = DEFAULT_NOTE_ACTIONS,
   knowledgeMapGenerator = generateBookKnowledgeMap,
+  infographicImageGenerator,
+  infographicImageSave,
 }) {
   const runtime = config.oauthProvider
     ? await oauth.runtime(config.oauthProvider, model, signal)
@@ -593,7 +603,14 @@ export async function runServerAiChat({
   }));
   let knowledgeMapResult;
   let knowledgeMapRun;
+  let infographicResult;
+  let imageReserved = false;
+  const reserveImage = () => {
+    if (imageReserved) throw new Error('本次请求已尝试生图，请在下一条消息中提出新的生图要求。');
+    imageReserved = true;
+  };
   const knowledgeMapAction = config.oauthProvider === 'openai-codex' ? (toolSignal) => {
+    if (!knowledgeMapRun) reserveImage();
     knowledgeMapRun ??= knowledgeMapGenerator({
       book, runtime, signal: toolSignal,
       onStage: (stage) => {
@@ -613,6 +630,31 @@ export async function runServerAiChat({
     });
     return knowledgeMapRun;
   } : undefined;
+  const infographicTools = config.oauthProvider === 'openai-codex' && resourceType === 'book'
+    ? createInfographicTools({
+      book, runtime, reserveImage,
+      generateImage: infographicImageGenerator,
+      save: infographicImageSave,
+      onPlan: (outline) => {
+        const entry = ensureEntry('message', 'infographic-plan');
+        entry.text = outline;
+        entry.status = 'completed';
+        publish();
+      },
+      onStage: (stage, status) => {
+        const entry = ensureEntry('tool', 'infographic-stage', { name: '信息图', arguments: '' });
+        entry.arguments = stage;
+        entry.status = status;
+        publish();
+      },
+      onResult: (result) => {
+        infographicResult = result;
+        const entry = ensureEntry('message', 'infographic-result');
+        entry.text = `![信息图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})\n\n图片中的文字与关系请对照原文核查。`;
+        entry.status = 'completed';
+        publish();
+      },
+    }) : undefined;
   const toolMap = createAgentTools({
     resourceType,
     purpose,
@@ -633,6 +675,7 @@ export async function runServerAiChat({
     webSearchConfig,
     noteActions: trackedNoteActions,
     knowledgeMapAction,
+    infographicTools,
   });
   const tools = Object.entries(toolMap).map(([name, definition]) => piTool(name, definition));
 
@@ -668,7 +711,7 @@ export async function runServerAiChat({
         maxRetries: 1,
       }),
     shouldStopAfterTurn: ({ newMessages }) =>
-      Boolean(knowledgeMapResult) || newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS,
+      Boolean(knowledgeMapResult || infographicResult) || newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS,
     prepareNextTurnWithContext: ({ context, newMessages }) => {
       const completedTurns = newMessages.filter((message) => message.role === 'assistant').length;
       if (completedTurns !== MAX_AGENT_TURNS - 1) return undefined;

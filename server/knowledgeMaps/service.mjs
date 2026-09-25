@@ -120,7 +120,7 @@ export async function generateBookKnowledgeMap({
   };
 }
 
-async function saveKnowledgeMap(book, png, signal) {
+export async function saveKnowledgeMap(book, png, signal) {
   const id = randomUUID();
   // Serialize existence check and write with book deletion to prevent orphan files.
   await mutatePersistedState(async (snapshot) => {
