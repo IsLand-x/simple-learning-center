@@ -1,3 +1,4 @@
+import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test } from '@playwright/test';
 
 test('软件信息显示机器配置，并支持刷新、失败重试和亮暗主题', async ({ page }, testInfo) => {
@@ -40,7 +41,7 @@ test('软件信息显示机器配置，并支持刷新、失败重试和亮暗�
       const refresh = machine.getByRole('button', { name: '刷新' });
       await refresh.focus();
       await expect(refresh).toBeFocused();
-      if (width <= 800) expect((await refresh.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      await expectSemiButtonSize(refresh);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );

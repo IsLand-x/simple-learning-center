@@ -22,7 +22,6 @@ import { fetchYouTubeVideo } from './youtubeVideo.mjs';
 import { registerErrorHandler } from './app/http.mjs';
 import { registerApiMiddleware } from './app/middleware.mjs';
 import { registerAiRoutes } from './routes/aiRoutes.mjs';
-import { registerApiKeyRoutes } from './routes/apiKeyRoutes.mjs';
 import { registerAuthRoutes } from './routes/authRoutes.mjs';
 import { registerBookRoutes } from './routes/bookRoutes.mjs';
 import { registerSystemInfoRoutes } from './routes/systemInfoRoutes.mjs';
@@ -71,7 +70,6 @@ export function createApp({
   registerHealthRoutes(app, { mode });
   registerSystemInfoRoutes(app);
   registerStateRoutes(app, { aiJobs });
-  registerApiKeyRoutes(app);
   registerAiOAuthRoutes(app, { oauth });
   registerRssFeedRoutes(app, {
     rssFetcher,

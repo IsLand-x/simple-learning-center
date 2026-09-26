@@ -1661,11 +1661,6 @@
   }
 
   .rss-mobile-topbar .semi-button {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
-    padding: 0;
     touch-action: manipulation;
   }
 
@@ -1757,10 +1752,6 @@
     min-height: 52px;
     padding-inline: 12px;
     background: var(--semi-color-bg-0);
-  }
-
-  .rss-mobile-screen--items .rss-time-filter .semi-button {
-    min-height: 36px;
   }
 
   .rss-mobile-screen--items .rss-item-row {

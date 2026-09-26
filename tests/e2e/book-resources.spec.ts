@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { expectSemiButtonSize } from './semi-button-size';
 import { demoBooks } from '../../src/data/demo';
 import type { BookImageResource } from '../../src/features/reader/model/bookResources';
 
@@ -55,6 +56,7 @@ for (const width of [375, 768, 1024, 1440]) {
       let resources: BookImageResource[] = [];
       let failSave = true;
       let failRemove = true;
+      let failRename = true;
       await page.route(`**/api/books/${book.id}/resources**`, (route) => {
         const method = route.request().method();
         if (method === 'POST') {
@@ -64,6 +66,14 @@ for (const width of [375, 768, 1024, 1440]) {
           }
           const input = route.request().postDataJSON();
           resources = [{ ...input, savedAt: Date.now(), url: imageUrl }];
+        }
+        if (method === 'PATCH') {
+          if (failRename) {
+            failRename = false;
+            return route.fulfill({ status: 500, json: { error: '测试重命名失败，请重试' } });
+          }
+          const { title } = route.request().postDataJSON();
+          resources = resources.map((resource) => ({ ...resource, title }));
         }
         if (method === 'DELETE') {
           if (failRemove) {
@@ -88,7 +98,7 @@ for (const width of [375, 768, 1024, 1440]) {
       await expect(save).toBeEnabled();
       await save.focus();
       await expect(save).toBeFocused();
-      expect((await save.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      await expectSemiButtonSize(save);
       await save.click();
       await expect(page.getByText('测试保存失败，请重试')).toBeVisible();
       await save.click();
@@ -101,7 +111,30 @@ for (const width of [375, 768, 1024, 1440]) {
         await expect(button).toBeDisabled();
       await page.getByRole('button', { name: '打开资源库', exact: true }).click();
       await expect(page.locator('.book-resources__item')).toHaveCount(1);
-      const trigger = page.getByRole('button', { name: '全屏查看图片：机制图' });
+      const titleButton = page.getByRole('button', { name: '重命名图片：机制图' });
+      await titleButton.dblclick();
+      const titleInput = page.getByRole('textbox', { name: '图片标题' });
+      await expect(titleInput).toBeFocused();
+      await titleInput.fill('取消的标题');
+      await titleInput.press('Escape');
+      await expect(titleButton).toBeFocused();
+      await titleButton.press('F2');
+      await expect(titleInput).toHaveValue('机制图');
+      await titleInput.fill('   ');
+      await titleInput.press('Enter');
+      await expect(page.getByRole('form', { name: '重命名资源' }).getByRole('alert')).toContainText(
+        '标题不能为空',
+      );
+      await titleInput.fill('修改后的机制图');
+      await titleInput.press('Enter');
+      await expect(page.getByRole('form', { name: '重命名资源' }).getByRole('alert')).toContainText(
+        '测试重命名失败，请重试',
+      );
+      await expect(titleInput).toHaveValue('修改后的机制图');
+      await titleInput.press('Enter');
+      await expect(titleInput).toHaveCount(0);
+      await expect(page.getByRole('button', { name: '重命名图片：修改后的机制图' })).toBeFocused();
+      const trigger = page.getByRole('button', { name: '全屏查看图片：修改后的机制图' });
       await expect(trigger.locator('img')).toHaveJSProperty('naturalWidth', 1200);
       await page.screenshot({ path: testInfo.outputPath(`resources-${width}-${theme}.png`) });
       expect(
@@ -117,8 +150,9 @@ for (const width of [375, 768, 1024, 1440]) {
       await openPanel();
       if (width <= 800) await page.getByRole('button', { name: '打开资源库', exact: true }).click();
       await expect(page.locator('.book-resources__item')).toHaveCount(1);
-      const remove = page.getByRole('button', { name: '移除图片：机制图' });
-      expect((await remove.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+      await expect(page.getByRole('button', { name: '重命名图片：修改后的机制图' })).toBeVisible();
+      const remove = page.getByRole('button', { name: '移除图片：修改后的机制图' });
+      await expectSemiButtonSize(remove);
       await remove.click();
       await expect(page.getByRole('heading', { name: '从资源库移除图片？' })).toBeVisible();
       await page.goBack();

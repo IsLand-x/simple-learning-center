@@ -1,3 +1,4 @@
+import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test, type Page } from '@playwright/test';
 import {
   DEFAULT_READER_AI_ASSISTANT_PROMPT,
@@ -467,17 +468,14 @@ test('reader AI highlight questions and in-panel settings persist across desktop
   await page.getByRole('button', { name: '打开更多功能，默认显示 AI 助手' }).click();
   await expect(shortcuts).toBeVisible();
   await expect(shortcuts.getByRole('button')).toHaveCount(READER_AI_PROMPT_TEMPLATES.length - 1);
-  const mobileShortcutHeight = await summarizeChapter.evaluate(
-    (element) => element.getBoundingClientRect().height,
-  );
-  expect(Math.round(mobileShortcutHeight)).toBeGreaterThanOrEqual(44);
+  await expectSemiButtonSize(summarizeChapter);
   await expectInsideViewport(page, '.reader-ai-input');
   const mobileDimensions = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(mobileDimensions.scrollWidth).toBeLessThanOrEqual(mobileDimensions.clientWidth);
-  expect(Math.round((await settingsButton.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(44);
+  await expectSemiButtonSize(settingsButton);
   await settingsButton.click();
   await expect(settingsDialog).toBeVisible();
   await expect
@@ -527,8 +525,7 @@ test('OpenAPI token settings support generation and revocation across themes and
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
       if (width <= 800) {
-        const button = await panel.getByRole('button', { name: '复制 Token' }).boundingBox();
-        expect(button!.height).toBeGreaterThanOrEqual(44);
+        await expectSemiButtonSize(panel.getByRole('button', { name: '复制 Token' }));
       }
     }
   }
@@ -597,9 +594,7 @@ test('MCP settings show reusable token config and library tools', async ({ page 
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
       if (width <= 800)
-        expect(
-          (await panel.getByRole('button', { name: '复制配置 JSON' }).boundingBox())!.height,
-        ).toBeGreaterThanOrEqual(44);
+        await expectSemiButtonSize(panel.getByRole('button', { name: '复制配置 JSON' }));
     }
   }
   await page.reload();

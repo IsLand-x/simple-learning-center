@@ -1,3 +1,4 @@
+import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test } from '@playwright/test';
 import type { AiJob } from '../../src/lib/aiJobs';
 import { demoBooks } from '../../src/data/demo';
@@ -86,7 +87,7 @@ for (const scenario of [
         else await page.locator('.activity-bar button').first().click();
         const shortcut = page.getByRole('button', { name: `发送提示词：${scenario.label}` });
         await expect(shortcut).toBeEnabled();
-        if (width <= 800) expect((await shortcut.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+        await expectSemiButtonSize(shortcut);
         await shortcut.focus();
         await expect(shortcut).toBeFocused();
         await shortcut.click();
@@ -130,9 +131,7 @@ for (const scenario of [
           )
           .toBe(true);
         for (const button of await viewer.getByRole('button').all()) {
-          const size = await button.boundingBox();
-          expect(size?.width).toBeGreaterThanOrEqual(44);
-          expect(size?.height).toBeGreaterThanOrEqual(44);
+          await expectSemiButtonSize(button);
         }
         await page.keyboard.press('0');
         await expect(viewer.getByRole('button', { name: '恢复图片适应屏幕' })).toHaveText('100%');

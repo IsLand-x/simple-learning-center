@@ -139,6 +139,6 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 
 ### 书籍图片资源库
 
-`server/knowledgeMaps/resources.mjs` 管理书籍级图片收藏清单，通过 `bookRoutes` 的 `/api/books/:bookId/resources` 提供列表、保存与移除接口。只接受当前书籍目录内已存在的图片 UUID，服务端构造图片 URL；保存按 UUID 幂等。清单以版本化 JSON 原子写入图片目录，权限为 0600，目录为 0700。写入复用 `mutatePersistedState` 的串行队列并检查书籍有效性，避免与书籍删除产生孤立数据。清单损坏时返回失败，不覆盖旧文件。
+`server/knowledgeMaps/resources.mjs` 管理书籍级图片收藏清单，通过 `bookRoutes` 的 `/api/books/:bookId/resources` 提供列表、保存与移除接口；`PATCH /api/books/:bookId/resources/:imageId` 仅更新已收藏图片的标题。标题经 schema 校验并去除首尾空白，不允许空值或超过 200 字，重命名保留原图、收藏顺序和时间。只接受当前书籍目录内已存在的图片 UUID，服务端构造图片 URL；保存按 UUID 幂等。清单以版本化 JSON 原子写入图片目录，权限为 0600，目录为 0700。写入复用 `mutatePersistedState` 的串行队列并检查书籍有效性，避免与书籍删除产生孤立数据。清单损坏时返回失败，不覆盖旧文件。
 
 资源清单由服务端独立管理，不参与客户端状态快照，因此无需新增 `LearningState`、分区映射、store version 或迁移，旧书籍默认空列表。彻底删除复用现有图片目录清理。前端由 reader feature 的资源上下文管理当前书籍列表，通用聊天组件仅提供可选图片组件接口，不依赖 reader feature。图片预览复用 `ExpandableImage` 的移动端返回与全屏交互。

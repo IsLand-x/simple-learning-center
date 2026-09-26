@@ -330,9 +330,6 @@
   }
 
   .video-page__back.semi-button {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
     margin-left: -4px;
   }
 
@@ -466,10 +463,6 @@
     min-height: 48px;
     grid-template-columns: 42px minmax(0, 1fr);
     padding: 8px;
-  }
-
-  .video-transcript-panel__modes .semi-button {
-    min-height: 40px;
   }
 }
 

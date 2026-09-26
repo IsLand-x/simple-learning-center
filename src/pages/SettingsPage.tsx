@@ -6,7 +6,6 @@ import {
   OpenApiSettings,
   McpSettings,
   AiAssistantSettings,
-  ApiKeyTransferActions,
   ContentSourceSettings,
   ModelSettings,
   WebSearchSettings,
@@ -24,9 +23,6 @@ export function SettingsPage() {
         <div>
           <Title heading={4}>设置</Title>
           <Text type="tertiary">管理账户、内容源、AI 模型、阅读助手、联网搜索与软件信息</Text>
-        </div>
-        <div className="settings-header__actions">
-          <ApiKeyTransferActions />
         </div>
       </header>
 

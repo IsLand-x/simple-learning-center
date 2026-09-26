@@ -13,9 +13,8 @@ import {
 const imageIdSchema = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-const inputSchema = z
-  .object({ imageId: imageIdSchema, title: z.string().trim().min(1).max(200) })
-  .strict();
+const titleSchema = z.string().trim().min(1).max(200);
+const inputSchema = z.object({ imageId: imageIdSchema, title: titleSchema }).strict();
 const resourceSchema = inputSchema.extend({ savedAt: z.number().int().nonnegative() });
 const manifestSchema = z.object({ version: z.literal(1), resources: z.array(resourceSchema) });
 const manifestPath = (bookId) => join(knowledgeMapDirectoryPath(bookId), 'resources.json');
@@ -70,6 +69,21 @@ export async function removeBookResource(bookId, imageId) {
   return mutatePersistedState(async (snapshot) => {
     requireBook(snapshot, bookId);
     const resources = (await readResources(bookId)).filter((item) => item.imageId !== imageId);
+    await atomicWrite(manifestPath(bookId), JSON.stringify({ version: 1, resources }));
+    return present(bookId, resources);
+  });
+}
+
+export async function renameBookResource(bookId, imageId, input) {
+  if (!imageIdSchema.safeParse(imageId).success) throw statusError(400, '图片标识不正确');
+  const parsed = z.object({ title: titleSchema }).strict().safeParse(input);
+  if (!parsed.success) throw statusError(400, '标题不能为空且最多 200 字');
+  return mutatePersistedState(async (snapshot) => {
+    requireBook(snapshot, bookId);
+    const resources = await readResources(bookId);
+    const resource = resources.find((item) => item.imageId === imageId);
+    if (!resource) throw statusError(404, '图片尚未收藏或已从资源库移除');
+    resource.title = parsed.data.title;
     await atomicWrite(manifestPath(bookId), JSON.stringify({ version: 1, resources }));
     return present(bookId, resources);
   });

@@ -44,10 +44,6 @@
     flex-direction: column;
   }
 
-  .settings-header__actions {
-    flex-wrap: wrap;
-  }
-
   .settings-about__heading {
     align-items: flex-start;
     flex-direction: column;
@@ -233,27 +229,12 @@
     display: none;
   }
 
-  .library-header .import-books-button.semi-button {
-    position: relative;
-    height: 40px;
-    min-height: 40px;
-    padding: 0 12px;
-    border-radius: var(--semi-border-radius-medium);
-    font-size: 13px;
-  }
-
   .import-books-button__desktop {
     display: none;
   }
 
   .import-books-button__mobile {
     display: inline;
-  }
-
-  .library-header .import-books-button.semi-button::before {
-    position: absolute;
-    inset: -2px;
-    content: '';
   }
 
   .library-toolbar {
@@ -277,7 +258,6 @@
   }
 
   .toolbar-actions .semi-button {
-    min-height: 40px;
     white-space: nowrap;
   }
 
@@ -352,26 +332,6 @@
     margin-bottom: 14px;
   }
 
-  .settings-header__actions {
-    flex-wrap: nowrap;
-    gap: 2px;
-  }
-
-  .settings-header__actions .semi-button {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    padding: 0;
-  }
-
-  .settings-header__actions .semi-button-content-right {
-    display: none;
-  }
-
-  .settings-header__actions .semi-button-content-left {
-    margin-right: 0;
-  }
-
   .settings-tabs > .semi-tabs-bar {
     overflow-x: auto;
     scrollbar-width: none;
@@ -384,15 +344,6 @@
   .settings-tabs .semi-tabs-tab {
     min-height: 44px;
     white-space: nowrap;
-  }
-
-  .settings-tab-actions .semi-button,
-  .account-settings .semi-button,
-  .ai-assistant-settings .semi-button,
-  .web-search-settings .semi-button,
-  .api-config-card .semi-button,
-  .api-config-summary .semi-button {
-    min-height: 44px;
   }
 
   .settings-notice,
@@ -483,14 +434,6 @@
 
   .reader-header__identity > .semi-progress {
     display: none;
-  }
-
-  .reader-header__identity > .semi-button,
-  .reader-header__actions > .semi-button,
-  .reader-header__actions .semi-button {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
   }
 
   .reader-header__title {
@@ -692,18 +635,6 @@
     min-height: 48px;
   }
 
-  .right-panel .panel-titlebar__new-chat.semi-button {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
-  .right-panel .panel-titlebar__settings.semi-button {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
-  }
-
   .mobile-panel-tabs {
     display: flex;
     height: calc(53px + env(safe-area-inset-bottom));
@@ -840,11 +771,6 @@
     font-size: 16px;
   }
 
-  .ai-prompt-shortcuts .semi-button {
-    min-height: 44px;
-    padding: 0 12px;
-  }
-
   .ai-composer-model-cascader.semi-cascader,
   .ai-composer-reasoning-select.semi-select {
     min-height: 44px;
@@ -857,10 +783,6 @@
 
   .ai-assistant-settings__actions {
     justify-content: flex-end;
-  }
-
-  .selection-toolbar .semi-button {
-    min-height: 42px;
   }
 
   .selection-toolbar {

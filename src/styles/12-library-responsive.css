@@ -99,11 +99,6 @@
     width: 100%;
   }
 
-  .book-list-detail__actions .semi-button {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
   .book-list-detail__actions .semi-button:first-child {
     flex: 1;
   }
@@ -133,21 +128,10 @@
     border-radius: 3px 6px 6px 3px;
   }
 
-  .book-list-book > .semi-button {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-  }
-
   .book-list-form .semi-input,
   .book-list-form .semi-input-textarea,
   .book-picker .semi-input {
     font-size: 16px;
-  }
-
-  .epub-import-modal__upload .semi-button,
-  .epub-import-modal__actions .semi-button {
-    min-height: 44px;
   }
 
   .epub-import-modal__actions .semi-button:last-child {
@@ -169,10 +153,6 @@
   .book-trash__item {
     min-height: 96px;
     padding: 12px 8px 12px 12px;
-  }
-
-  .book-trash__actions .semi-button {
-    min-height: 44px;
   }
 }
 

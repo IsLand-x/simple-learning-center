@@ -1,3 +1,4 @@
+import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test } from '@playwright/test';
 
 test('OAuth 设置支持设备授权、取消、完成与退出，并适配亮暗主题及代表宽度', async ({
@@ -46,7 +47,7 @@ test('OAuth 设置支持设备授权、取消、完成与退出，并适配亮�
       const box = await login.boundingBox();
       expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(width);
-      if (width <= 800) expect(box!.height).toBeGreaterThanOrEqual(44);
+      await expectSemiButtonSize(login);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );

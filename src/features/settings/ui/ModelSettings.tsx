@@ -60,10 +60,7 @@ export function ModelSettings({ editingConfigId, onEditingConfigChange }: ModelS
               />
             ))
         ) : (
-          <Empty
-            title="还没有 API Key 模型"
-            description="添加 API Key 模型，或在上方完成账号授权后开始对话"
-          />
+          <Empty title="还没有 API Key 模型" />
         )}
       </section>
     </>

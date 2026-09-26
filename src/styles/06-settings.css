@@ -31,17 +31,6 @@
   margin: 0 0 4px;
 }
 
-.settings-header__actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 8px;
-}
-
-.settings-import-input {
-  display: none;
-}
-
 .settings-notice,
 .web-search-settings,
 .ai-assistant-settings,
@@ -494,7 +483,6 @@
 }
 
 @media (max-width: 800px) {
-  .openapi-settings .semi-button { min-height: 44px; }
   .openapi-settings .semi-input { font-size: 16px; }
 }
 
@@ -526,7 +514,6 @@
 .mcp-settings__tools li + li { border-top: 1px solid var(--semi-color-border); }
 .mcp-settings__tools code { color: var(--semi-color-text-1); font-family: var(--semi-font-family-monospace); font-size: 13px; }
 @media (max-width: 800px) {
-  .mcp-settings .semi-button { min-height: 44px; }
   .mcp-settings .semi-input { font-size: 16px; }
 }
 
@@ -571,7 +558,6 @@
 
 @media (max-width: 800px) {
   .oauth-provider__actions .semi-button {
-    min-height: 44px;
     touch-action: manipulation;
   }
 }
@@ -626,11 +612,6 @@
 }
 
 @media (max-width: 800px) {
-  .settings-about__machine .semi-button {
-    min-width: 44px;
-    min-height: 44px;
-  }
-
   .settings-about__details > div {
     grid-template-columns: 72px minmax(0, 1fr);
     gap: 8px;

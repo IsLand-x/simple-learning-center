@@ -154,6 +154,8 @@ git diff --check
 
 ### 组件、图标与交互状态
 
+- 普通操作按钮使用 Semi Design 原生默认尺寸或 `size="small"`，不通过 CSS 覆盖宽高、内边距、字号或行高，移动端也不强制放大按钮外观。导航栏、图片预览入口与阅读样式卡片等承载专用布局的控件保留其结构尺寸；不要把这些尺寸套用到普通操作按钮。
+
 - 优先复用 Semi Design 组件。主要提交或新建操作使用主色实心按钮；取消和低权重工具使用 `borderless tertiary`；删除使用 `danger`；筛选使用 `ButtonGroup`，当前项 solid、其余 borderless。
 - 带标题且在 body 内自定义操作按钮的表单弹窗必须使用 `src/shared/ui/AppFormModal.tsx`：桌面端标题顶部与操作区底部各保留 `24px`，`800px` 及以下各保留 `20px`，禁止让按钮贴住弹窗底边。使用内置 footer 的确认框继续走 `confirmDialog`；图片查看器等沉浸式例外可以不使用该组件，但必须在功能样式中明确处理边缘留白。滚动弹窗若用粘性操作区覆盖共享 body padding，必须自行提供不小于上述标准的等价底部留白，并计入 `env(safe-area-inset-bottom)`。
 - 图标统一使用 Semi Icons，颜色继承 `currentColor`。禁止混用 Emoji、字符图标或另一套图标库；桌面辅助栏图标约 `18px`，移动导航图标约 `19–20px`。

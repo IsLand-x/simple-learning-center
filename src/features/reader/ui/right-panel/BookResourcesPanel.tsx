@@ -9,6 +9,7 @@ import {
   useBookResourcesContext,
 } from '../../hooks/useBookResources';
 import { bookResourceImageId } from '../../model/bookResources';
+import { BookResourceTitle } from './BookResourceTitle';
 
 export function BookResourcesProvider({
   bookId,
@@ -34,7 +35,6 @@ export function BookResourceImage({ src, alt = '' }: { src?: string; alt?: strin
           aria-label={saved ? '已保存到资源库' : '保存到资源库'}
           icon={<IconBookmark />}
           theme="borderless"
-          size="small"
           loading={pending && !saved}
           disabled={saved || pending || loading}
           onClick={async () => {
@@ -80,9 +80,7 @@ export function BookResourcesPanel() {
                 <ExpandableImage src={resource.url} alt={resource.title} />
                 <div className="book-resources__details">
                   <div className="book-resources__caption">
-                    <Typography.Text strong ellipsis={{ showTooltip: true }}>
-                      {resource.title}
-                    </Typography.Text>
+                    <BookResourceTitle resource={resource} />
                     <Typography.Text type="tertiary" size="small">
                       {new Date(resource.savedAt).toLocaleDateString('zh-CN')}
                     </Typography.Text>

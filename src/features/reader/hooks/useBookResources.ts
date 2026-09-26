@@ -33,20 +33,20 @@ export function useBookResources(bookId: string) {
     };
   }, [reload]);
 
-  const mutate = async (imageId: string, title?: string) => {
+  const update = async (path: string, method: string, payload?: object) => {
     if (busy.current) throw new Error('正在保存资源，请稍候');
     busy.current = true;
     setPending(true);
     const current = ++revision.current;
     try {
-      const response = await serverRequest(title === undefined ? `${base}/${imageId}` : base, {
-        method: title === undefined ? 'DELETE' : 'POST',
-        ...(title === undefined
-          ? {}
-          : {
+      const response = await serverRequest(path, {
+        method,
+        ...(payload
+          ? {
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ imageId, title }),
-            }),
+              body: JSON.stringify(payload),
+            }
+          : {}),
       });
       const data = (await response.json()) as { resources: BookImageResource[] };
       if (current === revision.current) {
@@ -59,7 +59,13 @@ export function useBookResources(bookId: string) {
       if (current === revision.current) setLoading(false);
     }
   };
-  return { bookId, resources, loading, error, pending, reload, mutate };
+  const mutate = (imageId: string, title?: string) =>
+    title === undefined
+      ? update(`${base}/${imageId}`, 'DELETE')
+      : update(base, 'POST', { imageId, title });
+  const rename = (imageId: string, title: string) =>
+    update(`${base}/${imageId}`, 'PATCH', { title });
+  return { bookId, resources, loading, error, pending, reload, mutate, rename };
 }
 
 export const BookResourcesContext = createContext<ReturnType<typeof useBookResources> | null>(null);

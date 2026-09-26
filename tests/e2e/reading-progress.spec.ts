@@ -1,3 +1,4 @@
+import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test } from '@playwright/test';
 import { demoBooks } from '../../src/data/demo';
 
@@ -72,7 +73,7 @@ test('目录连续跳转可恢复原位置，轨迹在同一区域展示剩余�
       // Semi reports the sheet as visible while its entrance transform is still active.
       await expect.poll(async () => (await back.boundingBox())?.x ?? -1).toBeGreaterThanOrEqual(0);
       const bounds = (await back.boundingBox())!;
-      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      await expectSemiButtonSize(back);
       expect(bounds.x).toBeGreaterThanOrEqual(0);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
       await page.screenshot({ path: testInfo.outputPath(`toc-${width}-${theme}.png`) });

@@ -41,7 +41,6 @@ export const YOUTUBE_PROXY_CONFIGURED = Boolean(YOUTUBE_PROXY || YOUTUBE_ENV_PRO
 export const MAX_STATE_BYTES = 64 * 1024 * 1024;
 export const MAX_INDEX_BYTES = 256 * 1024 * 1024;
 export const MAX_BOOK_BYTES = 2 * 1024 * 1024 * 1024;
-export const MAX_API_KEY_IMPORT_BYTES = 1024 * 1024;
 export const MAX_AUTH_REQUEST_BYTES = 8 * 1024;
 export const MAX_AI_JOB_REQUEST_BYTES = 512 * 1024;
 export const MAX_RSS_REQUEST_BYTES = 16 * 1024;

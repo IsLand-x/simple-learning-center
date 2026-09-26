@@ -3,6 +3,7 @@ import {
   listBookResources,
   saveBookResource,
   removeBookResource,
+  renameBookResource,
 } from '../knowledgeMaps/resources.mjs';
 import {
   movePersistedBookToTrash,
@@ -31,6 +32,15 @@ export function registerBookRoutes(app) {
     c.json({
       resources: await saveBookResource(
         c.req.param('bookId'),
+        await readJsonRequest(c.req.raw, 4096),
+      ),
+    }),
+  );
+  app.patch(`${BOOK_ROUTE}/resources/:imageId`, async (c) =>
+    c.json({
+      resources: await renameBookResource(
+        c.req.param('bookId'),
+        c.req.param('imageId'),
         await readJsonRequest(c.req.raw, 4096),
       ),
     }),

@@ -475,9 +475,6 @@
 }
 
 .reader-style-color-trigger.semi-button {
-  width: 32px;
-  min-width: 32px;
-  padding: 3px;
   border: 0;
   box-shadow: inset 0 0 0 1px var(--semi-color-border);
 }
@@ -1126,10 +1123,6 @@
 }
 
 .tiptap-markdown-editor__toolbar .semi-button {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0;
   color: var(--semi-color-text-2);
 }
 
@@ -1761,9 +1754,7 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 }
 
 .ai-prompt-shortcuts .semi-button {
-  min-height: 28px;
   flex: 0 0 auto;
-  padding: 0 8px;
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-small);
   background: var(--semi-color-fill-0);
@@ -1850,11 +1841,6 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 .reader-ai-input .semi-aiChatInput-editor-content .tiptap p,
 .reader-ai-input .semi-aiChatInput-editor-content .tiptap span {
   color: var(--semi-color-text-0) !important;
-}
-
-.reader-ai-input .semi-aiChatInput-footer-action-button {
-  width: 28px;
-  height: 28px;
 }
 
 .highlight-card__footer {
@@ -1953,7 +1939,6 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
 }
 
 .toc-panel__return .semi-button {
-  min-height: 44px;
   touch-action: manipulation;
 }
 
@@ -1979,19 +1964,12 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   border-radius: var(--semi-border-radius-medium);
 }
 
-@media (max-width: 800px) {
-  .ai-prompt-shortcuts .semi-button {
-    min-height: 44px;
-  }
-}
-
 .book-resource-image {
   display: block;
   min-width: 0;
 }
 
 .book-resource-image__save.semi-button {
-  min-height: 44px;
   white-space: normal;
 }
 
@@ -2051,17 +2029,37 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   gap: 4px;
 }
 
-.book-resources__details .semi-button {
-  min-width: 44px;
-  min-height: 44px;
-}
-
 .book-resources__item .expandable-image .semi-button-content {
   width: 100%;
   height: 100%;
 }
 
-.book-resources .semi-empty .semi-button {
-  min-width: 44px;
-  min-height: 44px;
+.book-resource-title,
+.book-resource-title__trigger.semi-button,
+.book-resource-title__trigger .semi-button-content {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.book-resource-title__trigger {
+  touch-action: manipulation;
+}
+
+.book-resource-title__editor {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.book-resource-title__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 800px) {
+  .book-resource-title__editor input {
+    font-size: 16px;
+  }
 }

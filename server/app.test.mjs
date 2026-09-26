@@ -96,27 +96,16 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(stateAfterPreferenceWrite.state.notes.length, 0);
   });
 
-  await t.test('导出并导入 API Key', async () => {
-    const exportResponse = await app.request('/api/api-keys/export');
-    assert.equal(exportResponse.status, 200);
-    const exported = await exportResponse.json();
-    assert.equal(exported.format, 'learning-center-api-keys');
-    assert.equal(exported.openAIConfigs[0].apiKey, 'test-key-1');
-
-    exported.openAIConfigs[0].apiKey = 'test-key-2';
-    const importResponse = await app.request('/api/api-keys/import', {
+  await t.test('API Key 导入导出接口已移除，已有配置保持不变', async () => {
+    assert.equal((await app.request('/api/api-keys/export')).status, 404);
+    assert.equal((await app.request('/api/api-keys/import', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(exported),
-    });
-    assert.equal(importResponse.status, 200);
-    assert.deepEqual(await importResponse.json(), {
-      imported: { added: 0, updated: 1, webSearch: true },
-    });
-
-    const stateResponse = await app.request('/api/state');
-    const state = await stateResponse.json();
-    assert.equal(state.state.openAIConfigs[0].apiKey, 'test-key-2');
+      body: JSON.stringify({ openAIConfigs: [] }),
+    })).status, 404);
+    const snapshot = await (await app.request('/api/state')).json();
+    assert.equal(snapshot.state.openAIConfigs[0].apiKey, 'test-key-1');
+    assert.equal(snapshot.state.webSearchConfig.apiKey, 'test-search-key');
   });
 
   await t.test('旧标签页不会覆盖新版 RSS 状态', async () => {
@@ -311,12 +300,7 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(malformedResponse.status, 400);
     assert.deepEqual(await malformedResponse.json(), { error: 'JSON 数据格式不正确' });
 
-    const importResponse = await app.request('/api/api-keys/import', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format: 'unknown', version: 1, openAIConfigs: [] }),
-    });
-    assert.equal(importResponse.status, 400);
+
   });
 
   await t.test('通过服务端导入 YouTube 视频元数据与字幕', async () => {
