@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { protectChatReadState } from './chatReadState.mjs';
+import { protectChatReadState } from './modules/state/chatReadState.js';
 
 test('旧客户端与旧快照不会清除已读标记，删除消息仍然有效', () => {
   const message = { id: 'reply', role: 'assistant', content: '回复' };

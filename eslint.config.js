@@ -6,7 +6,15 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['coverage/**', 'data/**', 'dev-dist/**', 'dist/**', 'node_modules/**', 'public/**'],
+    ignores: [
+      'coverage/**',
+      'data/**',
+      'dev-dist/**',
+      'dist/**',
+      'server-dist/**',
+      'node_modules/**',
+      'public/**',
+    ],
     linterOptions: {
       reportUnusedDisableDirectives: 'error',
     },
@@ -32,6 +40,8 @@ export default tseslint.config(
   {
     files: [
       'src/**/*.{ts,tsx}',
+      'server/**/*.ts',
+      'contracts/**/*.ts',
       'tests/**/*.{ts,tsx}',
       'vite.config.ts',
       'vitest.config.ts',
@@ -70,13 +80,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
+    files: ['src/**/*.test.{ts,tsx}', 'src/util/testing/**/*.{ts,tsx}'],
     languageOptions: {
       globals: globals.vitest,
     },
   },
   {
-    files: ['src/features/reader/foliate/useFoliateReaderLifecycle.ts'],
+    files: ['src/pages/books/detail/components/foliate/useFoliateReaderLifecycle.ts'],
     rules: {
       // The lifecycle is intentionally keyed by book identity; current values flow through stable refs.
       'react-hooks/exhaustive-deps': 'off',

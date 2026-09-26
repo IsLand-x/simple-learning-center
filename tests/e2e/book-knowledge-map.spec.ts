@@ -1,7 +1,7 @@
 import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test } from '@playwright/test';
-import type { AiJob } from '../../src/lib/aiJobs';
-import { demoBooks } from '../../src/data/demo';
+import type { AiJob } from '../../src/util/ai/aiJobs';
+import { demoBooks } from '../../src/util/fixtures/demo';
 
 const book = demoBooks[0];
 const imageUrl = `/api/books/${book.id}/knowledge-maps/11111111-1111-4111-8111-111111111111`;

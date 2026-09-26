@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { demoBooks } from '../../src/data/demo';
+import { demoBooks } from '../../src/util/fixtures/demo';
 
 test('同步阅读状态保留手动目录滚动，切换章节和重新展开仍定位当前章节', async ({
   page,

@@ -5,7 +5,7 @@ import {
   parseRssTranslationResponse,
   prepareRssTranslationSource,
   renderRssTranslation,
-} from './rssTranslation.mjs';
+} from './modules/rss/translation.js';
 
 function translatedSegments(source, translate = (segment) => `译：${segment.text}`) {
   return source.segments.map((segment) => ({
@@ -32,8 +32,14 @@ test('RSS 翻译保留原始 HTML 结构、图片与不可翻译代码', () => {
     source.segments.map((segment) => segment.text),
     ['Headline', 'Hello', 'world', '.', 'Caption', 'Quoted idea', 'Label', 'Value'],
   );
-  assert.equal(source.segments.some((segment) => segment.text.includes('/photo.jpg')), false);
-  assert.equal(source.segments.some((segment) => segment.text.includes('const answer')), false);
+  assert.equal(
+    source.segments.some((segment) => segment.text.includes('/photo.jpg')),
+    false,
+  );
+  assert.equal(
+    source.segments.some((segment) => segment.text.includes('const answer')),
+    false,
+  );
 
   const response = JSON.stringify({ version: 1, segments: translatedSegments(source) });
   const result = completeRssTranslation(response, source);
@@ -55,27 +61,39 @@ test('RSS 翻译把模型文本作为纯文本回填，不能注入 HTML', () =>
 test('RSS 翻译拒绝缺失、重复或未知的片段 id', () => {
   const source = prepareRssTranslationSource({ contentHtml: '<p>First</p><p>Second</p>' });
   assert.throws(
-    () => parseRssTranslationResponse(JSON.stringify({
-      version: 1,
-      segments: [{ id: source.segments[0].id, text: '第一' }],
-    }), source),
+    () =>
+      parseRssTranslationResponse(
+        JSON.stringify({
+          version: 1,
+          segments: [{ id: source.segments[0].id, text: '第一' }],
+        }),
+        source,
+      ),
     /翻译片段不完整/,
   );
   assert.throws(
-    () => parseRssTranslationResponse(JSON.stringify({
-      version: 1,
-      segments: [
-        { id: source.segments[0].id, text: '第一' },
-        { id: source.segments[0].id, text: '重复' },
-      ],
-    }), source),
+    () =>
+      parseRssTranslationResponse(
+        JSON.stringify({
+          version: 1,
+          segments: [
+            { id: source.segments[0].id, text: '第一' },
+            { id: source.segments[0].id, text: '重复' },
+          ],
+        }),
+        source,
+      ),
     /翻译片段不完整/,
   );
   assert.throws(
-    () => parseRssTranslationResponse(JSON.stringify({
-      version: 1,
-      segments: translatedSegments(source).concat({ id: 'unknown', text: '未知' }),
-    }), source),
+    () =>
+      parseRssTranslationResponse(
+        JSON.stringify({
+          version: 1,
+          segments: translatedSegments(source).concat({ id: 'unknown', text: '未知' }),
+        }),
+        source,
+      ),
     /翻译片段不完整/,
   );
 });
@@ -90,10 +108,15 @@ test('RSS 翻译兼容模型返回的 JSON 代码围栏', () => {
 });
 
 test('RSS 翻译长文本分段不会拆开 Unicode 代理对', () => {
-  const source = prepareRssTranslationSource({ contentText: `${'a'.repeat(3_999)}😀${'b'.repeat(20)}` });
+  const source = prepareRssTranslationSource({
+    contentText: `${'a'.repeat(3_999)}😀${'b'.repeat(20)}`,
+  });
   source.segments.forEach((segment) => {
     assert.equal(/[\uD800-\uDBFF]$/u.test(segment.text), false);
     assert.equal(/^[\uDC00-\uDFFF]/u.test(segment.text), false);
   });
-  assert.equal(source.segments.map((segment) => segment.text).join(''), `${'a'.repeat(3_999)}😀${'b'.repeat(20)}`);
+  assert.equal(
+    source.segments.map((segment) => segment.text).join(''),
+    `${'a'.repeat(3_999)}😀${'b'.repeat(20)}`,
+  );
 });

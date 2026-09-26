@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Locator } from '@playwright/test';
-import { demoBooks } from '../../src/data/demo';
+import { demoBooks } from '../../src/util/fixtures/demo';
 
 async function swipe(session: CDPSession, target: Locator, direction: 'left' | 'right') {
   await expect(target).toBeVisible();

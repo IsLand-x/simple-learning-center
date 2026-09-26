@@ -4,7 +4,7 @@ import {
   createStateDomainSnapshot,
   mergeStateDomainSnapshot,
   serializeStateDomainSnapshot,
-} from './stateDomains.mjs';
+} from './modules/state/domains.js';
 
 test('状态分区只读写自己的字段', () => {
   const current = {
@@ -23,10 +23,14 @@ test('状态分区只读写自己的字段', () => {
     version: 28,
   });
 
-  const merged = mergeStateDomainSnapshot(current, {
-    state: { highlights: [{ id: 'highlight-2' }], books: [] },
-    version: 28,
-  }, 'reading');
+  const merged = mergeStateDomainSnapshot(
+    current,
+    {
+      state: { highlights: [{ id: 'highlight-2' }], books: [] },
+      version: 28,
+    },
+    'reading',
+  );
   assert.deepEqual(merged.state.highlights, [{ id: 'highlight-2' }]);
   assert.deepEqual(merged.state.books, [{ id: 'book-1' }]);
   assert.deepEqual(merged.state.rssItems, [{ id: 'rss-1' }]);

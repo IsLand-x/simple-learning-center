@@ -8,8 +8,8 @@ test('关闭任务事件流不取消生成，完成与已读状态保存在服�
   const directory = await mkdtemp(join(tmpdir(), 'learning-center-ai-background-'));
   process.env.LEARNING_CENTER_DATA_DIR = directory;
   process.env.LEARNING_CENTER_MODE = 'local';
-  const { initializeDataDirectories } = await import('./storage.mjs');
-  const { createApp } = await import('./app.mjs');
+  const { initializeDataDirectories } = await import('./infrastructure/fs/files.js');
+  const { createApp } = await import('./app.js');
   await initializeDataDirectories();
   let finish;
   let taskSignal;

@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createProvider } from '@earendil-works/pi-ai';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
-import { createOAuthService } from './aiAuth/service.mjs';
-import { createApp } from './app.mjs';
+import { createOAuthService } from './modules/ai/oauth.js';
+import { createApp } from './app.js';
 
 async function fixture(
   t,

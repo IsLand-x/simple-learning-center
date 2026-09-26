@@ -6,7 +6,7 @@ import {
   fauxProvider,
   fauxToolCall,
 } from '@earendil-works/pi-ai';
-import { createOpenAICompatiblePiRuntime, runServerAiChat } from './aiChat.mjs';
+import { createOpenAICompatiblePiRuntime, runServerAiChat } from './modules/ai/chat.js';
 
 function runtimeFactoryFor(faux) {
   const models = createModels();
@@ -327,24 +327,35 @@ test('PiAgent 在最后一轮关闭工具并按 SDK 生命周期停止', async (
 test('OAuth 对话使用供应商运行时，不把配置中的 API Key 带入请求', async () => {
   const faux = fauxProvider({ tokensPerSecond: 0 });
   let requestedOptions;
-  faux.setResponses([(context, options) => {
-    requestedOptions = options;
-    return fauxAssistantMessage('OAuth 对话成功');
-  }]);
+  faux.setResponses([
+    (context, options) => {
+      requestedOptions = options;
+      return fauxAssistantMessage('OAuth 对话成功');
+    },
+  ]);
   const result = await runServerAiChat({
-    config: { oauthProvider: 'kimi-coding', apiKey: 'must-not-be-used', baseUrl: 'https://untrusted.invalid' },
+    config: {
+      oauthProvider: 'kimi-coding',
+      apiKey: 'must-not-be-used',
+      baseUrl: 'https://untrusted.invalid',
+    },
     model: 'oauth-model',
-    oauth: { runtime: async (provider, model) => {
-      assert.equal(provider, 'kimi-coding');
-      assert.equal(model, 'oauth-model');
-      return runtimeFactoryFor(faux)();
-    } },
+    oauth: {
+      runtime: async (provider, model) => {
+        assert.equal(provider, 'kimi-coding');
+        assert.equal(model, 'oauth-model');
+        return runtimeFactoryFor(faux)();
+      },
+    },
     runtimeFactory: () => assert.fail('不应走兼容 API'),
     conversationId: 'oauth-conversation',
     messages: [{ role: 'user', content: '你好', createdAt: 1 }],
     resourceType: 'book',
     book: { id: 'book', title: '测试', author: '', toc: [] },
-    notes: [], highlights: [], readingSessions: [], webSearchConfig: {},
+    notes: [],
+    highlights: [],
+    readingSessions: [],
+    webSearchConfig: {},
     signal: new AbortController().signal,
   });
   assert.equal(result.content, 'OAuth 对话成功');
@@ -354,23 +365,38 @@ test('OAuth 对话使用供应商运行时，不把配置中的 API Key 带入�
 test('PiAgent 的订阅地图工具只执行一次，并将原图和分析可靠写入最终消息', async () => {
   const faux = fauxProvider({ tokensPerSecond: 0 });
   faux.setResponses([
-    fauxAssistantMessage([
-      fauxToolCall('generate_book_knowledge_map', {}, { id: 'map-1' }),
-      fauxToolCall('generate_book_knowledge_map', {}, { id: 'map-2' }),
-    ], { stopReason: 'toolUse' }),
+    fauxAssistantMessage(
+      [
+        fauxToolCall('generate_book_knowledge_map', {}, { id: 'map-1' }),
+        fauxToolCall('generate_book_knowledge_map', {}, { id: 'map-2' }),
+      ],
+      { stopReason: 'toolUse' },
+    ),
   ]);
   let generated = 0;
   const runtime = runtimeFactoryFor(faux)();
   const progress = [];
   const result = await runServerAiChat({
-    config: { oauthProvider: 'openai-codex' }, model: 'mock',
-    conversationId: 'map-conversation', messages: [{ role: 'user', content: '生成全景知识地图' }],
-    book: { id: 'book', title: '测试', toc: [] }, currentText: '', notes: [], highlights: [], readingSessions: [],
+    config: { oauthProvider: 'openai-codex' },
+    model: 'mock',
+    conversationId: 'map-conversation',
+    messages: [{ role: 'user', content: '生成全景知识地图' }],
+    book: { id: 'book', title: '测试', toc: [] },
+    currentText: '',
+    notes: [],
+    highlights: [],
+    readingSessions: [],
     oauth: { runtime: async () => runtime },
     knowledgeMapGenerator: async ({ onStage }) => {
       generated++;
       onStage('正在分析正文 1/2');
-      return { imageUrl: '/api/books/book/knowledge-maps/test', outline: '核心观点与含义', passages: 20, batches: 2, coverage: '覆盖限制' };
+      return {
+        imageUrl: '/api/books/book/knowledge-maps/test',
+        outline: '核心观点与含义',
+        passages: 20,
+        batches: 2,
+        coverage: '覆盖限制',
+      };
     },
     onProgress: (value) => progress.push(value),
   });
@@ -379,5 +405,9 @@ test('PiAgent 的订阅地图工具只执行一次，并将原图和分析可靠
   assert.match(result.content, /!\[全景知识地图\]/);
   assert.match(result.content, /核心观点与含义/);
   assert.match(result.content, /20 个正文段落/);
-  assert.ok(progress.some((value) => value.dialogueContent.some((item) => item.arguments === '正在分析正文 1/2')));
+  assert.ok(
+    progress.some((value) =>
+      value.dialogueContent.some((item) => item.arguments === '正在分析正文 1/2'),
+    ),
+  );
 });

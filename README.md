@@ -4,35 +4,26 @@
 
 ## 工程架构
 
-项目采用单仓库、模块化单体架构，保持一个 React Web 客户端和一个 Node 数据服务的部署形态：
+项目采用单仓库模块化单体，浏览器使用 React + TypeScript，Node/Hono 提供本地数据服务。前端按页面组织，后端按业务模块组织，功能与数据协议保持兼容。
 
-- `src/app/` 负责路由和应用级组合。
-- `src/features/` 按书架、阅读器、RSS、视频、AI 和设置组织页面模型与 UI。
-- `src/store/` 组合唯一的 Zustand store；默认值、领域 actions、迁移、合并和服务端同步分开维护。
-- `src/shared/` 保存不带业务归属的浏览器适配与通用能力。
-- `server/app/` 负责 Hono middleware 和通用 HTTP 行为，`server/routes/` 按领域注册 API。
-- `server/` 其余模块继续承载文件存储、内容源、AI、调度器和领域保护逻辑。
-- `docs/plans/refactor-modular-architecture/` 记录模块化重构的目标、设计和验收任务。
+- `src/layout/`：登录、侧栏、程序外壳、启动与懒加载路由。
+- `src/pages/`：`books/list`、`books/detail`、`rss/reader`、`videos/study`、`settings`；每页的 `index.tsx` 组合界面，`components/` 放本页组件，`store/` 管理交互与业务用例。
+- `src/components/`：跨页面的聊天、阅读样式、笔记编辑和基础组件。
+- `src/util/`：API、EPUB、主题、AI 任务等公共能力；`util/state/` 仍是唯一 Zustand 持久化核心，页面 store 不另存一份服务器数据。
+- `src/styles/`：Tailwind 入口与必要的 Semi、正文、复杂选择器兼容样式。普通布局与排版使用 Tailwind，继续使用 Semi 颜色变量。
+- `server/routes/`：Hono 子应用；`server/modules/`：按业务聚合服务；`server/infrastructure/`：文件/HTTP 原语；`server/app.ts` 统一装配。
+- `contracts/`：前后端共享的纯领域类型。
 
-详细边界、技术栈与代码风格见 [`docs/architecture.md`](docs/architecture.md)，可复用的重构执行说明见 [`docs/plans/refactor-modular-architecture/prompt.md`](docs/plans/refactor-modular-architecture/prompt.md)。
+详细规则见 [`docs/architecture.md`](docs/architecture.md)。前端输出到 `dist/`，后端 TypeScript 输出到 `server-dist/`；测试与容器运行编译后的 Node ESM。服务端仍使用文件系统，保持唯一状态写队列，不需要数据库。
 
-外部契约保持稳定：页面路由、API、Cookie、ETag、SSE、`data/` 目录和 Zustand 持久化版本不能因内部重构发生隐式变化。服务端继续使用本地文件系统，不依赖外部数据库。
-
-质量门禁包括 ESLint、Prettier 增量格式检查、模块边界与 Knip dead-code 检查、Node 服务端测试、Vitest 前端测试、TypeScript 检查和生产构建：
+页面路由、API、Cookie、ETag、SSE、`data/` 目录、六个状态分区与 persist key 均保持兼容。纯结构调整不升级 store version。不要直接编辑构建产物。
 
 ```bash
-npm run lint
-npm run format:check
-npm run check:boundaries
-npm run check:dead-code
-npm run test:server
-npm run test:web
-npm run test:e2e
-npm run verify
-npm run verify:full
+npm run verify       # lint、格式、边界、死代码、单元测试与生产构建
+npm run verify:full  # 再执行真实浏览器与视觉回归
 ```
 
-`npm run verify` 是提交前的快速门禁；`npm run verify:full` 还会使用本机 Chrome 在隔离的临时数据目录中验证桌面与移动端路由、主题和响应式外壳。
+浏览器测试使用临时示例数据目录；可以设置 `LEARNING_CENTER_E2E_BROWSER=chromium` 使用 Playwright Chromium，设置 `LEARNING_CENTER_E2E_PRODUCTION=1` 验证生产产物。视觉基线与测试夹具说明见 [`tests/e2e/README.md`](tests/e2e/README.md)。
 
 ## 功能概览
 

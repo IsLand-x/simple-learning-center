@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { protectReaderStateFromClient } from './readerState.mjs';
+import { protectReaderStateFromClient } from './modules/state/readerState.js';
 
 function preferences(theme, fontSize) {
   return {
@@ -84,7 +84,10 @@ test('不同设备新增的高亮会合并，较新的阅读样式会生效', ()
 
   const merged = protectReaderStateFromClient(incoming, current);
 
-  assert.deepEqual(new Set(merged.state.highlights.map((item) => item.id)), new Set(['device-a', 'device-b']));
+  assert.deepEqual(
+    new Set(merged.state.highlights.map((item) => item.id)),
+    new Set(['device-a', 'device-b']),
+  );
   assert.equal(merged.state.readerPreferences.theme, 'ink');
   assert.equal(merged.state.readerPreferences.fontSize, 24);
   assert.equal(merged.state.readerPreferencesUpdatedAt, 300);
@@ -104,11 +107,13 @@ test('高亮删除墓碑会阻止旧设备把已删除高亮重新带回', () =>
     version: 26,
     state: {
       highlights: [],
-      deletedHighlightTombstones: [{
-        highlightId: 'deleted-highlight',
-        bookId: 'book-1',
-        deletedAt: 300,
-      }],
+      deletedHighlightTombstones: [
+        {
+          highlightId: 'deleted-highlight',
+          bookId: 'book-1',
+          deletedAt: 300,
+        },
+      ],
       readerPreferences: preferences('paper', 18),
       readerPreferencesUpdatedAt: 100,
     },

@@ -7,8 +7,9 @@ import test from 'node:test';
 const dataDirectory = await mkdtemp(join(tmpdir(), 'learning-center-ai-notes-'));
 process.env.LEARNING_CENTER_DATA_DIR = dataDirectory;
 
-const { createBookNote, readBookNotes, updateBookNote } = await import('./aiNotes.mjs');
-const { writePersistedState } = await import('./storage.mjs');
+const { createBookNote, readBookNotes, updateBookNote } =
+  await import('./modules/reading/notes.js');
+const { writePersistedState } = await import('./modules/state/repository.js');
 
 test('AI 阅读笔记支持创建、读取和带版本保护的编辑', async (t) => {
   t.after(() => rm(dataDirectory, { force: true, recursive: true }));
@@ -41,10 +42,7 @@ test('AI 阅读笔记支持创建、读取和带版本保护的编辑', async (t
     updateBookNote('book-a', created.id, created.updatedAt, '过期版本'),
     /笔记已在其他位置更新/,
   );
-  await assert.rejects(
-    createBookNote('book-a', '测试书', '重复笔记'),
-    /已经存在阅读笔记/,
-  );
+  await assert.rejects(createBookNote('book-a', '测试书', '重复笔记'), /已经存在阅读笔记/);
 
   const finalNotes = await readBookNotes('book-a');
   assert.equal(finalNotes[0].content, '# 修订稿\n\n第二版');

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createSourceSecretsService } from './sourceSecrets.mjs';
+import { createSourceSecretsService } from './modules/credentials/sourceSecrets.js';
 
 test('B站 Cookie 只在服务端私有文件中保存，状态接口不回显', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'learning-center-source-secrets-'));
@@ -39,7 +39,9 @@ test('B站 Cookie 只在服务端私有文件中保存，状态接口不回显',
 });
 
 test('B站 Cookie 拒绝换行和无键值格式', async () => {
-  const service = createSourceSecretsService({ path: join(tmpdir(), 'unused-source-secrets.json') });
+  const service = createSourceSecretsService({
+    path: join(tmpdir(), 'unused-source-secrets.json'),
+  });
   await assert.rejects(service.setBilibiliCookie('SESSDATA=x\nInjected=y'));
   await assert.rejects(service.setBilibiliCookie('not-a-cookie'));
 });

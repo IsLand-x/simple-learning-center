@@ -6,9 +6,10 @@ import { join } from 'node:path';
 
 const directory = await mkdtemp(join(tmpdir(), 'book-resources-test-'));
 process.env.LEARNING_CENTER_DATA_DIR = directory;
-const { createApp } = await import('./app.mjs');
-const { atomicWrite, knowledgeMapDirectoryPath } = await import('./storage.mjs');
-const { saveBookResource, renameBookResource } = await import('./knowledgeMaps/resources.mjs');
+const { createApp } = await import('./app.js');
+const { atomicWrite, knowledgeMapDirectoryPath } = await import('./infrastructure/fs/files.js');
+const { saveBookResource, renameBookResource } =
+  await import('./modules/knowledgeMaps/resources.js');
 const app = createApp({ mode: 'local', serveFrontend: false });
 const id = '11111111-1111-4111-8111-111111111111';
 const secondId = '22222222-2222-4222-8222-222222222222';
@@ -142,8 +143,15 @@ test('重命名持久保存并去除首尾空白，保留原图、收藏顺序�
 
 test('重命名拒绝空白、过长、非字符串和额外字段，不能修改其他书或未收藏图片', async () => {
   await save();
-  for (const input of [null, {}, { title: '' }, { title: '   ' }, { title: 12 },
-    { title: '字'.repeat(201) }, { title: '图', imageId: secondId }]) {
+  for (const input of [
+    null,
+    {},
+    { title: '' },
+    { title: '   ' },
+    { title: 12 },
+    { title: '字'.repeat(201) },
+    { title: '图', imageId: secondId },
+  ]) {
     assert.equal((await rename(input)).status, 400);
   }
   assert.equal((await rename({ title: '图' }, 'bad-id')).status, 400);
@@ -151,14 +159,21 @@ test('重命名拒绝空白、过长、非字符串和额外字段，不能修�
   assert.equal((await rename({ title: '图' }, id, 'other')).status, 404);
   assert.equal((await rename({ title: '图' }, id, 'missing')).status, 404);
   assert.equal((await rename({ title: '字'.repeat(200) })).status, 200);
-  const remote = createApp({ mode: 'remote', password: 'test-only-password', serveFrontend: false });
+  const remote = createApp({
+    mode: 'remote',
+    password: 'test-only-password',
+    serveFrontend: false,
+  });
   assert.equal((await remote.request(`${base}/${id}`, { method: 'PATCH' })).status, 401);
   await app.request('/api/books/book/trash', { method: 'POST' });
   assert.equal((await rename({ title: '图' })).status, 404);
 });
 
 test('并发重命名与移除不会恢复已移除的收藏或破坏其他收藏', async () => {
-  await atomicWrite(join(knowledgeMapDirectoryPath('book'), `${secondId}.png`), Buffer.from('second'));
+  await atomicWrite(
+    join(knowledgeMapDirectoryPath('book'), `${secondId}.png`),
+    Buffer.from('second'),
+  );
   await save();
   await save({ imageId: secondId, title: '另一张图' });
   const results = await Promise.all([

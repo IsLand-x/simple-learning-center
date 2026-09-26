@@ -1,87 +1,125 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { dirname, extname, relative, resolve, sep } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
+import ts from 'typescript';
 
-const projectRoot = resolve(import.meta.dirname, '..');
-const sourceRoot = resolve(projectRoot, 'src');
-const serverRoot = resolve(projectRoot, 'server');
-const supportedExtensions = new Set(['.ts', '.tsx', '.mjs']);
+const root = resolve(import.meta.dirname, '..');
 const violations = [];
+const graph = new Map();
+const config = ts.readConfigFile(resolve(root, 'tsconfig.app.json'), ts.sys.readFile);
+const { options } = ts.parseJsonConfigFileContent(config.config, ts.sys, root);
+const normalize = (path) => relative(root, path).replaceAll('\\', '/');
 
-async function collectFiles(directory) {
+async function collect(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
-  const files = await Promise.all(
-    entries.map(async (entry) => {
-      const path = resolve(directory, entry.name);
-      return entry.isDirectory()
-        ? collectFiles(path)
-        : supportedExtensions.has(extname(path))
-          ? [path]
-          : [];
-    }),
-  );
-  return files.flat();
+  return (
+    await Promise.all(
+      entries.map((entry) => {
+        const path = resolve(directory, entry.name);
+        return entry.isDirectory()
+          ? collect(path)
+          : /\.(?:ts|tsx|mjs)$/.test(entry.name)
+            ? [path]
+            : [];
+      }),
+    )
+  ).flat();
 }
 
-function normalizedRelative(path) {
-  return relative(projectRoot, path).split(sep).join('/');
+function pageScope(path) {
+  return path.match(
+    /^src\/pages\/(books\/(?:list|detail)|rss\/reader|videos\/study|settings)(?:\/|$)/,
+  )?.[1];
 }
 
-function resolveImport(importer, specifier) {
-  if (!specifier.startsWith('.')) return null;
-  return resolve(dirname(importer), specifier).split(sep).join('/');
-}
-
-function featureName(path) {
-  const match = path.match(/\/src\/features\/([^/]+)\//);
-  return match?.[1];
-}
-
-function validateImport(importer, specifier) {
-  const target = resolveImport(importer, specifier);
-  if (!target) return;
-  const importerPath = importer.split(sep).join('/');
-
-  if (importerPath.startsWith(`${sourceRoot.split(sep).join('/')}/shared/`)) {
-    if (/\/src\/(?:app|components|features|pages|store)\//.test(target)) {
-      violations.push(`${normalizedRelative(importer)}: shared 模块不能依赖 ${specifier}`);
-    }
-  }
-
-  if (importerPath.startsWith(`${sourceRoot.split(sep).join('/')}/store/`)) {
-    if (/\/src\/(?:app|components|features|pages)\//.test(target)) {
-      violations.push(`${normalizedRelative(importer)}: store 不能依赖界面层 ${specifier}`);
-    }
-  }
-
-  const importerFeature = featureName(importerPath);
-  const targetFeature = featureName(target);
-  if (importerFeature && targetFeature && importerFeature !== targetFeature) {
-    violations.push(
-      `${normalizedRelative(importer)}: feature ${importerFeature} 不能深层依赖 feature ${targetFeature}`,
-    );
-  }
-
+function validate(file, target) {
+  const source = normalize(file);
+  const destination = normalize(target);
+  const reject = (message) => violations.push(source + ': ' + message + ' (' + destination + ')');
+  if (source.startsWith('src/util/') && /^src\/(?:pages|components|layout)\//.test(destination))
+    reject('跨页面工具与持久化核心不得依赖页面或界面');
+  if (source.startsWith('src/components/') && /^src\/(?:pages|layout)\//.test(destination))
+    reject('共享组件不得依赖页面私有实现或外壳');
+  if (pageScope(source) && pageScope(destination) && pageScope(source) !== pageScope(destination))
+    reject('页面之间不得直接引用私有实现，请提取共享组件或工具');
+  if (source.includes('/store/model/') && /\/components\//.test(destination))
+    reject('纯模型不得依赖界面');
+  if (source.startsWith('contracts/') && !destination.startsWith('contracts/'))
+    reject('共享契约不得依赖前后端运行时实现');
+  if (source.startsWith('src/') && destination.startsWith('server/'))
+    reject('浏览器不得导入服务端实现');
+  if (source.startsWith('server/') && destination.startsWith('src/'))
+    reject('服务端不得导入前端实现');
   if (
-    !importerPath.startsWith(`${serverRoot.split(sep).join('/')}/routes/`) &&
-    importerPath !== `${serverRoot.split(sep).join('/')}/app.mjs` &&
-    /\/server\/routes\//.test(target)
-  ) {
-    violations.push(
-      `${normalizedRelative(importer)}: 只有服务端组合入口可以依赖 routes ${specifier}`,
-    );
-  }
+    destination.startsWith('server/routes/') &&
+    !source.startsWith('server/routes/') &&
+    source !== 'server/app.ts' &&
+    !source.endsWith('.test.mjs')
+  )
+    reject('只有 HTTP 组合入口可以导入 routes');
+  if (source.startsWith('server/infrastructure/') && destination.startsWith('server/modules/'))
+    reject('通用基础设施不得依赖业务模块');
 }
 
-for (const file of [...(await collectFiles(sourceRoot)), ...(await collectFiles(serverRoot))]) {
+for (const file of (
+  await Promise.all(['src', 'server', 'contracts'].map((name) => collect(resolve(root, name))))
+).flat()) {
   const source = await readFile(file, 'utf8');
-  const imports = source.matchAll(/(?:from\s+|import\s*)['"]([^'"]+)['"]/g);
-  for (const match of imports) validateImport(file, match[1]);
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const edges = new Set();
+  graph.set(file, edges);
+  function inspect(node) {
+    let specifier;
+    let typeOnly = false;
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      specifier = node.moduleSpecifier;
+      typeOnly = node.isTypeOnly || node.importClause?.isTypeOnly;
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      specifier = node.arguments[0];
+      if (specifier && !ts.isStringLiteral(specifier))
+        violations.push(normalize(file) + ': 动态 import 必须使用可检查的静态路径');
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+      specifier = node.argument.literal;
+      typeOnly = true;
+    }
+    if (specifier && ts.isStringLiteral(specifier)) {
+      const text = specifier.text;
+      let target = ts.resolveModuleName(text, file, options, ts.sys).resolvedModule
+        ?.resolvedFileName;
+      if (!target && text.startsWith('.')) {
+        const direct = resolve(dirname(file), text);
+        if (ts.sys.fileExists(direct)) target = direct;
+      }
+      if (target && !target.includes('/node_modules/')) {
+        target = resolve(target);
+        validate(file, target);
+        if (!typeOnly) edges.add(target);
+      }
+    }
+    ts.forEachChild(node, inspect);
+  }
+  inspect(ast);
 }
+
+const visited = new Set();
+const visiting = new Set();
+function visit(file, chain = []) {
+  if (visiting.has(file)) {
+    violations.push(
+      '循环依赖: ' + [...chain.slice(chain.indexOf(file)), file].map(normalize).join(' -> '),
+    );
+    return;
+  }
+  if (visited.has(file)) return;
+  visiting.add(file);
+  for (const target of graph.get(file) ?? []) visit(target, [...chain, file]);
+  visiting.delete(file);
+  visited.add(file);
+}
+for (const file of graph.keys()) visit(file);
 
 if (violations.length) {
-  console.error(`模块边界检查失败（${violations.length} 项）：`);
-  violations.forEach((violation) => console.error(`- ${violation}`));
+  console.error('模块边界检查失败（' + violations.length + ' 项）：\n' + violations.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('模块边界检查通过');
+  console.log('模块边界检查通过（静态/动态导入、重导出、路径解析与循环依赖）');
 }

@@ -3,8 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import * as os from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { readSystemInfo } from './app/systemInfo.mjs';
-import { createApp } from './app.mjs';
+import { readSystemInfo } from './app/systemInfo.js';
+import { createApp } from './app.js';
 
 test('机器信息保留 IPv4/IPv6，过滤回环和网卡敏感字段，并兼容无 CPU 信息', () => {
   const result = readSystemInfo({

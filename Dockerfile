@@ -26,7 +26,7 @@ WORKDIR /app
 
 COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/server ./server
+COPY --from=build --chown=node:node /app/server-dist ./server-dist
 COPY --from=build --chown=node:node /app/dist ./dist
 
 RUN mkdir -p /data && chown node:node /data
@@ -39,4 +39,4 @@ STOPSIGNAL SIGTERM
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:4174/api/auth/session').then((response) => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"]
 
-CMD ["node", "server/index.mjs"]
+CMD ["node", "server-dist/index.js"]

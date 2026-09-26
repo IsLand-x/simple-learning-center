@@ -1,0 +1,254 @@
+import { useEffect, useState } from 'react';
+import { Button, ButtonGroup, TextArea, Tooltip } from '@douyinfe/semi-ui';
+import {
+  IconAIStrokedLevel1,
+  IconBookmark,
+  IconComment,
+  IconDeleteStroked,
+} from '@douyinfe/semi-icons';
+import { clamp } from '../../util/format';
+import type { HighlightItem, ReaderHighlightTarget, ReaderSelection } from '../../util/types';
+
+type SelectionAnnotation = Pick<HighlightItem, 'id' | 'kind' | 'text' | 'comment'>;
+
+interface ReaderSelectionOverlaysProps {
+  activeHighlight?: SelectionAnnotation;
+  activeHighlightTarget: ReaderHighlightTarget | null;
+  commentDraft: string;
+  commentingHighlightId: string | null;
+  pendingCommentSelection: ReaderSelection | null;
+  selection: ReaderSelection | null;
+  onAskAboutHighlight?: () => void;
+  onAskAboutSelection: () => void;
+  onCancelCommentEditing: () => void;
+  onCancelHighlight: () => void;
+  onChangeCommentDraft: (value: string) => void;
+  onCreateComment: () => void;
+  onEditHighlightComment: () => void;
+  onSaveHighlight: () => void;
+  onSaveHighlightComment: () => void;
+  onViewHighlight: () => void;
+  showViewHighlight?: boolean;
+}
+
+interface VisualViewportBounds {
+  height: number;
+  offsetLeft: number;
+  offsetTop: number;
+  width: number;
+}
+
+function readVisualViewport(): VisualViewportBounds {
+  const viewport = window.visualViewport;
+  return {
+    height: viewport?.height ?? window.innerHeight,
+    offsetLeft: viewport?.offsetLeft ?? 0,
+    offsetTop: viewport?.offsetTop ?? 0,
+    width: viewport?.width ?? window.innerWidth,
+  };
+}
+
+export function ReaderSelectionOverlays({
+  activeHighlight,
+  activeHighlightTarget,
+  commentDraft,
+  commentingHighlightId,
+  pendingCommentSelection,
+  selection,
+  onAskAboutHighlight,
+  onAskAboutSelection,
+  onCancelCommentEditing,
+  onCancelHighlight,
+  onChangeCommentDraft,
+  onCreateComment,
+  onEditHighlightComment,
+  onSaveHighlight,
+  onSaveHighlightComment,
+  onViewHighlight,
+  showViewHighlight = true,
+}: ReaderSelectionOverlaysProps) {
+  const [visualViewport, setVisualViewport] = useState(readVisualViewport);
+  const commentTargetRect = pendingCommentSelection?.rect ?? activeHighlightTarget?.rect;
+  const keyboardVisible = visualViewport.height < window.innerHeight - 120;
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const syncViewport = () => setVisualViewport(readVisualViewport());
+    window.addEventListener('resize', syncViewport);
+    viewport?.addEventListener('resize', syncViewport);
+    viewport?.addEventListener('scroll', syncViewport);
+    return () => {
+      window.removeEventListener('resize', syncViewport);
+      viewport?.removeEventListener('resize', syncViewport);
+      viewport?.removeEventListener('scroll', syncViewport);
+    };
+  }, []);
+
+  return (
+    <>
+      {selection && (
+        <div
+          className={`selection-toolbar fixed [z-index:30] [padding:4px] [background:var(--semi-color-bg-2)] [color:var(--semi-color-text-0)] [box-shadow:var(--semi-shadow-elevated)] [transform:translate(-50%,_-100%)] mobile:[top:auto]! mobile:[right:auto]! mobile:[bottom:calc(var(--mobile-reader-toolbar-height)_+_env(safe-area-inset-bottom)_+_12px)] mobile:[left:50%]! mobile:[width:min(336px,_calc(100vw_-_24px))] mobile:[max-width:calc(100vw_-_24px)] mobile:[padding:4px] mobile:[transform:translateX(-50%)] mobile:[animation:mobile-selection-toolbar-in_180ms_ease-out] ${selection.rect.top < 150 ? ' selection-toolbar--below' : ''}`}
+          role="toolbar"
+          aria-label="文本选择操作"
+          onMouseDown={(event) => event.preventDefault()}
+          style={{
+            left: clamp(
+              selection.rect.left + selection.rect.width / 2,
+              120,
+              window.innerWidth - 120,
+            ),
+            top:
+              selection.rect.top < 150
+                ? selection.rect.top + selection.rect.height + 8
+                : selection.rect.top - 8,
+          }}
+        >
+          <ButtonGroup
+            aria-label="文本选择操作"
+            className="selection-toolbar__button-group mobile:[max-width:100%]"
+            size="small"
+            theme="borderless"
+            type="tertiary"
+          >
+            <Button icon={<IconAIStrokedLevel1 />} onClick={onAskAboutSelection}>
+              提问
+            </Button>
+            <Button icon={<IconBookmark />} onClick={onSaveHighlight}>
+              高亮
+            </Button>
+            <Button icon={<IconComment />} onClick={onCreateComment}>
+              评论
+            </Button>
+          </ButtonGroup>
+        </div>
+      )}
+
+      {(pendingCommentSelection ||
+        (activeHighlightTarget &&
+          activeHighlight &&
+          commentingHighlightId === activeHighlight.id)) &&
+        commentTargetRect && (
+          <form
+            className={`highlight-comment-editor fixed [z-index:31] [width:min(320px,_calc(100vw_-_24px))] [padding:10px] [background:var(--semi-color-bg-2)] [box-shadow:var(--semi-shadow-elevated)] [transform:translate(-50%,_-100%)] mobile:[width:min(360px,_calc(100vw_-_16px))] ${!keyboardVisible && commentTargetRect.top < 210 ? ' highlight-comment-editor--below' : ''}`}
+            aria-label={`评论高亮：${pendingCommentSelection?.text ?? activeHighlight?.text ?? ''}`}
+            style={{
+              left: keyboardVisible
+                ? visualViewport.offsetLeft + visualViewport.width / 2
+                : clamp(
+                    commentTargetRect.left + commentTargetRect.width / 2,
+                    166,
+                    window.innerWidth - 166,
+                  ),
+              top: keyboardVisible
+                ? visualViewport.offsetTop + visualViewport.height - 8
+                : commentTargetRect.top < 210
+                  ? commentTargetRect.top + commentTargetRect.height + 8
+                  : commentTargetRect.top - 8,
+            }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSaveHighlightComment();
+            }}
+          >
+            <TextArea
+              autoFocus
+              autosize={{ minRows: 3, maxRows: 6 }}
+              maxCount={1000}
+              placeholder="写下你对这段内容的见解…"
+              value={commentDraft}
+              onChange={onChangeCommentDraft}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  onCancelCommentEditing();
+                } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault();
+                  onSaveHighlightComment();
+                }
+              }}
+            />
+            <div className="highlight-comment-editor__actions justify-end [gap:4px]">
+              <Button
+                size="small"
+                theme="borderless"
+                type="tertiary"
+                onClick={onCancelCommentEditing}
+              >
+                取消
+              </Button>
+              <Tooltip content="Cmd + Enter 可以保存" position="topRight">
+                <span>
+                  <Button
+                    disabled={
+                      !commentDraft.trim() &&
+                      !(activeHighlight?.comment && !pendingCommentSelection)
+                    }
+                    htmlType="submit"
+                    size="small"
+                    theme="solid"
+                    type="primary"
+                  >
+                    保存
+                  </Button>
+                </span>
+              </Tooltip>
+            </div>
+          </form>
+        )}
+
+      {activeHighlightTarget && activeHighlight && commentingHighlightId !== activeHighlight.id && (
+        <div
+          className={`selection-toolbar fixed [z-index:30] [padding:4px] [background:var(--semi-color-bg-2)] [color:var(--semi-color-text-0)] [box-shadow:var(--semi-shadow-elevated)] [transform:translate(-50%,_-100%)] mobile:[top:auto]! mobile:[right:auto]! mobile:[bottom:calc(var(--mobile-reader-toolbar-height)_+_env(safe-area-inset-bottom)_+_12px)] mobile:[left:50%]! mobile:[width:min(336px,_calc(100vw_-_24px))] mobile:[max-width:calc(100vw_-_24px)] mobile:[padding:4px] mobile:[transform:translateX(-50%)] mobile:[animation:mobile-selection-toolbar-in_180ms_ease-out] selection-toolbar--highlight${activeHighlightTarget.rect.top < 150 ? ' selection-toolbar--below' : ''}`}
+          role="toolbar"
+          aria-label="已高亮内容操作"
+          style={{
+            left: clamp(
+              activeHighlightTarget.rect.left + activeHighlightTarget.rect.width / 2,
+              170,
+              window.innerWidth - 170,
+            ),
+            top:
+              activeHighlightTarget.rect.top < 150
+                ? activeHighlightTarget.rect.top + activeHighlightTarget.rect.height + 8
+                : activeHighlightTarget.rect.top - 8,
+          }}
+        >
+          <ButtonGroup
+            aria-label="已高亮内容操作"
+            className="selection-toolbar__button-group mobile:[max-width:100%]"
+            size="small"
+            theme="borderless"
+            type="tertiary"
+          >
+            {onAskAboutHighlight && (
+              <Button
+                aria-label="使用已高亮内容向 AI 提问"
+                icon={<IconAIStrokedLevel1 />}
+                onClick={onAskAboutHighlight}
+              >
+                AI 提问
+              </Button>
+            )}
+            <Button icon={<IconDeleteStroked />} onClick={onCancelHighlight}>
+              <span className="selection-toolbar__label--full">取消高亮</span>
+              <span className="selection-toolbar__label--compact">取消</span>
+            </Button>
+            {showViewHighlight && activeHighlight.kind !== 'comment' && (
+              <Button icon={<IconBookmark />} onClick={onViewHighlight}>
+                <span className="selection-toolbar__label--full">在高亮中查看</span>
+                <span className="selection-toolbar__label--compact">查看</span>
+              </Button>
+            )}
+            <Button icon={<IconComment />} onClick={onEditHighlightComment}>
+              <span className="selection-toolbar__label--full">
+                {activeHighlight.comment ? '查看评论' : '评论'}
+              </span>
+              <span className="selection-toolbar__label--compact">评论</span>
+            </Button>
+          </ButtonGroup>
+        </div>
+      )}
+    </>
+  );
+}

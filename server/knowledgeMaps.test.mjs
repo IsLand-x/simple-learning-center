@@ -6,11 +6,12 @@ import { join } from 'node:path';
 
 const directory = await mkdtemp(join(tmpdir(), 'knowledge-map-test-'));
 process.env.LEARNING_CENTER_DATA_DIR = directory;
-const { generateBookKnowledgeMap, passageBatches } = await import('./knowledgeMaps/service.mjs');
-const { generateCodexImage } = await import('./aiAuth/codexImage.mjs');
-const { createApp } = await import('./app.mjs');
-const { atomicWrite, knowledgeMapDirectoryPath } = await import('./storage.mjs');
-const { permanentlyDeletePersistedBook } = await import('./bookTrash.mjs');
+const { generateBookKnowledgeMap, passageBatches } =
+  await import('./modules/knowledgeMaps/service.js');
+const { generateCodexImage } = await import('./modules/ai/codexImage.js');
+const { createApp } = await import('./app.js');
+const { atomicWrite, knowledgeMapDirectoryPath } = await import('./infrastructure/fs/files.js');
+const { permanentlyDeletePersistedBook } = await import('./modules/library/trash.js');
 after(() => rm(directory, { recursive: true, force: true }));
 const png = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',

@@ -3,8 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   DEFAULT_READER_AI_ASSISTANT_PROMPT,
   READER_AI_PROMPT_TEMPLATES,
-} from '../../src/lib/readerAiPrompts';
-import { demoBooks } from '../../src/data/demo';
+} from '../../src/util/ai/readerAiPrompts';
+import { demoBooks } from '../../src/util/fixtures/demo';
 
 interface SubmittedAiJob {
   bookId: string;

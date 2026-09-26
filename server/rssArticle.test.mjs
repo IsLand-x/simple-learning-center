@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fetchRssArticle } from './rssArticle.mjs';
+import { fetchRssArticle } from './modules/rss/article.js';
 
 const validateUrl = async (value) => new URL(value);
 
@@ -14,7 +14,8 @@ test('RSS 原文读取支持 JSON-LD 文章正文', async () => {
   const body = '这是由结构化数据提供的文章正文。'.repeat(12);
   const result = await fetchRssArticle('https://example.com/structured', {
     validateUrl,
-    fetchImpl: async () => htmlResponse(`<!doctype html><html><head>
+    fetchImpl: async () =>
+      htmlResponse(`<!doctype html><html><head>
       <script type="application/ld+json">${JSON.stringify({
         '@type': 'NewsArticle',
         headline: '结构化文章',
@@ -35,7 +36,10 @@ test('RSS 原文读取在 CSR 首包为空时回退到渲染后的网页', async
   const result = await fetchRssArticle('https://example.com/client-rendered', {
     validateUrl,
     readerConfig: { provider: 'jina', apiKey: 'test-jina-key' },
-    fetchImpl: async () => htmlResponse('<!doctype html><html><head><title>动态文章</title></head><body><div id="root"></div><script src="/app.js"></script></body></html>'),
+    fetchImpl: async () =>
+      htmlResponse(
+        '<!doctype html><html><head><title>动态文章</title></head><body><div id="root"></div><script src="/app.js"></script></body></html>',
+      ),
     readRenderedPage: async (_config, url) => {
       renderedUrl = url;
       return {
@@ -54,7 +58,8 @@ test('CSR 网页未配置 Reader 时返回可操作的提示', async () => {
   await assert.rejects(
     fetchRssArticle('https://example.com/client-rendered', {
       validateUrl,
-      fetchImpl: async () => htmlResponse('<!doctype html><html><body><div id="root"></div></body></html>'),
+      fetchImpl: async () =>
+        htmlResponse('<!doctype html><html><body><div id="root"></div></body></html>'),
     }),
     /页面可能依赖 JavaScript，请先在设置页配置 Jina Reader 后重试/,
   );

@@ -10,16 +10,18 @@ process.env.LEARNING_CENTER_MODE = 'local';
 
 const [
   { createApp },
-  { bookPath, initializeDataDirectories, mutatePersistedState },
+  { mutatePersistedState },
+  { bookPath, initializeDataDirectories },
   { parseRssFeed },
   { refreshPersistedRssFeed },
   { purgeExpiredTrashedBooks },
 ] = await Promise.all([
-  import('./app.mjs'),
-  import('./storage.mjs'),
-  import('./rss.mjs'),
-  import('./rssScheduler.mjs'),
-  import('./bookTrash.mjs'),
+  import('./app.js'),
+  import('./modules/state/repository.js'),
+  import('./infrastructure/fs/files.js'),
+  import('./modules/rss/feed.js'),
+  import('./modules/rss/refresh.js'),
+  import('./modules/library/trash.js'),
 ]);
 
 before(async () => {
@@ -38,15 +40,17 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       state: {
         books: [],
         notes: [],
-        openAIConfigs: [{
-          id: 'provider-1',
-          name: '测试模型',
-          baseUrl: 'https://example.com/v1',
-          models: ['test-model'],
-          apiKey: 'test-key-1',
-          createdAt: 1,
-          updatedAt: 1,
-        }],
+        openAIConfigs: [
+          {
+            id: 'provider-1',
+            name: '测试模型',
+            baseUrl: 'https://example.com/v1',
+            models: ['test-model'],
+            apiKey: 'test-key-1',
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
         webSearchConfig: { provider: 'jina', apiKey: 'test-search-key' },
       },
       version: 1,
@@ -98,11 +102,16 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
 
   await t.test('API Key 导入导出接口已移除，已有配置保持不变', async () => {
     assert.equal((await app.request('/api/api-keys/export')).status, 404);
-    assert.equal((await app.request('/api/api-keys/import', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ openAIConfigs: [] }),
-    })).status, 404);
+    assert.equal(
+      (
+        await app.request('/api/api-keys/import', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ openAIConfigs: [] }),
+        })
+      ).status,
+      404,
+    );
     const snapshot = await (await app.request('/api/state')).json();
     assert.equal(snapshot.state.openAIConfigs[0].apiKey, 'test-key-1');
     assert.equal(snapshot.state.webSearchConfig.apiKey, 'test-search-key');
@@ -112,31 +121,37 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const currentState = await (await app.request('/api/state')).json();
     currentState.version = 16;
     currentState.state.rssFolders = [];
-    currentState.state.rssFeeds = [{
-      id: 'protected-feed',
-      title: '受保护订阅',
-      url: 'https://example.com/protected.xml',
-      type: 'article',
-      createdAt: 1,
-      updatedAt: 1,
-    }];
-    currentState.state.rssItems = [{
-      id: 'protected-item',
-      feedId: 'protected-feed',
-      title: '受保护内容',
-      publishedAt: 1,
-      fetchedAt: 1,
-      contentText: '正文',
-    }];
-    currentState.state.rssAnnotations = [{
-      id: 'protected-annotation',
-      itemId: 'protected-item',
-      kind: 'highlight',
-      text: '正文',
-      startOffset: 0,
-      endOffset: 2,
-      createdAt: 1,
-    }];
+    currentState.state.rssFeeds = [
+      {
+        id: 'protected-feed',
+        title: '受保护订阅',
+        url: 'https://example.com/protected.xml',
+        type: 'article',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    currentState.state.rssItems = [
+      {
+        id: 'protected-item',
+        feedId: 'protected-feed',
+        title: '受保护内容',
+        publishedAt: 1,
+        fetchedAt: 1,
+        contentText: '正文',
+      },
+    ];
+    currentState.state.rssAnnotations = [
+      {
+        id: 'protected-annotation',
+        itemId: 'protected-item',
+        kind: 'highlight',
+        text: '正文',
+        startOffset: 0,
+        endOffset: 2,
+        createdAt: 1,
+      },
+    ];
     currentState.state.rssPanelWidth = 420;
     await app.request('/api/state', {
       method: 'PUT',
@@ -164,31 +179,39 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(protectedState.state.rssItems[0].title, '受保护内容');
     assert.equal(protectedState.state.rssAnnotations[0].text, '正文');
     assert.equal(protectedState.state.rssPanelWidth, 420);
-
   });
 
   await t.test('旧标签页不会覆盖视频资料与学习记录', async () => {
     const currentState = await (await app.request('/api/state')).json();
     currentState.version = 18;
-    currentState.state.videoResources = [{
-      id: 'protected-video',
-      youtubeVideoId: 'dQw4w9WgXcQ',
-      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      title: '受保护视频',
-      channelTitle: '测试频道',
-      durationSeconds: 60,
-      captions: { originalLanguage: 'en', originalLanguageLabel: 'English', original: [], chinese: [] },
-      createdAt: 1,
-      updatedAt: 1,
-    }];
-    currentState.state.videoTimestampNotes = [{
-      id: 'protected-video-note',
-      videoId: 'protected-video',
-      timeSeconds: 12,
-      content: '受保护笔记',
-      createdAt: 1,
-      updatedAt: 1,
-    }];
+    currentState.state.videoResources = [
+      {
+        id: 'protected-video',
+        youtubeVideoId: 'dQw4w9WgXcQ',
+        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        title: '受保护视频',
+        channelTitle: '测试频道',
+        durationSeconds: 60,
+        captions: {
+          originalLanguage: 'en',
+          originalLanguageLabel: 'English',
+          original: [],
+          chinese: [],
+        },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    currentState.state.videoTimestampNotes = [
+      {
+        id: 'protected-video-note',
+        videoId: 'protected-video',
+        timeSeconds: 12,
+        content: '受保护笔记',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
     currentState.state.videoPanelWidth = 440;
     await app.request('/api/state', {
       method: 'PUT',
@@ -217,25 +240,29 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
   await t.test('服务端定时刷新持久化历史内容并防止旧快照覆盖新条目', async () => {
     const stateBeforeRefresh = await (await app.request('/api/state')).json();
     stateBeforeRefresh.version = 16;
-    stateBeforeRefresh.state.rssFeeds = [{
-      id: 'scheduled-feed',
-      title: '定时订阅',
-      url: 'https://example.com/scheduled.xml',
-      type: 'article',
-      fetchFullContent: true,
-      createdAt: 1,
-      updatedAt: 1,
-    }];
-    stateBeforeRefresh.state.rssItems = [{
-      id: 'scheduled-feed:existing',
-      feedId: 'scheduled-feed',
-      title: '已有内容',
-      link: 'https://example.com/existing',
-      publishedAt: 1,
-      fetchedAt: 1,
-      contentText: '旧正文',
-      readAt: 2,
-    }];
+    stateBeforeRefresh.state.rssFeeds = [
+      {
+        id: 'scheduled-feed',
+        title: '定时订阅',
+        url: 'https://example.com/scheduled.xml',
+        type: 'article',
+        fetchFullContent: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    stateBeforeRefresh.state.rssItems = [
+      {
+        id: 'scheduled-feed:existing',
+        feedId: 'scheduled-feed',
+        title: '已有内容',
+        link: 'https://example.com/existing',
+        publishedAt: 1,
+        fetchedAt: 1,
+        contentText: '旧正文',
+        readAt: 2,
+      },
+    ];
     await app.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -250,25 +277,27 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
         siteUrl: 'https://example.com/',
         feedUrl: url,
         fetchedAt: 100,
-        items: [{
-          id: 'fresh',
-          title: '新内容',
-          link: 'https://example.com/fresh',
-          author: '',
-          publishedAt: 100,
-          contentText: '新正文',
-        }],
+        items: [
+          {
+            id: 'fresh',
+            title: '新内容',
+            link: 'https://example.com/fresh',
+            author: '',
+            publishedAt: 100,
+            contentText: '新正文',
+          },
+        ],
       }),
       fetchArticle: async (url, options) => {
         assert.equal(options.readerConfig.apiKey, 'test-search-key');
         return {
-        title: '新内容',
-        byline: '测试作者',
-        excerpt: '完整原文摘要',
-        contentHtml: '<article><h2>完整原文</h2><p>服务端补抓的正文</p></article>',
-        contentText: '完整原文\n服务端补抓的正文',
-        url,
-        fetchedAt: 101,
+          title: '新内容',
+          byline: '测试作者',
+          excerpt: '完整原文摘要',
+          contentHtml: '<article><h2>完整原文</h2><p>服务端补抓的正文</p></article>',
+          contentText: '完整原文\n服务端补抓的正文',
+          url,
+          fetchedAt: 101,
         };
       },
       logger: { warn() {} },
@@ -285,10 +314,15 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(refreshedState.state.rssFeeds[0].description, '服务端刷新结果');
     assert.ok(refreshedState.state.rssItems.some((item) => item.id === 'scheduled-feed:fresh'));
     assert.equal(
-      refreshedState.state.rssItems.find((item) => item.id === 'scheduled-feed:fresh')?.fullContentText,
+      refreshedState.state.rssItems.find((item) => item.id === 'scheduled-feed:fresh')
+        ?.fullContentText,
       '完整原文\n服务端补抓的正文',
     );
-    assert.ok(refreshedState.state.rssItems.some((item) => item.id === 'scheduled-feed:existing' && item.readAt === 2));
+    assert.ok(
+      refreshedState.state.rssItems.some(
+        (item) => item.id === 'scheduled-feed:existing' && item.readAt === 2,
+      ),
+    );
   });
 
   await t.test('错误输入返回客户端错误', async () => {
@@ -299,8 +333,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     });
     assert.equal(malformedResponse.status, 400);
     assert.deepEqual(await malformedResponse.json(), { error: 'JSON 数据格式不正确' });
-
-
   });
 
   await t.test('通过服务端导入 YouTube 视频元数据与字幕', async () => {
@@ -312,7 +344,12 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
         title: '测试视频',
         channelTitle: '测试频道',
         durationSeconds: 120,
-        captions: { originalLanguage: 'en', originalLanguageLabel: 'English', original: [], chinese: [] },
+        captions: {
+          originalLanguage: 'en',
+          originalLanguageLabel: 'English',
+          original: [],
+          chinese: [],
+        },
       }),
     });
     const response = await videoApp.request('/api/videos/import', {
@@ -344,7 +381,8 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
   });
 
   await t.test('解析并通过服务端获取 RSS 与 Atom 订阅源', async () => {
-    const parsed = parseRssFeed(`<?xml version="1.0" encoding="UTF-8"?>
+    const parsed = parseRssFeed(
+      `<?xml version="1.0" encoding="UTF-8"?>
       <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
         <channel>
           <title>测试订阅</title>
@@ -358,7 +396,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
             <content:encoded><![CDATA[<p>正文 <strong>内容</strong></p><img src="/images/cover.jpg" /><img data-src="https://cdn.example.com/detail.png" />]]></content:encoded>
           </item>
         </channel>
-      </rss>`, 'https://example.com/feed.xml', 100);
+      </rss>`,
+      'https://example.com/feed.xml',
+      100,
+    );
     assert.equal(parsed.title, '测试订阅');
     assert.equal(parsed.siteUrl, 'https://example.com/');
     assert.equal(parsed.items[0].link, 'https://example.com/posts/1');
@@ -370,7 +411,8 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       'https://cdn.example.com/detail.png',
     ]);
 
-    const atom = parseRssFeed(`<?xml version="1.0"?>
+    const atom = parseRssFeed(
+      `<?xml version="1.0"?>
       <feed xmlns="http://www.w3.org/2005/Atom">
         <title>Atom 测试</title>
         <link rel="alternate" href="https://example.com/atom" />
@@ -381,7 +423,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
           <updated>2026-08-30T03:00:00Z</updated>
           <summary type="html">&lt;p&gt;Atom 摘要&lt;/p&gt;</summary>
         </entry>
-      </feed>`, 'https://example.com/atom.xml', 100);
+      </feed>`,
+      'https://example.com/atom.xml',
+      100,
+    );
     assert.equal(atom.items[0].title, 'Atom 内容');
     assert.equal(atom.items[0].contentText, 'Atom 摘要');
 
@@ -392,13 +437,13 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       rssArticleFetcher: async (url, options) => {
         articleReaderConfig = options.readerConfig;
         return {
-        title: '第一篇文章',
-        byline: '测试作者',
-        excerpt: '原文摘要',
-        contentHtml: '<article><h2>原文标题</h2><p>完整正文</p></article>',
-        contentText: '原文标题\n完整正文',
-        url,
-        fetchedAt: 101,
+          title: '第一篇文章',
+          byline: '测试作者',
+          excerpt: '原文摘要',
+          contentHtml: '<article><h2>原文标题</h2><p>完整正文</p></article>',
+          contentText: '原文标题\n完整正文',
+          url,
+          fetchedAt: 101,
         };
       },
     });
@@ -436,9 +481,15 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       rssSourceFetcher: async (source) => ({ title: source.kind, items: [] }),
       sourceSecrets: {
         getBilibiliStatus: async () => status(),
-        setBilibiliCookie: async (cookie) => { savedCookie = cookie; return status(); },
+        setBilibiliCookie: async (cookie) => {
+          savedCookie = cookie;
+          return status();
+        },
         verifyBilibiliCookie: async () => status(),
-        deleteBilibiliCookie: async () => { savedCookie = ''; return status(); },
+        deleteBilibiliCookie: async () => {
+          savedCookie = '';
+          return status();
+        },
       },
     });
     const resolvedResponse = await sourceApp.request('/api/rss/sources/resolve', {
@@ -465,34 +516,39 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const aiApp = createApp({
       serveFrontend: false,
       aiJobRunner: async ({ onProgress, purpose, translationSource }) => {
-        const content = purpose === 'translation'
-          ? JSON.stringify({
-            version: 1,
-            segments: translationSource.segments.map((segment) => ({
-              id: segment.id,
-              text: `译：${segment.text}`,
-            })),
-          })
-          : '服务端回答';
+        const content =
+          purpose === 'translation'
+            ? JSON.stringify({
+                version: 1,
+                segments: translationSource.segments.map((segment) => ({
+                  id: segment.id,
+                  text: `译：${segment.text}`,
+                })),
+              })
+            : '服务端回答';
         onProgress({
           content: '正在生成',
-          dialogueContent: [{
-            type: 'message',
-            role: 'assistant',
-            status: 'in_progress',
-            content: [{ type: 'output_text', text: '正在生成' }],
-          }],
+          dialogueContent: [
+            {
+              type: 'message',
+              role: 'assistant',
+              status: 'in_progress',
+              content: [{ type: 'output_text', text: '正在生成' }],
+            },
+          ],
           status: 'in_progress',
         });
         await new Promise((resolve) => setTimeout(resolve, 10));
         return {
           content,
-          dialogueContent: [{
-            type: 'message',
-            role: 'assistant',
-            status: 'completed',
-            content: [{ type: 'output_text', text: content }],
-          }],
+          dialogueContent: [
+            {
+              type: 'message',
+              role: 'assistant',
+              status: 'completed',
+              content: [{ type: 'output_text', text: content }],
+            },
+          ],
           status: 'completed',
         };
       },
@@ -518,19 +574,21 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
 
     const stateResponse = await aiApp.request('/api/state');
     const state = await stateResponse.json();
-    state.state.books = [{
-      id: 'book-1',
-      kind: 'epub',
-      title: '测试书籍',
-      author: '作者',
-      fileName: 'book.epub',
-      fileSize: 1,
-      createdAt: 1,
-      updatedAt: 1,
-      progress: 0,
-      currentChapter: '第一章',
-      toc: [],
-    }];
+    state.state.books = [
+      {
+        id: 'book-1',
+        kind: 'epub',
+        title: '测试书籍',
+        author: '作者',
+        fileName: 'book.epub',
+        fileSize: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        progress: 0,
+        currentChapter: '第一章',
+        toc: [],
+      },
+    ];
     await aiApp.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -582,13 +640,17 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const completedState = await completedStateResponse.json();
     assert.deepEqual(
       completedState.state.chats.map((message) => [message.role, message.content]),
-      [['user', '请回答这个问题'], ['assistant', '服务端回答']],
+      [
+        ['user', '请回答这个问题'],
+        ['assistant', '服务端回答'],
+      ],
     );
     assert.equal(completedState.state.chatSessions[0].id, 'conversation-1');
 
     const staleClientState = structuredClone(completedState);
-    staleClientState.state.chats = staleClientState.state.chats
-      .filter((message) => message.role !== 'assistant');
+    staleClientState.state.chats = staleClientState.state.chats.filter(
+      (message) => message.role !== 'assistant',
+    );
     await aiApp.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -598,33 +660,39 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const protectedState = await protectedStateResponse.json();
     assert.equal(protectedState.state.chats.at(-1).content, '服务端回答');
 
-    protectedState.state.rssFeeds = [{
-      id: 'rss-feed-1',
-      title: '测试订阅',
-      url: 'https://example.com/feed.xml',
-      type: 'article',
-      createdAt: 1,
-      updatedAt: 1,
-    }];
-    protectedState.state.rssItems = [{
-      id: 'rss-item-1',
-      feedId: 'rss-feed-1',
-      title: 'RSS 测试内容',
-      link: 'https://example.com/posts/1',
-      publishedAt: 100,
-      fetchedAt: 100,
-      contentText: 'RSS 正文',
-      contentHtml: '<p>RSS 正文</p><figure><img src="https://example.com/photo.jpg" alt="测试图片"></figure>',
-    }, {
-      id: 'rss-item-read',
-      feedId: 'rss-feed-1',
-      title: 'RSS 已读测试内容',
-      link: 'https://example.com/posts/read',
-      publishedAt: 150,
-      fetchedAt: 150,
-      contentText: '这篇文章已经读过，但仍应进入当天日报',
-      readAt: 200,
-    }];
+    protectedState.state.rssFeeds = [
+      {
+        id: 'rss-feed-1',
+        title: '测试订阅',
+        url: 'https://example.com/feed.xml',
+        type: 'article',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    protectedState.state.rssItems = [
+      {
+        id: 'rss-item-1',
+        feedId: 'rss-feed-1',
+        title: 'RSS 测试内容',
+        link: 'https://example.com/posts/1',
+        publishedAt: 100,
+        fetchedAt: 100,
+        contentText: 'RSS 正文',
+        contentHtml:
+          '<p>RSS 正文</p><figure><img src="https://example.com/photo.jpg" alt="测试图片"></figure>',
+      },
+      {
+        id: 'rss-item-read',
+        feedId: 'rss-feed-1',
+        title: 'RSS 已读测试内容',
+        link: 'https://example.com/posts/read',
+        publishedAt: 150,
+        fetchedAt: 150,
+        contentText: '这篇文章已经读过，但仍应进入当天日报',
+        readAt: 200,
+      },
+    ];
     await aiApp.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -730,10 +798,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const digestState = await (await aiApp.request('/api/state')).json();
     assert.equal(digestState.state.rssDailyDigests[0].date, '1970-01-01');
     assert.equal(digestState.state.rssDailyDigests[0].content, '服务端回答');
-    assert.deepEqual(
-      [...digestState.state.rssDailyDigests[0].sourceItemIds].sort(),
-      ['rss-item-1', 'rss-item-read'],
-    );
+    assert.deepEqual([...digestState.state.rssDailyDigests[0].sourceItemIds].sort(), [
+      'rss-item-1',
+      'rss-item-read',
+    ]);
     assert.equal(digestState.state.rssDigestRuns[0].status, 'completed');
     assert.equal(digestState.state.rssDigestRuns[0].trigger, 'manual');
     assert.equal(digestState.state.rssDigestRuns[0].itemCount, 2);
@@ -751,10 +819,12 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(skippedDigestState.state.rssDigestRuns[0].message, '没有新的内容');
 
     const staleRssState = structuredClone(rssState);
-    staleRssState.state.chatSessions = staleRssState.state.chatSessions
-      .filter((session) => session.id !== 'rss-summary:rss-item-1');
-    staleRssState.state.chats = staleRssState.state.chats
-      .filter((message) => message.conversationId !== 'rss-summary:rss-item-1');
+    staleRssState.state.chatSessions = staleRssState.state.chatSessions.filter(
+      (session) => session.id !== 'rss-summary:rss-item-1',
+    );
+    staleRssState.state.chats = staleRssState.state.chats.filter(
+      (message) => message.conversationId !== 'rss-summary:rss-item-1',
+    );
     const staleRssItem = staleRssState.state.rssItems.find((item) => item.id === 'rss-item-1');
     delete staleRssItem.aiSummary;
     delete staleRssItem.aiTranslation;
@@ -767,16 +837,25 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify(staleRssState),
     });
     const protectedRssState = await (await aiApp.request('/api/state')).json();
-    const protectedRssItem = protectedRssState.state.rssItems.find((item) => item.id === 'rss-item-1');
+    const protectedRssItem = protectedRssState.state.rssItems.find(
+      (item) => item.id === 'rss-item-1',
+    );
     assert.equal(protectedRssItem.aiSummary, '服务端回答');
     assert.equal(protectedRssItem.aiSummaryVersion, 2);
     assert.equal(protectedRssItem.aiTranslation, '译：RSS 正文');
-    assert.match(protectedRssItem.aiTranslationHtml, /<img src="https:\/\/example\.com\/photo\.jpg"/);
+    assert.match(
+      protectedRssItem.aiTranslationHtml,
+      /<img src="https:\/\/example\.com\/photo\.jpg"/,
+    );
     assert.equal(protectedRssState.state.rssDailyDigests[0].content, '服务端回答');
     assert.equal(protectedRssState.state.rssDigestRuns.length, 2);
     assert.ok(protectedRssState.state.rssDigestRuns.some((run) => run.status === 'completed'));
     assert.ok(protectedRssState.state.rssDigestRuns.some((run) => run.status === 'skipped'));
-    assert.ok(protectedRssState.state.chatSessions.some((session) => session.id === 'rss-summary:rss-item-1'));
+    assert.ok(
+      protectedRssState.state.chatSessions.some(
+        (session) => session.id === 'rss-summary:rss-item-1',
+      ),
+    );
   });
 
   await t.test('旧标签页不会覆盖结构化 RSS 译文', async () => {
@@ -811,14 +890,16 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
   await t.test('旧标签页不会覆盖新版书单', async () => {
     const currentState = await (await app.request('/api/state')).json();
     currentState.version = 24;
-    currentState.state.bookLists = [{
-      id: 'protected-list',
-      name: '受保护书单',
-      note: '服务端保存的备注',
-      bookIds: ['book-2', 'book-1'],
-      createdAt: 1,
-      updatedAt: 2,
-    }];
+    currentState.state.bookLists = [
+      {
+        id: 'protected-list',
+        name: '受保护书单',
+        note: '服务端保存的备注',
+        bookIds: ['book-2', 'book-1'],
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ];
     await app.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -845,16 +926,18 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
   await t.test('旧设备快照不会清除高亮、复活已删除高亮或回退阅读样式', async () => {
     const currentState = await (await app.request('/api/state')).json();
     currentState.version = 28;
-    currentState.state.highlights = [{
-      id: 'reader-sync-highlight',
-      bookId: 'book-1',
-      kind: 'highlight',
-      text: '服务端的新高亮',
-      cfi: 'epubcfi(/6/2)',
-      chapter: '第一章',
-      createdAt: 200,
-      updatedAt: 200,
-    }];
+    currentState.state.highlights = [
+      {
+        id: 'reader-sync-highlight',
+        bookId: 'book-1',
+        kind: 'highlight',
+        text: '服务端的新高亮',
+        cfi: 'epubcfi(/6/2)',
+        chapter: '第一章',
+        createdAt: 200,
+        updatedAt: 200,
+      },
+    ];
     currentState.state.deletedHighlightTombstones = [];
     currentState.state.readerPreferences = { theme: 'ink', fontSize: 22 };
     currentState.state.readerPreferencesUpdatedAt = 200;
@@ -884,11 +967,13 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
 
     const deletionSnapshot = structuredClone(serverState);
     deletionSnapshot.state.highlights = [];
-    deletionSnapshot.state.deletedHighlightTombstones = [{
-      highlightId: 'reader-sync-highlight',
-      bookId: 'book-1',
-      deletedAt: 300,
-    }];
+    deletionSnapshot.state.deletedHighlightTombstones = [
+      {
+        highlightId: 'reader-sync-highlight',
+        bookId: 'book-1',
+        deletedAt: 300,
+      },
+    ];
     await app.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -901,7 +986,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     });
 
     serverState = await (await app.request('/api/state')).json();
-    assert.equal(serverState.state.highlights.some((item) => item.id === 'reader-sync-highlight'), false);
+    assert.equal(
+      serverState.state.highlights.some((item) => item.id === 'reader-sync-highlight'),
+      false,
+    );
     assert.equal(
       serverState.state.deletedHighlightTombstones[0].highlightId,
       'reader-sync-highlight',
@@ -929,32 +1017,38 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       book,
       ...(currentState.state.books ?? []).filter((item) => item.id !== book.id),
     ];
-    currentState.state.bookLists = [{
-      id: 'trash-sync-list',
-      name: '同步测试',
-      note: '',
-      bookIds: [book.id],
-      createdAt: 100,
-      updatedAt: 100,
-    }];
+    currentState.state.bookLists = [
+      {
+        id: 'trash-sync-list',
+        name: '同步测试',
+        note: '',
+        bookIds: [book.id],
+        createdAt: 100,
+        updatedAt: 100,
+      },
+    ];
     currentState.state.trashedBooks = [];
     currentState.state.deletedBookTombstones = [];
-    currentState.state.highlights = [{
-      id: 'trash-sync-highlight',
-      bookId: book.id,
-      text: '保留的高亮',
-      cfi: 'epubcfi(/6/2)',
-      chapter: '第二章',
-      createdAt: 100,
-    }];
-    currentState.state.notes = [{
-      id: 'trash-sync-note',
-      bookId: book.id,
-      title: '保留的笔记',
-      content: '笔记正文',
-      createdAt: 100,
-      updatedAt: 100,
-    }];
+    currentState.state.highlights = [
+      {
+        id: 'trash-sync-highlight',
+        bookId: book.id,
+        text: '保留的高亮',
+        cfi: 'epubcfi(/6/2)',
+        chapter: '第二章',
+        createdAt: 100,
+      },
+    ];
+    currentState.state.notes = [
+      {
+        id: 'trash-sync-note',
+        bookId: book.id,
+        title: '保留的笔记',
+        content: '笔记正文',
+        createdAt: 100,
+        updatedAt: 100,
+      },
+    ];
     currentState.state.chats = [];
     currentState.state.chatSessions = [];
     currentState.state.readingSessions = [];
@@ -985,7 +1079,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(trashResponse.status, 200);
     assert.equal((await trashResponse.json()).book.id, book.id);
     let serverState = await (await app.request('/api/state')).json();
-    assert.equal(serverState.state.books.some((item) => item.id === book.id), false);
+    assert.equal(
+      serverState.state.books.some((item) => item.id === book.id),
+      false,
+    );
     assert.equal(serverState.state.trashedBooks[0].book.id, book.id);
     assert.equal(serverState.state.highlights[0].text, '保留的高亮');
     assert.equal(serverState.state.notes[0].content, '笔记正文');
@@ -998,7 +1095,10 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify(staleDeviceSnapshot),
     });
     serverState = await (await app.request('/api/state')).json();
-    assert.equal(serverState.state.books.some((item) => item.id === book.id), false);
+    assert.equal(
+      serverState.state.books.some((item) => item.id === book.id),
+      false,
+    );
     assert.equal(serverState.state.trashedBooks[0].book.id, book.id);
     assert.equal(serverState.state.highlights[0].text, '保留的高亮');
     assert.equal(serverState.state.notes[0].content, '笔记正文');
@@ -1006,20 +1106,27 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const restoreResponse = await app.request(`/api/books/${book.id}/restore`, { method: 'POST' });
     assert.equal(restoreResponse.status, 200);
     serverState = await (await app.request('/api/state')).json();
-    assert.equal(serverState.state.books.some((item) => item.id === book.id), true);
+    assert.equal(
+      serverState.state.books.some((item) => item.id === book.id),
+      true,
+    );
     assert.equal(serverState.state.trashedBooks.length, 0);
     assert.deepEqual(serverState.state.bookLists[0].bookIds, [book.id]);
 
     const snapshotMissingActiveBook = structuredClone(serverState);
-    snapshotMissingActiveBook.state.books = snapshotMissingActiveBook.state.books
-      .filter((item) => item.id !== book.id);
+    snapshotMissingActiveBook.state.books = snapshotMissingActiveBook.state.books.filter(
+      (item) => item.id !== book.id,
+    );
     await app.request('/api/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(snapshotMissingActiveBook),
     });
     serverState = await (await app.request('/api/state')).json();
-    assert.equal(serverState.state.books.some((item) => item.id === book.id), true);
+    assert.equal(
+      serverState.state.books.some((item) => item.id === book.id),
+      true,
+    );
 
     await app.request(`/api/books/${book.id}/trash`, { method: 'POST' });
     const deleteResponse = await app.request(`/api/books/${book.id}`, { method: 'DELETE' });
@@ -1028,9 +1135,18 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.equal(deleteResult.bookId, book.id);
     serverState = await (await app.request('/api/state')).json();
     assert.equal(serverState.state.trashedBooks.length, 0);
-    assert.equal(serverState.state.highlights.some((item) => item.bookId === book.id), false);
-    assert.equal(serverState.state.notes.some((item) => item.bookId === book.id), false);
-    assert.equal(serverState.state.deletedBookTombstones.some((item) => item.bookId === book.id), true);
+    assert.equal(
+      serverState.state.highlights.some((item) => item.bookId === book.id),
+      false,
+    );
+    assert.equal(
+      serverState.state.notes.some((item) => item.bookId === book.id),
+      false,
+    );
+    assert.equal(
+      serverState.state.deletedBookTombstones.some((item) => item.bookId === book.id),
+      true,
+    );
     assert.equal((await app.request(`/api/books/${book.id}`)).status, 404);
     assert.equal((await app.request(`/api/books/${book.id}/cover`)).status, 404);
 
@@ -1040,9 +1156,18 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       body: JSON.stringify(staleDeviceSnapshot),
     });
     serverState = await (await app.request('/api/state')).json();
-    assert.equal(serverState.state.books.some((item) => item.id === book.id), false);
-    assert.equal(serverState.state.highlights.some((item) => item.bookId === book.id), false);
-    assert.equal(serverState.state.notes.some((item) => item.bookId === book.id), false);
+    assert.equal(
+      serverState.state.books.some((item) => item.id === book.id),
+      false,
+    );
+    assert.equal(
+      serverState.state.highlights.some((item) => item.bookId === book.id),
+      false,
+    );
+    assert.equal(
+      serverState.state.notes.some((item) => item.bookId === book.id),
+      false,
+    );
   });
 
   await t.test('回收站仅自动清理超过 30 天的书籍', async () => {
@@ -1077,17 +1202,27 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     await app.request(`/api/books/${recentBook.id}/trash`, { method: 'POST' });
     const now = Date.now();
     await mutatePersistedState((persistedState) => {
-      const expiredEntry = persistedState.state.trashedBooks.find((item) => item.book.id === expiredBook.id);
-      const recentEntry = persistedState.state.trashedBooks.find((item) => item.book.id === recentBook.id);
-      expiredEntry.deletedAt = now - (30 * 24 * 60 * 60 * 1_000) - 1;
-      recentEntry.deletedAt = now - (29 * 24 * 60 * 60 * 1_000);
+      const expiredEntry = persistedState.state.trashedBooks.find(
+        (item) => item.book.id === expiredBook.id,
+      );
+      const recentEntry = persistedState.state.trashedBooks.find(
+        (item) => item.book.id === recentBook.id,
+      );
+      expiredEntry.deletedAt = now - 30 * 24 * 60 * 60 * 1_000 - 1;
+      recentEntry.deletedAt = now - 29 * 24 * 60 * 60 * 1_000;
     });
 
     const deletedBookIds = await purgeExpiredTrashedBooks({ now: () => now });
     assert.deepEqual(deletedBookIds, [expiredBook.id]);
     const serverState = await (await app.request('/api/state')).json();
-    assert.equal(serverState.state.trashedBooks.some((item) => item.book.id === expiredBook.id), false);
-    assert.equal(serverState.state.trashedBooks.some((item) => item.book.id === recentBook.id), true);
+    assert.equal(
+      serverState.state.trashedBooks.some((item) => item.book.id === expiredBook.id),
+      false,
+    );
+    assert.equal(
+      serverState.state.trashedBooks.some((item) => item.book.id === recentBook.id),
+      true,
+    );
     assert.equal((await app.request(`/api/books/${expiredBook.id}`)).status, 404);
     assert.equal((await app.request(`/api/books/${recentBook.id}`)).status, 200);
   });
