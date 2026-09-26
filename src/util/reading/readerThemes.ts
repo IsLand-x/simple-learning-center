@@ -5,7 +5,7 @@ import type {
   ReaderPreferences,
   ReaderTheme,
   ReaderTexture,
-} from '../../types/domain';
+} from '../../../contracts/reading';
 
 type PresetTheme = Exclude<ReaderTheme, 'custom'>;
 

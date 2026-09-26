@@ -1,5 +1,5 @@
 import { settingsApi } from '../../../api/settings';
-import type { OpenApiTokenStatus } from '../../../types/settings';
+import type { OpenApiTokenStatus } from '../../../api/settings/type';
 import { useEffect, useState } from 'react';
 import { Button, Input, Toast, Typography } from '@douyinfe/semi-ui';
 import { confirmDialog } from '../../../util/confirmDialog';

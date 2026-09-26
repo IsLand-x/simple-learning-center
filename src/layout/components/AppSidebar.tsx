@@ -13,7 +13,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { applyAppTheme } from '../../util/appTheme';
-import { useLearningStore } from '../../util/state/useLearningStore';
+import { useLearningStore } from '../../store/useLearningStore';
 import {
   detectPwaInstallation,
   isRunningAsInstalledPwa,

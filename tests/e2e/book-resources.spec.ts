@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { expectSemiButtonSize } from './semi-button-size';
 import { demoBooks } from '../../src/util/fixtures/demo';
-import type { BookImageResource } from '../../src/pages/books/detail/store/model/bookResources';
+import type { BookImageResource } from '../../src/api/books/type';
 
 const book = demoBooks[0];
 const imageId = '11111111-1111-4111-8111-111111111111';

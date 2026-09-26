@@ -1,5 +1,5 @@
 import { settingsApi } from '../../../api/settings';
-import type { SystemInfo } from '../../../types/settings';
+import type { SystemInfo } from '../../../api/settings/type';
 import { useEffect, useState } from 'react';
 import { Button, Typography } from '@douyinfe/semi-ui';
 import { appMetadata, formatAppUpdatedAt } from '../../../util/appMetadata';

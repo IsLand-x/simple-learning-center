@@ -1,13 +1,13 @@
 import { useContentConversation } from './useContentConversation';
 import { AIChatInput, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconArticle, IconVideo } from '@douyinfe/semi-icons';
-import { useLearningStore } from '../../util/state/useLearningStore';
-import type { AiProvider, RssItem, VideoResource } from '../../types/domain';
-import {
-  AiConversationDialogue,
-  AiModelSelector,
-  AiReasoningEffortSelector,
-} from './AiConversationPrimitives';
+import { useLearningStore } from '../../store/useLearningStore';
+import type { AiProvider } from '../../../contracts/ai';
+import type { RssItem } from '../../../contracts/rss';
+import type { VideoResource } from '../../../contracts/videos';
+import { AiConversationDialogue } from './AiConversationDialogue';
+import { AiModelSelector } from './AiModelSelector';
+import { AiReasoningEffortSelector } from './AiReasoningEffortSelector';
 
 const { Text } = Typography;
 

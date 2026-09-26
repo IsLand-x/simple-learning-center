@@ -1,9 +1,9 @@
 import { aiApi } from '../../api/ai';
-import type { AiJob } from '../../types/ai';
+import type { AiJob } from '../../api/ai/type';
 import { useCallback, useEffect } from 'react';
 
-import { useLearningStore } from '../../util/state/useLearningStore';
-import type { ConversationJobControls } from '../../util/ai/conversationJobTypes';
+import { useLearningStore } from '../../store/useLearningStore';
+import type { ConversationJobControls } from '../../types/conversation';
 
 export function useContentConversationJobs({
   resourceId,

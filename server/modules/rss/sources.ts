@@ -1,4 +1,4 @@
-import type { RssSource } from '../../../contracts/domain.js';
+import type { RssSource } from '../../../contracts/rss.js';
 import type { FetchedRssFeed } from './types.js';
 import { z } from 'zod';
 import { fetchRssFeed } from './feed.js';
@@ -8,7 +8,7 @@ import {
   parseBilibiliUpInput,
 } from './providers/bilibili.js';
 import { sourceError } from './errors.js';
-import { sourceSecretsService } from '../credentials/sourceSecrets.js';
+import { sourceSecretsService } from '../settings/sourceSecrets.js';
 import { fetchYouTubeChannelFeed, resolveYouTubeChannel } from './providers/youtube.js';
 
 const rssSourceSchema = z.discriminatedUnion('kind', [

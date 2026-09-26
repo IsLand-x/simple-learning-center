@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from 'node:fs';
-import { access, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -10,7 +10,7 @@ import {
   NOTE_DIRECTORY,
   SEARCH_INDEX_DIRECTORY,
 } from '../../config.js';
-import { statusError } from '../http/errors.js';
+import { errorHasCode, statusError } from '../http/errors.js';
 
 function encodedId(value: unknown) {
   if (typeof value !== 'string' || !value || value.length > 200 || value.includes('\0')) {
@@ -27,6 +27,21 @@ export function bookPath(bookId: string) {
 
 export function coverDirectoryPath(bookId: string) {
   return join(COVER_DIRECTORY, encodedId(bookId));
+}
+
+export async function findBookCoverPath(bookId: string) {
+  const directory = coverDirectoryPath(bookId);
+  try {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const entry = entries.find(
+      (candidate) =>
+        candidate.isFile() && /^cover\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(candidate.name),
+    );
+    return entry ? join(directory, entry.name) : null;
+  } catch (error) {
+    if (errorHasCode(error, 'ENOENT')) return null;
+    throw error;
+  }
 }
 
 export function searchIndexPath(bookId: string) {

@@ -1,9 +1,9 @@
 import { IconAIStrokedLevel1, IconLanguage } from '@douyinfe/semi-icons';
 import { Typography } from '@douyinfe/semi-ui';
 import { ContentConversationPanel } from '../../../../components/ai/ContentConversationPanel';
-import type { VideoResource } from '../../../../types/domain';
-import { type TranscriptMode, type VideoPanel } from '../store/model/videoTranscript';
-import { VideoTranscriptPanel } from './VideoTranscriptPanel';
+import type { VideoResource } from '../../../../../contracts/videos';
+import { type TranscriptMode, type VideoPanel } from './Transcript/videoTranscript';
+import { VideoTranscriptPanel } from './Transcript/VideoTranscriptPanel';
 const { Text } = Typography;
 export function VideoRightPanel({
   panel,

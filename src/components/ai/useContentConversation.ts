@@ -1,12 +1,15 @@
-import { aiApi } from '../../api/ai';
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { AIChatInput, Toast } from '@douyinfe/semi-ui';
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { aiApi } from '../../api/ai';
+import { useConversationModel } from './useConversationModel';
 
-import { coerceAiReasoningEffort, requestReasoningEffort } from '../../util/ai/aiReasoning';
-import { waitForServerStateWrites } from '../../util/state/serverStateStorage';
+import { waitForServerStateWrites } from '../../store/serverStateStorage';
+import { useLearningStore } from '../../store/useLearningStore';
+import type { AiDialogueContentItem } from '../../../contracts/ai';
+import type { RssItem } from '../../../contracts/rss';
+import type { VideoResource } from '../../../contracts/videos';
+import { requestReasoningEffort } from '../../util/ai/aiReasoning';
 import { createUuid } from '../../util/uuid';
-import { useLearningStore } from '../../util/state/useLearningStore';
-import type { AiDialogueContentItem, AiProvider, RssItem, VideoResource } from '../../types/domain';
 import { useContentConversationJobs } from './useContentConversationJobs';
 
 type AiStatus = 'unavailable' | 'ready' | 'generating' | 'error';
@@ -36,11 +39,7 @@ export function useContentConversation({
   const conversationId = `${resource.type}-chat:${rawResourceId}`;
   const allChats = useLearningStore((state) => state.chats);
   const allSessions = useLearningStore((state) => state.chatSessions);
-  const configs = useLearningStore((state) => state.openAIConfigs);
-  const aiPreferences = useLearningStore((state) => state.aiPreferences);
-  const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
   const createChatSession = useLearningStore((state) => state.createChatSession);
-  const updateChatSession = useLearningStore((state) => state.updateChatSession);
   const addChatMessage = useLearningStore((state) => state.addChatMessage);
   const chats = useMemo(
     () =>
@@ -50,18 +49,17 @@ export function useContentConversation({
     [allChats, conversationId, resourceId],
   );
   const currentSession = allSessions.find((session) => session.id === conversationId);
-  const provider = aiPreferences.provider;
-  const selectedConfig = provider
-    ? configs.find((config) => provider === `api:${config.id}`)
-    : undefined;
-  const model = selectedConfig?.models.includes(aiPreferences.model)
-    ? aiPreferences.model
-    : (selectedConfig?.models[0] ?? '');
-  const reasoningEffort = coerceAiReasoningEffort(
-    aiPreferences.reasoningEffort,
+  const {
+    configs,
+    aiPreferences,
+    setAiPreferences,
+    provider,
     selectedConfig,
     model,
-  );
+    reasoningEffort,
+    chooseModel,
+    chooseReasoningEffort,
+  } = useConversationModel(currentSession);
   const [status, setStatus] = useState<AiStatus>(() =>
     selectedConfig && model ? 'ready' : 'unavailable',
   );
@@ -132,33 +130,6 @@ export function useContentConversation({
     setStatus,
     setStatusMessage,
   });
-  const chooseModel = (selection: unknown) => {
-    if (status === 'generating' || !Array.isArray(selection) || selection.length < 2) return;
-    const nextProvider = String(selection[0]) as AiProvider;
-    const nextModel = String(selection[1]);
-    const nextConfig = configs.find((config) => nextProvider === `api:${config.id}`);
-    const nextReasoningEffort = coerceAiReasoningEffort(reasoningEffort, nextConfig, nextModel);
-    setAiPreferences({
-      provider: nextProvider,
-      model: nextModel,
-      reasoningEffort: nextReasoningEffort,
-    });
-    if (currentSession) {
-      updateChatSession(currentSession.id, {
-        provider: nextProvider,
-        model: nextModel,
-        reasoningEffort: nextReasoningEffort,
-      });
-    }
-  };
-  const chooseReasoningEffort = (nextValue: typeof reasoningEffort) => {
-    if (status === 'generating') return;
-    const nextReasoningEffort = coerceAiReasoningEffort(nextValue, selectedConfig, model);
-    setAiPreferences({ reasoningEffort: nextReasoningEffort });
-    if (currentSession) {
-      updateChatSession(currentSession.id, { reasoningEffort: nextReasoningEffort });
-    }
-  };
   const ensureSession = (question: string) => {
     if (currentSession) return;
     const timestamp = Date.now();
@@ -288,9 +259,13 @@ export function useContentConversation({
     stop,
     statusMessage,
     model,
-    chooseModel,
+    chooseModel: (selection: unknown) => {
+      if (status !== 'generating') chooseModel(selection);
+    },
     selectedConfig,
     reasoningEffort,
-    chooseReasoningEffort,
+    chooseReasoningEffort: (effort: typeof reasoningEffort) => {
+      if (status !== 'generating') chooseReasoningEffort(effort);
+    },
   };
 }

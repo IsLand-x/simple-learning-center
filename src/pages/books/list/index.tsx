@@ -1,16 +1,16 @@
 import { IconDeleteStroked, IconFavoriteList, IconPlus, IconSearch } from '@douyinfe/semi-icons';
 import { Button, ButtonGroup, Empty, Input, Typography } from '@douyinfe/semi-ui';
 import { ImportBooksButton } from './components/ImportBooksButton';
-import { BookCard } from './components/BookCard';
-import { BookListEditor } from './components/BookListEditor';
-import { BookListsView } from './components/BookListsView';
+import { BookCard } from './components/Shelf/BookCard';
+import { BookListEditor } from './components/BookLists/BookListEditor';
+import { BookListsView } from './components/BookLists/BookListsView';
 import { TrashView } from './components/TrashView';
-import { useLibraryPageStore } from './store/useLibraryPageStore';
+import { useLibraryState } from './store/useLibraryState';
 
 const { Title, Text } = Typography;
 
 export function LibraryPage() {
-  const page = useLibraryPageStore();
+  const page = useLibraryState();
 
   return (
     <main className="library-page min-w-0 min-h-0 [background:var(--semi-color-bg-0)]">

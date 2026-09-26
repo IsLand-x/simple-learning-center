@@ -1,4 +1,4 @@
-import type { WebSearchConfig } from '../../../contracts/domain.js';
+import type { WebSearchConfig } from '../../../contracts/settings.js';
 
 interface JinaDocument {
   title?: string;

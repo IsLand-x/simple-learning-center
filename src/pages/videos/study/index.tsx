@@ -1,18 +1,18 @@
 import { IconArrowLeft } from '@douyinfe/semi-icons';
-import { Button, Empty, Input, Typography } from '@douyinfe/semi-ui';
+import { Button, Empty, Typography } from '@douyinfe/semi-ui';
 import { Allotment } from 'allotment';
-import { AppFormModal } from '../../../components/AppFormModal';
 import { clamp } from '../../../util/format';
+import { AddVideoDialog } from './components/AddVideoDialog';
 import { VideoActivityBar } from './components/VideoActivityBar';
 import { VideoLibrary } from './components/VideoLibrary';
-import { VideoMainContent } from './components/VideoMainContent';
+import { VideoMainContent } from './components/Playback/VideoMainContent';
 import { VideoRightPanel } from './components/VideoRightPanel';
-import { useVideoPageStore } from './store/useVideoPageStore';
+import { useVideoWorkspace } from './store/useVideoWorkspace';
 
 const { Text, Title } = Typography;
 
 export function VideoStudyPage() {
-  const page = useVideoPageStore();
+  const page = useVideoWorkspace();
 
   const library = (
     <VideoLibrary
@@ -26,10 +26,8 @@ export function VideoStudyPage() {
   const mainContent = page.selectedVideo ? (
     <VideoMainContent
       video={page.selectedVideo}
-      studyNote={page.studyNote}
       playerRef={page.playerRef}
       onChangeCurrentTime={page.handleTimeUpdate}
-      onChangeStudyNote={page.changeStudyNote}
       onDeleteVideo={page.removeSelectedVideo}
     />
   ) : (
@@ -132,50 +130,11 @@ export function VideoStudyPage() {
         )}
       </div>
 
-      <AppFormModal
-        closable={false}
-        title="添加 YouTube 视频"
+      <AddVideoDialog
         visible={page.addVisible}
-        onCancel={() => {
-          if (!page.submitting) page.setAddVisible(false);
-        }}
-      >
-        <form className="video-add-form" onSubmit={page.addVideo}>
-          <label>
-            <Text strong>YouTube 视频链接</Text>
-            <Input
-              autoFocus
-              disabled={page.submitting}
-              placeholder="https://www.youtube.com/watch?v=..."
-              value={page.videoUrl}
-              onChange={page.setVideoUrl}
-            />
-          </label>
-          <Text size="small" type="tertiary">
-            视频不会下载到服务器；仅保存标题、频道、字幕和学习记录。中文字幕会优先使用 YouTube
-            提供的翻译。
-          </Text>
-          <div className="video-add-form__actions justify-end [margin-top:4px]">
-            <Button
-              disabled={page.submitting}
-              theme="borderless"
-              type="tertiary"
-              onClick={() => page.setAddVisible(false)}
-            >
-              取消
-            </Button>
-            <Button
-              disabled={!page.videoUrl.trim()}
-              htmlType="submit"
-              loading={page.submitting}
-              theme="solid"
-              type="primary"
-            >
-              读取视频
-            </Button>
-          </div>
-        </form>
-      </AppFormModal>
+        onClose={() => page.setAddVisible(false)}
+        onAdded={(video) => page.setSearchParams({ video: video.id })}
+      />
     </main>
   );
 }

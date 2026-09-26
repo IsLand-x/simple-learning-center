@@ -1,8 +1,8 @@
 import { IconPlus } from '@douyinfe/semi-icons';
 import { Button, Empty, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { useMemo } from 'react';
-import type { VideoResource } from '../../../../types/domain';
-import { formatVideoTime } from '../store/model/videoTranscript';
+import type { VideoResource } from '../../../../../contracts/videos';
+import { formatVideoTime } from './Transcript/videoTranscript';
 const { Text } = Typography;
 export function VideoLibrary({
   videos,

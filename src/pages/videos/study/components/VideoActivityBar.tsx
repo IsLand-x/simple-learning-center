@@ -1,6 +1,6 @@
 import { IconAIStrokedLevel1, IconLanguage } from '@douyinfe/semi-icons';
 import { ActivityRailButton } from '../../../../components/layout/ActivityRailButton';
-import { type VideoPanel } from '../store/model/videoTranscript';
+import { type VideoPanel } from './Transcript/videoTranscript';
 export function VideoActivityBar({
   panel,
   onChange,

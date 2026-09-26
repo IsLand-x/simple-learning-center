@@ -1,4 +1,4 @@
-import type { WebSearchConfig } from '../../../contracts/domain.js';
+import type { WebSearchConfig } from '../../../contracts/settings.js';
 
 interface ExtractedArticle {
   title?: string | null;
@@ -234,7 +234,7 @@ function errorMessage(error: unknown) {
 
 /**
  * @param {unknown} value
- * @param {{ fetchImpl?: typeof fetch; readRenderedPage?: typeof readRenderedWebPageHtml; validateUrl?: typeof validateRemoteUrl; readerConfig?: import('../../../contracts/domain.js').WebSearchConfig }} [options]
+ * @param {{ fetchImpl?: typeof fetch; readRenderedPage?: typeof readRenderedWebPageHtml; validateUrl?: typeof validateRemoteUrl; readerConfig?: import('../../../contracts/settings.js').WebSearchConfig }} [options]
  */
 export async function fetchRssArticle(
   value: unknown,

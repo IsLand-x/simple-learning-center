@@ -1,19 +1,14 @@
-import type { ReactNode, RefObject } from 'react';
 import { Allotment } from 'allotment';
+import type { ReactNode, RefObject } from 'react';
+import type { BookItem, TocItem } from '../../../../../contracts/books';
+import type { ChatMessage, ChatSession } from '../../../../../contracts/ai';
+import type { HighlightItem, ReaderPreferences } from '../../../../../contracts/reading';
+import type { RightPanel } from '../../../../types/reader';
 import { clamp } from '../../../../util/format';
-import type {
-  BookItem,
-  ChatMessage,
-  ChatSession,
-  HighlightItem,
-  ReaderPreferences,
-  RightPanel,
-  TocItem,
-} from '../../../../types/domain';
-import { ReaderActivityBar } from './right-panel/ReaderActivityBar';
-import { ReaderRightPanel } from './right-panel/ReaderRightPanel';
-import type { ReaderSurfaceHandle } from '../store/model/readerSurfaceTypes';
-import { TableOfContents } from './TableOfContents';
+import { ReaderRightPanel } from './ReaderPanel/ReaderRightPanel';
+import type { ReaderSurfaceHandle } from './ReaderSurface/type';
+import { TableOfContents } from './TableOfContents/TableOfContents';
+import { ReaderActivityBar } from './Toolbar/ReaderActivityBar';
 
 interface ReaderWorkspaceProps {
   activeHref?: string;

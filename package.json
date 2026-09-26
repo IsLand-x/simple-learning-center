@@ -12,7 +12,7 @@
     "dev:local": "npm run build:server && node server-dist/dev.js",
     "generate:pwa-assets": "pwa-assets-generator --preset minimal-2023 public/app-icon.svg",
     "test": "npm run test:server && npm run test:web",
-    "test:server": "npm run build:server && node --test --test-concurrency=1 server-dist/*.test.mjs",
+    "test:server": "npm run build:server && node scripts/test-server.mjs",
     "test:web": "vitest run",
     "test:e2e": "npm run build:server && playwright test",
     "test:e2e:container": "npm run build:server && node tests/browser/run.mjs",
@@ -22,11 +22,12 @@
     "lint": "eslint src server scripts tests vite.config.ts vitest.config.ts playwright.config.ts --max-warnings 0",
     "format:check": "prettier --check package.json knip.json .prettierrc.json eslint.config.js vitest.config.ts playwright.config.ts tsconfig.server.json scripts server contracts tests src",
     "build": "npm run build:server && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
-    "verify": "npm run lint && npm run format:check && npm run check:boundaries && npm run check:dead-code && npm test && npm run build",
+    "verify": "npm run lint && npm run format:check && npm run check:components && npm run check:boundaries && npm run check:dead-code && npm test && npm run build",
     "verify:full": "npm run verify && npm run test:e2e:container",
     "preview": "node server-dist/index.js",
     "start": "npm run build && node server-dist/index.js",
-    "build:server": "node scripts/build-server.mjs"
+    "build:server": "node scripts/build-server.mjs",
+    "check:components": "node --test scripts/component-file-rules.test.mjs && node scripts/check-component-files.mjs"
   },
   "dependencies": {
     "@douyinfe/semi-icons": "2.102.0",

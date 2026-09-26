@@ -1,10 +1,10 @@
-import type { RssFeed, RssSource } from '../../../contracts/domain.js';
+import type { RssFeed, RssSource } from '../../../contracts/rss.js';
 import type { RefreshOptions } from './refresh.js';
 import { RSS_REFRESH_INITIAL_DELAY_MS, RSS_REFRESH_INTERVAL_MS } from '../../config.js';
 import { fetchRssArticle } from './article.js';
 import { fetchRssSource, normalizeRssSource, sourceMinimumIntervalMs } from './sources.js';
-import { readPersistedState } from '../state/repository.js';
-import { rssState } from './stateProtection.js';
+import { readPersistedState } from '../state/stateStore.js';
+import { rssState } from '../state/compatibility/rssState.js';
 import { refreshPersistedRssFeed } from './refresh.js';
 
 const MIN_FEED_SPACING_MS = 15_000;

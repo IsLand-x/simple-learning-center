@@ -4,8 +4,8 @@ import { ReaderAiSettingsForm } from '../../components/ai/ReaderAiSettingsForm';
 import { AboutSettings } from './components/AboutSettings';
 import { AccountSettings } from './components/AccountSettings';
 import { ContentSourceSettings } from './components/ContentSourceSettings';
-import { McpSettings } from './components/McpSettings';
-import { ModelSettings } from './components/ModelSettings';
+import { McpSettings } from './components/Mcp/McpSettings';
+import { ModelSettings } from './components/Models/ModelSettings';
 import { OpenApiSettings } from './components/OpenApiSettings';
 import { WebSearchSettings } from './components/WebSearchSettings';
 

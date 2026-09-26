@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconEditStroked, IconGlobeStroked } from '@douyinfe/semi-icons';
-import { useLearningStore } from '../../../util/state/useLearningStore';
+import { useLearningStore } from '../../../store/useLearningStore';
 
 const { Text } = Typography;
 

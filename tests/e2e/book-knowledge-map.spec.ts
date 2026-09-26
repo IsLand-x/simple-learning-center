@@ -1,6 +1,6 @@
 import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test } from '@playwright/test';
-import type { AiJob } from '../../src/types/ai';
+import type { AiJob } from '../../src/api/ai/type';
 import { demoBooks } from '../../src/util/fixtures/demo';
 
 const book = demoBooks[0];

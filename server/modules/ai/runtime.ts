@@ -1,8 +1,8 @@
 import { createModels, createProvider, envApiKeyAuth } from '@earendil-works/pi-ai';
 import type { Api, Model, Models } from '@earendil-works/pi-ai';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
-import type { OpenAICompatibleConfig } from '../../../contracts/domain.js';
-import type { ReasoningEffort } from './types.js';
+import type { OpenAICompatibleConfig } from '../../../contracts/ai.js';
+import type { ReasoningEffort } from './jobs/types.js';
 
 export interface PiRuntime {
   models: Models;

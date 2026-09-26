@@ -1,4 +1,4 @@
-import type { VideoCaptionCue } from '../../../contracts/domain.js';
+import type { VideoCaptionCue } from '../../../contracts/videos.js';
 
 type YouTubeVideoInfo = Awaited<
   ReturnType<Awaited<ReturnType<typeof getYouTubeClient>>['getBasicInfo']>

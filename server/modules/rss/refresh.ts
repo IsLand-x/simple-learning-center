@@ -1,11 +1,11 @@
-import type { RssItem, RssSourceErrorCode, RssSource } from '../../../contracts/domain.js';
+import type { RssItem, RssSourceErrorCode, RssSource } from '../../../contracts/rss.js';
 import type { fetchRssFeed } from './feed.js';
 import type { FetchedRssFeed } from './types.js';
 import { fetchRssArticle } from './article.js';
 import { fetchRssSource, normalizeRssSource } from './sources.js';
-import { mutatePersistedState, readPersistedState } from '../state/repository.js';
+import { mutatePersistedState, readPersistedState } from '../state/stateStore.js';
 import { mergeFetchedItems } from './items.js';
-import { rssState } from './stateProtection.js';
+import { rssState } from '../state/compatibility/rssState.js';
 
 export interface RefreshOptions {
   fetchFeed?: typeof fetchRssFeed;

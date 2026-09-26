@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AiJob } from '../types/ai';
-import type { ApiFetch } from '../types/http';
+import type { AiJob } from './ai/type';
+import type { ApiFetch } from './http/type';
 import { AiApi } from './ai';
 import { AuthApi } from './auth';
 import { BooksApi } from './books';
-import { AUTHENTICATION_REQUIRED_EVENT, ServerApiError } from './errors';
+import { AUTHENTICATION_REQUIRED_EVENT, ServerApiError } from './http/errors';
 import { ReadingApi } from './reading';
 import { StateApi } from './state';
-import { ApiTransport } from './transport';
+import { ApiTransport } from './http/transport';
 
 function createTransport() {
   const fetcher = vi.fn<ApiFetch>();

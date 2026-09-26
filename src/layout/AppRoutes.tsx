@@ -1,16 +1,14 @@
-import type { StateDomain } from '../types/state';
-import { lazy, Suspense, type ReactNode } from 'react';
-import { Spin } from '@douyinfe/semi-ui';
+import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { ReaderErrorBoundary } from '../pages/books/detail/components/ReaderErrorBoundary';
-import { StateDomainGate } from './components/StateDomainGate';
+import { ReaderErrorBoundary } from '../pages/books/detail/components/ReaderSurface/ReaderErrorBoundary';
 import {
   LIBRARY_STATE_DOMAINS,
   READER_STATE_DOMAINS,
   RSS_STATE_DOMAINS,
   SETTINGS_STATE_DOMAINS,
   VIDEO_STATE_DOMAINS,
-} from '../util/state/stateDomains';
+} from '../store/stateDomains';
+import { DomainRoute } from './components/DomainRoute';
 
 const LibraryPage = lazy(() =>
   import('../pages/books/list/index').then((module) => ({ default: module.LibraryPage })),
@@ -27,34 +25,6 @@ const RssPage = lazy(() =>
 const VideoStudyPage = lazy(() =>
   import('../pages/videos/study/index').then((module) => ({ default: module.VideoStudyPage })),
 );
-
-function LoadingRoute({ children }: { children: ReactNode }) {
-  return (
-    <Suspense
-      fallback={
-        <div className="route-loading [min-height:360px] [place-items:center] [align-content:center] [gap:16px] w-full [background:var(--semi-color-bg-0)]">
-          <Spin size="large" />
-        </div>
-      }
-    >
-      {children}
-    </Suspense>
-  );
-}
-
-function DomainRoute({
-  children,
-  domains,
-}: {
-  children: ReactNode;
-  domains: readonly StateDomain[];
-}) {
-  return (
-    <LoadingRoute>
-      <StateDomainGate domains={domains}>{children}</StateDomainGate>
-    </LoadingRoute>
-  );
-}
 
 export function AppRoutes() {
   return (

@@ -1,12 +1,12 @@
-import { aiApi } from '../../../../api/ai';
-import type { AiJob } from '../../../../types/ai';
-import { rssApi } from '../../../../api/rss';
-import { useCallback, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
+import { useCallback, useState } from 'react';
+import { aiApi } from '../../../../api/ai';
+import type { AiJob } from '../../../../api/ai/type';
+import { rssApi } from '../../../../api/rss';
 
-import { synchronizeLearningState } from '../../../../util/state/learningStateSync';
+import { synchronizeLearningState } from '../../../../store/learningStateSync';
 
-import { waitForServerStateWrites } from '../../../../util/state/serverStateStorage';
+import { waitForServerStateWrites } from '../../../../store/serverStateStorage';
 
 export function useRssDigestTask({
   selectedDigestDate,

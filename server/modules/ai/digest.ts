@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import type { AiJob, DigestInput, DigestAttempt } from './types.js';
-import type { createJobStarter } from './jobStart.js';
+import type { AiJob, DigestInput, DigestAttempt } from './jobs/types.js';
+import type { createJobStarter } from './jobs/start.js';
 import { statusError } from '../../infrastructure/http/errors.js';
-import { readPersistedState, mutatePersistedState } from '../state/repository.js';
-import { optionalString, publicJob, upsertDigestRun } from './jobModel.js';
+import { readPersistedState, mutatePersistedState } from '../state/stateStore.js';
+import { optionalString, publicJob, upsertDigestRun } from './jobs/model.js';
 
 export function createDigestStarter({
   jobs,

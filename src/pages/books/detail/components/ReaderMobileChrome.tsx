@@ -1,21 +1,16 @@
-import type { RefObject } from 'react';
-import { SideSheet, Typography } from '@douyinfe/semi-ui';
 import { IconColorPalette } from '@douyinfe/semi-icons';
-import type {
-  BookItem,
-  ChatMessage,
-  ChatSession,
-  HighlightItem,
-  ReaderPreferences,
-  TocItem,
-} from '../../../../types/domain';
-import { ReaderMobilePanelTabs } from './right-panel/ReaderActivityBar';
-import { ReaderRightPanel } from './right-panel/ReaderRightPanel';
-import type { MobileReaderPanel } from '../store/model/rightPanelModel';
-import type { ReaderSurfaceHandle } from '../store/model/readerSurfaceTypes';
-import { ReaderMobileToolbar } from './ReaderMobileToolbar';
+import { SideSheet, Typography } from '@douyinfe/semi-ui';
+import type { RefObject } from 'react';
 import { ReaderStylePanel } from '../../../../components/reading/ReaderStylePanel';
-import { TableOfContents } from './TableOfContents';
+import type { BookItem, TocItem } from '../../../../../contracts/books';
+import type { ChatMessage, ChatSession } from '../../../../../contracts/ai';
+import type { HighlightItem, ReaderPreferences } from '../../../../../contracts/reading';
+import { ReaderRightPanel } from './ReaderPanel/ReaderRightPanel';
+import type { MobileReaderPanel } from './ReaderPanel/model';
+import type { ReaderSurfaceHandle } from './ReaderSurface/type';
+import { TableOfContents } from './TableOfContents/TableOfContents';
+import { ReaderMobilePanelTabs } from './Toolbar/ReaderMobilePanelTabs';
+import { ReaderMobileToolbar } from './Toolbar/ReaderMobileToolbar';
 
 const { Text } = Typography;
 

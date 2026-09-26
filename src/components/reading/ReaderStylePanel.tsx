@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Button, ColorPicker, InputNumber, Select } from '@douyinfe/semi-ui';
+import { useEffect, useState } from 'react';
+import { FontPreview } from './FontPreview';
 
 import {
   ensureReaderFontStylesheet,
@@ -7,27 +8,19 @@ import {
   READER_FONT_STACKS,
 } from '../../util/reading/readerFonts';
 
+import type { ReaderCustomStyle, ReaderFont, ReaderPreferences } from '../../../contracts/reading';
 import {
   DEFAULT_READER_CUSTOM_STYLE,
   getReaderTextureStyle,
   READER_DENSITY_PRESETS,
-  READER_THEME_PRESETS,
   READER_TEXTURE_PRESETS,
+  READER_THEME_PRESETS,
   resolveReaderStyle,
 } from '../../util/reading/readerThemes';
-import type { ReaderCustomStyle, ReaderFont, ReaderPreferences } from '../../types/domain';
 
 export interface ReaderStylePanelProps {
   preferences: ReaderPreferences;
   onChangePreferences: (changes: Partial<ReaderPreferences>) => void;
-}
-
-function FontPreview({ font, label }: { font: ReaderFont; label: string }) {
-  return (
-    <span className="reader-font-option" style={{ fontFamily: READER_FONT_STACKS[font] }}>
-      {label}
-    </span>
-  );
 }
 
 export function ReaderStylePanel({ preferences, onChangePreferences }: ReaderStylePanelProps) {

@@ -1,4 +1,4 @@
-import type { RssItem } from '../../../contracts/domain.js';
+import type { RssItem } from '../../../contracts/rss.js';
 
 /** Provider items receive their feed identity and fetch time when merged into state. */
 export type FetchedRssItem = Omit<RssItem, 'feedId' | 'fetchedAt'>;

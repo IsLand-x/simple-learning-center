@@ -1,5 +1,5 @@
-import type { RssDigestSettings } from '../../../contracts/domain.js';
-import { readPersistedState } from '../state/repository.js';
+import type { RssDigestSettings } from '../../../contracts/rss.js';
+import { readPersistedState } from '../state/stateStore.js';
 
 const DEFAULT_CHECK_INTERVAL_MS = 60_000;
 const DEFAULT_INITIAL_DELAY_MS = 20_000;

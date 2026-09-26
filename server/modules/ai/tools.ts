@@ -1,10 +1,10 @@
 import { Type } from '@earendil-works/pi-ai';
-import type { TocItem } from '../../../contracts/domain.js';
-import type { AiChatContext } from './types.js';
+import type { TocItem } from '../../../contracts/books.js';
+import type { AiChatContext } from './jobs/types.js';
 import { defineTool } from './toolDefinition.js';
 import type { ToolDefinition } from './toolDefinition.js';
-import { readBookPassage, searchBookContent } from '../reading/search.js';
-import { createBookNote, readBookNotes, updateBookNote } from '../reading/notes.js';
+import { readBookPassage, searchBookContent } from '../books/search.js';
+import { createBookNote, readBookNotes, updateBookNote } from '../books/notes.js';
 import { readWebPage, searchWeb } from '../../infrastructure/http/webSearch.js';
 
 export const DEFAULT_NOTE_ACTIONS = { createBookNote, readBookNotes, updateBookNote };

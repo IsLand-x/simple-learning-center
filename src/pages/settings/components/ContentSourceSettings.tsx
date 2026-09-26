@@ -1,5 +1,5 @@
 import { settingsApi } from '../../../api/settings';
-import type { BilibiliCredentialStatus } from '../../../types/settings';
+import type { BilibiliCredentialStatus } from '../../../api/settings/type';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconVideo } from '@douyinfe/semi-icons';

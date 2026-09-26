@@ -1,12 +1,10 @@
 import type { Api, Model, Message } from '@earendil-works/pi-ai';
-import type {
-  AiDialogueContentItem,
-  BookItem,
-  RssItem,
-  VideoResource,
-} from '../../../contracts/domain.js';
-import type { AiChatContext, AiResult, ResourceType, JobPurpose } from './types.js';
-import { INFOGRAPHIC_GUIDANCE } from '../knowledgeMaps/presets.js';
+import type { AiDialogueContentItem } from '../../../contracts/ai.js';
+import type { BookItem } from '../../../contracts/books.js';
+import type { RssItem } from '../../../contracts/rss.js';
+import type { VideoResource } from '../../../contracts/videos.js';
+import type { AiChatContext, AiResult, ResourceType, JobPurpose } from './jobs/types.js';
+import { INFOGRAPHIC_GUIDANCE } from './generation/presets.js';
 
 export interface StreamEntry {
   kind: 'message' | 'reasoning' | 'tool';

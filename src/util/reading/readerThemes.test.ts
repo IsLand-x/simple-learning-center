@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ReaderPreferences } from '../../types/domain';
+import type { ReaderPreferences } from '../../../contracts/reading';
 import {
   DEFAULT_READER_CUSTOM_STYLE,
   getReaderTextureStyle,

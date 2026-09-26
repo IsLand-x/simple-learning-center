@@ -1,4 +1,4 @@
-import type { AiReasoningEffort, OpenAICompatibleConfig } from '../../types/domain';
+import type { AiReasoningEffort, OpenAICompatibleConfig } from '../../../contracts/ai';
 
 interface AiReasoningEffortOption {
   value: AiReasoningEffort;

@@ -1,4 +1,4 @@
-import type { ReaderFont } from '../../types/domain';
+import type { ReaderFont } from '../../../contracts/reading';
 
 export const READER_FONT_STACKS: Record<ReaderFont, string> = {
   'system-serif': '"Songti SC", STSong, SimSun, Georgia, serif',

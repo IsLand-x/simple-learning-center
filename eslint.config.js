@@ -86,7 +86,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/pages/books/detail/components/foliate/useFoliateReaderLifecycle.ts'],
+    files: ['src/pages/books/detail/components/ReaderSurface/foliate/useFoliateReaderLifecycle.ts'],
     rules: {
       // The lifecycle is intentionally keyed by book identity; current values flow through stable refs.
       'react-hooks/exhaustive-deps': 'off',

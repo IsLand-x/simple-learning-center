@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
-import { createBookTrashScheduler } from './modules/library/trash.js';
+import { createBookTrashScheduler } from './modules/books/trash.js';
 import {
   DATA_DIRECTORY,
   HOST,
@@ -13,7 +13,7 @@ import {
 } from './config.js';
 import { createRssScheduler } from './modules/rss/scheduler.js';
 import { createRssDigestScheduler } from './modules/rss/digestScheduler.js';
-import { createAiJobManager } from './modules/ai/jobs.js';
+import { createAiJobManager } from './modules/ai/jobs/manager.js';
 import { initializeDataDirectories } from './infrastructure/fs/files.js';
 
 validateServerConfig();

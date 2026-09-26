@@ -5,7 +5,7 @@ import {
   normalizeHiddenReaderAiPromptTemplateIds,
   READER_AI_PROMPT_TEMPLATES,
 } from '../../util/ai/readerAiPrompts';
-import { useLearningStore } from '../../util/state/useLearningStore';
+import { useLearningStore } from '../../store/useLearningStore';
 
 const { Text, Title } = Typography;
 

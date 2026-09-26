@@ -5,10 +5,10 @@ import { Button, Empty, Toast, Typography } from '@douyinfe/semi-ui';
 import { confirmDialog } from '../../../../util/confirmDialog';
 
 import { formatRelativeTime } from '../../../../util/format';
-import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { TrashedBookItem } from '../../../../types/domain';
-import { trashDaysRemaining } from '../store/model/libraryView';
-import { BookCover } from './BookCover';
+import { useLearningStore } from '../../../../store/useLearningStore';
+import type { TrashedBookItem } from '../../../../../contracts/books';
+import { trashDaysRemaining } from '../store/libraryView';
+import { BookCover } from './Shelf/BookCover';
 
 const { Text } = Typography;
 

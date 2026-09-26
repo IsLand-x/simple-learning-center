@@ -1,16 +1,23 @@
 import type {
   AiPreferences,
-  BookItem,
-  BookList,
   ChatMessage,
   ChatSession,
+  OpenAICompatibleConfig,
+} from '../../../contracts/ai.js';
+import type {
+  BookItem,
+  BookList,
   DeletedBookTombstone,
+  TrashedBookItem,
+} from '../../../contracts/books.js';
+import type {
   DeletedHighlightTombstone,
   HighlightItem,
   NoteItem,
-  OpenAICompatibleConfig,
   ReaderPreferences,
   ReadingSession,
+} from '../../../contracts/reading.js';
+import type {
   RssAnnotation,
   RssDailyDigest,
   RssDigestRun,
@@ -18,12 +25,9 @@ import type {
   RssFeed,
   RssFolder,
   RssItem,
-  ThemeMode,
-  TrashedBookItem,
-  VideoResource,
-  VideoTimestampNote,
-  WebSearchConfig,
-} from '../../../contracts/domain.js';
+} from '../../../contracts/rss.js';
+import type { ThemeMode, WebSearchConfig } from '../../../contracts/settings.js';
+import type { VideoResource, VideoTimestampNote } from '../../../contracts/videos.js';
 
 // Older clients can omit domains. Unknown fields survive snapshots and disk writes.
 export interface StoredState {

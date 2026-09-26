@@ -1,4 +1,4 @@
-import type { RssSource } from '../../../../contracts/domain.js';
+import type { RssSource } from '../../../../contracts/rss.js';
 import type { FetchedRssFeed } from '../types.js';
 import type { StatusError } from '../../../infrastructure/http/errors.js';
 

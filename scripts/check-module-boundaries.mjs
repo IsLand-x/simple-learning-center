@@ -55,15 +55,21 @@ function validate(file, target) {
   )
     reject('API 服务只依赖传输层与请求/响应类型，不依赖 UI 或状态编排');
   if (
-    source.startsWith('src/types/') &&
+    (source.startsWith('src/types/') ||
+      (source.startsWith('src/api/') && source.endsWith('/type.ts'))) &&
     !destination.startsWith('src/types/') &&
-    !destination.startsWith('contracts/')
+    !destination.startsWith('contracts/') &&
+    !(destination.startsWith('src/api/') && destination.endsWith('/type.ts'))
   )
     reject('请求/响应类型不得反向依赖 API、状态或界面');
-  if (destination === 'src/api/transport.ts' && !source.startsWith('src/api/'))
+  if (destination === 'src/api/http/transport.ts' && !source.startsWith('src/api/'))
     reject('请求必须通过业务 API class，页面和工具不得直接调用传输层');
   if (source.startsWith('src/util/') && /^src\/(?:pages|components|layout)\//.test(destination))
     reject('跨页面工具与持久化核心不得依赖页面或界面');
+  if (source.startsWith('src/store/') && /^src\/(?:pages|components|layout)\//.test(destination))
+    reject('全局持久化状态不得依赖页面或界面');
+  if (source.startsWith('src/util/') && destination.startsWith('src/store/'))
+    reject('跨页面工具不得依赖状态编排');
   if (source.startsWith('src/components/') && /^src\/(?:pages|layout)\//.test(destination))
     reject('共享组件不得依赖页面私有实现或外壳');
   if (pageScope(source) && pageScope(destination) && pageScope(source) !== pageScope(destination))
@@ -77,12 +83,20 @@ function validate(file, target) {
   if (source.startsWith('server/') && destination.startsWith('src/'))
     reject('服务端不得导入前端实现');
   if (
-    destination.startsWith('server/routes/') &&
-    !source.startsWith('server/routes/') &&
+    destination.startsWith('server/modules/') &&
+    /(?:\/routes|Routes)\.ts$/.test(destination) &&
     source !== 'server/app.ts' &&
     !source.endsWith('.test.mjs')
   )
-    reject('只有 HTTP 组合入口可以导入 routes');
+    reject('只有 app.ts 可以挂载业务路由');
+  if (
+    /^server\/modules\/state\/(stateStore|serialization)\.ts$/.test(source) &&
+    destination.startsWith('server/modules/') &&
+    !destination.startsWith('server/modules/state/')
+  )
+    reject('状态读写与序列化只依赖本模块纯规则');
+  if (source.startsWith('server/modules/books/') && destination.startsWith('server/modules/ai/'))
+    reject('书籍存储不得反向依赖 AI 运行时');
   if (source.startsWith('server/infrastructure/') && destination.startsWith('server/modules/'))
     reject('通用基础设施不得依赖业务模块');
 }
@@ -90,6 +104,51 @@ function validate(file, target) {
 for (const file of files) {
   const source = await readFile(file, 'utf8');
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const path = normalize(file);
+  const isApiDomainFile =
+    path.startsWith('src/api/') && !path.startsWith('src/api/http/') && !path.endsWith('.test.ts');
+  if (isApiDomainFile) {
+    if (!/^src\/api\/[^/]+\/(?:index|type)\.ts$/.test(path)) {
+      violations.push(path + ': 业务 API 必须组织为 api/<域>/index.ts 与 type.ts');
+    } else if (
+      !ts.sys.fileExists(
+        resolve(dirname(file), path.endsWith('/index.ts') ? 'type.ts' : 'index.ts'),
+      )
+    ) {
+      violations.push(path + ': API 实现与类型文件必须成对存在');
+    }
+    if (
+      path.endsWith('/index.ts') &&
+      ast.statements.some(
+        (node) => ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node),
+      )
+    ) {
+      violations.push(path + ': 请求与响应类型应放在同域 type.ts');
+    }
+  }
+  if (
+    path.startsWith('src/types/') ||
+    path.startsWith('contracts/') ||
+    (path.startsWith('src/api/') && path.endsWith('/type.ts'))
+  ) {
+    for (const node of ast.statements) {
+      const typeDeclaration = ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node);
+      const typeImport =
+        ts.isImportDeclaration(node) &&
+        (node.importClause?.isTypeOnly ||
+          (node.importClause?.namedBindings &&
+            ts.isNamedImports(node.importClause.namedBindings) &&
+            node.importClause.namedBindings.elements.every((element) => element.isTypeOnly)));
+      const typeExport =
+        ts.isExportDeclaration(node) &&
+        (node.isTypeOnly ||
+          (node.exportClause &&
+            ts.isNamedExports(node.exportClause) &&
+            node.exportClause.elements.every((element) => element.isTypeOnly)));
+      if (!typeDeclaration && !typeImport && !typeExport)
+        violations.push(path + ': 类型文件不得包含运行时代码');
+    }
+  }
   const edges = new Set();
   graph.set(file, edges);
   function inspect(node) {

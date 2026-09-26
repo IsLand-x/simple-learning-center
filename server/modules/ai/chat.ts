@@ -1,9 +1,9 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { UserMessage } from '@earendil-works/pi-ai';
-import { generateBookKnowledgeMap } from '../knowledgeMaps/service.js';
-import { createInfographicTools } from '../knowledgeMaps/infographic.js';
-import type { generateCodexImage } from './codexImage.js';
-import type { saveKnowledgeMap } from '../knowledgeMaps/service.js';
+import { generateBookKnowledgeMap } from './generation/knowledgeMap.js';
+import { createInfographicTools } from './generation/infographic.js';
+import type { generateCodexImage } from './generation/codexImage.js';
+import type { saveKnowledgeMap } from '../books/resources.js';
 import { statusError } from '../../infrastructure/http/errors.js';
 import { oauthService } from './oauth.js';
 import { createOpenAICompatiblePiRuntime } from './runtime.js';
@@ -19,7 +19,7 @@ import {
   toPiMessage,
 } from './messages.js';
 import type { StreamEntry } from './messages.js';
-import type { AiChatContext, AiResult } from './types.js';
+import type { AiChatContext, AiResult } from './jobs/types.js';
 export { createOpenAICompatiblePiRuntime } from './runtime.js';
 
 const MAX_AGENT_TURNS = 16;

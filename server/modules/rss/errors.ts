@@ -1,4 +1,4 @@
-import type { RssSourceErrorCode } from '../../../contracts/domain.js';
+import type { RssSourceErrorCode } from '../../../contracts/rss.js';
 import { statusError } from '../../infrastructure/http/errors.js';
 
 export function sourceError(

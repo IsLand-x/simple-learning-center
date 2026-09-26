@@ -1,4 +1,4 @@
-import type { RssItem } from '../../../contracts/domain.js';
+import type { RssItem } from '../../../contracts/rss.js';
 
 interface TranslationSegment {
   id: string;

@@ -45,25 +45,26 @@ git diff --check
 
 - `src/layout/`：程序外壳、登录、侧栏、路由、鉴权恢复、启动与 PWA。登录输入和提交状态留在登录组件；路由继续 lazy loading 与 `StateDomainGate`。
 - `src/pages/`：按业务和子页面组织：`books/list`、`books/detail`、`rss/reader`、`videos/study`、`settings`。
-- 每个子页面的 `index.tsx` 主要组合 UI；`components/` 保存仅本页使用的精简组件；`store/` 只保存页面级共享状态、业务编排和纯模型。组件自己的轻量状态直接使用 useState/useEffect；逻辑较多时拆为组件同级的 useX.ts，不因使用 hook 就放进 store。不要将重逻辑放回 index，也不要为了减少行数把整页原样搬到一个巨大 hook。
+- 每个子页面的 `index.tsx` 主要组合 UI；`components/` 保存仅本页使用的精简组件；`store/` 只保存页面级共享状态与跨区域编排；纯计算放在所属功能区域。组件自己的轻量状态直接使用 useState/useEffect；逻辑较多时拆为组件同级的 useX.ts，不因使用 hook 就放进 store。不要将重逻辑放回 index，也不要为了减少行数把整页原样搬到一个巨大 hook。
 - `src/components/`：确实被多个页面复用的 UI（包含间接消费者），按 `ai`、`reading`、`notes`、`layout` 等能力分组。不得导入任何页面的私有组件或 store。单页适配参数在页面内组装，不在根 components 暴露单页包装器；不要用页面空壳或仅转发 barrel 掩盖实际归属。
-- `src/api/`：按业务域定义 API class 与单例，集中管理请求、响应解析、错误、取消和 SSE；组件、hook、store、util 不直接 fetch 或调用底层 transport。
-- `src/types/`：按业务域维护请求体、响应体及传输结果类型，可复用 contracts 的领域实体；禁止用 any、宽泛 Record 或未类型化 Response 掩盖业务协议。二进制、204 空响应和流式事件也必须显式定义类型。
-- `src/util/`：跨页面工具与能力，按 `ai`、`epub`、`reading` 等职责分组；不依赖页面、layout 或 components。
-- `src/util/state/`：唯一 Zustand 持久化核心，负责 actions、默认值、状态契约、迁移、合并及服务端分区同步。页面 store 复用这个核心，不创建同一数据的第二个持久化来源。
-- `contracts/`：浏览器与 Node 共用的纯领域类型，不依赖运行时实现；`src/types/domain.ts` 提供浏览器领域类型入口。
+- 每个生产 TSX 文件只定义一个组件，组件只有一个实现文件；组件文件使用实际组件名称，页面入口保留 index.tsx。共享或私有子组件都使用独立文件，不在父组件内声明另一个组件；无 JSX 的 Hook/逻辑使用 `.ts`。组件私有 Hook、类型和计算可以同目录保存，但不建立空壳转发组件。`check:components` 持续检查这一约定。
+- `src/api/<domain>/index.ts`：本业务域的 API class 与单例；同目录 `type.ts` 保存请求体、响应体和传输结果。`api/http/` 仅放传输与错误原语；组件、hook、store、util 不直接 fetch 或调用底层 transport。
+- `src/types/`：跨页面的纯客户端类型（如选区几何与 UI 状态），API 协议类型放回对应 `api/<domain>/type.ts`，前后端共同的实体直接从 `contracts/<domain>` 导入。禁止用 any、宽泛 Record 或未类型化 Response 掩盖业务协议；二进制、204 空响应和流式事件也必须显式定义类型。
+- `src/util/`：跨页面工具与能力，按 `ai`、`reading`、`browser` 等职责分组，不依赖页面、layout 或 components；单页的 EPUB 导入与渲染适配回到对应页面。
+- `src/store/`：唯一 Zustand 持久化核心，负责 actions、默认值、状态契约、迁移、合并及服务端分区同步。页面 store 复用这个核心，不创建同一数据的第二个持久化来源。
+- `contracts/`：按 books、reading、rss、videos、ai、settings 拆分前后端共用的纯领域类型，不依赖运行时实现，不建立全量转发入口。
 - `src/styles/index.css`：Tailwind 入口和必要的全局/第三方/正文兼容样式；普通组件优先在 JSX 中使用静态 Tailwind utilities 和 Semi 语义变量。
-- `server/app.ts`：构造依赖、认证 middleware、Hono 子应用与兜底；`server/app/`：通用 HTTP 能力与装配；`server/routes/`：HTTP transport。
-- `server/modules/`：按 library、reading、rss、videos、ai、knowledgeMaps、auth、credentials、state 聚合用例与规则；`server/infrastructure/`：不带业务归属的文件/HTTP 原语。
+- `server/app.ts`：构造依赖、认证 middleware、Hono 子应用与兜底；`server/http/`：通用 HTTP 原语；各 `server/modules/<domain>/*Routes.ts` 或 `routes.ts`：对应业务的 HTTP transport。
+- `server/modules/`：按 books、rss、videos、ai、auth、settings、state 聚合路由、用例、规则与测试；生图归 AI，书籍资源保存归 books，状态纯合并规则归 state；`server/infrastructure/`：不带业务归属的文件/HTTP 原语。
 - `server/index.ts`：进程与调度器生命周期。后端编译到 `server-dist/`，测试和生产均使用编译产物；不得手改构建产物。
 - `public/`：PWA 图标和无需编译的资源；`data/`：用户数据，禁止提交 Git。
 
 ## 模块边界
 
 - 页面之间不得直接导入对方私有实现；共用 UI 提取到 components，共用能力提取到 util。
-- API 只依赖自身传输原语及 types/contracts，不依赖 React、页面、组件或 store；types 是叶子，不依赖 API 或运行时编排。
-- 纯 model 不依赖 UI；共享 components 不依赖 page/layout；util 不依赖任何上层界面；contracts 不依赖前后端运行时实现。
-- `src/util/state/useLearningStore.ts` 保持唯一薄组合入口，page store 不重新建立并行 persist。
+- API 只依赖自身传输原语及纯类型，不依赖 React、页面、组件或 store；`api/*/type.ts`、`types`、`contracts` 仅包含类型声明与类型导入，不反向依赖 API 实现或运行时编排。
+- 纯 model 不依赖 UI；共享 components 不依赖 page/layout；util 不依赖任何上层界面或 store；根 store 不依赖 pages/components/layout；contracts 不依赖前后端运行时实现。
+- `src/store/useLearningStore.ts` 保持唯一薄组合入口，page store 不重新建立并行 persist。
 - 只有 `server/app.ts` 可以装配 routes；测试可核对 HTTP 路由契约。业务服务不得导入 routes，通用基础设施不得导入业务模块。
 - 保留服务端单实例写队列；业务模块不得独立覆盖 state.json。
 - 边界检查使用 TypeScript AST 和模块解析，覆盖静态导入、重导出、动态导入及循环引用；不使用别名或动态表达式绕过。
@@ -95,8 +96,8 @@ git diff --check
 - 持久高亮使用 Foliate.js Overlayer 根据 CFI 对应 Range 的文字矩形绘制，保持主题高亮色；高亮块高度取文字矩形与当前阅读行高中的较大值并上下居中扩展，使选中状态与保存后的视觉行高一致。不要做像素坐标缓存或延迟计时器几何修正。
 - 点击持久高亮的任意可见区域时展示“取消高亮”“在高亮中查看”和评论操作；点击命中范围必须与扩展后的视觉高亮一致，不能只响应原始字形矩形。
 - 翻页动画、触屏拖动、分页吸附和连续操作锁使用 Foliate.js Paginator 的 `animated`、`scrollBy`、`snap`、`next` 和 `prev`，不要叠加全局 View Transition 或自制双页面动画。
-- 桌面 Chromium 对 Blob iframe 的兼容由 `vite.config.ts` 的 Foliate srcdoc 变换与 `src/util/epub/foliateReader.ts` 的安全章节通道共同处理；升级 Foliate.js 时必须重新验证该变换，不要直接修改 `node_modules`。
-- `src/pages/books/detail/components/foliate/**`、`src/pages/books/detail/components/FoliateEpubReader.tsx`、`src/util/epub/foliateReader.ts` 与 `vite.config.ts` 共同构成 Foliate 兼容边界。阅读器生命周期按 `book.id` 重建，其余最新值通过稳定 ref 输入；不要为消除 Hooks 提示加入会反复销毁阅读器的易变依赖，也不得扩大现有 lint 例外。
+- 桌面 Chromium 对 Blob iframe 的兼容由 `vite.config.ts` 的 Foliate srcdoc 变换与 `src/pages/books/detail/components/ReaderSurface/foliate/readerAdapter.ts` 的安全章节通道共同处理；升级 Foliate.js 时必须重新验证该变换，不要直接修改 `node_modules`。
+- `src/pages/books/detail/components/ReaderSurface/foliate/**`、`src/pages/books/detail/components/ReaderSurface/foliate/FoliateEpubReader.tsx`、`src/pages/books/detail/components/ReaderSurface/foliate/readerAdapter.ts` 与 `vite.config.ts` 共同构成 Foliate 兼容边界。阅读器生命周期按 `book.id` 重建，其余最新值通过稳定 ref 输入；不要为消除 Hooks 提示加入会反复销毁阅读器的易变依赖，也不得扩大现有 lint 例外。
 - 新建或编辑评论时正文标记保持高亮，支持 `Cmd/Ctrl + Enter` 保存，并在保存按钮 Tooltip 中提示快捷键。
 - 字体设置必须同时应用于演示正文和 EPUB iframe 内的正文。
 - 阅读样式预设与应用浅色/暗色模式相互独立；预设和自定义参数必须同时应用于演示正文与 EPUB iframe。
@@ -226,7 +227,7 @@ git diff --check
 ## 代码修改原则
 
 - 保持 TypeScript 类型完整，避免新增无必要的 `any`、重复状态或并行实现。
-- Web 单元测试和 model characterization test 放在 `src/**/*.test.{ts,tsx}`；Node 服务端测试当前放在 `server/*.test.mjs`；E2E 放在 `tests/e2e/`。新增纯模型、迁移/合并、状态分区或 route/API 行为时必须补对应层级测试。
+- Web 单元测试和 model characterization test 放在 `src/**/*.test.{ts,tsx}`；Node 领域测试与实现同放 `server/modules/**`，应用级测试放 `server/tests/`；`scripts/test-server.mjs` 递归核对源与编译产物后执行所有 `.test.mjs`；E2E 放在 `tests/e2e/`。新增纯模型、迁移/合并、状态分区或 route/API 行为时必须补对应层级测试。
 - lint 必须保持 0 warning，不得提高 warning 上限。新增或重构目录必须纳入 `format:check`，或在 `.prettierignore` 中用注释说明例外；不得为了通过门禁扩大无说明的 ignore。ESLint 例外必须限定到具体文件和规则，并说明行为原因。
 - TypeScript 必须启用未使用局部变量和参数检查；`npm run check:dead-code` 必须保持通过，不得用宽泛 ignore 隐藏不可达文件、无消费者导出或未使用依赖。确需保留的独立入口应在 `knip.json` 中精确登记并说明其运行场景。
 - 优先复用现有 Semi Design、Allotment、Zustand 和 Foliate.js 能力；epub.js 只用于导入元数据与封面，不要重新接回运行时阅读器或索引。

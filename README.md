@@ -9,18 +9,20 @@
 - `src/layout/`：登录、侧栏、程序外壳、启动与懒加载路由。
 - `src/pages/`：`books/list`、`books/detail`、`rss/reader`、`videos/study`、`settings`；每页的 `index.tsx` 组合界面，`components/` 放本页组件，`store/` 管理页面共享状态与业务用例；组件私有状态留在组件，复杂私有 hook 放组件同级。
 - `src/components/`：跨页面的聊天、阅读样式、笔记编辑和基础组件。
-- `src/api/`、`src/types/`：按业务域组织 API class，以及明确的请求/响应类型；组件和 hook 通过 API 实例调用服务。
-- `src/util/`：EPUB、主题、AI 内容处理等公共能力；`util/state/` 仍是唯一 Zustand 持久化核心，页面 store 不另存一份服务器数据。
+- `src/api/<domain>/index.ts`：业务 API class；同目录 `type.ts`：完整请求/响应类型。`src/types/` 仅保留跨页面客户端类型。
+- `src/store/`：唯一 Zustand 持久化核心；页面 store 不另存一份服务器数据。`src/util/` 只保留确有跨页面用途的工具，单页能力回到所属功能。
 - `src/styles/`：Tailwind 入口与必要的 Semi、正文、复杂选择器兼容样式。普通布局与排版使用 Tailwind，继续使用 Semi 颜色变量。
-- `server/routes/`：Hono 子应用；`server/modules/`：按业务聚合服务；`server/infrastructure/`：文件/HTTP 原语；`server/app.ts` 统一装配。
-- `contracts/`：前后端共享的纯领域类型。
+- `server/modules/<domain>/`：业务路由、实现与测试就近存放；`server/http/`、`server/infrastructure/` 分别提供 HTTP 与文件/网络原语；`server/app.ts` 统一装配。
+- `contracts/`：按业务拆分前后端共享实体；不包含 UI 状态或运行时实现。
+
+每个生产 TSX 文件只定义一个组件，私有子组件也独立成文件。目录内的复杂 Hook 按实际职责拆分，组件自己的草稿与交互状态就近管理；`check:components` 和 `check:boundaries` 在验证时自动检查。
 
 详细规则见 [`docs/architecture.md`](docs/architecture.md)。前端输出到 `dist/`，后端 TypeScript 输出到 `server-dist/`；测试与容器运行编译后的 Node ESM。服务端仍使用文件系统，保持唯一状态写队列，不需要数据库。
 
 页面路由、API、Cookie、ETag、SSE、`data/` 目录、六个状态分区与 persist key 均保持兼容。纯结构调整不升级 store version。不要直接编辑构建产物。
 
 ```bash
-npm run verify       # lint、格式、边界、死代码、单元测试与生产构建
+npm run verify       # lint、格式、组件/边界、死代码、单元测试与生产构建
 npm run verify:full  # 再在固定 Docker 环境执行真实浏览器与视觉回归
 ```
 

@@ -4,8 +4,8 @@ import { Button, Progress, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import { IconPlus, IconUpload } from '@douyinfe/semi-icons';
 
 import { AppFormModal } from '../../../../components/AppFormModal';
-import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { BookItem } from '../../../../types/domain';
+import { useLearningStore } from '../../../../store/useLearningStore';
+import type { BookItem } from '../../../../../contracts/books';
 
 const { Text } = Typography;
 
@@ -73,7 +73,7 @@ export function ImportBooksButton() {
           throw new Error('文件扩展名不是 EPUB');
         }
         onProgress({ total: 100, loaded: 10 });
-        const { parseEpubFile } = await import('../../../../util/epub/parseEpub');
+        const { parseEpubFile } = await import('../epub');
         const parsed = await parseEpubFile(fileInstance);
         onProgress({ total: 100, loaded: 70 });
         await booksApi.saveEpubFile(parsed.item.id, parsed.data);
