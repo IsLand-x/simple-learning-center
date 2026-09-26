@@ -1,6 +1,6 @@
 import { Button, Tag, Typography } from '@douyinfe/semi-ui';
 import { confirmDialog } from '../../../util/confirmDialog';
-import { useOAuthProviders, oauthProviderLabels } from '../store/hooks/useOAuthProviders';
+import { useOAuthProviders, oauthProviderLabels } from './useOAuthProviders';
 
 const { Text } = Typography;
 

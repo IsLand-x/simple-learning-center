@@ -1,5 +1,5 @@
 import { Toast } from '@douyinfe/semi-ui';
-import type { RssFeed, RssFolder } from '../../../../util/types';
+import type { RssFeed, RssFolder } from '../../../../types/domain';
 
 function escapeXml(value: string) {
   return value

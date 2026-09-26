@@ -1,6 +1,6 @@
 import ePub from 'epubjs';
 import type { NavItem } from 'epubjs';
-import type { BookItem, TocItem } from '../types';
+import type { BookItem, TocItem } from '../../types/domain';
 import { createUuid } from '../uuid';
 
 function mapToc(items: NavItem[]): TocItem[] {

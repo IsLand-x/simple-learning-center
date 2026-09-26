@@ -1,8 +1,10 @@
+import { aiApi } from '../../../../../api/ai';
+import type { AiJob } from '../../../../../types/ai';
 import { useCallback, useEffect } from 'react';
-import { getAiJob, listAiJobs, watchAiJob, type AiJob } from '../../../../../util/ai/aiJobs';
+
 import { synchronizeLearningState } from '../../../../../util/state/learningStateSync';
 import { useLearningStore } from '../../../../../util/state/useLearningStore';
-import type { BookItem } from '../../../../../util/types';
+import type { BookItem } from '../../../../../types/domain';
 import type { ConversationJobControls } from '../../../../../util/ai/conversationJobTypes';
 import type { MutableRefObject } from 'react';
 
@@ -117,7 +119,8 @@ export function useReaderConversationJobs({
   }, [applyJob, latestTrackedJob]);
   useEffect(() => {
     let disposed = false;
-    void listAiJobs(book.id, conversationId)
+    void aiApi
+      .listJobs({ bookId: book.id, conversationId: conversationId })
       .then((jobs) => {
         if (disposed) return;
         jobs
@@ -145,7 +148,7 @@ export function useReaderConversationJobs({
     const controller = new AbortController();
     const poll = async () => {
       try {
-        const job = await getAiJob(activeJobId);
+        const job = await aiApi.getJob(activeJobId);
         if (disposed) return;
         applyJob(job);
         if (job.status === 'queued' || job.status === 'running') {
@@ -174,16 +177,18 @@ export function useReaderConversationJobs({
       });
     };
     timer = window.setTimeout(startPolling, 1_000);
-    void watchAiJob(
-      activeJobId,
-      (job) => {
-        if (!disposed) applyStreamedJob(job);
-      },
-      controller.signal,
-    ).catch((error) => {
-      if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
-      startPolling();
-    });
+    void aiApi
+      .watchJob(
+        activeJobId,
+        (job) => {
+          if (!disposed) applyStreamedJob(job);
+        },
+        controller.signal,
+      )
+      .catch((error) => {
+        if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
+        startPolling();
+      });
     return () => {
       disposed = true;
       controller.abort();

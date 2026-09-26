@@ -1,21 +1,35 @@
+import { authApi } from '../../api/auth';
 import { IconMoon, IconSun } from '@douyinfe/semi-icons';
 import { Button, Input, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { useLoginStore } from './store/useLoginStore';
+import { useEffect, useState, type FormEvent } from 'react';
+import { applyAppTheme, readInitialThemeMode } from '../../util/appTheme';
 
 const { Title, Text } = Typography;
 
 export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) {
-  const {
-    username,
-    setUsername,
-    password,
-    setPassword,
-    themeMode,
-    setThemeMode,
-    error,
-    submitting,
-    submit,
-  } = useLoginStore(onAuthenticated);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [themeMode, setThemeMode] = useState(readInitialThemeMode);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    applyAppTheme(themeMode);
+  }, [themeMode]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError('');
+    setSubmitting(true);
+    try {
+      await authApi.login({ username: username.trim(), password: password });
+      onAuthenticated();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : '登录失败，请稍后重试');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <main className="login-page relative w-full [padding:24px] [place-items:center] [background:linear-gradient(145deg,_var(--semi-color-bg-0),_var(--semi-color-fill-0))] [@media(max-width:480px)]:[padding:16px]">

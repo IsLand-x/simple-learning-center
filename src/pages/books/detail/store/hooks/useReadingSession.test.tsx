@@ -2,7 +2,7 @@ import { act, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useReadingSession } from './useReadingSession';
-import type { ReadingSession } from '../../../../../util/types';
+import type { ReadingSession } from '../../../../../types/domain';
 
 describe('useReadingSession', () => {
   let root: ReturnType<typeof createRoot>;

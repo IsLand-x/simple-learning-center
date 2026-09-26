@@ -1,6 +1,6 @@
+import type { BookImageResource, BookResourcesResponse } from '../../../../../types/books';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { serverRequest } from '../../../../../util/api/serverApi';
-import type { BookImageResource } from '../model/bookResources';
+import { booksApi } from '../../../../../api/books';
 
 export function useBookResources(bookId: string) {
   const [resources, setResources] = useState<BookImageResource[]>([]);
@@ -9,15 +9,13 @@ export function useBookResources(bookId: string) {
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const revision = useRef(0);
-  const base = `/api/books/${encodeURIComponent(bookId)}/resources`;
   const reload = useCallback(async () => {
     if (busy.current) return;
     const current = ++revision.current;
     setLoading(true);
     setError('');
     try {
-      const response = await serverRequest(base);
-      const data = (await response.json()) as { resources: BookImageResource[] };
+      const data = await booksApi.listResources(bookId);
       if (current === revision.current) setResources(data.resources);
     } catch (cause) {
       if (current === revision.current)
@@ -25,7 +23,7 @@ export function useBookResources(bookId: string) {
     } finally {
       if (current === revision.current) setLoading(false);
     }
-  }, [base]);
+  }, [bookId]);
   useEffect(() => {
     void reload();
     return () => {
@@ -33,22 +31,13 @@ export function useBookResources(bookId: string) {
     };
   }, [reload]);
 
-  const update = async (path: string, method: string, payload?: object) => {
+  const update = async (operation: () => Promise<BookResourcesResponse>) => {
     if (busy.current) throw new Error('正在保存资源，请稍候');
     busy.current = true;
     setPending(true);
     const current = ++revision.current;
     try {
-      const response = await serverRequest(path, {
-        method,
-        ...(payload
-          ? {
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            }
-          : {}),
-      });
-      const data = (await response.json()) as { resources: BookImageResource[] };
+      const data = await operation();
       if (current === revision.current) {
         setResources(data.resources);
         setError('');
@@ -61,10 +50,10 @@ export function useBookResources(bookId: string) {
   };
   const mutate = (imageId: string, title?: string) =>
     title === undefined
-      ? update(`${base}/${imageId}`, 'DELETE')
-      : update(base, 'POST', { imageId, title });
+      ? update(() => booksApi.removeResource(bookId, imageId))
+      : update(() => booksApi.saveResource(bookId, { imageId, title }));
   const rename = (imageId: string, title: string) =>
-    update(`${base}/${imageId}`, 'PATCH', { title });
+    update(() => booksApi.renameResource(bookId, imageId, { title }));
   return { bookId, resources, loading, error, pending, reload, mutate, rename };
 }
 

@@ -1,20 +1,19 @@
 import { TabPane, Tabs, Typography } from '@douyinfe/semi-ui';
-import {
-  AboutSettings,
-  AccountSettings,
-  AiAssistantSettings,
-  ContentSourceSettings,
-  McpSettings,
-  ModelSettings,
-  OpenApiSettings,
-  WebSearchSettings,
-} from './components/index';
-import { useSettingsPageStore } from './store/useSettingsPageStore';
+import { useState } from 'react';
+import { ReaderAiSettingsForm } from '../../components/ai/ReaderAiSettingsForm';
+import { AboutSettings } from './components/AboutSettings';
+import { AccountSettings } from './components/AccountSettings';
+import { ContentSourceSettings } from './components/ContentSourceSettings';
+import { McpSettings } from './components/McpSettings';
+import { ModelSettings } from './components/ModelSettings';
+import { OpenApiSettings } from './components/OpenApiSettings';
+import { WebSearchSettings } from './components/WebSearchSettings';
 
 const { Title, Text } = Typography;
 
 export function SettingsPage() {
-  const page = useSettingsPageStore();
+  const [activeTab, setActiveTab] = useState('models');
+  const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
 
   return (
     <main className="settings-page w-full [background:var(--semi-color-bg-0)]">
@@ -26,10 +25,10 @@ export function SettingsPage() {
       </header>
 
       <Tabs
-        activeKey={page.activeTab}
+        activeKey={activeTab}
         className="settings-tabs [margin-right:auto] [margin-left:auto]"
         keepDOM={false}
-        onChange={page.setActiveTab}
+        onChange={setActiveTab}
         type="line"
       >
         <TabPane itemKey="account" tab="账户">
@@ -37,12 +36,12 @@ export function SettingsPage() {
         </TabPane>
         <TabPane itemKey="models" tab="AI 模型">
           <ModelSettings
-            editingConfigId={page.editingConfigId}
-            onEditingConfigChange={page.setEditingConfigId}
+            editingConfigId={editingConfigId}
+            onEditingConfigChange={setEditingConfigId}
           />
         </TabPane>
         <TabPane itemKey="ai-assistant" tab="AI 助手">
-          <AiAssistantSettings />
+          <ReaderAiSettingsForm />
         </TabPane>
         <TabPane itemKey="content-sources" tab="内容源">
           <section

@@ -31,7 +31,7 @@ bash deploy/refactor-preview.sh \
 
 ## 回归范围
 
-基线截图从重构前的构建采集，涵盖登录、书架、阅读器、RSS、视频、设置，共 48 张：`375 / 768 / 1024 / 1440px`，分别浅色与深色。截图测试保留原始基线，不以更新快照接受重构差异。
+基线截图从重构前的构建采集，涵盖登录、书架、阅读器、RSS、视频、设置，共 48 张：`375 / 768 / 1024 / 1440px`，分别浅色与深色。截图基线只从重构前产物采集，新产物只参与比较，不以更新快照接受重构差异。
 
 真实 EPUB 用例验证导入、目录跳转、翻页、精确 CFI 与刷新恢复；另有 RSS 阅读/标注、视频字幕/笔记、状态分区、阅读进度、AI 任务、移动面板及返回操作等回归。外部模型与视频内容使用测试替身，不把这些结果视为真实供应商可用性验证。
 
@@ -39,12 +39,11 @@ bash deploy/refactor-preview.sh \
 
 ```bash
 npm ci
-npx playwright install chromium
-LEARNING_CENTER_E2E_BROWSER=chromium LEARNING_CENTER_E2E_PRODUCTION=1 npm run verify:full
+npm run verify:full
 git diff --check
 ```
 
-Linux 截图环境需要 Noto Sans CJK SC 字体；CI 安装 `fonts-noto-cjk`。使用 Playwright Chromium 和移动视口仿真，未替代真实手机验收。
+完整浏览器回归需要 Docker，`tests/browser/Dockerfile` 固定 Playwright、Ubuntu 和 Noto CJK 版本，本机与 CI 使用同一镜像。使用 Chromium 和移动视口仿真，未替代真实手机验收。
 
 ## 停止与清理
 
@@ -65,6 +64,8 @@ docker volume rm learning-center-refactor-preview-data
 
 ## 本次本地验收记录
 
-2026-09-26，完整 `verify:full` 退出码为 0：94 项 Node 测试、90 项 Web 测试、74 项浏览器测试通过；56 项按设备条件跳过（多个视觉用例已经在桌面项目内循环验证移动宽度）。48 张迁移前截图全部通过对照。`npm audit --omit=dev --audit-level=high` 未发现漏洞，`git diff --check` 通过。
+2026-09-26，完整 `verify:full` 退出码为 0：94 项 Node 测试、104 项 Web 测试、74 项浏览器测试通过；56 项按设备条件跳过（多个视觉用例已经在桌面项目内循环验证移动宽度）。48 张迁移前截图全部通过对照。`npm audit --omit=dev --audit-level=high` 未发现漏洞，`git diff --check` 通过。
 
-额外验证了中文路径下的开发监听：首次编译、修改后重新编译、API 自动重启、Vite 可访问以及 SIGTERM 后端口释放。构建保留既有第三方 eval 和较大分块提示，没有 TypeScript、Vite 或 PWA 构建失败。修正了旧测试的 Semi ButtonGroup 参考上下文、带图标按钮定位，以及迁移后的 mock 路径；没有通过降低产品断言或更新视觉基线接受变化。
+本轮新增 14 项 API 协议测试，覆盖认证失败、网络与取消错误、空响应、二进制、状态 ETag 与 SSE 分片。组件归属和 hook 生命周期也完成独立复核。
+
+额外验证了中文路径下的开发监听：首次编译、修改后重新编译、API 自动重启、Vite 可访问以及 SIGTERM 后端口释放。构建保留既有第三方 eval 和较大分块提示，没有 TypeScript、Vite 或 PWA 构建失败。修正了旧测试的 Semi ButtonGroup 参考上下文、带图标按钮定位，以及迁移后的 mock 路径；没有降低产品断言或放宽截图差异阈值。首次 CI 暴露宿主机与 Ubuntu 字体差异及视觉夹具继承前序状态的问题，已固定测试容器并隔离夹具；48 张基线重新从不可变的重构前产物采集，新版只参与对比。旧产物摘要和采集来源见 `tests/e2e/README.md`。

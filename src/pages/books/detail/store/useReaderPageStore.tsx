@@ -1,9 +1,10 @@
+import { booksApi } from '../../../../api/books';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { IconAlertTriangle } from '@douyinfe/semi-icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { MobileReaderPanel } from '../components/ReaderRightSidebar';
-import { type ReaderLocationUpdate, type ReaderSurfaceHandle } from '../components/ReaderSurface';
+import type { MobileReaderPanel } from './model/rightPanelModel';
+import type { ReaderLocationUpdate, ReaderSurfaceHandle } from './model/readerSurfaceTypes';
 import { useReaderAiActivity } from './hooks/useReaderAiActivity';
 import { useDeferredBookLocation } from './hooks/useDeferredBookLocation';
 import { useMobileReaderOverlay } from './hooks/useMobileReaderOverlay';
@@ -12,7 +13,7 @@ import { useReadingSession } from './hooks/useReadingSession';
 import { createPendingCommentHighlight } from './model/readerPageModel';
 import { findChapterLabel, isReaderKeyboardEditingTarget } from './model/readerSurfaceModel';
 import { confirmDialog } from '../../../../util/confirmDialog';
-import { moveBookToTrash } from '../../../../util/epub/epubStorage';
+
 import { createUuid } from '../../../../util/uuid';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
 import type {
@@ -22,7 +23,7 @@ import type {
   ReaderHighlightTarget,
   ReaderSelection,
   TocItem,
-} from '../../../../util/types';
+} from '../../../../types/domain';
 import { createReaderAnnotationActions } from './readerAnnotationActions';
 import { createReaderConversationActions } from './readerConversationActions';
 
@@ -223,7 +224,7 @@ export function useReaderPageStore() {
       okButtonProps: { type: 'danger' },
       onOk: async () => {
         try {
-          const trashedBook = await moveBookToTrash(book.id);
+          const trashedBook = await booksApi.moveToTrash(book.id);
           trashBook(book.id, trashedBook.deletedAt);
           Toast.success('已移到回收站，30 天内可以恢复');
           navigate('/');

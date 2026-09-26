@@ -1,7 +1,7 @@
 import { Toast } from '@douyinfe/semi-ui';
 import type { DragStart, DragUpdate, DropResult, ResponderProvided } from '@hello-pangea/dnd';
 import type { Dispatch, SetStateAction } from 'react';
-import type { RssFeed, RssFolder } from '../../../../util/types';
+import type { RssFeed, RssFolder } from '../../../../types/domain';
 import type { LearningState } from '../../../../util/state/learningState';
 import type { RssSourceMenuState, RssItemMenuState } from './menuTypes';
 import {

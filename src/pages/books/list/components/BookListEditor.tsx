@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Button, Input, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { AppFormModal } from '../../../../components/AppFormModal';
-import type { BookList } from '../../../../util/types';
+import type { BookList } from '../../../../types/domain';
 
 const { Text } = Typography;
 

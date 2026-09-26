@@ -1,6 +1,7 @@
+import type { AiJob } from '../../../../../types/ai';
 import { describe, expect, it } from 'vitest';
-import type { AiJob } from '../../../../../util/ai/aiJobs';
-import type { ChatMessage } from '../../../../../util/types';
+
+import type { ChatMessage } from '../../../../../types/domain';
 import { resolveReaderAiActivity } from './readerAiActivity';
 
 const reply: ChatMessage = {

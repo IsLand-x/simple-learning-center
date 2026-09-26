@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Typography } from '@douyinfe/semi-ui';
 import { MarkdownNoteEditor } from '../../../../../components/notes/MarkdownNoteEditor';
 import { useLearningStore } from '../../../../../util/state/useLearningStore';
-import type { BookItem } from '../../../../../util/types';
+import type { BookItem } from '../../../../../types/domain';
 import { mergeBookNoteContent } from '../../store/model/rightPanelModel';
 
 const { Text } = Typography;

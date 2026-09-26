@@ -1,6 +1,6 @@
 import { useEffect, type MutableRefObject } from 'react';
 import { createUuid } from '../../../../../util/uuid';
-import type { ReadingSession } from '../../../../../util/types';
+import type { ReadingSession } from '../../../../../types/domain';
 
 const READING_IDLE_TIMEOUT_MS = 10 * 60 * 1000;
 const READING_SESSION_PERSIST_INTERVAL_MS = 15_000;

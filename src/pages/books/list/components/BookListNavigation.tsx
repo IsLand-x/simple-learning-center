@@ -2,7 +2,7 @@ import { IconHandle } from '@douyinfe/semi-icons';
 import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd';
 import { useMediaQuery } from '../../../../util/browser/useMediaQuery';
-import type { BookList } from '../../../../util/types';
+import type { BookList } from '../../../../types/domain';
 
 const { Text } = Typography;
 

@@ -18,11 +18,36 @@ src/
     rss/reader/         订阅源、文章、日报、时间线
     videos/study/       视频资料、字幕、学习笔记
     settings/           模型、内容源、授权、账号与关于
-  util/                 公共 API、AI、EPUB、阅读样式、持久化与基础工具
+  api/                  按业务域组织的 API class、单例与统一传输原语
+  types/                按业务域组织的请求/响应 DTO 与传输结果类型
+  util/                 AI、EPUB、阅读样式、持久化与基础工具
   styles/               Tailwind 入口、全局基准与必要兼容样式
 ```
 
-每个子页面有自己的 `index.tsx`、`components/` 和 `store/`。index 只连接页面状态并组装组件；components 按独立 UI 职责拆分；store 收纳查询、局部交互、异步用例、hooks 和纯 model。页面中无需持久化的弹层、草稿与选区使用 React 局部状态，离开页面后自然释放。
+每个业务页面有 `index.tsx`、`components/` 和按需使用的 `store/`。index 连接页面共享状态并组装组件；store 只收纳跨子组件的状态、业务编排和纯 model。组件可以拥有自己的 useState/useEffect；较复杂的私有逻辑放在组件同级的 useX.ts。只保存两个页签字段的设置页直接用局部状态，登录输入也直接留在登录组件，避免空壳 hook。
+
+组件归属按实际页面消费者判断，包含通过共享组件产生的间接复用。单页专用适配器留在该页，不在根 components 包装或转发；页面直接使用真实共享组件，不再建立只返回另一个组件的空壳。
+
+例如书籍详情页的组件与状态按下面的归属组织，不为了凑目录给每个组件建立 store：
+
+```text
+pages/books/detail/
+  index.tsx                         连接页面状态并组装布局
+  components/
+    DemoReader.tsx
+    useDemoReader.ts                DemoReader 私有的复杂交互
+    right-panel/
+      AiConversationPanel.tsx
+      useReaderConversation.ts     会话面板私有编排
+      useReaderConversationJobs.ts 私有任务订阅与恢复
+  store/
+    useReaderPageStore.tsx          目录、正文与辅助栏共享的页面状态
+    hooks/                         页面级生命周期与布局编排
+    model/                         不依赖 UI 的计算和模型
+```
+
+共享组件直接从根目录导入，如阅读页与设置页共用 `components/ai/ReaderAiSettingsForm.tsx`，RSS 与视频共用 `components/ai/ContentConversationPanel.tsx`。页面不再用同名转发文件隐藏真实归属。
+
 
 页面 store 并非另一个持久化实例。所有用户数据继续通过 `util/state/useLearningStore.ts` 的单一 Zustand 核心及原有 actions 保存。新增字段仍须检查 LearningState、默认值、actions、两端分区映射、迁移、合并和测试。
 
@@ -31,14 +56,21 @@ Reader 的真实 Foliate 与演示正文分别由组件承载，宿主只选择�
 ## 依赖边界
 
 - layout 组合页面与共享能力；页面不导入其他页面的私有文件。
-- components 只复用公共 UI、util 和契约，不导入 pages/layout。
+- components 只复用公共 UI、API、util 和契约，不导入 pages/layout。
 - util 不依赖 components/pages/layout；纯 model 不依赖 UI。
+- API class 只依赖 API 内部原语、types 与 contracts；HTTP 请求只在 API 层发起。types 不反向依赖运行时实现。
 - contracts 不依赖前后端实现；客户端与服务器通过 HTTP/DTO 连接。
 - store 的分区传输适配不反向导入 store；需要 rehydrate 的编排有独立入口。
 - 服务端 routes 只由 app 装配；业务服务不接收 Hono Context，也不导入 routes。
 - 通用 infrastructure 不导入业务 modules；每个业务模块维护自己的规则。
 
 `check:boundaries` 使用 TypeScript AST 与模块解析，检查静态/动态导入、重导出、路径引用和循环依赖。页面私有类型不会通过共享组件反向泄漏。不同页面复用同一控件时，将真正共享部分移入 components，而不借由导入另一页面实现来复用。
+
+## API 与传输类型
+
+`api/` 按 auth、books、reading、rss、videos、ai、settings、state 划分 class，并导出供组件和页面调用的实例。请求构造、URL、HTTP 方法、状态码处理、JSON 解析、认证错误、AbortSignal 与 SSE 解析都在该层完成；hook 负责加载状态、任务生命周期与用户交互。
+
+`types/` 按同一业务范围维护请求体和响应体类型，复用共享领域实体而不复制实体定义。空响应显式返回 void，二进制和可缺失文件有明确类型，状态分区的 200/204/304 与 ETag 使用可区分的结果，流式任务事件使用明确 payload 类型。业务调用方不接收待自行解析的 Response，也不重复拼 URL 或 JSON.stringify 请求体。
 
 ## Tailwind 与样式
 
@@ -74,7 +106,7 @@ Hono子应用在路由定义完成后挂载，保持原有方法、路径、注�
 
 ## 验证与发布
 
-`npm run verify` 包含lint零warning、格式、边界、Knip、Web/Node单测、前后端类型与Vite/PWA构建。`verify:full` 再执行Playwright；所有E2E使用一个临时示例数据服务，因此workers固定为1，防止用例并行写同一分区。
+`npm run verify` 包含lint零warning、格式、边界、Knip、Web/Node单测、前后端类型与Vite/PWA构建。`verify:full` 再通过固定版本的测试容器执行 Playwright；所有E2E使用一个临时示例数据服务，因此workers固定为1，防止用例并行写同一分区。
 
 视觉测试使用迁移前基线，覆盖登录与五个业务页面、四种宽度、两种主题，共 48 张截图；另有真实 RSS/视频持久化与 Foliate 专项。截图和夹具说明位于 `tests/e2e/README.md`。真实系统键盘、安全区、系统返回和供应商账号授权仍需人工环境验证，不能用桌面模拟宣称真机全面覆盖。
 
@@ -117,7 +149,7 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 
 `server/modules/knowledgeMaps/infographic.ts` 提供 `plan_infographic` 和 `generate_infographic`，仅在阅读任务选择 `openai-codex` 时挂载。方案使用 TypeBox schema 限定标题、目的、布局、节点、关系、出处、限制和样式，并校验节点唯一性和关系引用；生成时必须携带当前请求最新方案的随机 ID。方案仅保留在任务内存中，其可读文本与图片结果通过现有消息流写入 conversations 分区，不增加 Zustand 字段或迁移。
 
-规划阶段先发布可读方案，生图复用 `codexImage.mjs` 与 `saveKnowledgeMap` 的鉴权、取消、超时、原子写入和删除竞态保护。并行的重复生图调用共享同一个 Promise，包括失败结果；与全书地图共用单次尝试额度，禁止失败后切换工具自动重试。服务端直接发布最终图片消息，成功后结束 Agent 轮次，避免依赖模型重新输出图片 URL。前端复用既有快捷提示词、Semi AI Chat 和图片查看器。
+规划阶段先发布可读方案，生图复用 `codexImage.ts` 与 `saveKnowledgeMap` 的鉴权、取消、超时、原子写入和删除竞态保护。并行的重复生图调用共享同一个 Promise，包括失败结果；与全书地图共用单次尝试额度，禁止失败后切换工具自动重试。服务端直接发布最终图片消息，成功后结束 Agent 轮次，避免依赖模型重新输出图片 URL。前端复用既有快捷提示词、Semi AI Chat 和图片查看器。
 
 `server/modules/knowledgeMaps/presets.ts` 集中维护六种预设的问题类型、图示规则与内容约束，同时供 Agent 指令、规划 schema 和实际绘图 Prompt 使用。Agent 结合读者问题选择 `preset` 并填写理由，不做关键词硬匹配。节点必须声明原文/概括/解释类型及来源 ID，原文文字须匹配所引用来源片段；来源唯一性、引用完整性和内容容量在服务端校验。内容稿先发布，生图时由预设规则和该份内容稿构成绘图 Prompt；未采用的子主题仅作为后续拆图建议，不自动触发多张付费生成。
 

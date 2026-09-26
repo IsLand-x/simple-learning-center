@@ -1,4 +1,8 @@
-import type { DeletedHighlightTombstone, HighlightItem, ReaderPreferences } from '../../types';
+import type {
+  DeletedHighlightTombstone,
+  HighlightItem,
+  ReaderPreferences,
+} from '../../../types/domain';
 import { defaultReaderPreferences } from '../defaults';
 
 export type PersistedReaderState = {

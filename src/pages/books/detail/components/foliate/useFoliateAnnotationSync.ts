@@ -4,7 +4,7 @@ import {
   createFoliateAnnotation,
   getFoliateContents,
 } from '../../../../../util/epub/foliateReader';
-import type { HighlightItem, ReaderPreferences } from '../../../../../util/types';
+import type { HighlightItem, ReaderPreferences } from '../../../../../types/domain';
 import { annotationSignature } from './interactionHelpers';
 
 type MutableReaderRef<T> = { current: T };

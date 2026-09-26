@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { IconComment } from '@douyinfe/semi-icons';
-import type { HighlightItem, ReaderHighlightTarget } from '../../../../util/types';
+import type { HighlightItem, ReaderHighlightTarget } from '../../../../types/domain';
 
 const COMMENT_INDICATOR_SIZE = 20;
 

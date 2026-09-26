@@ -1,34 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { serverRequest } from '../../../../util/api/serverApi';
-import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { OpenAICompatibleConfig } from '../../../../util/types';
+import { settingsApi } from '../../../api/settings';
+import { useLearningStore } from '../../../util/state/useLearningStore';
+import type { OAuthProviderId, OAuthProviderStatus, OAuthOperation } from '../../../types/settings';
 
-type ProviderId = NonNullable<OpenAICompatibleConfig['oauthProvider']>;
-interface ProviderStatus {
-  id: ProviderId;
-  connected: boolean;
-  models: string[];
-  login: null | {
-    state: 'pending' | 'completed' | 'failed';
-    userCode?: string;
-    url?: string;
-    message?: string;
-  };
-}
-export const oauthProviderLabels: Record<ProviderId, string> = {
+export const oauthProviderLabels: Record<OAuthProviderId, string> = {
   'openai-codex': 'ChatGPT / Codex',
   'kimi-coding': 'Kimi Coding',
 };
 
 export function useOAuthProviders() {
-  const [providers, setProviders] = useState<ProviderStatus[]>([]);
-  const [busy, setBusy] = useState<ProviderId | null>(null);
+  const [providers, setProviders] = useState<OAuthProviderStatus[]>([]);
+  const [busy, setBusy] = useState<OAuthProviderId | null>(null);
   const [error, setError] = useState('');
   const [loadError, setLoadError] = useState('');
   const mounted = useRef(false);
   const sync = useCallback(async (signal?: AbortSignal) => {
-    const response = await serverRequest('/api/ai/oauth/providers', { signal });
-    const statuses = (await response.json()) as ProviderStatus[];
+    const statuses = await settingsApi.getOAuthProviders(signal);
     if (!mounted.current || signal?.aborted) return;
     setProviders(statuses);
     setLoadError('');
@@ -77,14 +64,11 @@ export function useOAuthProviders() {
     };
   }, [sync]);
 
-  const action = async (id: ProviderId, operation: 'login' | 'cancel' | 'logout') => {
+  const action = async (id: OAuthProviderId, operation: OAuthOperation) => {
     setBusy(id);
     setError('');
     try {
-      await serverRequest(`/api/ai/oauth/${id}${operation === 'logout' ? '' : '/login'}`, {
-        method: operation === 'login' ? 'POST' : 'DELETE',
-        headers: { 'X-Learning-Center-OAuth': '1' },
-      });
+      await settingsApi.operateOAuthProvider(id, operation);
       await sync();
     } catch (cause) {
       if (mounted.current) setError(cause instanceof Error ? cause.message : '授权操作失败');

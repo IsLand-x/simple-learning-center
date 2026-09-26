@@ -20,7 +20,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['server/**/*.mjs', 'scripts/**/*.mjs'],
+    files: ['server/**/*.mjs', 'scripts/**/*.mjs', 'tests/**/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 'latest',

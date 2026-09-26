@@ -1,6 +1,6 @@
 import type { View as FoliateView } from 'foliate-js/view.js';
 import { rangeToViewportRect } from '../../../../../util/epub/foliateReader';
-import type { ReaderSelection } from '../../../../../util/types';
+import type { ReaderSelection } from '../../../../../types/domain';
 import { hasActiveTextSelection } from './interactionHelpers';
 
 type MutableReaderRef<T> = { current: T };

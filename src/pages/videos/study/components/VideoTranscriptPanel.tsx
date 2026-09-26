@@ -1,6 +1,6 @@
 import { Button, ButtonGroup, Empty } from '@douyinfe/semi-ui';
 import { useEffect, useRef } from 'react';
-import type { VideoResource } from '../../../../util/types';
+import type { VideoResource } from '../../../../types/domain';
 import {
   cueAt,
   formatVideoTime,

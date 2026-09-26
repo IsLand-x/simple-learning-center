@@ -1,4 +1,4 @@
-import type { RssFeed, RssItem } from '../../../../util/types';
+import type { RssFeed, RssItem } from '../../../../types/domain';
 
 export interface RssSourceMenuState {
   feed: RssFeed;

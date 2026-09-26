@@ -5,7 +5,7 @@ import type {
   ReaderPreferences,
   ReaderSelection,
   ThemeMode,
-} from '../../../../../util/types';
+} from '../../../../../types/domain';
 
 export interface ReaderLocationUpdate {
   cfi?: string;

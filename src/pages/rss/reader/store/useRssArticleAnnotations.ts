@@ -11,7 +11,11 @@ import {
 import { Toast } from '@douyinfe/semi-ui';
 import type { RssContentHeading } from './rssContent';
 import { createUuid } from '../../../../util/uuid';
-import type { ReaderHighlightTarget, ReaderSelection, RssAnnotation } from '../../../../util/types';
+import type {
+  ReaderHighlightTarget,
+  ReaderSelection,
+  RssAnnotation,
+} from '../../../../types/domain';
 import type { RssMobilePanel } from './model/mobileWorkspace';
 import type { RssImageViewerImage, RssSidePanel } from './model/rssPageModel';
 

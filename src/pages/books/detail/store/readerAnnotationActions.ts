@@ -1,7 +1,7 @@
 import type { RefObject, Dispatch, SetStateAction } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import type { MobileReaderPanel } from '../components/ReaderRightSidebar';
-import type { ReaderSurfaceHandle } from '../components/ReaderSurface';
+import type { MobileReaderPanel } from './model/rightPanelModel';
+import type { ReaderSurfaceHandle } from './model/readerSurfaceTypes';
 import { createUuid } from '../../../../util/uuid';
 import type { LearningState } from '../../../../util/state/learningState';
 import type {
@@ -10,7 +10,7 @@ import type {
   HighlightItem,
   ReaderHighlightTarget,
   ReaderSelection,
-} from '../../../../util/types';
+} from '../../../../types/domain';
 
 type ReaderAnnotationActionOptions = Pick<
   LearningState,

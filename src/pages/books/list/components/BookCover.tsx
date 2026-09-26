@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { recoverMissingBookCover } from '../../../../util/epub/bookCovers';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { BookItem } from '../../../../util/types';
+import type { BookItem } from '../../../../types/domain';
 import { bookCoverTone } from '../store/model/libraryView';
 
 export interface BookCoverProps {

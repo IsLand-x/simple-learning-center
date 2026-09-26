@@ -8,7 +8,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { confirmDialog } from '../../../util/confirmDialog';
 import { useLearningStore } from '../../../util/state/useLearningStore';
-import type { OpenAICompatibleConfig } from '../../../util/types';
+import type { OpenAICompatibleConfig } from '../../../types/domain';
 import { splitModels } from '../store/model/modelConfig';
 
 const { Text } = Typography;

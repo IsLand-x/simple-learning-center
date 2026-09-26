@@ -1,3 +1,4 @@
+import { booksApi } from '../../../../../api/books';
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import type { FoliateRelocateDetail, View as FoliateView } from 'foliate-js/view.js';
 import { createFoliateAnnotationEvents } from './annotationEvents';
@@ -11,7 +12,7 @@ import type {
 import { createFoliateSelectionReporter } from './selectionReporter';
 import { canNavigateTo, ensureFoliateAnchorIsVisible, flattenFoliateToc } from './tocNavigation';
 import { createFoliateTrackpadNavigation } from './trackpadNavigation';
-import { loadEpubFile } from '../../../../../util/epub/epubStorage';
+
 import {
   configureFoliateReader,
   createFoliateView,
@@ -24,7 +25,7 @@ import type {
   ReaderHighlightTarget,
   ReaderPreferences,
   ReaderSelection,
-} from '../../../../../util/types';
+} from '../../../../../types/domain';
 
 type MutableReaderRef<T> = { current: T };
 
@@ -204,7 +205,7 @@ export function useFoliateReaderLifecycle({
       setStatus('loading');
       setErrorMessage('请返回书架后重新导入这个 EPUB');
       appliedAnnotationsRef.current.clear();
-      const data = await loadEpubFile(book.id);
+      const data = await booksApi.loadEpubFile(book.id);
       const host = hostRef.current;
       if (disposed) return;
       if (!data || !host) throw new Error('EPUB 文件不存在');

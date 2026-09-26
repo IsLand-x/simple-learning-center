@@ -1,7 +1,8 @@
+import type { BookImageResource } from '../../../../../types/books';
 import { useEffect, useRef, useState } from 'react';
 import { Button, Input, Typography } from '@douyinfe/semi-ui';
-import type { BookImageResource } from '../../store/model/bookResources';
-import { useBookResourcesContext } from '../../store/hooks/useBookResources';
+
+import { useBookResourcesContext } from './useBookResources';
 
 export function BookResourceTitle({ resource }: { resource: BookImageResource }) {
   const { pending, rename } = useBookResourcesContext();

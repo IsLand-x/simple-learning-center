@@ -15,7 +15,7 @@ import {
   type DropResult,
   type ResponderProvided,
 } from '@hello-pangea/dnd';
-import type { BookItem, BookList } from '../../../../util/types';
+import type { BookItem, BookList } from '../../../../types/domain';
 import { BookCover } from './BookCover';
 
 const { Title, Text } = Typography;

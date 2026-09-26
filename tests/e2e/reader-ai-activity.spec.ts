@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { demoBooks } from '../../src/util/fixtures/demo';
-import type { AiJob } from '../../src/util/ai/aiJobs';
+import type { AiJob } from '../../src/types/ai';
 
 const book = demoBooks[0];
 

@@ -1,7 +1,10 @@
 import { IconDeleteStroked, IconFavoriteList, IconPlus, IconSearch } from '@douyinfe/semi-icons';
 import { Button, ButtonGroup, Empty, Input, Typography } from '@douyinfe/semi-ui';
 import { ImportBooksButton } from './components/ImportBooksButton';
-import { BookCard, BookListEditor, BookListsView, TrashView } from './components/index';
+import { BookCard } from './components/BookCard';
+import { BookListEditor } from './components/BookListEditor';
+import { BookListsView } from './components/BookListsView';
+import { TrashView } from './components/TrashView';
 import { useLibraryPageStore } from './store/useLibraryPageStore';
 
 const { Title, Text } = Typography;

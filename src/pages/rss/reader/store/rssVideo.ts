@@ -1,4 +1,4 @@
-import type { RssFeed, RssItem } from '../../../../util/types';
+import type { RssFeed, RssItem } from '../../../../types/domain';
 
 const BILIBILI_BVID_PATTERN = /\b(BV[0-9A-Za-z]{10})\b/;
 const BILIBILI_AID_PATTERN = /\/video\/av(\d+)/i;

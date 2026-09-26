@@ -1,5 +1,5 @@
 import { useMemo, type CSSProperties } from 'react';
-import type { ReaderPreferences, RssItem, RssFeed, RssAnnotation } from '../../../../util/types';
+import type { ReaderPreferences, RssItem, RssFeed, RssAnnotation } from '../../../../types/domain';
 import type { RssVideoPresentation } from './rssVideo';
 import { READER_FONT_STACKS } from '../../../../util/reading/readerFonts';
 import { getReaderTextureStyle, resolveReaderStyle } from '../../../../util/reading/readerThemes';

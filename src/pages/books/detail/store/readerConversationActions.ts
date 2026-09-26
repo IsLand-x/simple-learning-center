@@ -1,10 +1,10 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { MobileReaderPanel } from '../components/ReaderRightSidebar';
+import type { MobileReaderPanel } from './model/rightPanelModel';
 import { coerceAiReasoningEffort } from '../../../../util/ai/aiReasoning';
 import { createUuid } from '../../../../util/uuid';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
 import type { LearningState } from '../../../../util/state/learningState';
-import type { ChatMessage, ChatSession } from '../../../../util/types';
+import type { ChatMessage, ChatSession } from '../../../../types/domain';
 
 type ReaderConversationActionOptions = Pick<
   LearningState,

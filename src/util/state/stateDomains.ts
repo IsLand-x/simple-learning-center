@@ -1,3 +1,5 @@
+import type { StateDomain, StateDomainData } from '../../types/state';
+
 export const STATE_DOMAIN_FIELDS = {
   library: ['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'],
   reading: ['highlights', 'deletedHighlightTombstones', 'notes', 'readingSessions'],
@@ -24,9 +26,7 @@ export const STATE_DOMAIN_FIELDS = {
     'readerStyleUpdatedAt',
     'readerLayoutUpdatedAt',
   ],
-} as const;
-
-export type StateDomain = keyof typeof STATE_DOMAIN_FIELDS;
+} as const satisfies { [Domain in StateDomain]: readonly (keyof StateDomainData[Domain])[] };
 
 export const LEARNING_STORE_VERSION = 33;
 

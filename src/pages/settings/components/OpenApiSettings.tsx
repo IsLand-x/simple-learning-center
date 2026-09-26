@@ -1,7 +1,8 @@
+import { settingsApi } from '../../../api/settings';
+import type { OpenApiTokenStatus } from '../../../types/settings';
 import { useEffect, useState } from 'react';
 import { Button, Input, Toast, Typography } from '@douyinfe/semi-ui';
 import { confirmDialog } from '../../../util/confirmDialog';
-import { requestOpenApiToken, type OpenApiTokenStatus } from '../store/openApiToken';
 
 const { Title, Text } = Typography;
 
@@ -11,7 +12,8 @@ export function OpenApiSettings() {
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
-    void requestOpenApiToken()
+    void settingsApi
+      .getOpenApiToken()
       .then((value) => {
         if (active) setStatus(value);
       })
@@ -23,11 +25,17 @@ export function OpenApiSettings() {
     };
   }, []);
 
-  async function update(method: 'GET' | 'POST' | 'DELETE') {
+  async function update(operation: 'refresh' | 'generate' | 'revoke') {
     setBusy(true);
     setError('');
     try {
-      setStatus(await requestOpenApiToken(method));
+      setStatus(
+        await (operation === 'generate'
+          ? settingsApi.generateOpenApiToken()
+          : operation === 'revoke'
+            ? settingsApi.revokeOpenApiToken()
+            : settingsApi.getOpenApiToken()),
+      );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '更新 Token 失败');
     } finally {
@@ -35,15 +43,15 @@ export function OpenApiSettings() {
     }
   }
 
-  function confirmUpdate(method: 'POST' | 'DELETE') {
+  function confirmUpdate(operation: 'generate' | 'revoke') {
     if (!status?.configured) {
-      void update(method);
+      void update(operation);
       return;
     }
     confirmDialog({
-      title: method === 'POST' ? '重新生成 OpenAPI Token？' : '撤销 OpenAPI Token？',
+      title: operation === 'generate' ? '重新生成 OpenAPI Token？' : '撤销 OpenAPI Token？',
       content: '当前 Token 将立即失效，使用它的外部工具将无法继续调用开放接口。',
-      onOk: () => update(method),
+      onOk: () => update(operation),
     });
   }
 
@@ -79,7 +87,7 @@ export function OpenApiSettings() {
           disabled={busy}
           loading={busy}
           onClick={() => {
-            void update('GET');
+            void update('refresh');
           }}
         >
           重试
@@ -113,14 +121,14 @@ export function OpenApiSettings() {
           theme="solid"
           disabled={!status || busy}
           loading={busy}
-          onClick={() => confirmUpdate('POST')}
+          onClick={() => confirmUpdate('generate')}
         >
           {status?.configured ? '重新生成 Token' : '生成 Token'}
         </Button>
         <Button
           type="danger"
           disabled={!status?.configured || busy}
-          onClick={() => confirmUpdate('DELETE')}
+          onClick={() => confirmUpdate('revoke')}
         >
           撤销 Token
         </Button>

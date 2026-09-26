@@ -1,4 +1,4 @@
-import type { ThemeMode } from './types';
+import type { ThemeMode } from '../types/domain';
 
 const SESSION_THEME_KEY = 'learning-center-theme-mode';
 

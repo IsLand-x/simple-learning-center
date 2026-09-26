@@ -1,5 +1,6 @@
-import type { AiJob } from '../../../../../util/ai/aiJobs';
-import type { ChatMessage } from '../../../../../util/types';
+import type { AiJob } from '../../../../../types/ai';
+
+import type { ChatMessage } from '../../../../../types/domain';
 
 export type ReaderAiActivity = 'idle' | 'running' | 'unread';
 

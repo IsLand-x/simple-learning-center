@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import type { AiDialogueContentItem } from '../types';
+import type { AiDialogueContentItem } from '../../types/domain';
 
 type ConversationStatus = 'unavailable' | 'ready' | 'generating' | 'error';
 

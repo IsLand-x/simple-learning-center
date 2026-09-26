@@ -7,7 +7,7 @@ import {
   IconDeleteStroked,
 } from '@douyinfe/semi-icons';
 import { clamp } from '../../util/format';
-import type { HighlightItem, ReaderHighlightTarget, ReaderSelection } from '../../util/types';
+import type { HighlightItem, ReaderHighlightTarget, ReaderSelection } from '../../types/domain';
 
 type SelectionAnnotation = Pick<HighlightItem, 'id' | 'kind' | 'text' | 'comment'>;
 

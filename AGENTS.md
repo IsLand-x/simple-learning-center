@@ -37,19 +37,21 @@ npm run verify
 git diff --check
 ```
 
-涉及路由、交互、响应式、样式、PWA 或 Foliate 的修改还应执行 `npm run verify:full`；若本机缺少 Chrome 等运行条件，必须明确记录未执行项。纯文档修改至少执行 `git diff --check`。构建中的第三方依赖警告可以记录，但不能忽略 TypeScript、Vite 或 PWA 构建失败。
+涉及路由、交互、响应式、样式、PWA 或 Foliate 的修改还应执行 `npm run verify:full`；完整回归使用固定浏览器与字体的 Docker 测试容器；若本机缺少 Docker 等运行条件，必须明确记录未执行项。纯文档修改至少执行 `git diff --check`。构建中的第三方依赖警告可以记录，但不能忽略 TypeScript、Vite 或 PWA 构建失败。
 
 ## 目录职责
 
 本轮结构和 Tailwind 方案由用户明确指定，优先于旧版 feature/lib 分层与“默认语义 CSS”约定。
 
-- `src/layout/`：程序外壳、登录、侧栏、路由、鉴权恢复、启动与 PWA。登录也使用自己的 `store/`；路由继续 lazy loading 与 `StateDomainGate`。
+- `src/layout/`：程序外壳、登录、侧栏、路由、鉴权恢复、启动与 PWA。登录输入和提交状态留在登录组件；路由继续 lazy loading 与 `StateDomainGate`。
 - `src/pages/`：按业务和子页面组织：`books/list`、`books/detail`、`rss/reader`、`videos/study`、`settings`。
-- 每个子页面的 `index.tsx` 主要组合 UI；`components/` 保存仅本页使用的精简组件；`store/` 保存页面查询、交互状态、业务操作、纯模型及生命周期 hooks。不要将重逻辑放回 index，也不要为了减少行数把整页原样搬到一个巨大 hook。
-- `src/components/`：跨页面复用的 UI，按 `ai`、`reading`、`notes`、`layout` 等能力分组。不得导入任何页面的私有组件或 store。
-- `src/util/`：跨页面工具与能力，按 `api`、`ai`、`epub`、`reading`、`rss`、`video` 等职责分组；不依赖页面、layout 或 components。
+- 每个子页面的 `index.tsx` 主要组合 UI；`components/` 保存仅本页使用的精简组件；`store/` 只保存页面级共享状态、业务编排和纯模型。组件自己的轻量状态直接使用 useState/useEffect；逻辑较多时拆为组件同级的 useX.ts，不因使用 hook 就放进 store。不要将重逻辑放回 index，也不要为了减少行数把整页原样搬到一个巨大 hook。
+- `src/components/`：确实被多个页面复用的 UI（包含间接消费者），按 `ai`、`reading`、`notes`、`layout` 等能力分组。不得导入任何页面的私有组件或 store。单页适配参数在页面内组装，不在根 components 暴露单页包装器；不要用页面空壳或仅转发 barrel 掩盖实际归属。
+- `src/api/`：按业务域定义 API class 与单例，集中管理请求、响应解析、错误、取消和 SSE；组件、hook、store、util 不直接 fetch 或调用底层 transport。
+- `src/types/`：按业务域维护请求体、响应体及传输结果类型，可复用 contracts 的领域实体；禁止用 any、宽泛 Record 或未类型化 Response 掩盖业务协议。二进制、204 空响应和流式事件也必须显式定义类型。
+- `src/util/`：跨页面工具与能力，按 `ai`、`epub`、`reading` 等职责分组；不依赖页面、layout 或 components。
 - `src/util/state/`：唯一 Zustand 持久化核心，负责 actions、默认值、状态契约、迁移、合并及服务端分区同步。页面 store 复用这个核心，不创建同一数据的第二个持久化来源。
-- `contracts/`：浏览器与 Node 共用的纯领域类型，不依赖运行时实现；`src/util/types.ts` 保留浏览器类型入口。
+- `contracts/`：浏览器与 Node 共用的纯领域类型，不依赖运行时实现；`src/types/domain.ts` 提供浏览器领域类型入口。
 - `src/styles/index.css`：Tailwind 入口和必要的全局/第三方/正文兼容样式；普通组件优先在 JSX 中使用静态 Tailwind utilities 和 Semi 语义变量。
 - `server/app.ts`：构造依赖、认证 middleware、Hono 子应用与兜底；`server/app/`：通用 HTTP 能力与装配；`server/routes/`：HTTP transport。
 - `server/modules/`：按 library、reading、rss、videos、ai、knowledgeMaps、auth、credentials、state 聚合用例与规则；`server/infrastructure/`：不带业务归属的文件/HTTP 原语。
@@ -59,6 +61,7 @@ git diff --check
 ## 模块边界
 
 - 页面之间不得直接导入对方私有实现；共用 UI 提取到 components，共用能力提取到 util。
+- API 只依赖自身传输原语及 types/contracts，不依赖 React、页面、组件或 store；types 是叶子，不依赖 API 或运行时编排。
 - 纯 model 不依赖 UI；共享 components 不依赖 page/layout；util 不依赖任何上层界面；contracts 不依赖前后端运行时实现。
 - `src/util/state/useLearningStore.ts` 保持唯一薄组合入口，page store 不重新建立并行 persist。
 - 只有 `server/app.ts` 可以装配 routes；测试可核对 HTTP 路由契约。业务服务不得导入 routes，通用基础设施不得导入业务模块。

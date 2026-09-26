@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Empty, Typography } from '@douyinfe/semi-ui';
-import type { RssFeed, RssItem } from '../../../../util/types';
+import type { RssFeed, RssItem } from '../../../../types/domain';
 import { itemTime } from '../store/model/rssPageModel';
 import { HighlightedText } from './HighlightedText';
 

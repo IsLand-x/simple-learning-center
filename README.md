@@ -7,9 +7,10 @@
 项目采用单仓库模块化单体，浏览器使用 React + TypeScript，Node/Hono 提供本地数据服务。前端按页面组织，后端按业务模块组织，功能与数据协议保持兼容。
 
 - `src/layout/`：登录、侧栏、程序外壳、启动与懒加载路由。
-- `src/pages/`：`books/list`、`books/detail`、`rss/reader`、`videos/study`、`settings`；每页的 `index.tsx` 组合界面，`components/` 放本页组件，`store/` 管理交互与业务用例。
+- `src/pages/`：`books/list`、`books/detail`、`rss/reader`、`videos/study`、`settings`；每页的 `index.tsx` 组合界面，`components/` 放本页组件，`store/` 管理页面共享状态与业务用例；组件私有状态留在组件，复杂私有 hook 放组件同级。
 - `src/components/`：跨页面的聊天、阅读样式、笔记编辑和基础组件。
-- `src/util/`：API、EPUB、主题、AI 任务等公共能力；`util/state/` 仍是唯一 Zustand 持久化核心，页面 store 不另存一份服务器数据。
+- `src/api/`、`src/types/`：按业务域组织 API class，以及明确的请求/响应类型；组件和 hook 通过 API 实例调用服务。
+- `src/util/`：EPUB、主题、AI 内容处理等公共能力；`util/state/` 仍是唯一 Zustand 持久化核心，页面 store 不另存一份服务器数据。
 - `src/styles/`：Tailwind 入口与必要的 Semi、正文、复杂选择器兼容样式。普通布局与排版使用 Tailwind，继续使用 Semi 颜色变量。
 - `server/routes/`：Hono 子应用；`server/modules/`：按业务聚合服务；`server/infrastructure/`：文件/HTTP 原语；`server/app.ts` 统一装配。
 - `contracts/`：前后端共享的纯领域类型。
@@ -20,10 +21,10 @@
 
 ```bash
 npm run verify       # lint、格式、边界、死代码、单元测试与生产构建
-npm run verify:full  # 再执行真实浏览器与视觉回归
+npm run verify:full  # 再在固定 Docker 环境执行真实浏览器与视觉回归
 ```
 
-浏览器测试使用临时示例数据目录；可以设置 `LEARNING_CENTER_E2E_BROWSER=chromium` 使用 Playwright Chromium，设置 `LEARNING_CENTER_E2E_PRODUCTION=1` 验证生产产物。视觉基线与测试夹具说明见 [`tests/e2e/README.md`](tests/e2e/README.md)。
+完整浏览器回归需要 Docker，本机与 CI 使用相同的 Playwright 镜像和字体版本，测试服务使用临时示例数据目录。`npm run test:e2e` 保留为原生浏览器调试入口；视觉基线与测试夹具说明见 [`tests/e2e/README.md`](tests/e2e/README.md)。
 
 ## 功能概览
 
@@ -193,7 +194,7 @@ http://127.0.0.1:5173/
 npm test             # 运行服务端与前端单元测试
 npm run build        # 服务端语法、TypeScript 与 Vite/PWA 生产构建
 npm run verify       # 静态检查、格式、边界、dead code、测试与构建
-npm run verify:full  # 在 verify 后执行桌面与移动 Chrome 回归
+npm run verify:full  # 在 verify 后用 Docker 执行桌面与移动 Chromium 回归
 npm run preview      # 使用 Node 服务运行现有生产构建
 ```
 
@@ -392,25 +393,31 @@ Token 及其校验摘要独立保存在 `data/openapi-token.json`（或配置的
 
 **本机文件导入限制：** HTTP 服务无法读取 AI 电脑上的本地路径。AI 客户端必须具备文件读取能力，将 EPUB 编码后调用 `upload_book`；文件内容可能进入该客户端的工具调用上下文。较大文件或希望避免 Base64 上下文开销时，可让具备终端或 HTTP 文件上传能力的 AI 使用上节的 `curl --data-binary` 示例，携带同一 Token 直接上传，最大 100 MiB，无需额外连接脚本。仅支持远程 MCP 调用、没有本地文件读取能力的客户端不能直接导入电脑上的文件。
 
-无桌面 Chrome 的 Linux 环境可安装 Playwright 的无头 Chromium 执行 E2E（默认仍使用 Chrome）：
+完整 E2E 和截图验收统一使用 Docker 中的固定 Chromium、Ubuntu 与中文字体，不依赖宿主机字体：
+
+```bash
+npm run verify:full
+```
+
+原生浏览器只用于交互调试。无桌面 Chrome 的 Linux 环境可安装 Playwright 的无头 Chromium（默认仍使用 Chrome）：
 
 ```bash
 npx playwright install chromium --only-shell
-LEARNING_CENTER_E2E_BROWSER=chromium npm run test:e2e
+LEARNING_CENTER_E2E_BROWSER=chromium npm run test:e2e -- --grep-invert 'workspace visual parity|unauthenticated login shell'
 ```
 
 该模式覆盖桌面与移动视口；它验证 Chromium 行为，不能替代真实移动设备或其他浏览器的兼容性测试。
 
-资源受限时可直接验收生产包，避免同时运行 Vite 开发服务器：
+已有构建产物时，可单独执行容器回归；测试直接使用生产包：
 
 ```bash
 npm run build
-LEARNING_CENTER_E2E_BROWSER=chromium LEARNING_CENTER_E2E_PRODUCTION=1 npm run test:e2e
+npm run test:e2e:container
 ```
 
 E2E 使用独立临时数据目录，退出时清理，不会修改日常数据。
 
-中文截图验收还需在测试环境安装可用的本机中文字体（例如 Noto Sans CJK SC），否则无头浏览器会把中文渲染成方框。
+截图基线使用固定测试镜像的字体，不在其他系统或字体环境中更新。原生调试仍需安装可用的本机中文字体，避免出现方框；它的截图不作为像素验收结果。
 
 ### 全景知识地图
 

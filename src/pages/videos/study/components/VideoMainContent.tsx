@@ -2,7 +2,7 @@ import { IconDelete, IconExternalOpen } from '@douyinfe/semi-icons';
 import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { type RefObject } from 'react';
 import { MarkdownNoteEditor } from '../../../../components/notes/MarkdownNoteEditor';
-import type { NoteItem, VideoResource } from '../../../../util/types';
+import type { NoteItem, VideoResource } from '../../../../types/domain';
 import { formatVideoTime } from '../store/model/videoTranscript';
 import { YouTubePlayer, type YouTubePlayerHandle } from './YouTubePlayer';
 const { Text } = Typography;

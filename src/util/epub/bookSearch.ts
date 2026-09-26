@@ -1,27 +1,13 @@
+import type { BookPassage, BookSearchIndex as StoredBookSearchIndex } from '../../types/reading';
+import { readingApi } from '../../api/reading';
+import { booksApi } from '../../api/books';
 import { makeBook } from 'foliate-js/view.js?learning-center-srcdoc-v1';
 import { demoChapterContent } from '../fixtures/demo';
-import type { BookItem, TocItem } from '../types';
-import { loadBookSearchIndex, loadEpubFile, saveBookSearchIndex } from './epubStorage';
+import type { BookItem, TocItem } from '../../types/domain';
 
 const INDEX_VERSION = 2;
 const CHUNK_LENGTH = 1_200;
 const CHUNK_OVERLAP = 180;
-
-interface BookPassage {
-  id: string;
-  chapter: string;
-  href: string;
-  sectionIndex: number;
-  chunkIndex: number;
-  text: string;
-}
-
-interface StoredBookSearchIndex {
-  version: number;
-  bookId: string;
-  fileSize: number;
-  passages: BookPassage[];
-}
 
 interface TocEntry {
   href: string;
@@ -157,7 +143,7 @@ function buildDemoPassages(book: BookItem) {
 }
 
 async function buildEpubPassages(book: BookItem) {
-  const data = await loadEpubFile(book.id);
+  const data = await booksApi.loadEpubFile(book.id);
   if (!data) throw new Error('本地 EPUB 文件不存在，无法建立书籍搜索索引');
   const file = new File([data], book.fileName || `${book.title}.epub`, {
     type: 'application/epub+zip',
@@ -197,7 +183,7 @@ async function buildEpubPassages(book: BookItem) {
 }
 
 async function loadOrBuildIndex(book: BookItem) {
-  const stored = await loadBookSearchIndex<StoredBookSearchIndex>(book.id);
+  const stored = await readingApi.loadSearchIndex(book.id);
   if (
     stored?.version === INDEX_VERSION &&
     stored.bookId === book.id &&
@@ -208,7 +194,7 @@ async function loadOrBuildIndex(book: BookItem) {
     return stored.passages;
   }
   const passages = book.kind === 'demo' ? buildDemoPassages(book) : await buildEpubPassages(book);
-  await saveBookSearchIndex(book.id, {
+  await readingApi.saveSearchIndex(book.id, {
     version: INDEX_VERSION,
     bookId: book.id,
     fileSize: book.fileSize,

@@ -1,8 +1,11 @@
+import { aiApi } from '../../../../api/ai';
+import type { AiJob } from '../../../../types/ai';
+import { rssApi } from '../../../../api/rss';
 import { useCallback, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { getAiJob, watchAiJob, type AiJob } from '../../../../util/ai/aiJobs';
+
 import { synchronizeLearningState } from '../../../../util/state/learningStateSync';
-import { generateRssDigest } from '../../../../util/rss/rssApi';
+
 import { waitForServerStateWrites } from '../../../../util/state/serverStateStorage';
 
 export function useRssDigestTask({
@@ -21,7 +24,7 @@ export function useRssDigestTask({
       setDigestError('');
       try {
         await waitForServerStateWrites();
-        const result = await generateRssDigest(date, true);
+        const result = await rssApi.generateDigest({ date: date, force: true });
         if (!result.job) {
           await synchronizeLearningState();
           setDigestGenerating(false);
@@ -38,7 +41,7 @@ export function useRssDigestTask({
           setDigestGenerating(false);
         };
         try {
-          await watchAiJob(
+          await aiApi.watchJob(
             result.job.id,
             (job) => void applyDigestJob(job),
             new AbortController().signal,
@@ -47,7 +50,7 @@ export function useRssDigestTask({
           let latest = result.job;
           while (latest.status === 'queued' || latest.status === 'running') {
             await new Promise((resolve) => window.setTimeout(resolve, 500));
-            latest = await getAiJob(latest.id);
+            latest = await aiApi.getJob(latest.id);
           }
           await applyDigestJob(latest);
         }

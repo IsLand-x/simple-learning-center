@@ -1,6 +1,6 @@
+import { authApi } from '../../../api/auth';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Toast, Typography } from '@douyinfe/semi-ui';
-import { getAuthSession, logout, updateCredentials } from '../../../util/api/auth';
 
 const { Title, Text } = Typography;
 
@@ -14,7 +14,8 @@ export function AccountSettings() {
 
   useEffect(() => {
     let active = true;
-    void getAuthSession()
+    void authApi
+      .getSession()
       .then((session) => {
         if (!active) return;
         setRemoteMode(session.mode === 'remote');
@@ -40,7 +41,7 @@ export function AccountSettings() {
     }
     setSaving(true);
     try {
-      await updateCredentials({
+      await authApi.updateCredentials({
         password,
       });
       setPassword('');
@@ -60,7 +61,7 @@ export function AccountSettings() {
     }
     setSigningOut(true);
     try {
-      await logout();
+      await authApi.logout();
       window.location.reload();
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : '退出账号失败');

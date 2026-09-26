@@ -1,3 +1,5 @@
+import { aiApi } from '../../../../api/ai';
+import type { AiJob } from '../../../../types/ai';
 import {
   useCallback,
   useEffect,
@@ -6,16 +8,10 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import {
-  getAiJob,
-  listAiJobs,
-  startAiJob,
-  watchAiJob,
-  type AiJob,
-} from '../../../../util/ai/aiJobs';
+
 import { waitForServerStateWrites } from '../../../../util/state/serverStateStorage';
 import { createUuid } from '../../../../util/uuid';
-import type { AiPreferences, OpenAICompatibleConfig, RssItem } from '../../../../util/types';
+import type { AiPreferences, OpenAICompatibleConfig, RssItem } from '../../../../types/domain';
 import { Toast } from '@douyinfe/semi-ui';
 
 export type SummaryStatus = 'idle' | 'unavailable' | 'generating' | 'ready' | 'error';
@@ -100,13 +96,13 @@ export function useRssAutoSummary({
       applySummaryJob(job);
       if (job.status !== 'queued' && job.status !== 'running') return;
       try {
-        await watchAiJob(job.id, applySummaryJob, controller.signal);
+        await aiApi.watchJob(job.id, applySummaryJob, controller.signal);
       } catch (watchError) {
         if (disposed || (watchError instanceof Error && watchError.name === 'AbortError')) return;
         let latest = job;
         while (!disposed && (latest.status === 'queued' || latest.status === 'running')) {
           await new Promise((resolve) => window.setTimeout(resolve, 350));
-          latest = await getAiJob(job.id);
+          latest = await aiApi.getJob(job.id);
           applySummaryJob(latest);
         }
       }
@@ -114,7 +110,9 @@ export function useRssAutoSummary({
     const start = async () => {
       setStatus('generating');
       try {
-        const existing = (await listAiJobs(resourceId, conversationId)).find(
+        const existing = (
+          await aiApi.listJobs({ bookId: resourceId, conversationId: conversationId })
+        ).find(
           (job) =>
             job.status === 'queued' || job.status === 'running' || job.status === 'completed',
         );
@@ -125,7 +123,7 @@ export function useRssAutoSummary({
             pending = (async () => {
               await waitForServerStateWrites();
               const createdAt = Date.now();
-              return startAiJob({
+              return aiApi.startJob({
                 configId: config.id,
                 model,
                 bookId: resourceId,
@@ -246,7 +244,9 @@ export function useRssTranslation({
       }
     };
     try {
-      const existing = (await listAiJobs(resourceId, conversationId)).find(
+      const existing = (
+        await aiApi.listJobs({ bookId: resourceId, conversationId: conversationId })
+      ).find(
         (job) => job.status === 'queued' || job.status === 'running' || job.status === 'completed',
       );
       let job = existing;
@@ -256,7 +256,7 @@ export function useRssTranslation({
           pending = (async () => {
             await waitForServerStateWrites();
             const createdAt = Date.now();
-            return startAiJob({
+            return aiApi.startJob({
               configId: config.id,
               model,
               bookId: resourceId,
@@ -282,12 +282,12 @@ export function useRssTranslation({
       if (job.status === 'queued' || job.status === 'running') {
         const controller = new AbortController();
         try {
-          await watchAiJob(job.id, applyTranslationJob, controller.signal);
+          await aiApi.watchJob(job.id, applyTranslationJob, controller.signal);
         } catch {
           let latest = job;
           while (latest.status === 'queued' || latest.status === 'running') {
             await new Promise((resolve) => window.setTimeout(resolve, 350));
-            latest = await getAiJob(job.id);
+            latest = await aiApi.getJob(job.id);
             applyTranslationJob(latest);
           }
         }

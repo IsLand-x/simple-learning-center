@@ -1,4 +1,4 @@
-import type { BookItem } from '../../../../../util/types';
+import type { BookItem } from '../../../../../types/domain';
 
 export type LibraryFilter = 'all' | 'reading' | 'finished';
 export type LibrarySection = 'shelf' | 'lists' | 'trash';

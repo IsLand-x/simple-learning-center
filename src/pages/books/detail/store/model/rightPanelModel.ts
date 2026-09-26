@@ -18,7 +18,7 @@ import type {
   NoteItem,
   OpenAICompatibleConfig,
   RightPanel,
-} from '../../../../../util/types';
+} from '../../../../../types/domain';
 
 export interface ReaderRightPanelProps {
   book: BookItem;

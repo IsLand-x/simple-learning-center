@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { Button, Input, Select, Typography } from '@douyinfe/semi-ui';
 import { AppFormModal } from '../../../../components/AppFormModal';
-import type { RssFeedType, RssFolder } from '../../../../util/types';
+import type { RssFeedType, RssFolder } from '../../../../types/domain';
 import { type RssSourceKind } from '../store/model/rssPageModel';
 
 const { Text } = Typography;

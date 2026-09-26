@@ -1,7 +1,7 @@
 import { Empty, Typography } from '@douyinfe/semi-ui';
 import { IconAIStrokedLevel1, IconCalendarClock, IconComment } from '@douyinfe/semi-icons';
-import { RssAiPanel } from '../../../../components/ai/ContentConversationPanel';
-import type { RssAnnotation, RssFeed, RssItem } from '../../../../util/types';
+import { ContentConversationPanel } from '../../../../components/ai/ContentConversationPanel';
+import type { RssAnnotation, RssFeed, RssItem } from '../../../../types/domain';
 import { type RssSidePanel } from '../store/model/rssPageModel';
 import { TimelinePanel } from './TimelinePanel';
 import { RssCommentsPanel } from './RssCommentsPanel';
@@ -49,8 +49,8 @@ export function RssRightPanel({
       </div>
       {activePanel === 'ai' ? (
         item ? (
-          <RssAiPanel
-            item={item}
+          <ContentConversationPanel
+            resource={{ type: 'rss', item }}
             selectedText={selectedText}
             onClearSelectedText={onClearSelectedText}
           />

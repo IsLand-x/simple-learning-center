@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { AIChatDialogue, Cascader, Empty, Select, Tooltip } from '@douyinfe/semi-ui';
 import { coerceAiReasoningEffort, getAiReasoningProfile } from '../../util/ai/aiReasoning';
-import type { AiProvider, AiReasoningEffort, OpenAICompatibleConfig } from '../../util/types';
+import type { AiProvider, AiReasoningEffort, OpenAICompatibleConfig } from '../../types/domain';
 import { CspSafeChatContent } from './CspSafeChatContent';
 
 type DialogueChats = NonNullable<ComponentProps<typeof AIChatDialogue>['chats']>;

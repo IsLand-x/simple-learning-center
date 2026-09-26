@@ -1,7 +1,7 @@
 import { IconAIStrokedLevel1, IconLanguage } from '@douyinfe/semi-icons';
 import { Typography } from '@douyinfe/semi-ui';
-import { VideoAiPanel } from '../../../../components/ai/ContentConversationPanel';
-import type { VideoResource } from '../../../../util/types';
+import { ContentConversationPanel } from '../../../../components/ai/ContentConversationPanel';
+import type { VideoResource } from '../../../../types/domain';
 import { type TranscriptMode, type VideoPanel } from '../store/model/videoTranscript';
 import { VideoTranscriptPanel } from './VideoTranscriptPanel';
 const { Text } = Typography;
@@ -42,7 +42,7 @@ export function VideoRightPanel({
           onSeek={onSeek}
         />
       ) : (
-        <VideoAiPanel video={video} />
+        <ContentConversationPanel resource={{ type: 'video', video }} />
       )}
     </aside>
   );

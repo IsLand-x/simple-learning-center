@@ -35,17 +35,8 @@ jobs:
       - name: 测试与构建
         run: npm run verify
 
-      - name: 安装浏览器与中文字体
-        run: |
-          npx playwright install --with-deps chromium
-          sudo apt-get update
-          sudo apt-get install -y fonts-noto-cjk
-
       - name: 浏览器与视觉回归
-        env:
-          LEARNING_CENTER_E2E_BROWSER: chromium
-          LEARNING_CENTER_E2E_PRODUCTION: '1'
-        run: npm run test:e2e
+        run: npm run test:e2e:container
 
       - name: 保留浏览器验证产物
         if: failure()

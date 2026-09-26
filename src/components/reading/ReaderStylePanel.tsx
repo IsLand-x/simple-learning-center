@@ -15,7 +15,7 @@ import {
   READER_TEXTURE_PRESETS,
   resolveReaderStyle,
 } from '../../util/reading/readerThemes';
-import type { ReaderCustomStyle, ReaderFont, ReaderPreferences } from '../../util/types';
+import type { ReaderCustomStyle, ReaderFont, ReaderPreferences } from '../../types/domain';
 
 export interface ReaderStylePanelProps {
   preferences: ReaderPreferences;

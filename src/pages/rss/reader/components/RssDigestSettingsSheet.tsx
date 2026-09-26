@@ -6,7 +6,7 @@ import type {
   RssDigestRun,
   RssDigestRunStatus,
   RssDigestSettings,
-} from '../../../../util/types';
+} from '../../../../types/domain';
 import { AiModelSelector } from '../../../../components/ai/AiConversationPrimitives';
 
 const { Text, Title } = Typography;

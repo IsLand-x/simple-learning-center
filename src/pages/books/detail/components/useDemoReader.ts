@@ -1,4 +1,4 @@
-import type { WheelSwipeState } from './model/demoReaderModel';
+import type { WheelSwipeState } from '../store/model/demoReaderModel';
 import {
   useCallback,
   useEffect,
@@ -12,11 +12,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { getDemoContent } from '../../../../util/fixtures/demo';
-import { flattenToc } from './model/readerSurfaceModel';
+import { flattenToc } from '../store/model/readerSurfaceModel';
 import { ensureReaderFontStylesheet } from '../../../../util/reading/readerFonts';
 import { createReaderTextSelectionCursor } from '../../../../util/reading/readerTextCursor';
 import { getReaderTextureStyle, resolveReaderStyle } from '../../../../util/reading/readerThemes';
-import type { ReaderSurfaceHandle, ReaderSurfaceProps } from './model/readerSurfaceTypes';
+import type { ReaderSurfaceHandle, ReaderSurfaceProps } from '../store/model/readerSurfaceTypes';
 import {
   getDemoScrollRatio,
   hasActiveTextSelection,
@@ -26,7 +26,7 @@ import {
   getSwipePageTurn,
   createWheelSwipeState,
   getWheelPageTurn,
-} from './model/demoReaderModel';
+} from '../store/model/demoReaderModel';
 
 export function useDemoReader({
   book,

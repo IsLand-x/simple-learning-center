@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import { Progress, Typography } from '@douyinfe/semi-ui';
 import { formatRelativeTime } from '../../../../util/format';
-import type { BookItem } from '../../../../util/types';
+import type { BookItem } from '../../../../types/domain';
 import { BookCover } from './BookCover';
 
 const { Text } = Typography;

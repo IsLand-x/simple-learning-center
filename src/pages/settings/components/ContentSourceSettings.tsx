@@ -1,14 +1,9 @@
+import { settingsApi } from '../../../api/settings';
+import type { BilibiliCredentialStatus } from '../../../types/settings';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button, Input, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconVideo } from '@douyinfe/semi-icons';
 import { confirmDialog } from '../../../util/confirmDialog';
-import {
-  deleteSavedBilibiliCookie,
-  getBilibiliCredentialStatus,
-  saveBilibiliCookie,
-  verifySavedBilibiliCookie,
-  type BilibiliCredentialStatus,
-} from '../../../util/rss/rssApi';
 
 const { Title, Text } = Typography;
 
@@ -21,7 +16,7 @@ export function ContentSourceSettings() {
 
   const load = async () => {
     try {
-      setStatus(await getBilibiliCredentialStatus());
+      setStatus(await settingsApi.getBilibiliCredentialStatus());
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : '无法读取内容源凭据状态');
     } finally {
@@ -38,7 +33,7 @@ export function ContentSourceSettings() {
     if (!cookie.trim()) return;
     setSaving(true);
     try {
-      const next = await saveBilibiliCookie(cookie);
+      const next = await settingsApi.saveBilibiliCookie({ cookie: cookie });
       setStatus(next);
       setCookie('');
       if (next.verificationStatus === 'valid') Toast.success('B站 Cookie 已保存并验证');
@@ -54,7 +49,7 @@ export function ContentSourceSettings() {
   const verify = async () => {
     setVerifying(true);
     try {
-      const next = await verifySavedBilibiliCookie();
+      const next = await settingsApi.verifySavedBilibiliCookie();
       setStatus(next);
       if (next.verificationStatus === 'valid') Toast.success('B站 Cookie 有效');
       else Toast.warning(next.message || 'B站 Cookie 无效');
@@ -74,7 +69,7 @@ export function ContentSourceSettings() {
       cancelText: '取消',
       okButtonProps: { type: 'danger' },
       onOk: async () => {
-        setStatus(await deleteSavedBilibiliCookie());
+        setStatus(await settingsApi.deleteSavedBilibiliCookie());
         setCookie('');
         Toast.success('B站 Cookie 已删除');
       },

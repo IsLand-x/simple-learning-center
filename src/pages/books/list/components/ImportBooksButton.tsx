@@ -1,10 +1,11 @@
+import { booksApi } from '../../../../api/books';
 import { useRef, useState, type ComponentProps, type ComponentRef } from 'react';
 import { Button, Progress, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import { IconPlus, IconUpload } from '@douyinfe/semi-icons';
-import { saveEpubFile } from '../../../../util/epub/epubStorage';
+
 import { AppFormModal } from '../../../../components/AppFormModal';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { BookItem } from '../../../../util/types';
+import type { BookItem } from '../../../../types/domain';
 
 const { Text } = Typography;
 
@@ -75,7 +76,7 @@ export function ImportBooksButton() {
         const { parseEpubFile } = await import('../../../../util/epub/parseEpub');
         const parsed = await parseEpubFile(fileInstance);
         onProgress({ total: 100, loaded: 70 });
-        await saveEpubFile(parsed.item.id, parsed.data);
+        await booksApi.saveEpubFile(parsed.item.id, parsed.data);
         batch.imported.push(parsed.item);
         onSuccess({ bookId: parsed.item.id });
       } catch {

@@ -126,18 +126,21 @@ export async function prepareWorkspace(
       body: '<!doctype html><html lang="zh-CN"><body style="margin:0;background:#111"></body></html>',
     }),
   );
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
-  // Unmount before direct API writes so the previous page cannot overwrite the next fixture.
-  await page.goto('about:blank');
+  if (visualOnly) {
+    // Visual tests use the container's fixed offline fonts, never a CDN-dependent font load.
+    await page.route('https://cdn.jsdelivr.net/**', (route) => route.abort());
+  } else {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
+    // Unmount before direct API writes so the previous page cannot overwrite the next fixture.
+    await page.goto('about:blank');
+  }
 
   const snapshots = new Map<string, { state: Record<string, unknown>; version: number }>();
   const seed = async (domain: string, changes: Record<string, unknown>) => {
     if (!visualOnly) return patchStateDomain(page, domain, changes);
-    const response = await page.request.get(`/api/state/${domain}`);
-    expect(response.ok()).toBe(true);
-    const snapshot = await response.json();
-    snapshots.set(domain, { ...snapshot, state: { ...snapshot.state, ...changes } });
+    // Never inherit another test's server values or browser defaults in a pixel fixture.
+    snapshots.set(domain, { version: 33, state: structuredClone(changes) });
   };
 
   await seed('library', {
@@ -157,6 +160,14 @@ export async function prepareWorkspace(
     themeMode: theme,
     navCollapsed: false,
     openAIConfigs: [],
+    aiPreferences: {
+      provider: null,
+      model: '',
+      reasoningEffort: 'auto',
+      autoHideReasoning: false,
+      hiddenPromptTemplateIds: [],
+    },
+    webSearchConfig: { provider: 'jina', apiKey: '' },
     readerPreferences: {
       fontSize: 18,
       lineHeight: 2,

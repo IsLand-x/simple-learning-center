@@ -1,43 +1,39 @@
-import { useReaderAiActivity } from './hooks/useReaderAiActivity';
-import { useReadAiReplies } from './hooks/useReadAiReplies';
+import { aiApi } from '../../api/ai';
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { AIChatInput, Toast } from '@douyinfe/semi-ui';
-import { cancelAiJob, startAiJob, type AiJob } from '../../../../util/ai/aiJobs';
-import { getBookPassages } from '../../../../util/epub/bookSearch';
-import { coerceAiReasoningEffort, requestReasoningEffort } from '../../../../util/ai/aiReasoning';
-import { waitForServerStateWrites } from '../../../../util/state/serverStateStorage';
-import { createUuid } from '../../../../util/uuid';
-import { visibleReaderAiPromptTemplates } from '../../../../util/ai/readerAiPrompts';
-import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type {
-  AiDialogueContentItem,
-  AiProvider,
-  BookItem,
-  ChatMessage,
-} from '../../../../util/types';
-import { makeConversationTitle, type AiStatus } from './model/rightPanelModel';
-import { useReaderConversationJobs } from './hooks/useReaderConversationJobs';
 
-export function useReaderConversation({
-  book,
-  conversationId,
-  selectedQuote,
-  getCurrentText,
+import { coerceAiReasoningEffort, requestReasoningEffort } from '../../util/ai/aiReasoning';
+import { waitForServerStateWrites } from '../../util/state/serverStateStorage';
+import { createUuid } from '../../util/uuid';
+import { useLearningStore } from '../../util/state/useLearningStore';
+import type { AiDialogueContentItem, AiProvider, RssItem, VideoResource } from '../../types/domain';
+import { useContentConversationJobs } from './useContentConversationJobs';
+
+type AiStatus = 'unavailable' | 'ready' | 'generating' | 'error';
+
+function makeConversationTitle(content: string) {
+  const title =
+    content
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) || '关于当前内容的对话';
+  return title.replace(/\s+/g, ' ').slice(0, 32);
+}
+
+export function useContentConversation({
+  resource,
+  selectedText,
   onClearSelectedText,
 }: {
-  book: BookItem;
-  conversationId: string;
-  selectedQuote?: NonNullable<ChatMessage['quote']>;
-  getCurrentText: () => string;
-  onClearSelectedText: () => void;
+  resource: { type: 'rss'; item: RssItem } | { type: 'video'; video: VideoResource };
+  selectedText?: string;
+  onClearSelectedText?: () => void;
 }) {
-  const {
-    reportJob,
-    jobs: trackedJobs,
-    startingConversations,
-    setStarting,
-  } = useReaderAiActivity();
-  const starting = startingConversations.includes(conversationId);
+  const isVideo = resource.type === 'video';
+  const resourceTitle = isVideo ? resource.video.title : resource.item.title;
+  const rawResourceId = isVideo ? resource.video.id : resource.item.id;
+  const resourceId = `${resource.type}:${rawResourceId}`;
+  const conversationId = `${resource.type}-chat:${rawResourceId}`;
   const allChats = useLearningStore((state) => state.chats);
   const allSessions = useLearningStore((state) => state.chatSessions);
   const configs = useLearningStore((state) => state.openAIConfigs);
@@ -46,16 +42,12 @@ export function useReaderConversation({
   const createChatSession = useLearningStore((state) => state.createChatSession);
   const updateChatSession = useLearningStore((state) => state.updateChatSession);
   const addChatMessage = useLearningStore((state) => state.addChatMessage);
-  const visiblePromptTemplates = useMemo(
-    () => visibleReaderAiPromptTemplates(aiPreferences.hiddenPromptTemplateIds),
-    [aiPreferences.hiddenPromptTemplateIds],
-  );
   const chats = useMemo(
     () =>
       allChats.filter(
-        (message) => message.bookId === book.id && message.conversationId === conversationId,
+        (message) => message.bookId === resourceId && message.conversationId === conversationId,
       ),
-    [allChats, book.id, conversationId],
+    [allChats, conversationId, resourceId],
   );
   const currentSession = allSessions.find((session) => session.id === conversationId);
   const provider = aiPreferences.provider;
@@ -92,19 +84,13 @@ export function useReaderConversation({
   } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const inputRef = useRef<ComponentRef<typeof AIChatInput>>(null);
-  const chatAreaRef = useRef<HTMLDivElement>(null);
-  useReadAiReplies(chatAreaRef, chats);
-  const lastAppliedJobRef = useRef<AiJob>();
-  const synchronizedNoteRevisionsRef = useRef(new Map<string, number>());
-  const noteSyncQueueRef = useRef(Promise.resolve());
   useEffect(() => {
     setStatusMessage('');
     if (!provider && configs[0]) {
       setAiPreferences({ provider: `api:${configs[0].id}`, model: configs[0].models[0] ?? '' });
       return;
     }
-    if (!activeJobId)
-      setStatus(starting ? 'generating' : selectedConfig && model ? 'ready' : 'unavailable');
+    if (!activeJobId) setStatus(selectedConfig && model ? 'ready' : 'unavailable');
     if (
       selectedConfig &&
       (model !== aiPreferences.model || reasoningEffort !== aiPreferences.reasoningEffort)
@@ -113,7 +99,6 @@ export function useReaderConversation({
     }
   }, [
     activeJobId,
-    starting,
     aiPreferences.model,
     aiPreferences.reasoningEffort,
     configs,
@@ -128,47 +113,31 @@ export function useReaderConversation({
     setOptimisticUserMessage(null);
     setStreamingAssistant(null);
     setActiveJobId(null);
+    setStatusMessage('');
   }, [conversationId]);
-  const applyJob = useReaderConversationJobs({
-    book,
+  useEffect(() => {
+    const text = selectedText?.trim();
+    if (!text) return;
+    setQuote({ text, chapter: resourceTitle });
+    onClearSelectedText?.();
+    const animationFrame = window.requestAnimationFrame(() => inputRef.current?.focusEditor('end'));
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [onClearSelectedText, resourceTitle, selectedText]);
+  const applyJob = useContentConversationJobs({
+    resourceId,
     conversationId,
-    reportJob,
-    trackedJobs,
-    lastAppliedJobRef,
-    synchronizedNoteRevisionsRef,
-    noteSyncQueueRef,
     activeJobId,
     setActiveJobId,
     setStreamingAssistant,
     setStatus,
     setStatusMessage,
   });
-  useEffect(() => {
-    if (!selectedQuote) return;
-    setQuote(selectedQuote);
-    onClearSelectedText();
-    let attempts = 0;
-    let animationFrame = 0;
-    const focusInput = () => {
-      const input = inputRef.current;
-      if (!input?.getEditor()) {
-        attempts += 1;
-        if (attempts < 6) animationFrame = window.requestAnimationFrame(focusInput);
-        return;
-      }
-      input.focusEditor('end');
-    };
-    animationFrame = window.requestAnimationFrame(focusInput);
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [onClearSelectedText, selectedQuote]);
   const chooseModel = (selection: unknown) => {
-    if (status === 'generating') return;
-    if (!Array.isArray(selection) || selection.length < 2) return;
+    if (status === 'generating' || !Array.isArray(selection) || selection.length < 2) return;
     const nextProvider = String(selection[0]) as AiProvider;
     const nextModel = String(selection[1]);
     const nextConfig = configs.find((config) => nextProvider === `api:${config.id}`);
     const nextReasoningEffort = coerceAiReasoningEffort(reasoningEffort, nextConfig, nextModel);
-    setStatusMessage('');
     setAiPreferences({
       provider: nextProvider,
       model: nextModel,
@@ -195,7 +164,7 @@ export function useReaderConversation({
     const timestamp = Date.now();
     createChatSession({
       id: conversationId,
-      bookId: book.id,
+      bookId: resourceId,
       title: makeConversationTitle(question),
       ...(provider ? { provider } : {}),
       ...(model ? { model } : {}),
@@ -207,9 +176,8 @@ export function useReaderConversation({
   const send = async (content: string) => {
     const question = content.trim();
     if (!question) return;
-    const canRequest = status === 'ready' || status === 'error';
-    if (!canRequest) {
-      Toast.warning('请先在设置中添加模型并完成接口配置');
+    if (status !== 'ready' && status !== 'error') {
+      Toast.warning('请先在设置中添加并选择模型');
       return;
     }
     const quoteForMessage = quote;
@@ -218,7 +186,7 @@ export function useReaderConversation({
     const userMessageId = createUuid();
     const userMessage = {
       id: userMessageId,
-      bookId: book.id,
+      bookId: resourceId,
       conversationId,
       role: 'user' as const,
       content: question,
@@ -235,11 +203,9 @@ export function useReaderConversation({
     });
     addChatMessage(userMessage);
     setQuote(null);
-
     if (!selectedConfig || !model) return;
-    const temporaryAssistantId = `pending:${userMessageId}`;
     setStreamingAssistant({
-      id: temporaryAssistantId,
+      id: `pending:${userMessageId}`,
       role: 'assistant',
       content: [],
       status: 'queued',
@@ -247,47 +213,38 @@ export function useReaderConversation({
     });
     setStatus('generating');
     setStatusMessage('');
-    setStarting(conversationId, true);
-    const currentText = getCurrentText();
     try {
-      await getBookPassages(book);
       await waitForServerStateWrites();
-      const job = await startAiJob({
-        configId: selectedConfig.id,
-        model,
-        reasoningEffort: requestReasoningEffort(reasoningEffort),
-        bookId: book.id,
-        conversationId,
-        userMessage: {
-          id: userMessageId,
-          content: question,
-          ...(quoteForMessage ? { quote: quoteForMessage } : {}),
-          createdAt,
-        },
-        session: {
-          title: currentSession?.title || makeConversationTitle(question),
-          createdAt: currentSession?.createdAt ?? createdAt,
-        },
-        currentText,
-      });
-      applyJob(job);
+      applyJob(
+        await aiApi.startJob({
+          configId: selectedConfig.id,
+          model,
+          reasoningEffort: requestReasoningEffort(reasoningEffort),
+          bookId: resourceId,
+          resourceType: resource.type,
+          ...(resource.type === 'rss'
+            ? { rssItemId: resource.item.id }
+            : { videoId: resource.video.id }),
+          purpose: 'chat',
+          conversationId,
+          userMessage: {
+            id: userMessageId,
+            content: question,
+            ...(quoteForMessage ? { quote: quoteForMessage } : {}),
+            createdAt,
+          },
+          session: {
+            title: currentSession?.title || makeConversationTitle(question),
+            createdAt: currentSession?.createdAt ?? createdAt,
+          },
+          currentText: '',
+        }),
+      );
     } catch (error) {
       setStreamingAssistant((message) => (message ? { ...message, status: 'failed' } : null));
       setStatus('error');
       setStatusMessage(error instanceof Error ? error.message : '请求失败');
-      Toast.error(error instanceof Error ? error.message : '请求失败');
-    } finally {
-      setStarting(conversationId, false);
     }
-  };
-  const stop = () => {
-    if (!activeJobId) return;
-    void cancelAiJob(activeJobId)
-      .then(applyJob)
-      .catch((error) => {
-        setStatus('error');
-        setStatusMessage(error instanceof Error ? error.message : '停止任务失败');
-      });
   };
   const dialogueMessages = [
     ...chats.map((message) => ({
@@ -305,30 +262,23 @@ export function useReaderConversation({
       ? [streamingAssistant]
       : []),
   ];
-  const userTurns = dialogueMessages
-    .map((message, messageIndex) => ({ message, messageIndex }))
-    .filter(({ message }) => message.role === 'user');
   const canSend = status === 'ready' || status === 'error';
-  const jumpToUserTurn = (messageIndex: number) => {
-    const chatArea = chatAreaRef.current;
-    const list = chatArea?.querySelector<HTMLElement>('.semi-ai-chat-dialogue-list');
-    const target = list
-      ?.querySelectorAll<HTMLElement>('.semi-ai-chat-dialogue-wrapper')
-      .item(messageIndex);
-    if (!list || !target) return;
-    list.scrollTo({
-      top: Math.max(0, target.offsetTop - 8),
-      behavior: 'smooth',
-    });
+  const stop = () => {
+    if (!activeJobId) return;
+    void aiApi
+      .cancelJob(activeJobId)
+      .then(applyJob)
+      .catch((error) => {
+        setStatus('error');
+        setStatusMessage(error instanceof Error ? error.message : '停止任务失败');
+      });
   };
   return {
-    chatAreaRef,
-    userTurns,
-    jumpToUserTurn,
+    isVideo,
+    resourceTitle,
     dialogueMessages,
     provider,
     configs,
-    aiPreferences,
     inputRef,
     quote,
     setQuote,
@@ -336,12 +286,11 @@ export function useReaderConversation({
     status,
     send,
     stop,
-    visiblePromptTemplates,
-    selectedConfig,
     statusMessage,
     model,
-    reasoningEffort,
     chooseModel,
+    selectedConfig,
+    reasoningEffort,
     chooseReasoningEffort,
   };
 }

@@ -1,5 +1,5 @@
-import type { BookItem } from '../types';
-import { loadEpubFile } from './epubStorage';
+import { booksApi } from '../../api/books';
+import type { BookItem } from '../../types/domain';
 
 const pendingCoverRecoveries = new Map<string, Promise<string | undefined>>();
 
@@ -12,7 +12,7 @@ export function recoverMissingBookCover(book: BookItem) {
   const operation = (async () => {
     try {
       const { readEpubCover } = await import('./parseEpub');
-      const data = await loadEpubFile(book.id);
+      const data = await booksApi.loadEpubFile(book.id);
       if (!data) return '';
       return (await readEpubCover(data)) ?? '';
     } catch (error) {

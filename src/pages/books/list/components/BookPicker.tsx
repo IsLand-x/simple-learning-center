@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { IconSearch } from '@douyinfe/semi-icons';
 import { Button, Checkbox, Empty, Input, Typography } from '@douyinfe/semi-ui';
 import { AppFormModal } from '../../../../components/AppFormModal';
-import type { BookItem, BookList } from '../../../../util/types';
+import type { BookItem, BookList } from '../../../../types/domain';
 import { BookCover } from './BookCover';
 
 const { Text } = Typography;

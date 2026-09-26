@@ -1,7 +1,7 @@
 import { IconArrowLeft, IconDeleteStroked, IconMore } from '@douyinfe/semi-icons';
 import { Button, Dropdown, Empty, Progress, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ReaderDesktopToolbar } from './ReaderDesktopToolbar';
-import type { BookItem, ReaderPreferences } from '../../../../util/types';
+import type { BookItem, ReaderPreferences } from '../../../../types/domain';
 import { formatPageProgress } from '../store/model/readerPageModel';
 
 const { Text } = Typography;

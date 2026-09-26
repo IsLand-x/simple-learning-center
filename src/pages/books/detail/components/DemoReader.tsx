@@ -1,7 +1,7 @@
 import { Typography } from '@douyinfe/semi-ui';
 import { READER_FONT_STACKS } from '../../../../util/reading/readerFonts';
 import type { ReaderSurfaceProps, ReaderSurfaceHandle } from '../store/model/readerSurfaceTypes';
-import { useDemoReader } from '../store/useDemoReader';
+import { useDemoReader } from './useDemoReader';
 import { DemoHighlightedText } from './DemoHighlightedText';
 
 const { Text } = Typography;

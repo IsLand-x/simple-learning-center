@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { BookItem } from '../../../../../util/types';
+import type { BookItem } from '../../../../../types/domain';
 import {
   bookCoverTone,
   filterLibraryBooks,

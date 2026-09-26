@@ -7,7 +7,7 @@ import {
 } from '../../../../../util/epub/foliateReader';
 import { ensureReaderFontStylesheet } from '../../../../../util/reading/readerFonts';
 import { resolveReaderStyle } from '../../../../../util/reading/readerThemes';
-import type { HighlightItem, ReaderPreferences } from '../../../../../util/types';
+import type { HighlightItem, ReaderPreferences } from '../../../../../types/domain';
 import type { FoliateReaderStatus } from './useFoliateReaderLifecycle';
 import type { MobileSelectionController } from './runtimeTypes';
 

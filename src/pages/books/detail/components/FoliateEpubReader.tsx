@@ -16,7 +16,7 @@ import {
 } from './foliate/useFoliateReaderLifecycle';
 import { useFoliatePresentationSync } from './foliate/useFoliatePresentationSync';
 import { getReaderTextureStyle, resolveReaderStyle } from '../../../../util/reading/readerThemes';
-import type { ReaderSurfaceHandle, ReaderSurfaceProps } from './ReaderSurface';
+import type { ReaderSurfaceHandle, ReaderSurfaceProps } from '../store/model/readerSurfaceTypes';
 
 const { Text } = Typography;
 

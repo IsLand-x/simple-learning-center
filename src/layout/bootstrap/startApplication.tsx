@@ -1,12 +1,14 @@
+import { authApi } from '../../api/auth';
+import { AUTHENTICATION_REQUIRED_EVENT } from '../../api/errors';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { registerSW } from 'virtual:pwa-register';
 import { App } from '../index';
 import { applyAppTheme, readInitialThemeMode } from '../../util/appTheme';
-import { getAuthSession } from '../../util/api/auth';
+
 import { synchronizeLearningState } from '../../util/state/learningStateSync';
-import { AUTHENTICATION_REQUIRED_EVENT } from '../../util/api/serverApi';
+
 import { prepareServerState } from '../../util/state/serverStateStorage';
 import { LoginPage } from '../login/index';
 import { useLearningStore } from '../../util/state/useLearningStore';
@@ -82,7 +84,7 @@ export function startApplication(rootElement: HTMLElement) {
 
   async function renderApplication() {
     try {
-      const session = await getAuthSession();
+      const session = await authApi.getSession();
       if (!session.authenticated) {
         root.render(
           <React.StrictMode>

@@ -2,12 +2,12 @@ import { Button, Empty, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { IconDelete, IconBookmark } from '@douyinfe/semi-icons';
 import type { ReactNode } from 'react';
 import { ExpandableImage } from '../../../../../components/ExpandableImage';
-import { useResourceRemoval } from '../../store/hooks/useResourceRemoval';
+import { useResourceRemoval } from './useResourceRemoval';
 import {
   BookResourcesContext,
   useBookResources,
   useBookResourcesContext,
-} from '../../store/hooks/useBookResources';
+} from './useBookResources';
 import { bookResourceImageId } from '../../store/model/bookResources';
 import { BookResourceTitle } from './BookResourceTitle';
 

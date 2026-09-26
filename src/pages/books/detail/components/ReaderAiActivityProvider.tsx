@@ -1,5 +1,7 @@
+import { aiApi } from '../../../../api/ai';
+import type { AiJob } from '../../../../types/ai';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { listAiJobs, type AiJob } from '../../../../util/ai/aiJobs';
+
 import { useLearningStore } from '../../../../util/state/useLearningStore';
 import { ReaderAiActivityContext } from '../store/hooks/useReaderAiActivity';
 import { resolveReaderAiActivity } from '../store/model/readerAiActivity';
@@ -58,7 +60,7 @@ export function ReaderAiActivityProvider({
     const poll = async () => {
       const previousJobs = jobsRef.current;
       try {
-        const next = await listAiJobs(bookId);
+        const next = await aiApi.listJobs({ bookId: bookId });
         if (!disposed) {
           next.forEach(reportJob);
           const ids = new Set(next.map((job) => job.id));

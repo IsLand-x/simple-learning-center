@@ -1,3 +1,4 @@
+import type { StateDomain } from '../../types/state';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Spin } from '@douyinfe/semi-ui';
 import {
@@ -5,7 +6,7 @@ import {
   areServerStateDomainsActive,
   ensureServerStateDomains,
 } from '../../util/state/serverStateStorage';
-import type { StateDomain } from '../../util/state/stateDomains';
+
 import { useLearningStore } from '../../util/state/useLearningStore';
 
 interface StateDomainGateProps {

@@ -1,4 +1,4 @@
-import type { BookItem } from '../types';
+import type { BookItem } from '../../types/domain';
 
 const now = Date.now();
 

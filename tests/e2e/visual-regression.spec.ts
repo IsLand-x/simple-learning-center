@@ -39,6 +39,16 @@ for (const theme of ['light', 'dark']) {
         await page.goto(screen.path);
         await expect(page.locator(screen.ready)).toBeVisible({ timeout: 15_000 });
         await expect(page.locator('body')).toHaveAttribute('theme-mode', theme);
+        if (screen.name === 'library') {
+          // A progress/recency mismatch can fit below the pixel threshold; assert the fixture too.
+          const firstBook = page.locator('.book-card').first();
+          await expect(firstBook).toHaveAttribute(
+            'aria-label',
+            '打开《Designing Data-Intensive Applications》，已读 0%',
+          );
+          await expect(firstBook).toContainText('第一章 · 可靠、可扩展与可维护');
+          await expect(firstBook).toContainText('1 小时前');
+        }
         if (screen.name === 'rss') {
           await expect(page.getByRole('heading', { name: fixtureArticleTitle })).toBeVisible();
         }

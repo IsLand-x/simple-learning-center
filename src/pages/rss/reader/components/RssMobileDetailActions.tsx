@@ -8,7 +8,7 @@ import {
   IconSetting,
   IconVideo,
 } from '@douyinfe/semi-icons';
-import type { RssDailyDigest, RssFeed, RssItem } from '../../../../util/types';
+import type { RssDailyDigest, RssFeed, RssItem } from '../../../../types/domain';
 
 export function RssMobileDetailActions({
   articleFetching,

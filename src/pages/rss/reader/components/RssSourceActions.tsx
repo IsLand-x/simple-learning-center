@@ -7,7 +7,7 @@ import {
   IconMore,
   IconRefresh,
 } from '@douyinfe/semi-icons';
-import type { RssFeed, RssFolder } from '../../../../util/types';
+import type { RssFeed, RssFolder } from '../../../../types/domain';
 
 export function RssSourceActions({
   feeds,

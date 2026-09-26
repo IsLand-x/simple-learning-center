@@ -1,3 +1,7 @@
+import { rssApi } from '../../../../api/rss';
+import { fetchedItemsForFeed } from '../../../../util/rss/feedItems';
+import type { RssSourceInput } from '../../../../types/rss';
+import { ServerApiError } from '../../../../api/errors';
 import {
   useCallback,
   useState,
@@ -9,14 +13,7 @@ import {
 } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { confirmDialog } from '../../../../util/confirmDialog';
-import {
-  fetchRssArticle,
-  fetchRssSource,
-  fetchedItemsForFeed,
-  resolveRssSource,
-  type RssSourceInput,
-} from '../../../../util/rss/rssApi';
-import { ServerApiError } from '../../../../util/api/serverApi';
+
 import { createUuid } from '../../../../util/uuid';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
 import type {
@@ -25,7 +22,7 @@ import type {
   RssFolder,
   RssItem,
   RssSourceErrorCode,
-} from '../../../../util/types';
+} from '../../../../types/domain';
 import { normalizedFeed, rssSourceKey, type RssSourceKind } from './model/rssPageModel';
 
 const RSS_AUTO_ARTICLE_FETCH_LIMIT = 6;
@@ -68,7 +65,7 @@ export function useRssSourceOperations({
     async (feed: RssFeed) => {
       setRefreshingIds((current) => new Set(current).add(feed.id));
       try {
-        const result = await fetchRssSource(feed.source);
+        const result = await rssApi.fetchSource({ source: feed.source });
         const fetchedItems = fetchedItemsForFeed(feed.id, result);
         if (feed.fetchFullContent) {
           const existingItems = new Map(
@@ -82,7 +79,7 @@ export function useRssSourceOperations({
             .slice(0, RSS_AUTO_ARTICLE_FETCH_LIMIT);
           for (const item of candidates) {
             try {
-              const article = await fetchRssArticle(item.link);
+              const article = await rssApi.fetchArticle({ url: item.link });
               Object.assign(item, {
                 fullContentHtml: article.contentHtml,
                 fullContentText: article.contentText,
@@ -135,7 +132,7 @@ export function useRssSourceOperations({
       }
       setFetchingArticleIds((current) => new Set(current).add(item.id));
       try {
-        const article = await fetchRssArticle(item.link);
+        const article = await rssApi.fetchArticle({ url: item.link });
         updateRssItem(item.id, {
           fullContentHtml: article.contentHtml,
           fullContentText: article.contentText,
@@ -197,7 +194,7 @@ export function useRssSourceOperations({
         sourceKind === 'bilibili-weekly'
           ? { kind: sourceKind }
           : ({ kind: sourceKind, input } as RssSourceInput);
-      const { source, result } = await resolveRssSource(request);
+      const { source, result } = await rssApi.resolveSource(request);
       const duplicate = feeds.find((feed) => rssSourceKey(feed.source) === rssSourceKey(source));
       if (duplicate) {
         Toast.warning('这个订阅源已经存在');
@@ -341,7 +338,7 @@ export function useRssSourceOperations({
             sourceKindFromOpml === 'bilibili-weekly'
               ? { kind: sourceKindFromOpml }
               : ({ kind: sourceKindFromOpml, input: sourceInput } as RssSourceInput);
-          const { source, result } = await resolveRssSource(request);
+          const { source, result } = await rssApi.resolveSource(request);
           if (
             useLearningStore
               .getState()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { OpenAICompatibleConfig } from '../types';
+import type { OpenAICompatibleConfig } from '../../types/domain';
 import {
   coerceAiReasoningEffort,
   getAiReasoningProfile,

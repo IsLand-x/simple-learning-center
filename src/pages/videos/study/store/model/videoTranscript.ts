@@ -1,4 +1,4 @@
-import type { VideoCaptionCue } from '../../../../../util/types';
+import type { VideoCaptionCue } from '../../../../../types/domain';
 
 export type VideoPanel = 'transcript' | 'ai';
 export type TranscriptMode = 'original' | 'chinese' | 'bilingual';

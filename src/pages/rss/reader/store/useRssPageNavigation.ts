@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { getRssVideoPresentation } from './rssVideo';
-import type { RssDailyDigest, RssFeed, RssItem } from '../../../../util/types';
+import type { RssDailyDigest, RssFeed, RssItem } from '../../../../types/domain';
 import type { RssMobilePanel, RssMobileView } from './model/mobileWorkspace';
 import {
   RSS_SMART_SOURCE_IDS,

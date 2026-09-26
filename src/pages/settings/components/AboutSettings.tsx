@@ -1,7 +1,8 @@
+import { settingsApi } from '../../../api/settings';
+import type { SystemInfo } from '../../../types/settings';
 import { useEffect, useState } from 'react';
 import { Button, Typography } from '@douyinfe/semi-ui';
 import { appMetadata, formatAppUpdatedAt } from '../../../util/appMetadata';
-import { requestSystemInfo, type SystemInfo } from '../store/systemInfo';
 
 const { Title, Text } = Typography;
 const memorySize = (bytes: number) =>
@@ -17,7 +18,8 @@ export function AboutSettings() {
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    void requestSystemInfo(controller.signal)
+    void settingsApi
+      .getSystemInfo(controller.signal)
       .then((result) => {
         if (!controller.signal.aborted) setInfo(result);
       })

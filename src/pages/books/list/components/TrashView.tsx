@@ -1,11 +1,12 @@
+import { booksApi } from '../../../../api/books';
 import { useMemo, useState } from 'react';
 import { IconDeleteStroked, IconRestoreStroked } from '@douyinfe/semi-icons';
 import { Button, Empty, Toast, Typography } from '@douyinfe/semi-ui';
 import { confirmDialog } from '../../../../util/confirmDialog';
-import { permanentlyDeleteBook, restoreBookFromTrash } from '../../../../util/epub/epubStorage';
+
 import { formatRelativeTime } from '../../../../util/format';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { TrashedBookItem } from '../../../../util/types';
+import type { TrashedBookItem } from '../../../../types/domain';
 import { trashDaysRemaining } from '../store/model/libraryView';
 import { BookCover } from './BookCover';
 
@@ -30,7 +31,7 @@ export function TrashView({ trashedBooks }: TrashViewProps) {
   const restore = async (item: TrashedBookItem) => {
     setPendingAction({ bookId: item.book.id, kind: 'restore' });
     try {
-      await restoreBookFromTrash(item.book.id);
+      await booksApi.restoreFromTrash(item.book.id);
       restoreBook(item.book.id);
       Toast.success(`已恢复《${item.book.title}》`);
     } catch (error) {
@@ -52,7 +53,7 @@ export function TrashView({ trashedBooks }: TrashViewProps) {
       onOk: async () => {
         setPendingAction({ bookId: item.book.id, kind: 'delete' });
         try {
-          const result = await permanentlyDeleteBook(item.book.id);
+          const result = await booksApi.permanentlyDelete(item.book.id);
           deleteBookPermanently(item.book.id, result.deletedAt);
           Toast.success('书籍已彻底删除');
         } catch (error) {

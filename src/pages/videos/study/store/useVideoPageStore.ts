@@ -1,11 +1,12 @@
+import { videosApi } from '../../../../api/videos';
 import { Toast } from '@douyinfe/semi-ui';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMediaQuery } from '../../../../util/browser/useMediaQuery';
 import { confirmDialog } from '../../../../util/confirmDialog';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { VideoResource } from '../../../../util/types';
-import { importYouTubeVideo } from '../../../../util/video/youtubeVideos';
+import type { VideoResource } from '../../../../types/domain';
+
 import type { YouTubePlayerHandle } from '../components/YouTubePlayer';
 import { type TranscriptMode, type VideoPanel } from './model/videoTranscript';
 
@@ -102,7 +103,7 @@ export function useVideoPageStore() {
     if (!videoUrl.trim()) return;
     setSubmitting(true);
     try {
-      const imported = await importYouTubeVideo(videoUrl.trim());
+      const imported = await videosApi.importYouTubeVideo({ url: videoUrl.trim() });
       const existing = videos.find((video) => video.youtubeVideoId === imported.youtubeVideoId);
       const timestamp = Date.now();
       const video: VideoResource = {

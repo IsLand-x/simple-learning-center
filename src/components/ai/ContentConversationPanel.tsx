@@ -1,8 +1,8 @@
-import { useContentConversation } from '../../util/ai/useContentConversation';
+import { useContentConversation } from './useContentConversation';
 import { AIChatInput, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconArticle, IconVideo } from '@douyinfe/semi-icons';
 import { useLearningStore } from '../../util/state/useLearningStore';
-import type { AiProvider, RssItem, VideoResource } from '../../util/types';
+import type { AiProvider, RssItem, VideoResource } from '../../types/domain';
 import {
   AiConversationDialogue,
   AiModelSelector,
@@ -26,7 +26,7 @@ function providerLabel(
   return configs.find((config) => provider === `api:${config.id}`)?.name ?? 'AI';
 }
 
-function LearningResourceAiPanel({
+export function ContentConversationPanel({
   resource,
   selectedText,
   onClearSelectedText,
@@ -149,33 +149,5 @@ function LearningResourceAiPanel({
         className="reader-ai-input rss-ai-input"
       />
     </div>
-  );
-}
-
-export function RssAiPanel(props: {
-  item: RssItem;
-  selectedText?: string;
-  onClearSelectedText?: () => void;
-}) {
-  return (
-    <LearningResourceAiPanel
-      resource={{ type: 'rss', item: props.item }}
-      selectedText={props.selectedText}
-      onClearSelectedText={props.onClearSelectedText}
-    />
-  );
-}
-
-export function VideoAiPanel(props: {
-  video: VideoResource;
-  selectedText?: string;
-  onClearSelectedText?: () => void;
-}) {
-  return (
-    <LearningResourceAiPanel
-      resource={{ type: 'video', video: props.video }}
-      selectedText={props.selectedText}
-      onClearSelectedText={props.onClearSelectedText}
-    />
   );
 }

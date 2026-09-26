@@ -6,7 +6,8 @@
     "server/index.ts",
     "server/dev.ts",
     "server/*.test.mjs",
-    "tests/fixtures/generate-reader-regression.mjs"
+    "tests/fixtures/generate-reader-regression.mjs",
+    "tests/browser/run.mjs"
   ],
   "ignore": ["server-dist/**"]
 }

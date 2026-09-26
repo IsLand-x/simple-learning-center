@@ -9,7 +9,7 @@ import type {
 import { getReaderFontStylesheet, READER_FONT_STACKS } from '../reading/readerFonts';
 import { createReaderTextSelectionCursor } from '../reading/readerTextCursor';
 import { getReaderTextureStyle, resolveReaderStyle } from '../reading/readerThemes';
-import type { HighlightItem, ReaderPreferences } from '../types';
+import type { HighlightItem, ReaderPreferences } from '../../types/domain';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const COMMENT_BADGE_SIZE = 20;

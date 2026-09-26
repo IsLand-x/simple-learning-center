@@ -15,6 +15,7 @@
     "test:server": "npm run build:server && node --test --test-concurrency=1 server-dist/*.test.mjs",
     "test:web": "vitest run",
     "test:e2e": "npm run build:server && playwright test",
+    "test:e2e:container": "npm run build:server && node tests/browser/run.mjs",
     "check:server": "tsc --noEmit -p tsconfig.server.json",
     "check:boundaries": "node scripts/check-module-boundaries.mjs",
     "check:dead-code": "knip --reporter compact",
@@ -22,7 +23,7 @@
     "format:check": "prettier --check package.json knip.json .prettierrc.json eslint.config.js vitest.config.ts playwright.config.ts tsconfig.server.json scripts server contracts tests src",
     "build": "npm run build:server && tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "verify": "npm run lint && npm run format:check && npm run check:boundaries && npm run check:dead-code && npm test && npm run build",
-    "verify:full": "npm run verify && npm run test:e2e",
+    "verify:full": "npm run verify && npm run test:e2e:container",
     "preview": "node server-dist/index.js",
     "start": "npm run build && node server-dist/index.js",
     "build:server": "node scripts/build-server.mjs"

@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { Dropdown } from '@douyinfe/semi-ui';
 import { IconBookmark, IconCheckList, IconMailStroked } from '@douyinfe/semi-icons';
-import type { RssItem } from '../../../../util/types';
+import type { RssItem } from '../../../../types/domain';
 import type { RssItemMenuState } from '../store/menuTypes';
 
 export function RssItemContextMenu({

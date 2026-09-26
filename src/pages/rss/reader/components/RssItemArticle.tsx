@@ -9,7 +9,7 @@ import { Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import { IconAIStrokedLevel1, IconLanguage } from '@douyinfe/semi-icons';
 import { CspSafeMarkdown } from '../../../../components/ai/CspSafeChatContent';
 import type { RssVideoPresentation } from '../store/rssVideo';
-import type { RssFeed, RssItem } from '../../../../util/types';
+import type { RssFeed, RssItem } from '../../../../types/domain';
 import { feedTypeLabels, itemDateTime } from '../store/model/rssPageModel';
 import { HighlightedText } from './HighlightedText';
 

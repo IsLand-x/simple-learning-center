@@ -1,7 +1,7 @@
 import type { View as FoliateView } from 'foliate-js/view.js';
 import { expandFoliateHighlightRects } from '../../../../../util/epub/foliateReader';
 import { resolveReaderStyle } from '../../../../../util/reading/readerThemes';
-import type { HighlightItem, ReaderPreferences } from '../../../../../util/types';
+import type { HighlightItem, ReaderPreferences } from '../../../../../types/domain';
 
 export function hasActiveTextSelection(selection: Selection | null | undefined) {
   return Boolean(selection && selection.rangeCount > 0 && !selection.isCollapsed);

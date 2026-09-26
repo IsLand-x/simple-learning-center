@@ -6,7 +6,7 @@ import {
   IconFolderOpen,
   IconRefresh,
 } from '@douyinfe/semi-icons';
-import type { RssFeed, RssItem } from '../../../../util/types';
+import type { RssFeed, RssItem } from '../../../../types/domain';
 import type { RssSourceMenuState } from '../store/menuTypes';
 
 export function RssSourceContextMenu({

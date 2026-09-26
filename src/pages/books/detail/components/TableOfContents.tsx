@@ -1,7 +1,7 @@
 import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconBookOpenStroked } from '@douyinfe/semi-icons';
 import { useEffect, useRef, type KeyboardEvent } from 'react';
-import type { TocItem } from '../../../../util/types';
+import type { TocItem } from '../../../../types/domain';
 
 const { Text } = Typography;
 

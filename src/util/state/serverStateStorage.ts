@@ -1,28 +1,25 @@
+import { readingApi } from '../../api/reading';
+import { booksApi } from '../../api/books';
+import { ServerApiError } from '../../api/errors';
+import type {
+  LearningData,
+  PersistedStateEnvelope,
+  StateDomain,
+  StateDomainSnapshot,
+} from '../../types/state';
+import type { BookSearchIndex } from '../../types/reading';
 import type { StateStorage } from 'zustand/middleware';
-import type { BookItem } from '../types';
-import {
-  loadLegacyBookSearchIndex,
-  loadLegacyEpubFile,
-  saveBookSearchIndex,
-  saveEpubFile,
-} from '../epub/epubStorage';
-import { ServerApiError, serverRequest } from '../api/serverApi';
+import type { BookItem } from '../../types/domain';
+import { loadLegacyBookSearchIndex, loadLegacyEpubFile } from '../epub/epubStorage';
+import { stateApi } from '../../api/state';
 import {
   ALL_STATE_DOMAINS,
   LEARNING_STORE_VERSION,
   STATE_DOMAIN_FIELDS,
   stateDomainsForPath,
-  type StateDomain,
 } from './stateDomains';
 
 const STATE_STORAGE_KEY = 'learning-center-state-v1';
-
-interface PersistedStateEnvelope {
-  state?: Record<string, unknown> & {
-    books?: BookItem[];
-  };
-  version?: number;
-}
 
 let prepared = false;
 let preparedState: string | null = null;
@@ -54,37 +51,34 @@ function mergePreparedState(snapshot: PersistedStateEnvelope) {
   });
 }
 
-function stateDomainSnapshot(envelope: PersistedStateEnvelope, domain: StateDomain) {
-  const state: Record<string, unknown> = {};
-  for (const field of STATE_DOMAIN_FIELDS[domain]) {
+function stateDomainSnapshot(
+  envelope: PersistedStateEnvelope,
+  domain: StateDomain,
+): StateDomainSnapshot {
+  const state: Partial<LearningData> = {};
+  const copyField = <Field extends keyof LearningData>(field: Field) => {
     if (envelope.state && Object.hasOwn(envelope.state, field))
       state[field] = envelope.state[field];
-  }
+  };
+  for (const field of STATE_DOMAIN_FIELDS[domain]) copyField(field);
   return {
     state,
-    version: Number.isInteger(envelope.version) ? envelope.version : 0,
+    version: Number.isInteger(envelope.version) ? envelope.version! : 0,
   };
 }
 
 async function fetchStateDomain(domain: StateDomain) {
   const etag = domainEtags.get(domain);
   const localRevision = domainLocalRevisions.get(domain) ?? 0;
-  const response = await serverRequest(
-    `/api/state/${domain}`,
-    {
-      ...(etag ? { headers: { 'If-None-Match': etag } } : {}),
-    },
-    [304],
-  );
+  const response = await stateApi.readDomain(domain, etag);
   if (response.status === 304 || response.status === 204) {
     loadedDomains.add(domain);
     return;
   }
-  const rawState = await response.text();
-  const snapshot = parseStateEnvelope(rawState);
+  const snapshot = response.snapshot;
   loadedDomains.add(domain);
   if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) return;
-  const nextEtag = response.headers.get('ETag');
+  const nextEtag = response.etag;
   if (nextEtag) domainEtags.set(domain, nextEtag);
   domainPayloads.set(domain, JSON.stringify(stateDomainSnapshot(snapshot, domain)));
   mergePreparedState(snapshot);
@@ -147,18 +141,14 @@ function parseLegacyState(rawState: string) {
 async function uploadLegacyBookData(book: BookItem) {
   if (book.kind !== 'epub') return;
   const data = await loadLegacyEpubFile(book.id);
-  if (data) await saveEpubFile(book.id, data);
-  const index = await loadLegacyBookSearchIndex<unknown>(book.id);
-  if (index) await saveBookSearchIndex(book.id, index);
+  if (data) await booksApi.saveEpubFile(book.id, data);
+  const index = await loadLegacyBookSearchIndex<BookSearchIndex>(book.id);
+  if (index) await readingApi.saveSearchIndex(book.id, index);
 }
 
 async function initializeServerState(rawState: string) {
   try {
-    await serverRequest('/api/state?initialize=1', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: rawState,
-    });
+    await stateApi.initialize(parseLegacyState(rawState));
   } catch (error) {
     if (!(error instanceof ServerApiError) || error.status !== 409) throw error;
   }
@@ -227,26 +217,22 @@ export const serverStateStorage: StateStorage = {
   setItem: async (_name, value) => {
     const envelope = parseStateEnvelope(value);
     const domains = [...activeDomains];
-    const domainBodies = new Map<StateDomain, string>();
+    const domainBodies = new Map<StateDomain, { body: string; snapshot: StateDomainSnapshot }>();
     for (const domain of domains) {
       const snapshot = stateDomainSnapshot(envelope, domain);
       const body = JSON.stringify(snapshot);
       mergePreparedState(snapshot);
       if ((domainQueuedPayloads.get(domain) ?? domainPayloads.get(domain)) === body) continue;
-      domainBodies.set(domain, body);
+      domainBodies.set(domain, { body, snapshot });
       domainQueuedPayloads.set(domain, body);
       domainLocalRevisions.set(domain, (domainLocalRevisions.get(domain) ?? 0) + 1);
     }
     stateWriteQueue = stateWriteQueue
       .catch(() => undefined)
       .then(async () => {
-        for (const [domain, body] of domainBodies) {
+        for (const [domain, { body, snapshot }] of domainBodies) {
           try {
-            await serverRequest(`/api/state/${domain}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body,
-            });
+            await stateApi.writeDomain(domain, snapshot);
             domainPayloads.set(domain, body);
           } finally {
             if (domainQueuedPayloads.get(domain) === body) domainQueuedPayloads.delete(domain);

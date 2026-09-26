@@ -1,10 +1,3 @@
-export interface BookImageResource {
-  imageId: string;
-  title: string;
-  savedAt: number;
-  url: string;
-}
-
 export function bookResourceImageId(src: string | undefined, bookId: string) {
   const prefix = `/api/books/${encodeURIComponent(bookId)}/knowledge-maps/`;
   if (!src?.startsWith(prefix)) return null;

@@ -1,11 +1,12 @@
+import { videosApi } from '../../../../api/videos';
 import { Toast } from '@douyinfe/semi-ui';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { synchronizeLearningState } from '../../../../util/state/learningStateSync';
 import { ensureReaderFontStylesheet } from '../../../../util/reading/readerFonts';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { VideoResource } from '../../../../util/types';
-import { importYouTubeVideo } from '../../../../util/video/youtubeVideos';
+import type { VideoResource } from '../../../../types/domain';
+
 import { type RssItemMenuState, type RssSourceMenuState } from './menuTypes';
 import { type RssSidePanel, type TimeRange } from './model/rssPageModel';
 import { useRssAutoSummary, useRssTranslation } from './useRssAiTasks';
@@ -326,7 +327,7 @@ export function useRssPageStore() {
     if (!selectedItem || selectedFeed?.source.kind !== 'youtube-channel') return;
     setVideoImporting(true);
     try {
-      const imported = await importYouTubeVideo(selectedItem.link);
+      const imported = await videosApi.importYouTubeVideo({ url: selectedItem.link });
       const existing = videoResources.find(
         (video) => video.youtubeVideoId === imported.youtubeVideoId,
       );

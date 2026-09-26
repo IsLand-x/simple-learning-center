@@ -1,7 +1,7 @@
 import { Button, ButtonGroup, Empty } from '@douyinfe/semi-ui';
 import { IconBookmark } from '@douyinfe/semi-icons';
 import { getRssVideoPresentation } from '../store/rssVideo';
-import type { RssDailyDigest, RssFeed, RssItem } from '../../../../util/types';
+import type { RssDailyDigest, RssFeed, RssItem } from '../../../../types/domain';
 import {
   digestPreview,
   digestDateLabel,

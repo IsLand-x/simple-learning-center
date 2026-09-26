@@ -1,7 +1,9 @@
+import { aiApi } from '../../api/ai';
+import type { AiJob } from '../../types/ai';
 import { useCallback, useEffect } from 'react';
-import { getAiJob, listAiJobs, watchAiJob, type AiJob } from './aiJobs';
-import { useLearningStore } from '../state/useLearningStore';
-import type { ConversationJobControls } from './conversationJobTypes';
+
+import { useLearningStore } from '../../util/state/useLearningStore';
+import type { ConversationJobControls } from '../../util/ai/conversationJobTypes';
 
 export function useContentConversationJobs({
   resourceId,
@@ -66,7 +68,8 @@ export function useContentConversationJobs({
   );
   useEffect(() => {
     let disposed = false;
-    void listAiJobs(resourceId, conversationId)
+    void aiApi
+      .listJobs({ bookId: resourceId, conversationId: conversationId })
       .then((jobs) => {
         if (disposed) return;
         jobs
@@ -92,7 +95,7 @@ export function useContentConversationJobs({
     const controller = new AbortController();
     const poll = async () => {
       try {
-        const job = await getAiJob(activeJobId);
+        const job = await aiApi.getJob(activeJobId);
         if (disposed) return;
         applyJob(job);
         if (job.status === 'queued' || job.status === 'running')
@@ -110,16 +113,18 @@ export function useContentConversationJobs({
       void poll();
     };
     timer = window.setTimeout(startPolling, 1_000);
-    void watchAiJob(
-      activeJobId,
-      (job) => {
-        if (!disposed) applyJob(job);
-      },
-      controller.signal,
-    ).catch((error) => {
-      if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
-      startPolling();
-    });
+    void aiApi
+      .watchJob(
+        activeJobId,
+        (job) => {
+          if (!disposed) applyJob(job);
+        },
+        controller.signal,
+      )
+      .catch((error) => {
+        if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
+        startPolling();
+      });
     return () => {
       disposed = true;
       controller.abort();

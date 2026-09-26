@@ -2,7 +2,7 @@ import { type CSSProperties } from 'react';
 import { Button, Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import { IconAIStrokedLevel1, IconInbox } from '@douyinfe/semi-icons';
 import { CspSafeMarkdown } from '../../../../components/ai/CspSafeChatContent';
-import type { RssDailyDigest, RssFeed, RssItem } from '../../../../util/types';
+import type { RssDailyDigest, RssFeed, RssItem } from '../../../../types/domain';
 import { digestDateLabel, itemDateTime, itemTime, localDateKey } from '../store/model/rssPageModel';
 
 const { Text, Title } = Typography;

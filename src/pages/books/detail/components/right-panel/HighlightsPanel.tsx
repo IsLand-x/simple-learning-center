@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Dropdown, Empty, Typography } from '@douyinfe/semi-ui';
 import { IconDeleteStroked } from '@douyinfe/semi-icons';
 import { useLearningStore } from '../../../../../util/state/useLearningStore';
-import type { HighlightItem } from '../../../../../util/types';
+import type { HighlightItem } from '../../../../../types/domain';
 
 const { Text } = Typography;
 

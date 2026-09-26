@@ -3,7 +3,7 @@ import { useReaderAiActivity } from '../../store/hooks/useReaderAiActivity';
 import { readerAiActivityLabel } from '../../store/model/readerAiActivity';
 import { Button } from '@douyinfe/semi-ui';
 import { ActivityRailButton } from '../../../../../components/layout/ActivityRailButton';
-import type { RightPanel } from '../../../../../util/types';
+import type { RightPanel } from '../../../../../types/domain';
 import {
   activityLabel,
   mobilePanelItems,

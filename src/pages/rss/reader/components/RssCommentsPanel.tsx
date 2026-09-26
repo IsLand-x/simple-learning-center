@@ -1,6 +1,6 @@
 import { Empty, Typography } from '@douyinfe/semi-ui';
 import { formatRelativeTime } from '../../../../util/format';
-import type { RssAnnotation } from '../../../../util/types';
+import type { RssAnnotation } from '../../../../types/domain';
 
 const { Text } = Typography;
 

@@ -25,16 +25,43 @@ async function collect(directory) {
   ).flat();
 }
 
+const files = (
+  await Promise.all(['src', 'server', 'contracts'].map((name) => collect(resolve(root, name))))
+).flat();
+const pageDirectories = files
+  .map(normalize)
+  .filter(
+    (path) =>
+      path.startsWith('src/pages/') &&
+      path.endsWith('/index.tsx') &&
+      !/\/(?:components|store)\//.test(path),
+  )
+  .map((path) => path.slice(0, -'/index.tsx'.length))
+  .sort((left, right) => right.length - left.length);
+
 function pageScope(path) {
-  return path.match(
-    /^src\/pages\/(books\/(?:list|detail)|rss\/reader|videos\/study|settings)(?:\/|$)/,
-  )?.[1];
+  return pageDirectories.find((directory) => path.startsWith(directory + '/'));
 }
 
 function validate(file, target) {
   const source = normalize(file);
   const destination = normalize(target);
   const reject = (message) => violations.push(source + ': ' + message + ' (' + destination + ')');
+  if (
+    source.startsWith('src/api/') &&
+    !destination.startsWith('src/api/') &&
+    !destination.startsWith('src/types/') &&
+    !destination.startsWith('contracts/')
+  )
+    reject('API 服务只依赖传输层与请求/响应类型，不依赖 UI 或状态编排');
+  if (
+    source.startsWith('src/types/') &&
+    !destination.startsWith('src/types/') &&
+    !destination.startsWith('contracts/')
+  )
+    reject('请求/响应类型不得反向依赖 API、状态或界面');
+  if (destination === 'src/api/transport.ts' && !source.startsWith('src/api/'))
+    reject('请求必须通过业务 API class，页面和工具不得直接调用传输层');
   if (source.startsWith('src/util/') && /^src\/(?:pages|components|layout)\//.test(destination))
     reject('跨页面工具与持久化核心不得依赖页面或界面');
   if (source.startsWith('src/components/') && /^src\/(?:pages|layout)\//.test(destination))
@@ -60,14 +87,29 @@ function validate(file, target) {
     reject('通用基础设施不得依赖业务模块');
 }
 
-for (const file of (
-  await Promise.all(['src', 'server', 'contracts'].map((name) => collect(resolve(root, name))))
-).flat()) {
+for (const file of files) {
   const source = await readFile(file, 'utf8');
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const edges = new Set();
   graph.set(file, edges);
   function inspect(node) {
+    if (
+      ts.isCallExpression(node) &&
+      normalize(file).startsWith('src/') &&
+      !normalize(file).startsWith('src/api/') &&
+      !/\.test\.tsx?$/.test(file)
+    ) {
+      const expression = node.expression;
+      const directRequest =
+        ts.isIdentifier(expression) && ['fetch', 'serverRequest'].includes(expression.text);
+      const globalRequest =
+        ts.isPropertyAccessExpression(expression) &&
+        expression.name.text === 'fetch' &&
+        ts.isIdentifier(expression.expression) &&
+        ['window', 'globalThis'].includes(expression.expression.text);
+      if (directRequest || globalRequest)
+        violations.push(normalize(file) + ': HTTP 请求必须放入对应业务 API class');
+    }
     let specifier;
     let typeOnly = false;
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {

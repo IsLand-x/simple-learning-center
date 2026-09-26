@@ -1,7 +1,8 @@
+import type { FetchedRssFeed } from '../../../../../types/rss';
 import type { RssMobilePanel, RssMobileView } from './mobileWorkspace';
 import { findRssSearchMatches } from '../rssContent';
-import type { FetchedRssFeed } from '../../../../../util/rss/rssApi';
-import type { RssFeed, RssFeedType, RssItem, RssSource } from '../../../../../util/types';
+
+import type { RssFeed, RssFeedType, RssItem, RssSource } from '../../../../../types/domain';
 
 export type TimeRange = 'today' | 'seven-days' | 'all';
 export type RssSidePanel = 'ai' | 'timeline' | 'comments' | null;

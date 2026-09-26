@@ -1,4 +1,4 @@
-import type { BookItem, HighlightItem, ReaderSelection } from '../../../../../util/types';
+import type { BookItem, HighlightItem, ReaderSelection } from '../../../../../types/domain';
 
 const PENDING_COMMENT_HIGHLIGHT_ID = 'pending-comment-highlight';
 

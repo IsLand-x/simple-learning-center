@@ -55,7 +55,7 @@ import type {
   HighlightItem,
   ReaderHighlightTarget,
   ReaderPreferences,
-} from '../../../../../util/types';
+} from '../../../../../types/domain';
 
 type MutableReaderRef<T> = { current: T };
 

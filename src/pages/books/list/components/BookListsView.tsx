@@ -9,7 +9,7 @@ import {
 } from '@hello-pangea/dnd';
 import { confirmDialog } from '../../../../util/confirmDialog';
 import { useLearningStore } from '../../../../util/state/useLearningStore';
-import type { BookItem, BookList } from '../../../../util/types';
+import type { BookItem, BookList } from '../../../../types/domain';
 import { BookListDetail } from './BookListDetail';
 import { BookListEditor } from './BookListEditor';
 import { BookListNavigation } from './BookListNavigation';

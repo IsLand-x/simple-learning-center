@@ -9,9 +9,10 @@ import type {
   ReaderPreferences,
   RightPanel,
   TocItem,
-} from '../../../../util/types';
-import { ReaderActivityBar, ReaderRightPanel } from './ReaderRightSidebar';
-import type { ReaderSurfaceHandle } from './ReaderSurface';
+} from '../../../../types/domain';
+import { ReaderActivityBar } from './right-panel/ReaderActivityBar';
+import { ReaderRightPanel } from './right-panel/ReaderRightPanel';
+import type { ReaderSurfaceHandle } from '../store/model/readerSurfaceTypes';
 import { TableOfContents } from './TableOfContents';
 
 interface ReaderWorkspaceProps {

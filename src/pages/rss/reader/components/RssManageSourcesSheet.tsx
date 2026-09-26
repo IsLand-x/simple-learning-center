@@ -1,7 +1,7 @@
 import { Button, Empty, Input, Select, SideSheet, Switch, Typography } from '@douyinfe/semi-ui';
 import { IconDeleteStroked, IconPlus } from '@douyinfe/semi-icons';
 import { formatRelativeTime } from '../../../../util/format';
-import type { RssFeed, RssFeedType, RssFolder } from '../../../../util/types';
+import type { RssFeed, RssFeedType, RssFolder } from '../../../../types/domain';
 import { sourceTypeLabel } from '../store/model/rssPageModel';
 
 const { Text } = Typography;

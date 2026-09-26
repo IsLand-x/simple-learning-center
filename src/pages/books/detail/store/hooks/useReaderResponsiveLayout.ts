@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
-import type { MobileReaderPanel } from '../../components/ReaderRightSidebar';
+import type { MobileReaderPanel } from '../model/rightPanelModel';
 
 export function useReaderResponsiveLayout({
   workspaceRef,

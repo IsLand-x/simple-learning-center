@@ -6,7 +6,7 @@ import type {
   ReaderPreferences,
   RssDigestSettings,
   WebSearchConfig,
-} from '../types';
+} from '../../types/domain';
 import type { LearningState } from './learningState';
 
 export const defaultReaderPreferences: ReaderPreferences = {

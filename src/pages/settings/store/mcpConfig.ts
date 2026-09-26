@@ -1,12 +1,3 @@
-import { serverRequest } from '../../../util/api/serverApi';
-
-export async function readMcpToken() {
-  return (await serverRequest('/api/settings/openapi-token/mcp')).json() as Promise<{
-    configured: boolean;
-    token: string | null;
-  }>;
-}
-
 export function mcpConfig(origin: string, token: string) {
   return JSON.stringify(
     {

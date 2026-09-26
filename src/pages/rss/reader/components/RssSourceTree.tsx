@@ -19,7 +19,7 @@ import {
   IconMailStroked,
   IconPlus,
 } from '@douyinfe/semi-icons';
-import type { RssFeed, RssFolder } from '../../../../util/types';
+import type { RssFeed, RssFolder } from '../../../../types/domain';
 import {
   RSS_FEED_DRAG_PREFIX,
   RSS_FEED_DRAG_TYPE,

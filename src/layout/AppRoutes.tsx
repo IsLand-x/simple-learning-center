@@ -1,3 +1,4 @@
+import type { StateDomain } from '../types/state';
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Spin } from '@douyinfe/semi-ui';
 import { Navigate, Route, Routes } from 'react-router-dom';
@@ -9,7 +10,6 @@ import {
   RSS_STATE_DOMAINS,
   SETTINGS_STATE_DOMAINS,
   VIDEO_STATE_DOMAINS,
-  type StateDomain,
 } from '../util/state/stateDomains';
 
 const LibraryPage = lazy(() =>

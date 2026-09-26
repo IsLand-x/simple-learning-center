@@ -5,7 +5,7 @@ import { IconAlertTriangle, IconDeleteStroked } from '@douyinfe/semi-icons';
 import { confirmDialog } from '../../../../../util/confirmDialog';
 import { formatRelativeTime } from '../../../../../util/format';
 import { useLearningStore } from '../../../../../util/state/useLearningStore';
-import type { HighlightItem } from '../../../../../util/types';
+import type { HighlightItem } from '../../../../../types/domain';
 
 const { Text } = Typography;
 

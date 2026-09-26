@@ -1,8 +1,8 @@
-import { useReaderConversation } from '../../store/useReaderConversation';
+import { useReaderConversation } from './useReaderConversation';
 import { BookResourceImage } from './BookResourcesPanel';
 import { AIChatInput, Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconBookOpenStroked } from '@douyinfe/semi-icons';
-import type { BookItem, ChatMessage } from '../../../../../util/types';
+import type { BookItem, ChatMessage } from '../../../../../types/domain';
 import {
   AiConversationDialogue,
   AiModelSelector,

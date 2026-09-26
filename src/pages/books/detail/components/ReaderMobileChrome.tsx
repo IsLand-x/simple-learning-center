@@ -8,13 +8,11 @@ import type {
   HighlightItem,
   ReaderPreferences,
   TocItem,
-} from '../../../../util/types';
-import {
-  ReaderMobilePanelTabs,
-  ReaderRightPanel,
-  type MobileReaderPanel,
-} from './ReaderRightSidebar';
-import type { ReaderSurfaceHandle } from './ReaderSurface';
+} from '../../../../types/domain';
+import { ReaderMobilePanelTabs } from './right-panel/ReaderActivityBar';
+import { ReaderRightPanel } from './right-panel/ReaderRightPanel';
+import type { MobileReaderPanel } from '../store/model/rightPanelModel';
+import type { ReaderSurfaceHandle } from '../store/model/readerSurfaceTypes';
 import { ReaderMobileToolbar } from './ReaderMobileToolbar';
 import { ReaderStylePanel } from '../../../../components/reading/ReaderStylePanel';
 import { TableOfContents } from './TableOfContents';

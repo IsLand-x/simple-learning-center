@@ -1,4 +1,4 @@
-import type { TocItem } from '../../../../../util/types';
+import type { TocItem } from '../../../../../types/domain';
 
 export function flattenToc(items: TocItem[]): TocItem[] {
   return items.flatMap((item) => [item, ...flattenToc(item.subitems ?? [])]);

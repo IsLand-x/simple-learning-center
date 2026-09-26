@@ -2,7 +2,13 @@ import { markdownNoteTitle } from '../../notes/markdownNotes';
 import { normalizeAiReasoningEffort } from '../../ai/aiReasoning';
 import { normalizeHiddenReaderAiPromptTemplateIds } from '../../ai/readerAiPrompts';
 import { legacyReaderPaperColor, readerDensityFromLineHeight } from '../../reading/readerThemes';
-import type { AiPreferences, ChatMessage, ChatSession, HighlightItem, NoteItem } from '../../types';
+import type {
+  AiPreferences,
+  ChatMessage,
+  ChatSession,
+  HighlightItem,
+  NoteItem,
+} from '../../../types/domain';
 import {
   DEFAULT_RSS_DIGEST_PROMPT,
   defaultAiPreferences,

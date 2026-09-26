@@ -5,7 +5,7 @@ import { IconAlertTriangle, IconDeleteStroked } from '@douyinfe/semi-icons';
 import { confirmDialog } from '../../../../../util/confirmDialog';
 import { formatRelativeTime } from '../../../../../util/format';
 import { useLearningStore } from '../../../../../util/state/useLearningStore';
-import type { ChatSession } from '../../../../../util/types';
+import type { ChatSession } from '../../../../../types/domain';
 import { providerLabel } from '../../store/model/rightPanelModel';
 
 export function ConversationHistoryPanel({

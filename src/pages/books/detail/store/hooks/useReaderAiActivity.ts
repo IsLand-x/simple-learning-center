@@ -1,5 +1,6 @@
+import type { AiJob } from '../../../../../types/ai';
 import { createContext, useContext } from 'react';
-import type { AiJob } from '../../../../../util/ai/aiJobs';
+
 import type { ReaderAiActivity } from '../model/readerAiActivity';
 
 export const ReaderAiActivityContext = createContext<{

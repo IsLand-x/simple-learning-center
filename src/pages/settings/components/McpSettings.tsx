@@ -1,21 +1,21 @@
+import type { McpTokenResponse } from '../../../types/settings';
+import { settingsApi } from '../../../api/settings';
 import { useEffect, useState } from 'react';
 import { Button, Toast, Typography } from '@douyinfe/semi-ui';
 import { confirmDialog } from '../../../util/confirmDialog';
-import { requestOpenApiToken } from '../store/openApiToken';
-import { libraryMcpTools, mcpConfig, readMcpToken } from '../store/mcpConfig';
+
+import { libraryMcpTools, mcpConfig } from '../store/mcpConfig';
 
 const { Title, Text } = Typography;
 
 export function McpSettings() {
-  const [credentials, setCredentials] = useState<{
-    configured: boolean;
-    token: string | null;
-  } | null>(null);
+  const [credentials, setCredentials] = useState<McpTokenResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
-    void readMcpToken()
+    void settingsApi
+      .readMcpToken()
       .then((value) => {
         if (active) setCredentials(value);
       })
@@ -27,27 +27,29 @@ export function McpSettings() {
     };
   }, []);
   const config = mcpConfig(window.location.origin, credentials?.token || '<请先生成 Token>');
-  async function update(method: 'POST' | 'DELETE' | 'GET') {
+  async function update(operation: 'generate' | 'revoke' | 'refresh') {
     setBusy(true);
     setError('');
     try {
-      if (method !== 'GET') await requestOpenApiToken(method);
-      setCredentials(await readMcpToken());
+      if (operation === 'generate') await settingsApi.generateOpenApiToken();
+      else if (operation === 'revoke') await settingsApi.revokeOpenApiToken();
+      setCredentials(await settingsApi.readMcpToken());
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '更新 MCP 配置失败');
     } finally {
       setBusy(false);
     }
   }
-  function changeToken(method: 'POST' | 'DELETE') {
+  function changeToken(operation: 'generate' | 'revoke') {
     if (!credentials?.configured) {
-      void update(method);
+      void update(operation);
       return;
     }
     confirmDialog({
-      title: method === 'POST' ? '重新生成 MCP / OpenAPI Token？' : '撤销 MCP / OpenAPI Token？',
+      title:
+        operation === 'generate' ? '重新生成 MCP / OpenAPI Token？' : '撤销 MCP / OpenAPI Token？',
       content: 'MCP 和 OpenAPI 共用此 Token，操作后旧配置立即失效。',
-      onOk: () => update(method),
+      onOk: () => update(operation),
     });
   }
   return (
@@ -83,14 +85,14 @@ export function McpSettings() {
           <Button
             disabled={!credentials || busy}
             loading={busy}
-            onClick={() => changeToken('POST')}
+            onClick={() => changeToken('generate')}
           >
             {credentials?.configured ? '重新生成 Token' : '生成 Token'}
           </Button>
           <Button
             type="danger"
             disabled={!credentials?.configured || busy}
-            onClick={() => changeToken('DELETE')}
+            onClick={() => changeToken('revoke')}
           >
             撤销 Token
           </Button>
@@ -115,7 +117,7 @@ export function McpSettings() {
           <Button
             disabled={busy}
             onClick={() => {
-              void update('GET');
+              void update('refresh');
             }}
           >
             重试

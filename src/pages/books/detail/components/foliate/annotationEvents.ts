@@ -4,7 +4,7 @@ import type {
   HighlightItem,
   ReaderHighlightTarget,
   ReaderPreferences,
-} from '../../../../../util/types';
+} from '../../../../../types/domain';
 import type { FoliateDrawAnnotationDetail, FoliateShowAnnotationDetail } from './runtimeTypes';
 
 type MutableReaderRef<T> = { current: T };

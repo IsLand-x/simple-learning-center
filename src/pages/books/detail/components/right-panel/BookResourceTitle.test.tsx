@@ -7,7 +7,7 @@ import { BookResourceTitle } from './BookResourceTitle';
 vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn() } }));
 
 const state = vi.hoisted(() => ({ pending: false, rename: vi.fn() }));
-vi.mock('../../store/hooks/useBookResources', () => ({ useBookResourcesContext: () => state }));
+vi.mock('./useBookResources', () => ({ useBookResourcesContext: () => state }));
 const resource = { imageId: 'image-id', title: '原标题', savedAt: 1, url: '/image.png' };
 
 describe('资源标题编辑', () => {

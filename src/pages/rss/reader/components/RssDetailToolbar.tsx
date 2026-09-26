@@ -11,7 +11,7 @@ import {
 } from '@douyinfe/semi-icons';
 import { ReaderStylePanel } from '../../../../components/reading/ReaderStylePanel';
 import { getReaderThemeName } from '../../../../util/reading/readerThemes';
-import type { ReaderPreferences, RssDailyDigest, RssFeed, RssItem } from '../../../../util/types';
+import type { ReaderPreferences, RssDailyDigest, RssFeed, RssItem } from '../../../../types/domain';
 import { digestDateLabel } from '../store/model/rssPageModel';
 import { HighlightedText } from './HighlightedText';
 
