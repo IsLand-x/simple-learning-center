@@ -66,15 +66,17 @@ test('规划校验节点和关系；生图必须使用本次有效方案', async
   assert.equal(generated, 0);
   const first = await tools.plan_infographic.execute(plan);
   const second = await tools.plan_infographic.execute({ ...plan, title: '修订方案' });
-  await assert.rejects(tools.generate_infographic.execute({ plan_id: first.plan_id }), /最新/);
+  await tools.generate_infographic.execute({ plan_id: first.plan_id });
   const results = await Promise.all([
     tools.generate_infographic.execute({ plan_id: second.plan_id }),
     tools.generate_infographic.execute({ plan_id: second.plan_id }),
   ]);
-  assert.equal(generated, 1);
+  assert.equal(generated, 2);
   assert.equal(results[0].imageUrl, imageUrl);
   assert.match(results[0].outline, /修订方案/);
-  await assert.rejects(tools.plan_infographic.execute(plan), /已尝试/);
+  await tools.plan_infographic.execute(plan);
+  await tools.plan_infographic.execute(plan);
+  await assert.rejects(tools.plan_infographic.execute(plan), /最多规划 4 张/);
 });
 
 test('失败不自动重试，取消不保存，结构方案先于图片请求展示', async () => {
@@ -209,6 +211,7 @@ test('真实 PiAgent 工具循环先读正文再规划与生图，方案和图�
         { stopReason: 'toolUse' },
       );
     },
+    fauxAssistantMessage('信息图已生成。'),
   ]);
   let generated = 0;
   const progress = [];
@@ -226,7 +229,7 @@ test('真实 PiAgent 工具循环先读正文再规划与生图，方案和图�
     onProgress: (value) => progress.push(value),
   });
   assert.equal(generated, 1);
-  assert.equal(faux.state.callCount, 3);
+  assert.equal(faux.state.callCount, 4);
   assert.match(result.content, /信息图内容稿/);
   assert.match(result.content, /!\[信息图\]/);
   assert.match(result.content, /仅覆盖本次读取的章节片段/);
@@ -292,6 +295,151 @@ test('生图失败保留方案和真实失败状态，并阻止改用全景工�
   assert.ok(
     result.dialogueContent.some(
       (item) => item.name === 'generate_infographic' && item.status === 'failed',
+    ),
+  );
+});
+
+test('多图按独立方案生成，重复调用去重，全部方案和图片保留在进度与最终消息中', async () => {
+  const faux = fauxProvider({ tokensPerSecond: 0 });
+  faux.setResponses([
+    fauxAssistantMessage(
+      [
+        fauxToolCall('plan_infographic', { ...plan, title: '第一张' }, { id: 'plan-1' }),
+        fauxToolCall('plan_infographic', { ...plan, title: '第二张' }, { id: 'plan-2' }),
+      ],
+      { stopReason: 'toolUse' },
+    ),
+    (context) => {
+      const plans = context.messages.filter((message) => message.role === 'toolResult');
+      return fauxAssistantMessage(
+        fauxToolCall('generate_infographic', {
+          plan_id: JSON.parse(plans[0].content[0].text).plan_id,
+        }),
+        { stopReason: 'toolUse' },
+      );
+    },
+    (context) => {
+      const plans = context.messages.filter(
+        (message) => message.role === 'toolResult' && message.toolName === 'plan_infographic',
+      );
+      const plan_id = JSON.parse(plans[1].content[0].text).plan_id;
+      return fauxAssistantMessage(
+        [
+          fauxToolCall('generate_infographic', { plan_id }, { id: 'generate-2' }),
+          fauxToolCall('generate_infographic', { plan_id }, { id: 'generate-duplicate' }),
+        ],
+        { stopReason: 'toolUse' },
+      );
+    },
+    fauxAssistantMessage('两张图片均已生成。'),
+  ]);
+  let generated = 0;
+  const progress = [];
+  const result = await runServerAiChat({
+    ...options,
+    messages: [{ role: 'user', content: '生成两张不同的信息图' }],
+    oauth: { runtime: async () => runtimeFor(faux) },
+    infographicImageGenerator: async ({ prompt }) => {
+      generated++;
+      assert.ok(prompt.includes(generated === 1 ? '第一张' : '第二张'));
+      return Buffer.from(String(generated));
+    },
+    infographicImageSave: async (_book, png) => `${imageUrl}-${png.toString()}`,
+    onProgress: (value) => progress.push(value),
+  });
+  assert.equal(generated, 2);
+  assert.equal(faux.state.callCount, 4);
+  assert.match(result.content, /第一张/);
+  assert.match(result.content, /第二张/);
+  for (const index of [1, 2]) assert.equal(result.content.split(`${imageUrl}-${index}`).length, 3);
+  assert.ok(
+    progress.some(
+      (value) =>
+        value.content.includes(`${imageUrl}-1`) && !value.content.includes(`${imageUrl}-2`),
+    ),
+  );
+  assert.ok(
+    progress.some(
+      (value) => value.content.includes(`${imageUrl}-1`) && value.content.includes(`${imageUrl}-2`),
+    ),
+  );
+});
+
+test('前一张成功后一张失败保留图片，并禁止通过新方案重试', async () => {
+  let attempts = 0;
+  const results = [];
+  const tools = createInfographicTools({
+    generateImage: async () => {
+      if (++attempts > 1) throw new Error('额度不足');
+      return Buffer.from('fixture');
+    },
+    save: async () => imageUrl,
+    onResult: (result) => results.push(result),
+  });
+  const plans = await Promise.all(
+    [1, 2, 3].map((number) => tools.plan_infographic.execute({ ...plan, title: `图 ${number}` })),
+  );
+  await tools.generate_infographic.execute({ plan_id: plans[0].plan_id });
+  await assert.rejects(
+    tools.generate_infographic.execute({ plan_id: plans[1].plan_id }),
+    /额度不足/,
+  );
+  await assert.rejects(
+    tools.generate_infographic.execute({ plan_id: plans[2].plan_id }),
+    /本次生图失败/,
+  );
+  assert.equal(attempts, 2);
+  assert.equal(results.length, 1);
+  assert.equal(
+    (await tools.generate_infographic.execute({ plan_id: plans[0].plan_id })).imageUrl,
+    imageUrl,
+  );
+});
+
+test('共享生图预算限制四张，不能通过全景工具绕过上限', async () => {
+  const faux = fauxProvider({ tokensPerSecond: 0 });
+  faux.setResponses([
+    fauxAssistantMessage(
+      [1, 2, 3, 4].map((index) =>
+        fauxToolCall(
+          'plan_infographic',
+          { ...plan, title: `图 ${index}` },
+          { id: `plan-${index}` },
+        ),
+      ),
+      { stopReason: 'toolUse' },
+    ),
+    (context) =>
+      fauxAssistantMessage(
+        context.messages
+          .filter((message) => message.role === 'toolResult')
+          .map((message, index) =>
+            fauxToolCall(
+              'generate_infographic',
+              { plan_id: JSON.parse(message.content[0].text).plan_id },
+              { id: `image-${index}` },
+            ),
+          ),
+        { stopReason: 'toolUse' },
+      ),
+    fauxAssistantMessage(fauxToolCall('generate_book_knowledge_map', {}), {
+      stopReason: 'toolUse',
+    }),
+    fauxAssistantMessage('已生成四张，其余图片请在下一条消息生成。'),
+  ]);
+  let generated = 0;
+  const result = await runServerAiChat({
+    ...options,
+    oauth: { runtime: async () => runtimeFor(faux) },
+    infographicImageGenerator: async () => Buffer.from(String(++generated)),
+    infographicImageSave: async (_book, png) => `${imageUrl}-${png.toString()}`,
+    knowledgeMapGenerator: () => assert.fail('不能超过四张'),
+  });
+  assert.equal(generated, 4);
+  assert.equal((result.content.match(/!\[信息图\]/g) || []).length, 4);
+  assert.ok(
+    result.dialogueContent.some(
+      (item) => item.name === 'generate_book_knowledge_map' && item.status === 'failed',
     ),
   );
 });

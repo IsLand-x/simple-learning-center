@@ -372,6 +372,7 @@ test('PiAgent 的订阅地图工具只执行一次，并将原图和分析可靠
       ],
       { stopReason: 'toolUse' },
     ),
+    fauxAssistantMessage('地图已生成。'),
   ]);
   let generated = 0;
   const runtime = runtimeFactoryFor(faux)();
@@ -401,7 +402,7 @@ test('PiAgent 的订阅地图工具只执行一次，并将原图和分析可靠
     onProgress: (value) => progress.push(value),
   });
   assert.equal(generated, 1);
-  assert.equal(faux.state.callCount, 1);
+  assert.equal(faux.state.callCount, 2);
   assert.match(result.content, /!\[全景知识地图\]/);
   assert.match(result.content, /核心观点与含义/);
   assert.match(result.content, /20 个正文段落/);

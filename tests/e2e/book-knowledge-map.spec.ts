@@ -1,3 +1,4 @@
+import { expectImageGestures } from './image-viewer-gestures';
 import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test } from '@playwright/test';
 import type { AiJob } from '../../src/api/ai/type';
@@ -54,7 +55,16 @@ for (const scenario of [
         let conversationId = '';
         let job: AiJob | undefined;
         let cancelled = false;
-        const content = `信息图内容稿：复制方式对比\n\n图型：维度对比图；原文概括，对应来源 s1\n\n![${scenario.alt}](${imageUrl})\n\n[查看或保存原图](${imageUrl})\n\n核心观点与含义\n\n覆盖全部已提取正文；不包含扫描图片。`;
+        const secondImageUrl = imageUrl.replace(
+          '11111111-1111-4111-8111-111111111111',
+          '22222222-2222-4222-8222-222222222222',
+        );
+        await page.route(`**${secondImageUrl}`, (route) =>
+          route.fulfill({ contentType: 'image/svg+xml', body: imageFixture }),
+        );
+        const content =
+          (scenario.alt === '信息图' ? `![第二张信息图](${secondImageUrl})\n\n` : '') +
+          `信息图内容稿：复制方式对比\n\n图型：维度对比图；原文概括，对应来源 s1\n\n![${scenario.alt}](${imageUrl})\n\n[查看或保存原图](${imageUrl})\n\n核心观点与含义\n\n覆盖全部已提取正文；不包含扫描图片。`;
         await page.route('**/api/ai/jobs**', async (route) => {
           const request = route.request();
           if (request.method() === 'POST') {
@@ -92,7 +102,11 @@ for (const scenario of [
         await expect(shortcut).toBeFocused();
         await shortcut.click();
         await expect(shortcut).toBeDisabled();
-        const image = page.locator('.expandable-image img');
+        const image = page.locator(`.expandable-image img[alt="${scenario.alt}"]`);
+        if (scenario.alt === '信息图')
+          await expect(
+            page.getByRole('button', { name: '全屏查看图片：第二张信息图' }),
+          ).toBeVisible();
         await expect(image).toBeVisible();
         await expect(image).toHaveJSProperty('naturalWidth', 1200);
         await expect(page.getByRole('link', { name: '查看或保存原图' })).toHaveAttribute(
@@ -119,17 +133,7 @@ for (const scenario of [
         await expect(viewer.getByRole('button', { name: '恢复图片适应屏幕' })).toHaveText('125%');
         await page.keyboard.press('+');
         await expect(viewer.getByRole('button', { name: '恢复图片适应屏幕' })).toHaveText('150%');
-        await expect
-          .poll(() =>
-            viewer
-              .locator('.image-viewer__canvas')
-              .evaluate(
-                (element) =>
-                  element.scrollWidth > element.clientWidth &&
-                  element.scrollHeight > element.clientHeight,
-              ),
-          )
-          .toBe(true);
+        await expectImageGestures(page, viewer, width <= 800);
         for (const button of await viewer.getByRole('button').all()) {
           await expectSemiButtonSize(button);
         }
@@ -181,6 +185,15 @@ for (const scenario of [
         await viewer.getByRole('button', { name: '关闭图片' }).click();
         await expect(viewer).toHaveCount(0);
         await expect(trigger).toBeVisible();
+        if (scenario.alt === '信息图') {
+          await page.getByRole('button', { name: '全屏查看图片：第二张信息图' }).click();
+          await expect(viewer.getByRole('img', { name: '第二张信息图' })).toHaveAttribute(
+            'src',
+            secondImageUrl,
+          );
+          await page.goBack();
+          await expect(viewer).toHaveCount(0);
+        }
       });
     }
   }

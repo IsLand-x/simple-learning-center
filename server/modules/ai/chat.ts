@@ -1,7 +1,7 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { UserMessage } from '@earendil-works/pi-ai';
 import { generateBookKnowledgeMap } from './generation/knowledgeMap.js';
-import { createInfographicTools } from './generation/infographic.js';
+import { createInfographicTools, MAX_IMAGES_PER_REQUEST } from './generation/infographic.js';
 import type { generateCodexImage } from './generation/codexImage.js';
 import type { saveKnowledgeMap } from '../books/resources.js';
 import { statusError } from '../../infrastructure/http/errors.js';
@@ -96,13 +96,16 @@ export async function runServerAiChat({
     content: requestMessageContent(message, resourceType, book, rssItem, video),
     createdAt: message.createdAt,
   }));
-  let knowledgeMapResult: MapResult | undefined;
   let knowledgeMapRun: Promise<MapResult> | undefined;
-  let infographicResult: { imageUrl: string; outline: string } | undefined;
-  let imageReserved = false;
+  let imagesReserved = 0;
+  let imageFailed = false;
   const reserveImage = () => {
-    if (imageReserved) throw new Error('本次请求已尝试生图，请在下一条消息中提出新的生图要求。');
-    imageReserved = true;
+    if (imageFailed) throw new Error('本次生图失败，请在下一条消息中重试。');
+    if (imagesReserved >= MAX_IMAGES_PER_REQUEST)
+      throw new Error(
+        `每条消息最多生成 ${MAX_IMAGES_PER_REQUEST} 张图片，其余图片请在下一条消息生成。`,
+      );
+    imagesReserved += 1;
   };
   const knowledgeMapAction =
     config.oauthProvider === 'openai-codex'
@@ -122,12 +125,15 @@ export async function runServerAiChat({
             },
           })
             .then((result) => {
-              knowledgeMapResult = result;
+              const entry = ensureEntry('message', 'knowledge-map-result');
+              entry.status = 'completed';
+              entry.text = `![全景知识地图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})\n\n${result.outline}\n\n已分析 ${result.passages} 个正文段落（${result.batches} 批）。${result.coverage}`;
               ensureEntry('tool', 'knowledge-map-stage').status = 'completed';
               publish();
               return result;
             })
             .catch((error) => {
+              imageFailed = true;
               ensureEntry('tool', 'knowledge-map-stage').status = 'failed';
               publish();
               throw error;
@@ -143,14 +149,15 @@ export async function runServerAiChat({
           reserveImage,
           generateImage: infographicImageGenerator,
           save: infographicImageSave,
-          onPlan: (outline) => {
-            const entry = ensureEntry('message', 'infographic-plan');
+          onPlan: (outline, planId) => {
+            const entry = ensureEntry('message', `infographic-plan:${planId}`);
             entry.text = outline;
             entry.status = 'completed';
             publish();
           },
-          onStage: (stage, status) => {
-            const entry = ensureEntry('tool', 'infographic-stage', {
+          onStage: (stage, status, planId) => {
+            if (status === 'failed') imageFailed = true;
+            const entry = ensureEntry('tool', `infographic-stage:${planId}`, {
               name: '信息图',
               arguments: '',
             });
@@ -158,9 +165,8 @@ export async function runServerAiChat({
             entry.status = status;
             publish();
           },
-          onResult: (result) => {
-            infographicResult = result;
-            const entry = ensureEntry('message', 'infographic-result');
+          onResult: (result, planId) => {
+            const entry = ensureEntry('message', `infographic-result:${planId}`);
             entry.text = `![信息图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})\n\n图片中的文字与关系请对照原文核查。`;
             entry.status = 'completed';
             publish();
@@ -227,7 +233,6 @@ export async function runServerAiChat({
         maxRetries: 1,
       }),
     shouldStopAfterTurn: ({ newMessages }) =>
-      Boolean(knowledgeMapResult || infographicResult) ||
       newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS,
     prepareNextTurnWithContext: ({ context, newMessages }) => {
       const completedTurns = newMessages.filter((message) => message.role === 'assistant').length;
@@ -327,15 +332,6 @@ export async function runServerAiChat({
         : errorMessage(agent.state.errorMessage),
     );
 
-  if (knowledgeMapResult) {
-    const result = knowledgeMapResult as MapResult;
-    entries.push({
-      kind: 'message',
-      key: 'knowledge-map-result',
-      status: 'completed',
-      text: `![全景知识地图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})\n\n${result.outline}\n\n已分析 ${result.passages} 个正文段落（${result.batches} 批）。${result.coverage}`,
-    });
-  }
   const completed = streamEntriesToProgress(entries, 'completed');
   if (!completed.content) {
     completed.content = '接口返回了空内容。';

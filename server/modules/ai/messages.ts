@@ -115,7 +115,7 @@ export function agentSystemPrompt(
       ? '只有用户明确要求写入或修改阅读笔记时，才可调用 create_book_note 或 update_book_note。修改前必须先调用 read_book_notes 获取最新版本；不得擅自改写或删除用户笔记。'
       : '',
     resourceType === 'book'
-      ? '只有读者明确要求生成图片或信息图时才生图。对于指定主题、章节、选区的流程图、对比图、时间线或结构图，先按需读取相关材料，分析要表达的节点和关系，再调用 plan_infographic 展示结构方案；获得 plan_id 后在下一轮调用 generate_infographic。不要只给提示词或用文字假装已生图；信息不足时先询问，不得虚构出处。全书全景知识地图使用 generate_book_knowledge_map。图片工具仅在当前选择的 ChatGPT/Codex 供应商下可用，不可用时说明需先选择该供应商，不得偷偷切换账号。每条请求最多尝试生图一次，失败后如实说明，不再调用另一生图工具重试。'
+      ? '只有读者明确要求生成图片或信息图时才生图。对于指定主题、章节、选区的流程图、对比图、时间线或结构图，先按需读取相关材料，分析要表达的节点和关系，再调用 plan_infographic 展示结构方案；获得 plan_id 后在下一轮调用 generate_infographic。不要只给提示词或用文字假装已生图；信息不足时先询问，不得虚构出处。全书全景知识地图使用 generate_book_knowledge_map。图片工具仅在当前选择的 ChatGPT/Codex 供应商下可用，不可用时说明需先选择该供应商，不得偷偷切换账号。用户要求多张图片时，为每张图分别调用 plan_infographic 和 generate_infographic，可先规划多张再逐张生成；不要生成第一张后就结束。按用户要求的数量生成，每条请求合计最多 4 张，未指定数量默认 1 张。超出上限时明确说明需分批。同一方案不要重复生成；任一生图失败后如实说明并停止新的生图，不再换方案或工具重试。'
       : '',
     '工具调用完成后必须继续综合结果并给出完整答案，不要停在工具结果，也不要让读者再发送“继续”。',
     resourceType === 'book' ? INFOGRAPHIC_GUIDANCE : '',

@@ -69,13 +69,42 @@
 
 .image-viewer__canvas {
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .image-viewer__stage img {
   display: block;
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  flex-shrink: 0;
   object-fit: contain;
   user-select: none;
+}
+
+/* Preserve Semi button appearance while providing 44px mobile hit targets. */
+@media (max-width: 800px) {
+  .image-viewer__toolbar {
+    gap: 12px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    padding-bottom: 12px;
+  }
+
+  .image-viewer__toolbar .semi-button {
+    position: relative;
+  }
+
+  .image-viewer__toolbar .semi-button::after {
+    content: '';
+    position: absolute;
+    inset: -6px 0;
+    min-width: 44px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .image-viewer__toolbar .semi-button-group {
+    gap: 12px;
+  }
 }
