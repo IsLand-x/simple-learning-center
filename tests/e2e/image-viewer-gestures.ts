@@ -18,6 +18,9 @@ export async function expectImageGestures(page: Page, viewer: Locator, touch: bo
   await expect.poll(async () => (await transform()).scale).toBeGreaterThan(1.5);
   await page.mouse.wheel(0, -1000);
   await expect(reset).toHaveText('600%');
+  // Wheel delivery and the painted transform can lag the toolbar text in CI.
+  // Read the drag origin only after the actual image reaches the requested zoom.
+  await expect.poll(async () => (await transform()).scale).toBe(6);
   await page.keyboard.up('Control');
   expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(1);
   const beforeDrag = await transform();
