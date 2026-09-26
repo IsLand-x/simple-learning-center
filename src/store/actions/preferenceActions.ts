@@ -1,4 +1,4 @@
-import type { ReaderPreferences } from '../../types';
+import type { ReaderPreferences } from '../../../contracts/reading';
 import type { LearningState, LearningStoreSet } from '../learningState';
 
 const READER_STYLE_KEYS = new Set<keyof ReaderPreferences>([

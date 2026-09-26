@@ -1,4 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["public/server/index.js", "scripts/start-e2e-server.mjs"]
+  "entry": [
+    "public/server/index.js",
+    "scripts/start-e2e-server.mjs",
+    "server/index.ts",
+    "server/dev.ts",
+    "server/**/*.test.mjs",
+    "tests/fixtures/generate-reader-regression.mjs",
+    "tests/browser/run.mjs",
+    "scripts/test-server.mjs",
+    "scripts/component-file-rules.test.mjs"
+  ],
+  "ignore": ["server-dist/**"]
 }

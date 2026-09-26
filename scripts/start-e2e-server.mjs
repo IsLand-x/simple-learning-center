@@ -15,7 +15,7 @@ const environment = {
   LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS: '1800000',
 };
 const children = [
-  spawn(process.execPath, ['server/index.mjs'], {
+  spawn(process.execPath, ['server-dist/index.js'], {
     cwd: new URL('..', import.meta.url),
     env: environment,
     stdio: 'inherit',

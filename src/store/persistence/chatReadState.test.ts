@@ -3,7 +3,7 @@ import { useLearningStore } from '../useLearningStore';
 import { createConversationActions } from '../actions/conversationActions';
 import { migrateLearningState } from './migrateLearningState';
 import { mergeLearningState } from './mergeLearningState';
-import type { ChatMessage } from '../../types';
+import type { ChatMessage } from '../../../contracts/ai';
 
 const reply: ChatMessage = {
   id: 'reply',

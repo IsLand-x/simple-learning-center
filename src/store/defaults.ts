@@ -1,12 +1,10 @@
-import { demoBooks } from '../data/demo';
-import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../lib/readerAiPrompts';
-import { DEFAULT_READER_CUSTOM_STYLE } from '../lib/readerThemes';
-import type {
-  AiPreferences,
-  ReaderPreferences,
-  RssDigestSettings,
-  WebSearchConfig,
-} from '../types';
+import { demoBooks } from '../util/fixtures/demo';
+import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../util/ai/readerAiPrompts';
+import { DEFAULT_READER_CUSTOM_STYLE } from '../util/reading/readerThemes';
+import type { AiPreferences } from '../../contracts/ai';
+import type { ReaderPreferences } from '../../contracts/reading';
+import type { RssDigestSettings } from '../../contracts/rss';
+import type { WebSearchConfig } from '../../contracts/settings';
 import type { LearningState } from './learningState';
 
 export const defaultReaderPreferences: ReaderPreferences = {

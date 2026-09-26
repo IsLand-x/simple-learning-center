@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../../lib/readerAiPrompts';
+import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../../util/ai/readerAiPrompts';
 import { migrateLearningState } from './migrateLearningState';
 
 describe('learning state migrations', () => {

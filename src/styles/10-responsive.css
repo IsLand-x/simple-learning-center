@@ -1,27 +1,11 @@
 
 @media (max-width: 860px) {
-  .reader-toolbar {
-    overflow-x: auto;
-  }
-
-  .api-config-card {
-    grid-template-columns: 1fr;
-  }
-
-  .settings-field {
-    grid-column: 1 / -1;
-  }
-
-  .api-config-summary {
-    flex-wrap: wrap;
-  }
 
   .api-config-summary__identity {
     flex: 1 1 220px;
   }
 
   .api-config-summary__models {
-    order: 3;
     flex-basis: 100%;
   }
 }
@@ -55,16 +39,8 @@
     flex-direction: column;
   }
 
-  .account-settings__fields {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .account-settings__footer .semi-button {
     align-self: flex-end;
-  }
-
-  .api-config-summary {
-    gap: 10px;
   }
 
   .api-config-summary__identity {
@@ -72,7 +48,6 @@
   }
 
   .api-config-summary__meta {
-    order: 4;
     flex-basis: 100%;
   }
 
@@ -82,8 +57,6 @@
   }
 
   .search-input {
-    width: 100%;
-    min-width: 0;
     flex-basis: auto;
   }
 
@@ -109,7 +82,6 @@
   }
 
   .book-card {
-    grid-template-columns: 84px minmax(0, 1fr);
     padding: 12px;
   }
 
@@ -121,11 +93,6 @@
 
   .book-cover {
     padding: 10px 8px;
-  }
-
-  .reader-style-panel {
-    width: min(344px, calc(100vw - 16px));
-    padding: 10px;
   }
 }
 
@@ -148,27 +115,9 @@
     flex-direction: column;
   }
 
-  .main-nav {
-    display: none !important;
-  }
-
-  .app-workspace {
-    order: 1;
-  }
-
   .mobile-main-nav {
-    z-index: 40;
     display: grid;
-    height: calc(var(--mobile-main-nav-height) + env(safe-area-inset-bottom));
-    min-height: calc(var(--mobile-main-nav-height) + env(safe-area-inset-bottom));
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    order: 2;
-    flex: 0 0 auto;
     padding: 4px max(16px, env(safe-area-inset-left)) max(4px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-right));
-    border-top: 1px solid var(--semi-color-border);
-    background: var(--semi-color-bg-1);
-    overflow: hidden;
-    overscroll-behavior: none;
   }
 
   .mobile-main-nav .semi-button {
@@ -238,7 +187,6 @@
   }
 
   .library-toolbar {
-    gap: 8px;
     margin-bottom: 14px;
   }
 
@@ -247,10 +195,7 @@
   }
 
   .toolbar-actions {
-    min-width: 0;
-    overflow-x: auto;
     flex-wrap: nowrap;
-    scrollbar-width: none;
   }
 
   .toolbar-actions::-webkit-scrollbar {
@@ -263,18 +208,13 @@
 
   .book-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px 12px;
   }
 
   .book-card {
     display: flex;
-    min-width: 0;
-    min-height: 0;
     flex-direction: column;
-    gap: 8px;
     padding: 0;
     border: 0;
-    background: transparent;
   }
 
   .book-card:hover,
@@ -290,20 +230,11 @@
   .book-cover-image {
     width: 100%;
     height: auto;
-    aspect-ratio: 3 / 4;
     border-radius: 4px 8px 8px 4px;
-  }
-
-  .book-cover-image {
-    object-fit: cover;
   }
 
   .book-cover {
     padding: 12px 10px;
-  }
-
-  .book-meta {
-    gap: 2px;
   }
 
   .book-meta__topline {
@@ -312,14 +243,6 @@
 
   .book-meta > .semi-typography[strong] {
     margin-top: 1px;
-  }
-
-  .book-progress {
-    margin-top: 5px;
-  }
-
-  .book-progress__label {
-    margin-bottom: 5px;
   }
 
   .book-progress__label .semi-typography {
@@ -346,24 +269,6 @@
     white-space: nowrap;
   }
 
-  .settings-notice,
-  .web-search-settings,
-  .ai-assistant-settings,
-  .settings-about,
-  .account-settings,
-  .api-config-card {
-    padding: 14px;
-  }
-
-  .api-config-summary {
-    padding: 10px;
-  }
-
-  .reader-page {
-    position: relative;
-    padding-bottom: calc(var(--mobile-reader-toolbar-height) + env(safe-area-inset-bottom));
-  }
-
   .demo-reader article {
     width: 100%;
     max-width: none;
@@ -377,32 +282,9 @@
     -webkit-touch-callout: none;
   }
 
-  .reader-header {
-    position: relative;
-    height: 58px;
-    min-height: 58px;
-    padding: 0 8px;
-    overflow: hidden;
-  }
-
-  .reader-header__identity,
-  .reader-header__actions {
-    transition: opacity 140ms ease, transform 180ms ease, visibility 0s linear;
-  }
-
   .reader-header__immersive-summary {
-    position: absolute;
-    inset: 0 14px;
     display: flex;
-    min-width: 0;
-    justify-content: center;
     flex-direction: column;
-    gap: 2px;
-    opacity: 0;
-    transform: translateY(4px);
-    visibility: hidden;
-    pointer-events: none;
-    transition: opacity 140ms ease, transform 180ms ease, visibility 0s linear 180ms;
   }
 
   .reader-header__immersive-summary .semi-typography {
@@ -447,17 +329,8 @@
   }
 
   .reader-mobile-chrome__toolbar {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 30;
     display: block;
     width: 100%;
-    min-width: 0;
-    overflow: hidden;
-    overscroll-behavior: none;
-    transition: opacity 140ms ease, transform 180ms ease, visibility 0s linear;
   }
 
   .reader-mobile-chrome__toolbar--hidden {
@@ -527,11 +400,6 @@
     background: var(--semi-color-primary-light-default);
   }
 
-  .mobile-toc-sheet,
-  .mobile-reader-sheet {
-    pointer-events: none;
-  }
-
   .mobile-toc-sheet .semi-sidesheet-mask,
   .mobile-toc-sheet .semi-sidesheet-inner-wrap,
   .mobile-reader-sheet .semi-sidesheet-mask,
@@ -595,15 +463,6 @@
     overflow: hidden;
   }
 
-  .mobile-sheet-grabber {
-    width: 36px;
-    height: 4px;
-    flex: 0 0 auto;
-    margin: 8px auto 4px;
-    border-radius: 999px;
-    background: var(--semi-color-fill-2);
-  }
-
   .mobile-assistant-sheet .right-panel {
     height: auto;
     min-height: 0;
@@ -611,9 +470,7 @@
   }
 
   .mobile-style-panel__body {
-    min-height: 0;
     flex: 1;
-    overflow: auto;
   }
 
   .mobile-style-panel .reader-style-panel {
@@ -637,19 +494,6 @@
 
   .mobile-panel-tabs {
     display: flex;
-    height: calc(53px + env(safe-area-inset-bottom));
-    min-height: calc(53px + env(safe-area-inset-bottom));
-    flex: 0 0 auto;
-    gap: 2px;
-    padding: 4px 8px calc(4px + env(safe-area-inset-bottom));
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-x: contain;
-    overscroll-behavior-y: none;
-    border-top: 1px solid var(--semi-color-border);
-    background: var(--semi-color-bg-1);
-    scrollbar-width: none;
-    touch-action: pan-x;
   }
 
   .mobile-panel-tabs::-webkit-scrollbar {
@@ -781,26 +625,9 @@
     flex-direction: column;
   }
 
-  .ai-assistant-settings__actions {
-    justify-content: flex-end;
-  }
-
-  .selection-toolbar {
-    top: auto !important;
-    right: auto !important;
-    bottom: calc(var(--mobile-reader-toolbar-height) + env(safe-area-inset-bottom) + 12px);
-    left: 50% !important;
-    width: min(336px, calc(100vw - 24px));
-    max-width: calc(100vw - 24px);
-    padding: 4px;
-    transform: translateX(-50%);
-    animation: mobile-selection-toolbar-in 180ms ease-out;
-  }
-
   .selection-toolbar__button-group {
     display: flex;
     width: 100%;
-    max-width: 100%;
     flex-wrap: nowrap;
   }
 
@@ -834,10 +661,6 @@
     bottom: -14px;
     margin: 0 -14px -14px;
     padding: 10px 14px calc(20px + env(safe-area-inset-bottom));
-  }
-
-  .highlight-comment-editor {
-    width: min(360px, calc(100vw - 16px));
   }
 }
 

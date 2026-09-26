@@ -1,6 +1,6 @@
 import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test } from '@playwright/test';
-import { demoBooks } from '../../src/data/demo';
+import { demoBooks } from '../../src/util/fixtures/demo';
 
 test('目录连续跳转可恢复原位置，轨迹在同一区域展示剩余时间', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');

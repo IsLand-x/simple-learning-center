@@ -37,30 +37,38 @@ npm run verify
 git diff --check
 ```
 
-涉及路由、交互、响应式、样式、PWA 或 Foliate 的修改还应执行 `npm run verify:full`；若本机缺少 Chrome 等运行条件，必须明确记录未执行项。纯文档修改至少执行 `git diff --check`。构建中的第三方依赖警告可以记录，但不能忽略 TypeScript、Vite 或 PWA 构建失败。
+涉及路由、交互、响应式、样式、PWA 或 Foliate 的修改还应执行 `npm run verify:full`；完整回归使用固定浏览器与字体的 Docker 测试容器；若本机缺少 Docker 等运行条件，必须明确记录未执行项。纯文档修改至少执行 `git diff --check`。构建中的第三方依赖警告可以记录，但不能忽略 TypeScript、Vite 或 PWA 构建失败。
 
 ## 目录职责
 
-- `src/app/`：应用启动、鉴权恢复、PWA 注册、路由和应用级组合，不承载领域规则。
-- `src/pages/`：页面状态与路由级编排；领域计算、副作用和大型 UI 应进入对应 feature。
-- `src/features/<domain>/model/`：纯计算和领域类型；`application/`、`hooks/`：API、store 与副作用编排；`ui/`：领域界面。
-- `src/components/`：跨功能稳定组件、阅读器宿主与兼容入口，不再作为新领域组件的默认落点。
-- `src/lib/`：EPUB、服务端存储适配、旧浏览器数据迁移、字体和 AI 任务 API 等基础能力。
-- `src/shared/`：没有业务归属的通用适配器，不依赖 feature、store 或页面。
-- `src/store/`：唯一 Zustand store 的薄组合入口、领域 actions、默认值、状态契约、迁移和合并。
-- `server/app.mjs`：构造依赖并按稳定顺序挂载 middleware 与 routes；`server/app/`：通用 HTTP 能力；`server/routes/`：HTTP transport；`server/index.mjs`：进程和调度器生命周期。
-- `src/types.ts`：共享领域类型。
-- `src/styles.css`：只作为 `src/styles/` 全局样式模块的有序导入入口。
-- `public/`：PWA 图标和无需编译的静态资源。
-- `data/`：运行时创建的用户数据目录，禁止提交到 Git。
+本轮结构和 Tailwind 方案由用户明确指定，优先于旧版 feature/lib 分层与“默认语义 CSS”约定。
+
+- `src/layout/`：程序外壳、登录、侧栏、路由、鉴权恢复、启动与 PWA。登录输入和提交状态留在登录组件；路由继续 lazy loading 与 `StateDomainGate`。
+- `src/pages/`：按业务和子页面组织：`books/list`、`books/detail`、`rss/reader`、`videos/study`、`settings`。
+- 每个子页面的 `index.tsx` 主要组合 UI；`components/` 保存仅本页使用的精简组件；`store/` 只保存页面级共享状态与跨区域编排；纯计算放在所属功能区域。组件自己的轻量状态直接使用 useState/useEffect；逻辑较多时拆为组件同级的 useX.ts，不因使用 hook 就放进 store。不要将重逻辑放回 index，也不要为了减少行数把整页原样搬到一个巨大 hook。
+- `src/components/`：确实被多个页面复用的 UI（包含间接消费者），按 `ai`、`reading`、`notes`、`layout` 等能力分组。不得导入任何页面的私有组件或 store。单页适配参数在页面内组装，不在根 components 暴露单页包装器；不要用页面空壳或仅转发 barrel 掩盖实际归属。
+- 每个生产 TSX 文件只定义一个组件，组件只有一个实现文件；组件文件使用实际组件名称，页面入口保留 index.tsx。共享或私有子组件都使用独立文件，不在父组件内声明另一个组件；无 JSX 的 Hook/逻辑使用 `.ts`。组件私有 Hook、类型和计算可以同目录保存，但不建立空壳转发组件。`check:components` 持续检查这一约定。
+- `src/api/<domain>/index.ts`：本业务域的 API class 与单例；同目录 `type.ts` 保存请求体、响应体和传输结果。`api/http/` 仅放传输与错误原语；组件、hook、store、util 不直接 fetch 或调用底层 transport。
+- `src/types/`：跨页面的纯客户端类型（如选区几何与 UI 状态），API 协议类型放回对应 `api/<domain>/type.ts`，前后端共同的实体直接从 `contracts/<domain>` 导入。禁止用 any、宽泛 Record 或未类型化 Response 掩盖业务协议；二进制、204 空响应和流式事件也必须显式定义类型。
+- `src/util/`：跨页面工具与能力，按 `ai`、`reading`、`browser` 等职责分组，不依赖页面、layout 或 components；单页的 EPUB 导入与渲染适配回到对应页面。
+- `src/store/`：唯一 Zustand 持久化核心，负责 actions、默认值、状态契约、迁移、合并及服务端分区同步。页面 store 复用这个核心，不创建同一数据的第二个持久化来源。
+- `contracts/`：按 books、reading、rss、videos、ai、settings 拆分前后端共用的纯领域类型，不依赖运行时实现，不建立全量转发入口。
+- `src/styles/index.css`：Tailwind 入口和必要的全局/第三方/正文兼容样式；普通组件优先在 JSX 中使用静态 Tailwind utilities 和 Semi 语义变量。
+- `server/app.ts`：构造依赖、认证 middleware、Hono 子应用与兜底；`server/http/`：通用 HTTP 原语；各 `server/modules/<domain>/*Routes.ts` 或 `routes.ts`：对应业务的 HTTP transport。
+- `server/modules/`：按 books、rss、videos、ai、auth、settings、state 聚合路由、用例、规则与测试；生图归 AI，书籍资源保存归 books，状态纯合并规则归 state；`server/infrastructure/`：不带业务归属的文件/HTTP 原语。
+- `server/index.ts`：进程与调度器生命周期。后端编译到 `server-dist/`，测试和生产均使用编译产物；不得手改构建产物。
+- `public/`：PWA 图标和无需编译的资源；`data/`：用户数据，禁止提交 Git。
 
 ## 模块边界
 
-- `src/shared/` 不得依赖 `app`、`components`、`features`、`pages` 或 `store`。
-- `src/store/` 不得依赖 `app`、`components`、`features` 或 `pages`；`src/store/useLearningStore.ts` 保持为公共薄组合入口，不重新堆入领域实现。
-- 不同 feature 不得直接相互导入。共享能力上移到 `shared`、`lib` 或跨功能 `components`，跨领域流程由 page/app 编排。
-- 除 `server/routes/` 自身外，只有 `server/app.mjs` 可以导入 route 注册模块。
-- 不得通过路径别名、动态导入或其他写法绕过边界；修改模块关系后必须通过 `npm run check:boundaries`。自动检查是安全网，不代替人工确认依赖方向。
+- 页面之间不得直接导入对方私有实现；共用 UI 提取到 components，共用能力提取到 util。
+- API 只依赖自身传输原语及纯类型，不依赖 React、页面、组件或 store；`api/*/type.ts`、`types`、`contracts` 仅包含类型声明与类型导入，不反向依赖 API 实现或运行时编排。
+- 纯 model 不依赖 UI；共享 components 不依赖 page/layout；util 不依赖任何上层界面或 store；根 store 不依赖 pages/components/layout；contracts 不依赖前后端运行时实现。
+- `src/store/useLearningStore.ts` 保持唯一薄组合入口，page store 不重新建立并行 persist。
+- 只有 `server/app.ts` 可以装配 routes；测试可核对 HTTP 路由契约。业务服务不得导入 routes，通用基础设施不得导入业务模块。
+- 保留服务端单实例写队列；业务模块不得独立覆盖 state.json。
+- 边界检查使用 TypeScript AST 和模块解析，覆盖静态导入、重导出、动态导入及循环引用；不使用别名或动态表达式绕过。
+- 修改模块关系后必须通过 `npm run check:boundaries`，新增目录必须进入格式、lint、类型与死代码检查。
 
 ## 本地数据与安全
 
@@ -69,7 +77,7 @@ git diff --check
 - 元数据、阅读进度、高亮、评论、AI 对话、模型配置和笔记元数据保存在 `data/state.json`。
 - `localStorage` 与 IndexedDB 的旧数据只用于服务端空目录首次启动时的自动迁移；迁移后不得继续作为日常持久化来源。
 - 修改持久化数据结构时必须同步检查 `LearningState`、默认值、所属 action、客户端与服务端 `STATE_DOMAIN_FIELDS`、store version、迁移、合并规则及对应测试，不能让已有本地数据静默丢失。
-- 每个持久化字段必须且只能归属一个状态分区。新增或调整顶层路由时，必须在 `src/app/AppRoutes.tsx` 保持 lazy loading 与 `StateDomainGate`，同步更新客户端路径分区、客户端/服务端字段映射以及顶层路由 E2E。
+- 每个持久化字段必须且只能归属一个状态分区。新增或调整顶层路由时，必须在 `src/layout/AppRoutes.tsx` 保持 lazy loading 与 `StateDomainGate`，同步更新客户端路径分区、客户端/服务端字段映射以及顶层路由 E2E。
 - 删除书籍时必须同步清理 EPUB 文件及该书关联的笔记、高亮、评论、对话和阅读记录。
 - 状态文件和数据文件默认使用仅当前系统用户可读写的权限；不要放宽权限或把数据目录放入静态资源目录。
 - API Key 保存在服务端数据目录。不要写入源码、构建产物、日志、测试快照或提交记录。
@@ -88,8 +96,8 @@ git diff --check
 - 持久高亮使用 Foliate.js Overlayer 根据 CFI 对应 Range 的文字矩形绘制，保持主题高亮色；高亮块高度取文字矩形与当前阅读行高中的较大值并上下居中扩展，使选中状态与保存后的视觉行高一致。不要做像素坐标缓存或延迟计时器几何修正。
 - 点击持久高亮的任意可见区域时展示“取消高亮”“在高亮中查看”和评论操作；点击命中范围必须与扩展后的视觉高亮一致，不能只响应原始字形矩形。
 - 翻页动画、触屏拖动、分页吸附和连续操作锁使用 Foliate.js Paginator 的 `animated`、`scrollBy`、`snap`、`next` 和 `prev`，不要叠加全局 View Transition 或自制双页面动画。
-- 桌面 Chromium 对 Blob iframe 的兼容由 `vite.config.ts` 的 Foliate srcdoc 变换与 `src/lib/foliateReader.ts` 的安全章节通道共同处理；升级 Foliate.js 时必须重新验证该变换，不要直接修改 `node_modules`。
-- `src/features/reader/foliate/**`、`src/components/FoliateEpubReader.tsx`、`src/lib/foliateReader.ts` 与 `vite.config.ts` 共同构成 Foliate 兼容边界。阅读器生命周期按 `book.id` 重建，其余最新值通过稳定 ref 输入；不要为消除 Hooks 提示加入会反复销毁阅读器的易变依赖，也不得扩大现有 lint 例外。
+- 桌面 Chromium 对 Blob iframe 的兼容由 `vite.config.ts` 的 Foliate srcdoc 变换与 `src/pages/books/detail/components/ReaderSurface/foliate/readerAdapter.ts` 的安全章节通道共同处理；升级 Foliate.js 时必须重新验证该变换，不要直接修改 `node_modules`。
+- `src/pages/books/detail/components/ReaderSurface/foliate/**`、`src/pages/books/detail/components/ReaderSurface/foliate/FoliateEpubReader.tsx`、`src/pages/books/detail/components/ReaderSurface/foliate/readerAdapter.ts` 与 `vite.config.ts` 共同构成 Foliate 兼容边界。阅读器生命周期按 `book.id` 重建，其余最新值通过稳定 ref 输入；不要为消除 Hooks 提示加入会反复销毁阅读器的易变依赖，也不得扩大现有 lint 例外。
 - 新建或编辑评论时正文标记保持高亮，支持 `Cmd/Ctrl + Enter` 保存，并在保存按钮 Tooltip 中提示快捷键。
 - 字体设置必须同时应用于演示正文和 EPUB iframe 内的正文。
 - 阅读样式预设与应用浅色/暗色模式相互独立；预设和自定义参数必须同时应用于演示正文与 EPUB iframe。
@@ -157,7 +165,7 @@ git diff --check
 - 普通操作按钮使用 Semi Design 原生默认尺寸或 `size="small"`，不通过 CSS 覆盖宽高、内边距、字号或行高，移动端也不强制放大按钮外观。导航栏、图片预览入口与阅读样式卡片等承载专用布局的控件保留其结构尺寸；不要把这些尺寸套用到普通操作按钮。
 
 - 优先复用 Semi Design 组件。主要提交或新建操作使用主色实心按钮；取消和低权重工具使用 `borderless tertiary`；删除使用 `danger`；筛选使用 `ButtonGroup`，当前项 solid、其余 borderless。
-- 带标题且在 body 内自定义操作按钮的表单弹窗必须使用 `src/shared/ui/AppFormModal.tsx`：桌面端标题顶部与操作区底部各保留 `24px`，`800px` 及以下各保留 `20px`，禁止让按钮贴住弹窗底边。使用内置 footer 的确认框继续走 `confirmDialog`；图片查看器等沉浸式例外可以不使用该组件，但必须在功能样式中明确处理边缘留白。滚动弹窗若用粘性操作区覆盖共享 body padding，必须自行提供不小于上述标准的等价底部留白，并计入 `env(safe-area-inset-bottom)`。
+- 带标题且在 body 内自定义操作按钮的表单弹窗必须使用 `src/components/AppFormModal.tsx`：桌面端标题顶部与操作区底部各保留 `24px`，`800px` 及以下各保留 `20px`，禁止让按钮贴住弹窗底边。使用内置 footer 的确认框继续走 `confirmDialog`；图片查看器等沉浸式例外可以不使用该组件，但必须在功能样式中明确处理边缘留白。滚动弹窗若用粘性操作区覆盖共享 body padding，必须自行提供不小于上述标准的等价底部留白，并计入 `env(safe-area-inset-bottom)`。
 - 图标统一使用 Semi Icons，颜色继承 `currentColor`。禁止混用 Emoji、字符图标或另一套图标库；桌面辅助栏图标约 `18px`，移动导航图标约 `19–20px`。
 - 纯图标操作必须使用 Semi `Button`，提供明确 `aria-label`；图标含义不能从上下文直接判断时增加 Tooltip。不要用带 `onClick` 的无语义 `div` 代替按钮。
 - 默认文本、悬停和选中必须保持同一状态语义：默认使用 `text-1/text-2`，hover 使用 `fill-0` 或浅主色背景，active/selected 使用 `fill-1` 或 `primary-light-default` 并配主色文字/边框；危险与 disabled 状态交给 Semi 语义，不自行用任意透明度模拟。
@@ -192,7 +200,7 @@ git diff --check
 
 ### 样式实现与视觉验收
 
-- JSX 默认使用功能范围内的语义 class，并在职责最接近的 `src/styles/*.css` 中用 Semi token 定义样式；`src/styles.css` 只维护有序 `@import`，不得随意调整入口顺序或跨模块移动规则，因为编号顺序属于级联契约。不要在 JSX 中堆叠 Tailwind utility、复制长串 inline 静态样式或引入另一套 CSS-in-JS 方案。动态坐标、阅读主题色和数据驱动预览可使用 inline style。
+- JSX 优先使用可静态识别的 Tailwind utility；颜色、圆角等继续使用 Semi 语义变量。复用组件收纳重复组合，不拼接无法被 Tailwind 扫描的动态类名，不复制长串 inline 静态样式或引入 CSS-in-JS。动态坐标、阅读主题色和数据驱动预览可使用 inline style。只有第三方组件覆盖、EPUB/富文本、复杂选择器、原生滚动条、安全区及确需保持级联顺序的规则保留在 styles；改动须通过视觉对比。
 - class 命名延续现有 `block__element--modifier` 语义；覆盖 Semi 内部样式必须由页面或组件父 class 限定，禁止无作用域污染全局组件。
 - 新组件先复用已有视觉原型：普通页面参考书架/设置，分栏工作台参考阅读器/RSS，右侧工具参考 `ActivityRailButton`，移动抽屉参考 `ReaderMobileChrome`，浮层参考正文选区工具栏。
 - 没有明确需求时，不新增新的颜色 token、阴影级别、圆角等级、断点或动画曲线；确需新增时说明现有规范为何无法覆盖，并保持可复用。
@@ -205,7 +213,7 @@ git diff --check
 - 右侧辅助栏按钮采用上方图标、下方文字、居中布局；默认灰色，选中后图标和文字变为主题蓝色。
 - 所有面板不展示右上角关闭叉号；通过对应侧栏按钮再次点击、遮罩或返回操作收起。
 - 文本选区消失时，提问/高亮/评论浮动工具栏必须自动隐藏。
-- 所有二次确认弹窗统一使用 `src/lib/confirmDialog.ts` 的 `confirmDialog`，默认聚焦确认按钮，使 `Enter` 等同确认并保留 `Escape` 取消；不要直接新增 `Modal.confirm`。
+- 所有二次确认弹窗统一使用 `src/util/confirmDialog.ts` 的 `confirmDialog`，默认聚焦确认按钮，使 `Enter` 等同确认并保留 `Escape` 取消；不要直接新增 `Modal.confirm`。
 - 评论编辑器打开期间，虚拟键盘导致的 visual viewport resize 不能被视为外部关闭操作；输入框应跟随可视视口定位。
 
 ## 指针右键菜单
@@ -219,7 +227,7 @@ git diff --check
 ## 代码修改原则
 
 - 保持 TypeScript 类型完整，避免新增无必要的 `any`、重复状态或并行实现。
-- Web 单元测试和 model characterization test 放在 `src/**/*.test.{ts,tsx}`；Node 服务端测试当前放在 `server/*.test.mjs`；E2E 放在 `tests/e2e/`。新增纯模型、迁移/合并、状态分区或 route/API 行为时必须补对应层级测试。
+- Web 单元测试和 model characterization test 放在 `src/**/*.test.{ts,tsx}`；Node 领域测试与实现同放 `server/modules/**`，应用级测试放 `server/tests/`；`scripts/test-server.mjs` 递归核对源与编译产物后执行所有 `.test.mjs`；E2E 放在 `tests/e2e/`。新增纯模型、迁移/合并、状态分区或 route/API 行为时必须补对应层级测试。
 - lint 必须保持 0 warning，不得提高 warning 上限。新增或重构目录必须纳入 `format:check`，或在 `.prettierignore` 中用注释说明例外；不得为了通过门禁扩大无说明的 ignore。ESLint 例外必须限定到具体文件和规则，并说明行为原因。
 - TypeScript 必须启用未使用局部变量和参数检查；`npm run check:dead-code` 必须保持通过，不得用宽泛 ignore 隐藏不可达文件、无消费者导出或未使用依赖。确需保留的独立入口应在 `knip.json` 中精确登记并说明其运行场景。
 - 优先复用现有 Semi Design、Allotment、Zustand 和 Foliate.js 能力；epub.js 只用于导入元数据与封面，不要重新接回运行时阅读器或索引。
@@ -233,7 +241,7 @@ git diff --check
 - 提交前检查 `git status`、`git diff --check` 和 `npm run verify`；适用时再执行 `npm run verify:full`。
 - 不提交 `data/`、API Key、个人 EPUB、缓存、临时日志或编辑器配置。
 - commit message 应简洁描述用户可感知的结果。
-- 问题修复类改动在完成验证后，直接合并到 `main` 并 push；若已在 `main`，直接提交并 push。用户已授权这一流程，无需每次重复确认。
+- 通常的问题修复按既有流程发布。本次全面重构用户明确要求：验证后 push 当前重构分支，部署独立测试实例，不合并 main、不触发生产部署；该指令优先。
 - push 后持续监控对应提交的 GitHub Actions，直到工程验证和部署工作流结束；检查部署及健康检查结果，向用户报告提交、工作流链接和最终状态，失败时定位原因，不得把“已 push”当作“已部署”。
 - 新需求先部署到独立的新服务，访问域名固定为 `learning-center.orca.island-x.autos`，使用示例数据，并与生产服务的数据目录、卷、凭据和配置隔离；不得复制真实书籍、笔记、阅读记录或 API Key。新需求的预览部署不得覆盖生产服务。
 - 上述预览域名由用户在 Vercel 中配置；准备服务后提供所需的目标地址和配置说明，不擅自修改用户尚未委托的域名设置。

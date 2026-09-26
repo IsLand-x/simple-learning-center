@@ -1,62 +1,30 @@
+import type { LearningData } from '../api/state/type';
 import type { StoreApi } from 'zustand';
 import type {
   AiPreferences,
-  BookItem,
-  BookList,
   ChatMessage,
   ChatSession,
-  DeletedBookTombstone,
-  DeletedHighlightTombstone,
+  OpenAICompatibleConfig,
+} from '../../contracts/ai';
+import type { BookItem, BookList } from '../../contracts/books';
+import type {
   HighlightItem,
   NoteItem,
-  OpenAICompatibleConfig,
   ReaderPreferences,
   ReadingSession,
+} from '../../contracts/reading';
+import type {
   RssAnnotation,
   RssDailyDigest,
-  RssDigestRun,
   RssDigestSettings,
   RssFeed,
   RssFolder,
   RssItem,
-  ThemeMode,
-  TrashedBookItem,
-  VideoResource,
-  VideoTimestampNote,
-  WebSearchConfig,
-} from '../types';
+} from '../../contracts/rss';
+import type { ThemeMode, WebSearchConfig } from '../../contracts/settings';
+import type { VideoResource, VideoTimestampNote } from '../../contracts/videos';
 
-export interface LearningState {
-  books: BookItem[];
-  bookLists: BookList[];
-  trashedBooks: TrashedBookItem[];
-  deletedBookTombstones: DeletedBookTombstone[];
-  deletedHighlightTombstones: DeletedHighlightTombstone[];
-  highlights: HighlightItem[];
-  notes: NoteItem[];
-  chats: ChatMessage[];
-  chatSessions: ChatSession[];
-  readingSessions: ReadingSession[];
-  rssFolders: RssFolder[];
-  rssFeeds: RssFeed[];
-  rssItems: RssItem[];
-  rssAnnotations: RssAnnotation[];
-  rssDailyDigests: RssDailyDigest[];
-  rssDigestRuns: RssDigestRun[];
-  rssDigestSettings: RssDigestSettings;
-  rssPanelWidth: number;
-  videoResources: VideoResource[];
-  videoTimestampNotes: VideoTimestampNote[];
-  videoPanelWidth: number;
-  openAIConfigs: OpenAICompatibleConfig[];
-  webSearchConfig: WebSearchConfig;
-  aiPreferences: AiPreferences;
-  navCollapsed: boolean;
-  themeMode: ThemeMode;
-  readerPreferences: ReaderPreferences;
-  readerPreferencesUpdatedAt: number;
-  readerStyleUpdatedAt: number;
-  readerLayoutUpdatedAt: number;
+export interface LearningState extends LearningData {
   addBooks: (books: BookItem[]) => void;
   setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;

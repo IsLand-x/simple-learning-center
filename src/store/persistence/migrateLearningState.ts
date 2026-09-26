@@ -1,8 +1,12 @@
-import { markdownNoteTitle } from '../../lib/markdownNotes';
-import { normalizeAiReasoningEffort } from '../../lib/aiReasoning';
-import { normalizeHiddenReaderAiPromptTemplateIds } from '../../lib/readerAiPrompts';
-import { legacyReaderPaperColor, readerDensityFromLineHeight } from '../../lib/readerThemes';
-import type { AiPreferences, ChatMessage, ChatSession, HighlightItem, NoteItem } from '../../types';
+import { markdownNoteTitle } from '../../util/notes/markdownNotes';
+import { normalizeAiReasoningEffort } from '../../util/ai/aiReasoning';
+import { normalizeHiddenReaderAiPromptTemplateIds } from '../../util/ai/readerAiPrompts';
+import {
+  legacyReaderPaperColor,
+  readerDensityFromLineHeight,
+} from '../../util/reading/readerThemes';
+import type { AiPreferences, ChatMessage, ChatSession } from '../../../contracts/ai';
+import type { HighlightItem, NoteItem } from '../../../contracts/reading';
 import {
   DEFAULT_RSS_DIGEST_PROMPT,
   defaultAiPreferences,

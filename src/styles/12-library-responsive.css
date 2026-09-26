@@ -19,52 +19,28 @@
 
   .book-lists-workspace {
     display: flex;
-    min-height: 0;
     flex-direction: column;
-    gap: 12px;
-    overflow: visible;
     border: 0;
     border-radius: 0;
-    background: transparent;
   }
 
   .book-list-nav {
-    overflow: hidden;
     border: 1px solid var(--semi-color-border);
     border-radius: var(--semi-border-radius-medium);
-    background: var(--semi-color-bg-1);
-  }
-
-  .book-list-nav__heading {
-    min-height: 40px;
   }
 
   .book-list-nav__items {
-    overflow-x: auto;
     flex-direction: row;
-    scrollbar-width: none;
-    touch-action: pan-x;
   }
 
   .book-list-nav__items::-webkit-scrollbar {
     display: none;
   }
 
-  .book-list-nav__item {
-    width: 180px;
-    min-width: 180px;
-    min-height: 44px;
-    flex-shrink: 0;
-  }
-
   .book-list-nav .book-list-nav__handle {
     width: 44px;
     height: 44px;
     min-width: 44px;
-    min-height: 44px;
-  }
-
-  .book-list-nav__select {
     min-height: 44px;
   }
 
@@ -79,16 +55,8 @@
   }
 
   .book-list-detail {
-    overflow: hidden;
     border: 1px solid var(--semi-color-border);
     border-radius: var(--semi-border-radius-medium);
-    background: var(--semi-color-bg-1);
-  }
-
-  .book-list-detail__header {
-    min-height: 0;
-    flex-wrap: wrap;
-    padding: 12px;
   }
 
   .book-list-detail__identity {
@@ -101,15 +69,6 @@
 
   .book-list-detail__actions .semi-button:first-child {
     flex: 1;
-  }
-
-  .book-list-books {
-    padding: 8px;
-  }
-
-  .book-list-book {
-    min-height: 80px;
-    padding: 7px 4px;
   }
 
   .book-list-book__main {
@@ -137,23 +96,6 @@
   .epub-import-modal__actions .semi-button:last-child {
     flex: 1;
   }
-
-  .book-picker__list {
-    max-height: 50dvh;
-  }
-
-  .book-picker__item {
-    min-height: 76px;
-  }
-
-  .book-trash__notice {
-    padding: 10px 12px;
-  }
-
-  .book-trash__item {
-    min-height: 96px;
-    padding: 12px 8px 12px 12px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -168,15 +110,6 @@
 
   .library-toolbar--lists .toolbar-actions {
     margin-left: auto;
-  }
-
-  .book-trash__item {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-
-  .book-trash__actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
   }
 }
 

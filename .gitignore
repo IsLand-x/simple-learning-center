@@ -44,3 +44,5 @@ next-env.d.ts
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+
+/server-dist/

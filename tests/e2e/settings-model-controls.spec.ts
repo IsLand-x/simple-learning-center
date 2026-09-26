@@ -4,6 +4,8 @@ import { expectSemiButtonSize } from './semi-button-size';
 // API-key import/export removal must leave direct model editing usable.
 test('模型设置移除导入导出和冗余提示，普通按钮沿用 Semi 尺寸', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
+  // Eight viewport/theme combinations each navigate and persist settings.
+  test.setTimeout(120_000);
   await page.goto('/');
   const snapshot = await (await page.request.get('/api/state/preferences')).json();
   snapshot.state.openAIConfigs = [];
@@ -19,14 +21,14 @@ test('模型设置移除导入导出和冗余提示，普通按钮沿用 Semi �
         0,
       );
       await expect(page.getByText('还没有 API Key 模型')).toBeVisible();
-      await expectSemiButtonSize(page.getByRole('button', { name: '添加模型', exact: true }));
+      await expectSemiButtonSize(page.getByRole('button', { name: /添加模型$/ }));
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
       await page.screenshot({ path: testInfo.outputPath(`settings-${width}-${theme}.png`) });
     }
   }
-  await page.getByRole('button', { name: '添加模型', exact: true }).click();
+  await page.getByRole('button', { name: /添加模型$/ }).click();
   await expect(page.getByText('还没有 API Key 模型')).toHaveCount(0);
   await expect(page.getByLabel('API Key', { exact: true })).toBeVisible();
 });

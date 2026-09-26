@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { serverStateStorage } from '../lib/serverStateStorage';
-import { LEARNING_STORE_VERSION } from '../lib/stateDomains';
+import { serverStateStorage } from './serverStateStorage';
+import { LEARNING_STORE_VERSION } from './stateDomains';
 import { createConversationActions } from './actions/conversationActions';
 import { createLibraryActions } from './actions/libraryActions';
 import { createPreferenceActions } from './actions/preferenceActions';

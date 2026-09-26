@@ -1,4 +1,4 @@
-import type { NoteItem } from '../../types';
+import type { NoteItem } from '../../../contracts/reading';
 import type { LearningState, LearningStoreSet } from '../learningState';
 
 type ReadingActions = Pick<

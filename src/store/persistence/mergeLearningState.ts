@@ -11,8 +11,8 @@ import {
   normalizeRssFeedSource,
   normalizeStoredCustomStyle,
 } from '../normalizers';
-import { normalizeHiddenReaderAiPromptTemplateIds } from '../../lib/readerAiPrompts';
-import { normalizeAiReasoningEffort } from '../../lib/aiReasoning';
+import { normalizeHiddenReaderAiPromptTemplateIds } from '../../util/ai/readerAiPrompts';
+import { normalizeAiReasoningEffort } from '../../util/ai/aiReasoning';
 import { mergeReaderHighlights, mergeReaderPreferences } from './readerStateMerge';
 
 export function mergeLearningState(

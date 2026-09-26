@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'feat/**'
+      - 'IsLand-x/完全重构项目'
   pull_request:
 
 permissions:
@@ -17,7 +18,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: 检出代码
         uses: actions/checkout@v7
@@ -33,6 +34,16 @@ jobs:
 
       - name: 测试与构建
         run: npm run verify
+
+      - name: 浏览器与视觉回归
+        run: npm run test:e2e:container
+
+      - name: 保留浏览器验证产物
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-regression
+          path: test-results/
 
       - name: 检查生产依赖安全告警
         run: npm audit --omit=dev --audit-level=high

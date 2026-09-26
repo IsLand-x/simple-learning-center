@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { demoBooks } from '../../src/data/demo';
+import { demoBooks } from '../../src/util/fixtures/demo';
 
 const listNames = ['阅读计划', '技术与设计', '一个用于检查窄屏省略的很长很长的书单名称'];
 
