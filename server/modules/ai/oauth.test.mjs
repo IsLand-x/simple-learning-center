@@ -198,3 +198,14 @@ test('损坏的凭据文件不会把内容放入错误消息', async (t) => {
     return true;
   });
 });
+
+test('ChatGPT OAuth 内置目录包含当前 GPT-6 模型并使用订阅 Responses 协议', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'oauth-catalog-test-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const service = createOAuthService({ path: join(dir, 'oauth.json') });
+  const status = await service.status('openai-codex');
+  for (const id of ['gpt-6.1-sol', 'gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna']) {
+    assert.ok(status.models.includes(id));
+  }
+  assert.equal(status.connected, false);
+});

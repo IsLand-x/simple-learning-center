@@ -61,6 +61,20 @@ export function getAiReasoningProfile(
     };
   }
 
+  if (/^gpt-6(?:[.-]|$)/i.test(model)) {
+    return {
+      kind: 'openai',
+      options: [
+        AUTO_OPTION,
+        { value: 'low', label: '低' },
+        { value: 'medium', label: '中' },
+        { value: 'high', label: '高' },
+        { value: 'xhigh', label: '极高' },
+        { value: 'max', label: '最大' },
+      ],
+      description: 'GPT-6：使用模型支持的推理强度',
+    };
+  }
   const signature = modelSignature(config, model);
   const isKimi = /kimi|moonshot/.test(signature);
   const isKimiK3 = /(?:^|[\s/:])kimi-k3(?:$|[-_.])/.test(signature);
@@ -107,6 +121,7 @@ export function coerceAiReasoningEffort(
     if (normalized === 'medium' || normalized === 'xhigh') return 'high';
     return normalized;
   }
+  if (/^gpt-6(?:[.-]|$)/i.test(model)) return normalized === 'minimal' ? 'low' : normalized;
   return normalized === 'max' ? 'xhigh' : normalized;
 }
 

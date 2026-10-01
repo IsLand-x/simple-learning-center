@@ -232,15 +232,25 @@ export async function runServerAiChat({
         ...(reasoningEffort ? { reasoning: reasoningEffort } : {}),
         maxRetries: 1,
       }),
-    shouldStopAfterTurn: ({ newMessages }) =>
-      newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS,
+    finishTurn: ({ newMessages }) =>
+      newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS
+        ? { action: 'end' }
+        : undefined,
     prepareNextTurnWithContext: ({ context, newMessages }) => {
       const completedTurns = newMessages.filter((message) => message.role === 'assistant').length;
       if (completedTurns !== MAX_AGENT_TURNS - 1) return undefined;
       return {
         context: {
           ...context,
-          systemPrompt: `${context.systemPrompt}\n${FINAL_TURN_INSTRUCTION}`,
+          messages: [
+            ...context.messages,
+            {
+              role: 'system',
+              content: FINAL_TURN_INSTRUCTION,
+              toolsRemoved: tools.map((tool) => ({ name: tool.name })),
+              timestamp: Date.now(),
+            },
+          ],
           tools: [],
         },
       };

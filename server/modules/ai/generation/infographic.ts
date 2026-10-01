@@ -1,4 +1,4 @@
-import type { Static, TSchema } from '@earendil-works/pi-ai';
+import type { JsonObject, Static, TSchema } from '@earendil-works/pi-ai';
 import type { BookItem } from '../../../../contracts/books.js';
 import type { PiRuntime } from '../runtime.js';
 import { randomUUID } from 'node:crypto';
@@ -86,7 +86,7 @@ function validate<T extends TSchema>(schema: T, params: unknown): Static<T> {
         id: 'infographic',
         type: 'toolCall',
         name: 'infographic',
-        arguments: params as Record<string, unknown>,
+        arguments: params as JsonObject,
       },
     );
   } catch {

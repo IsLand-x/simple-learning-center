@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createModels,
+  getCurrentTools,
+  getCurrentSystemPrompt,
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
@@ -71,15 +73,21 @@ test('PiAgent 通过 OpenAI 兼容端点流式返回对话', async () => {
 
   assert.equal(result.content, '你好，读者。');
   assert.ok(progress.length > 0);
-  assert.ok(requestContext.tools.some((item) => item.name === 'read_current_book'));
-  assert.ok(requestContext.tools.some((item) => item.name === 'create_book_note'));
-  assert.ok(requestContext.tools.some((item) => item.name === 'update_book_note'));
-  assert.match(requestContext.systemPrompt, /你是个人学习中心里的阅读助手/);
-  assert.match(requestContext.systemPrompt, /优先级低于以上规则/);
-  assert.match(requestContext.systemPrompt, /请使用苏格拉底式提问，并保持简洁/);
   assert.ok(
-    requestContext.systemPrompt.indexOf('你是个人学习中心里的阅读助手') <
-      requestContext.systemPrompt.indexOf('请使用苏格拉底式提问'),
+    getCurrentTools(requestContext.messages).some((item) => item.name === 'read_current_book'),
+  );
+  assert.ok(
+    getCurrentTools(requestContext.messages).some((item) => item.name === 'create_book_note'),
+  );
+  assert.ok(
+    getCurrentTools(requestContext.messages).some((item) => item.name === 'update_book_note'),
+  );
+  assert.match(getCurrentSystemPrompt(requestContext.messages), /你是个人学习中心里的阅读助手/);
+  assert.match(getCurrentSystemPrompt(requestContext.messages), /优先级低于以上规则/);
+  assert.match(getCurrentSystemPrompt(requestContext.messages), /请使用苏格拉底式提问，并保持简洁/);
+  assert.ok(
+    getCurrentSystemPrompt(requestContext.messages).indexOf('你是个人学习中心里的阅读助手') <
+      getCurrentSystemPrompt(requestContext.messages).indexOf('请使用苏格拉底式提问'),
   );
   assert.equal(requestOptions.sessionId, 'conversation-a');
 });
@@ -291,8 +299,8 @@ test('PiAgent 在最后一轮关闭工具并按 SDK 生命周期停止', async (
     }),
   );
   responses.push((context) => {
-    assert.deepEqual(context.tools, []);
-    assert.match(context.systemPrompt, /这是最后一次模型请求/);
+    assert.deepEqual(getCurrentTools(context.messages), []);
+    assert.match(getCurrentSystemPrompt(context.messages), /这是最后一次模型请求/);
     return fauxAssistantMessage('已根据现有信息收束回答。');
   });
   faux.setResponses(responses);

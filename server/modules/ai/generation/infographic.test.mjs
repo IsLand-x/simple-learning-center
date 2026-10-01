@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createModels,
+  getCurrentTools,
+  getCurrentSystemPrompt,
   fauxAssistantMessage,
   fauxProvider,
   fauxToolCall,
@@ -194,7 +196,7 @@ test('真实 PiAgent 工具循环先读正文再规划与生图，方案和图�
   const faux = fauxProvider({ tokensPerSecond: 0 });
   faux.setResponses([
     (context) => {
-      assert.match(context.systemPrompt, /先按需读取相关材料/);
+      assert.match(getCurrentSystemPrompt(context.messages), /先按需读取相关材料/);
       return fauxAssistantMessage(fauxToolCall('read_current_chapter', {}), {
         stopReason: 'toolUse',
       });
@@ -250,7 +252,7 @@ test('非 ChatGPT 供应商或非阅读场景不提供信息图工具', async ()
     const faux = fauxProvider({ tokensPerSecond: 0 });
     faux.setResponses([
       (context) => {
-        assert.ok(!context.tools.some((tool) => /infographic/.test(tool.name)));
+        assert.ok(!getCurrentTools(context.messages).some((tool) => /infographic/.test(tool.name)));
         return fauxAssistantMessage('请选择阅读器中的 ChatGPT 模型');
       },
     ]);

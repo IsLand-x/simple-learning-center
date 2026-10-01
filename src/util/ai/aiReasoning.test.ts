@@ -38,6 +38,20 @@ describe('AI reasoning effort compatibility', () => {
     expect(coerceAiReasoningEffort('high', kimi, 'kimi-k2.6')).toBe('auto');
   });
 
+  it('offers supported GPT-6.1 Sol levels and upgrades obsolete minimal effort', () => {
+    const openAi = config('ChatGPT / Codex', 'https://chatgpt.com/backend-api');
+    expect(getAiReasoningProfile(openAi, 'gpt-6.1-sol').options.map(({ value }) => value)).toEqual([
+      'auto',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    ]);
+    expect(coerceAiReasoningEffort('minimal', openAi, 'gpt-6.1-sol')).toBe('low');
+    expect(coerceAiReasoningEffort('max', openAi, 'gpt-6.1-sol')).toBe('max');
+  });
+
   it('keeps OpenAI-compatible levels and omits automatic effort from requests', () => {
     const openAi = config('OpenAI', 'https://api.openai.com/v1');
 

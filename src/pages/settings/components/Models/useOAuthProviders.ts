@@ -25,11 +25,24 @@ export function useOAuthProviders() {
     setLoadError('');
     for (const provider of statuses) {
       const store = useLearningStore.getState();
-      if (
-        !provider.connected ||
-        store.openAIConfigs.some((config) => config.oauthProvider === provider.id)
-      )
+      if (!provider.connected) continue;
+      const existing = store.openAIConfigs.find((config) => config.oauthProvider === provider.id);
+      if (existing) {
+        if (JSON.stringify(existing.models) !== JSON.stringify(provider.models)) {
+          store.updateOpenAIConfig(existing.id, { models: provider.models });
+        }
+        if (
+          store.aiPreferences.provider === `api:${existing.id}` &&
+          !provider.models.includes(store.aiPreferences.model)
+        ) {
+          store.setAiPreferences({
+            model: provider.models.includes('gpt-6.1-sol')
+              ? 'gpt-6.1-sol'
+              : provider.models[0] || '',
+          });
+        }
         continue;
+      }
       const now = Date.now();
       store.addOpenAIConfig({
         id: `oauth-${provider.id}`,
