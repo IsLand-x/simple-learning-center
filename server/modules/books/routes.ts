@@ -1,4 +1,5 @@
 import { createRouter } from '../../http/router.js';
+import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   listBookResources,
@@ -79,7 +80,22 @@ export function createBookRoutes() {
   app.on(['GET', 'HEAD'], BOOK_ROUTE, async (c) => {
     const path = bookPath(c.req.param('bookId'));
     if (!(await exists(path))) return c.json({ error: '书籍文件不存在' }, 404);
-    return storedFileResponse(c, path);
+    const fileStat = await stat(path);
+    const etag = `W/"${fileStat.size}-${fileStat.mtimeMs}"`;
+    // Revalidate through authentication before reusing a private browser copy.
+    c.header('Cache-Control', 'private, no-cache');
+    c.header('ETag', etag);
+    const validators = c.req
+      .header('If-None-Match')
+      ?.split(',')
+      .map((value) => value.trim());
+    if (validators?.some((value) => value === '*' || value.replace(/^W\//, '') === etag.slice(2))) {
+      return c.body(null, 304);
+    }
+    const response = await storedFileResponse(c, path);
+    response.headers.set('Cache-Control', 'private, no-cache');
+    response.headers.set('ETag', etag);
+    return response;
   });
   app.put(BOOK_ROUTE, async (c) => {
     await writeRequestToFile(c.env.incoming, bookPath(c.req.param('bookId')), MAX_BOOK_BYTES);

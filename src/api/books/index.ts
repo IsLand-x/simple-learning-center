@@ -22,7 +22,12 @@ export class BooksApi {
   }
 
   async loadEpubFile(bookId: string): Promise<EpubFile | undefined> {
-    const response = await this.transport.fetchResponse(`/api/books/${encodeURIComponent(bookId)}`);
+    const response = await this.transport.fetchResponse(
+      `/api/books/${encodeURIComponent(bookId)}`,
+      {
+        cache: 'no-cache',
+      },
+    );
     if (response.status === 404) return undefined;
     if (!response.ok) {
       let message = `读取书籍文件失败（${response.status}）`;

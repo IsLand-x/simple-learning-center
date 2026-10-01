@@ -340,6 +340,10 @@ const expectedRoutes = [
     path: '/api/*',
   },
   {
+    method: 'ALL',
+    path: '/*',
+  },
+  {
     method: 'GET',
     path: '/*',
   },
