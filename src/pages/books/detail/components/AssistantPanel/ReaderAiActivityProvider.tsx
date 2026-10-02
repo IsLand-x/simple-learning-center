@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useReaderNoteSync } from './useReaderNoteSync';
 import { aiApi } from '../../../../../api/ai/index';
 import type { AiJob } from '../../../../../api/ai/type';
 
@@ -13,6 +14,7 @@ export function ReaderAiActivityProvider({
   bookId: string;
   children: ReactNode;
 }) {
+  const synchronizeJobNotes = useReaderNoteSync(bookId);
   const chats = useLearningStore((state) => state.chats);
   const sessions = useLearningStore((state) => state.chatSessions);
   const [jobs, setJobs] = useState<AiJob[]>([]);
@@ -29,6 +31,7 @@ export function ReaderAiActivityProvider({
   const reportJob = useCallback(
     (job: AiJob) => {
       if (job.bookId !== bookId) return;
+      synchronizeJobNotes(job);
       setJobs((previous) => {
         const existing = previous.find((item) => item.id === job.id);
         if (existing && existing.revision >= job.revision) return previous;
@@ -51,7 +54,7 @@ export function ReaderAiActivityProvider({
         });
       }
     },
-    [bookId],
+    [bookId, synchronizeJobNotes],
   );
 
   useEffect(() => {

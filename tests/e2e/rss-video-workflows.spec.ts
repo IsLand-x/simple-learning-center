@@ -62,7 +62,7 @@ test('video captions and notes persist, and desktop deletion removes related rec
   await editor.fill(note);
   await expect
     .poll(async () => {
-      const response = await page.request.get('/api/state/reading');
+      const response = await page.request.get('/api/state/notes');
       const snapshot = await response.json();
       return snapshot.state.notes.find(
         (item: { bookId: string }) => item.bookId === `video:${fixtureVideo.id}`,
@@ -86,7 +86,7 @@ test('video captions and notes persist, and desktop deletion removes related rec
     .toEqual([]);
   await expect
     .poll(async () => {
-      const response = await page.request.get('/api/state/reading');
+      const response = await page.request.get('/api/state/notes');
       return (await response.json()).state.notes.filter(
         (item: { bookId: string }) => item.bookId === `video:${fixtureVideo.id}`,
       );

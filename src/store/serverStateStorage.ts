@@ -81,7 +81,7 @@ async function fetchStateDomain(domain: StateDomain) {
   if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) {
     // A progress save during the request must not discard freshly created AI
     // notes. Merge only the versioned note fields; retain other local changes.
-    if (domain === 'reading' && preparedState) {
+    if (domain === 'notes' && preparedState) {
       const local = parseStateEnvelope(preparedState);
       mergePreparedState({
         version: snapshot.version,

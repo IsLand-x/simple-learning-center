@@ -121,7 +121,7 @@ describe('learning state migrations', () => {
     expect(preserved.aiPreferences?.reasoningEffort).toBe('max');
   });
 
-  it.each([32, 33, 34])(
+  it.each([32, 33, 34, 35])(
     'preserves valid book pins and removes invalid legacy values from version %s',
     (version) => {
       const migrated = migrateLearningState(
@@ -177,4 +177,25 @@ it('adds explicit note deletions without losing existing version 33 notes', () =
   const migrated = migrateLearningState({ notes }, 33);
   expect(migrated.notes).toEqual(notes);
   expect(migrated.deletedNoteTombstones).toEqual([]);
+});
+
+it('preserves version 34 notes and highlights when splitting their transport domains', () => {
+  const previous = {
+    notes: [
+      { id: 'note', bookId: 'book', title: '笔记', content: '正文', createdAt: 1, updatedAt: 2 },
+    ],
+    highlights: [
+      {
+        id: 'highlight',
+        bookId: 'book',
+        text: '原文',
+        cfi: 'cfi',
+        chapter: '章节',
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ],
+    deletedNoteTombstones: [],
+  };
+  expect(migrateLearningState(previous, 34)).toEqual(previous);
 });

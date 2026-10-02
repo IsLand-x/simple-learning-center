@@ -1,6 +1,7 @@
 import { Typography } from '@douyinfe/semi-ui';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { MarkdownNoteEditor } from '../../../../../components/notes/MarkdownNoteEditor';
+import { synchronizeLearningState } from '../../../../../store/learningStateSync';
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import type { BookItem } from '../../../../../../contracts/books';
 import { mergeBookNoteContent } from './model';
@@ -8,6 +9,11 @@ import { mergeBookNoteContent } from './model';
 const { Text } = Typography;
 
 export function BookNotePanel({ book }: { book: BookItem }) {
+  useEffect(() => {
+    void synchronizeLearningState(['notes']).catch((error) => {
+      console.warn('读取最新阅读笔记失败', error);
+    });
+  }, [book.id]);
   const allNotes = useLearningStore((state) => state.notes);
   const setBookNoteContent = useLearningStore((state) => state.setBookNoteContent);
   const content = useMemo(

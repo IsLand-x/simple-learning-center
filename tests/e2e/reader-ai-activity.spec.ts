@@ -317,8 +317,9 @@ test('AI 新建笔记后旧阅读快照不会删除文件，笔记面板及刷�
   await entry(page, mobile).click();
   await send(page);
   await expect(page.getByText('正在后台继续生成', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '打开笔记', exact: true }).click();
   const stale = await (await page.request.get('/api/state/reading')).json();
-  const updated = structuredClone(stale);
+  const updated = await (await page.request.get('/api/state/notes')).json();
   const content = '工具创建的阅读笔记：这段正文必须保存并显示。';
   const timestamp = Date.now();
   updated.state.notes = [
@@ -332,12 +333,11 @@ test('AI 新建笔记后旧阅读快照不会删除文件，笔记面板及刷�
       updatedAt: timestamp,
     },
   ];
-  expect((await page.request.put('/api/state/reading', { data: updated })).status()).toBe(204);
+  expect((await page.request.put('/api/state/notes', { data: updated })).status()).toBe(204);
   expect((await page.request.put('/api/state/reading', { data: stale })).status()).toBe(204);
   jobs.noteChanged();
   jobs.complete();
-  await expect(page.getByText('后台生成的最终回复', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '打开笔记', exact: true }).click();
+  // AI is hidden while the task completes; the page-level listener must sync notes.
   const editor = page.getByLabel(`编辑《${book.title}》的 Markdown 笔记`);
   await expect(editor).toContainText(content);
   await page.reload();

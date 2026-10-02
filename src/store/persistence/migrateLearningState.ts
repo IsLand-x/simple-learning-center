@@ -393,10 +393,11 @@ export function migrateLearningState(persistedState: unknown, version: number) {
   if (version < 34) {
     migrated = { ...migrated, deletedNoteTombstones: migrated.deletedNoteTombstones ?? [] };
   }
-  if (version < 35) {
+  // Version 35 splits transport domains; existing note/highlight data stays intact.
+  if (version < 36 && Array.isArray(migrated.books)) {
     migrated = {
       ...migrated,
-      books: (migrated.books ?? []).map((book) => {
+      books: migrated.books.map((book) => {
         if (
           typeof book.pinnedAt === 'number' &&
           Number.isFinite(book.pinnedAt) &&

@@ -32,6 +32,16 @@ export function createVideoActions(set: LearningStoreSet): VideoActions {
           videoResources: state.videoResources.filter((video) => video.id !== videoId),
           videoTimestampNotes: state.videoTimestampNotes.filter((note) => note.videoId !== videoId),
           notes: state.notes.filter((note) => note.bookId !== resourceId),
+          deletedNoteTombstones: [
+            ...state.deletedNoteTombstones,
+            ...state.notes
+              .filter((note) => note.bookId === resourceId)
+              .map((note) => ({
+                noteId: note.id,
+                bookId: resourceId,
+                deletedAt: Math.max(Date.now(), note.updatedAt + 1),
+              })),
+          ],
           chats: state.chats.filter((message) => message.bookId !== resourceId),
           chatSessions: state.chatSessions.filter((session) => session.bookId !== resourceId),
         };
