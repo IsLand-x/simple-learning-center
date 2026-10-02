@@ -41,6 +41,12 @@ export interface HighlightItem {
   updatedAt: number;
 }
 
+export interface DeletedNoteTombstone {
+  noteId: string;
+  bookId: string;
+  deletedAt: number;
+}
+
 export interface NoteItem {
   id: string;
   bookId: string;

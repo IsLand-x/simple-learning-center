@@ -12,6 +12,7 @@ import type {
 } from '../../../contracts/books';
 import type {
   DeletedHighlightTombstone,
+  DeletedNoteTombstone,
   HighlightItem,
   NoteItem,
   ReaderPreferences,
@@ -37,6 +38,7 @@ export interface LearningData {
   deletedHighlightTombstones: DeletedHighlightTombstone[];
   highlights: HighlightItem[];
   notes: NoteItem[];
+  deletedNoteTombstones: DeletedNoteTombstone[];
   chats: ChatMessage[];
   chatSessions: ChatSession[];
   readingSessions: ReadingSession[];
@@ -66,7 +68,11 @@ export interface StateDomainData {
   library: Pick<LearningData, 'books' | 'bookLists' | 'trashedBooks' | 'deletedBookTombstones'>;
   reading: Pick<
     LearningData,
-    'highlights' | 'deletedHighlightTombstones' | 'notes' | 'readingSessions'
+    | 'highlights'
+    | 'deletedHighlightTombstones'
+    | 'notes'
+    | 'deletedNoteTombstones'
+    | 'readingSessions'
   >;
   conversations: Pick<LearningData, 'chats' | 'chatSessions'>;
   rss: Pick<

@@ -1,3 +1,4 @@
+import { mergeReadingNotes } from './persistence/noteStateMerge';
 import { readingApi } from '../api/reading';
 import { booksApi } from '../api/books';
 import { ServerApiError } from '../api/http/errors';
@@ -77,7 +78,27 @@ async function fetchStateDomain(domain: StateDomain) {
   }
   const snapshot = response.snapshot;
   loadedDomains.add(domain);
-  if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) return;
+  if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) {
+    // A progress save during the request must not discard freshly created AI
+    // notes. Merge only the versioned note fields; retain other local changes.
+    if (domain === 'reading' && preparedState) {
+      const local = parseStateEnvelope(preparedState);
+      mergePreparedState({
+        version: snapshot.version,
+        state: mergeReadingNotes(
+          {
+            notes: 'notes' in snapshot.state ? snapshot.state.notes : undefined,
+            deletedNoteTombstones:
+              'deletedNoteTombstones' in snapshot.state
+                ? snapshot.state.deletedNoteTombstones
+                : undefined,
+          },
+          local.state ?? {},
+        ),
+      });
+    }
+    return;
+  }
   const nextEtag = response.etag;
   if (nextEtag) domainEtags.set(domain, nextEtag);
   domainPayloads.set(domain, JSON.stringify(stateDomainSnapshot(snapshot, domain)));

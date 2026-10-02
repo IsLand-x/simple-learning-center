@@ -216,7 +216,11 @@ test('笔记只接受较新版本，并保留显式删除及跨书籍边界', ()
   assert.deepEqual(protectReaderStateFromClient(snapshot([stale]), current).state.notes, [note]);
   const newer = { ...note, content: '用户后续编辑', updatedAt: 300 };
   assert.deepEqual(protectReaderStateFromClient(snapshot([newer]), current).state.notes, [newer]);
-  assert.deepEqual(protectReaderStateFromClient(snapshot([]), current).state.notes, []);
+  assert.deepEqual(protectReaderStateFromClient(snapshot([]), current).state.notes, [note]);
+  const deleted = snapshot([]);
+  deleted.state.deletedNoteTombstones = [{ noteId: note.id, bookId: note.bookId, deletedAt: 300 }];
+  assert.deepEqual(protectReaderStateFromClient(deleted, current).state.notes, []);
+  assert.deepEqual(protectReaderStateFromClient(snapshot([stale]), deleted).state.notes, []);
   const otherBook = { ...stale, bookId: 'other' };
   assert.deepEqual(protectReaderStateFromClient(snapshot([otherBook]), current).state.notes, [
     otherBook,

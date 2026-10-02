@@ -12,6 +12,7 @@ import type {
 } from '../../../contracts/books.js';
 import type {
   DeletedHighlightTombstone,
+  DeletedNoteTombstone,
   HighlightItem,
   NoteItem,
   ReaderPreferences,
@@ -38,6 +39,7 @@ export interface StoredState {
   highlights?: HighlightItem[];
   deletedHighlightTombstones?: DeletedHighlightTombstone[];
   notes?: NoteItem[];
+  deletedNoteTombstones?: DeletedNoteTombstone[];
   readingSessions?: ReadingSession[];
   chats?: ChatMessage[];
   chatSessions?: ChatSession[];

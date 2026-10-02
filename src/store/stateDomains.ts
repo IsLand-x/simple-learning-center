@@ -2,7 +2,13 @@ import type { StateDomain, StateDomainData } from '../api/state/type';
 
 export const STATE_DOMAIN_FIELDS = {
   library: ['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'],
-  reading: ['highlights', 'deletedHighlightTombstones', 'notes', 'readingSessions'],
+  reading: [
+    'highlights',
+    'deletedHighlightTombstones',
+    'notes',
+    'deletedNoteTombstones',
+    'readingSessions',
+  ],
   conversations: ['chats', 'chatSessions'],
   rss: [
     'rssFolders',
@@ -28,7 +34,7 @@ export const STATE_DOMAIN_FIELDS = {
   ],
 } as const satisfies { [Domain in StateDomain]: readonly (keyof StateDomainData[Domain])[] };
 
-export const LEARNING_STORE_VERSION = 33;
+export const LEARNING_STORE_VERSION = 34;
 
 export const ALL_STATE_DOMAINS = Object.freeze(Object.keys(STATE_DOMAIN_FIELDS) as StateDomain[]);
 

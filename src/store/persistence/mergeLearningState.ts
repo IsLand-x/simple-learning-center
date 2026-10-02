@@ -13,6 +13,7 @@ import {
 } from '../normalizers';
 import { normalizeHiddenReaderAiPromptTemplateIds } from '../../util/ai/readerAiPrompts';
 import { normalizeAiReasoningEffort } from '../../util/ai/aiReasoning';
+import { mergeReadingNotes } from './noteStateMerge';
 import { mergeReaderHighlights, mergeReaderPreferences } from './readerStateMerge';
 
 export function mergeLearningState(
@@ -26,6 +27,7 @@ export function mergeLearningState(
   return {
     ...currentState,
     ...persisted,
+    ...mergeReadingNotes(persisted, currentState),
     chats: (persisted.chats ?? currentState.chats).map((message) => {
       const local = localChats.get(message.id);
       const readAt = Math.max(message.readAt ?? 0, local?.readAt ?? 0);

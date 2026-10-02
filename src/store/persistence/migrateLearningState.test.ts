@@ -147,3 +147,12 @@ it('preserves API key and additive OAuth configs without changing their state do
   const migrated = migrateLearningState({ openAIConfigs: configs }, 32);
   expect(migrated.openAIConfigs).toEqual(configs);
 });
+
+it('adds explicit note deletions without losing existing version 33 notes', () => {
+  const notes = [
+    { id: 'note', bookId: 'book', content: '已有笔记', title: '标题', createdAt: 1, updatedAt: 2 },
+  ];
+  const migrated = migrateLearningState({ notes }, 33);
+  expect(migrated.notes).toEqual(notes);
+  expect(migrated.deletedNoteTombstones).toEqual([]);
+});

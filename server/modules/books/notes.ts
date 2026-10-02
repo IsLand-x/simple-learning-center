@@ -56,7 +56,12 @@ export async function createBookNote(bookId: unknown, bookTitle: unknown, conten
     if (notesForBook(persistedState.state, normalizedBookId).length) {
       throw statusError(409, '当前书籍已经存在阅读笔记，请先读取笔记并使用 update_book_note 更新');
     }
-    const timestamp = Date.now();
+    const deletedVersion =
+      (persistedState.state.deletedNoteTombstones ?? []).find(
+        (item) =>
+          item.noteId === `book-note:${normalizedBookId}` && item.bookId === normalizedBookId,
+      )?.deletedAt ?? 0;
+    const timestamp = Math.max(Date.now(), deletedVersion + 1);
     const note = {
       id: `book-note:${normalizedBookId}`,
       bookId: normalizedBookId,

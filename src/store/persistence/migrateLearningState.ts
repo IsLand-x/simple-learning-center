@@ -390,5 +390,8 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       ),
     };
   }
+  if (version < 34) {
+    migrated = { ...migrated, deletedNoteTombstones: migrated.deletedNoteTombstones ?? [] };
+  }
   return migrated;
 }

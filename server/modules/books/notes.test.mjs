@@ -21,10 +21,14 @@ test('AI 阅读笔记支持创建、读取和带版本保护的编辑', async (t
     },
   });
 
+  const emptyBrowserSnapshot = await readPersistedState();
   const created = await createBookNote('book-a', '测试书', '# 初稿\n\n第一版');
   assert.equal(created.id, 'book-note:book-a');
   assert.equal(created.fileName, 'reading-note.md');
 
+  await writePersistedState(emptyBrowserSnapshot, false, (incoming, current) =>
+    protectClientState((state) => state, incoming, current),
+  );
   const listed = await readBookNotes('book-a');
   assert.equal(listed.length, 1);
   assert.equal(listed[0].content, '# 初稿\n\n第一版');
