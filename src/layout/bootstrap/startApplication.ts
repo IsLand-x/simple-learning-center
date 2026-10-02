@@ -103,5 +103,16 @@ export function startApplication(rootElement: HTMLElement) {
   }
   window.addEventListener(AUTHENTICATION_REQUIRED_EVENT, showLogin);
 
+  const shareMatch = /^\/share\/([^/]+)\/?$/.exec(window.location.pathname);
+  if (shareMatch) {
+    void import('../../pages/books/share/index')
+      .then(({ BookSharePage }) => {
+        root.render(
+          createElement(StrictMode, null, createElement(BookSharePage, { token: shareMatch[1] })),
+        );
+      })
+      .catch(() => showBootstrapMessage('分享页面加载失败，请刷新重试', true));
+    return;
+  }
   void renderApplication();
 }

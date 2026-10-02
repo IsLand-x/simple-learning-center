@@ -1,3 +1,4 @@
+import { createPublicBookShareRoutes } from './modules/books/shareRoutes.js';
 import { createDependencies } from './dependencies.js';
 import type { AppOptions } from './dependencies.js';
 import { registerErrorHandler } from './http/responses.js';
@@ -30,6 +31,7 @@ export function createApp({ serveFrontend = true, ...options }: AppOptions = {})
 
   // Keep authorization, route, method fallback and static fallback order stable.
   registerApiHeaders(app);
+  app.route('/api/public/book-shares', createPublicBookShareRoutes());
   registerAuthenticationMiddleware(app, dependencies);
   app.route('/', createOpenApiTokenRoutes(dependencies));
   app.route('/', createBookImportRoutes());

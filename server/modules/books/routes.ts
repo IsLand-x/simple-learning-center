@@ -1,3 +1,4 @@
+import { createBookShare, revokeBookShare } from './shares.js';
 import { createRouter } from '../../http/router.js';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -28,6 +29,14 @@ const BOOK_ROUTE = '/:bookId';
 
 export function createBookRoutes() {
   const app = createRouter();
+  app.post(`${BOOK_ROUTE}/share`, async (c) =>
+    c.json(await createBookShare(c.req.param('bookId'))),
+  );
+  app.delete(`${BOOK_ROUTE}/share`, async (c) => {
+    await revokeBookShare(c.req.param('bookId'));
+    return noContent(c);
+  });
+  app.all(`${BOOK_ROUTE}/share`, methodNotAllowed);
   app.get(`${BOOK_ROUTE}/resources`, async (c) =>
     c.json({ resources: await listBookResources(c.req.param('bookId')) }),
   );

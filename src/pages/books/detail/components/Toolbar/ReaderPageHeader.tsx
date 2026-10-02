@@ -1,5 +1,7 @@
+import { useState } from 'react';
+import { bookSharesApi } from '../../../../../api/book-shares';
 import { IconArrowLeft, IconDeleteStroked, IconMore } from '@douyinfe/semi-icons';
-import { Button, Dropdown, Progress, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Progress, Tooltip, Typography, Toast } from '@douyinfe/semi-ui';
 import { useNavigate } from 'react-router-dom';
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import type { BookItem } from '../../../../../../contracts/books';
@@ -43,6 +45,26 @@ export function ReaderPageHeader({
 }) {
   const navigate = useNavigate();
   const trashBook = useLearningStore((state) => state.trashBook);
+  const [sharing, setSharing] = useState(false);
+  const handleShare = async () => {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      const share = await bookSharesApi.create(book.id);
+      window.location.assign(share.url);
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : '分享失败');
+      setSharing(false);
+    }
+  };
+  const handleRevokeShare = async () => {
+    try {
+      await bookSharesApi.revoke(book.id);
+      Toast.success('已停止分享，原链接已失效');
+    } catch (error) {
+      Toast.error(error instanceof Error ? error.message : '停止分享失败');
+    }
+  };
   const handleDelete = () => {
     confirmMoveBookToTrash(book, (trashedBook) => {
       trashBook(book.id, trashedBook.deletedAt);
@@ -117,6 +139,18 @@ export function ReaderPageHeader({
           position="bottomRight"
           render={
             <Dropdown.Menu>
+              <Dropdown.Item
+                disabled={sharing || book.kind !== 'epub'}
+                onClick={() => void handleShare()}
+              >
+                分享
+              </Dropdown.Item>
+              <Dropdown.Item
+                disabled={book.kind !== 'epub'}
+                onClick={() => void handleRevokeShare()}
+              >
+                停止分享
+              </Dropdown.Item>
               <Dropdown.Item type="danger" icon={<IconDeleteStroked />} onClick={handleDelete}>
                 删除
               </Dropdown.Item>

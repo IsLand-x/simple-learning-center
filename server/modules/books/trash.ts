@@ -1,3 +1,4 @@
+import { removeBookShare } from './shares.js';
 import { rm } from 'node:fs/promises';
 import {
   expiredTrashedBookIds,
@@ -26,7 +27,8 @@ async function removeBookFiles(bookId: string) {
 }
 
 export async function movePersistedBookToTrash(bookId: string, { now = Date.now } = {}) {
-  return mutatePersistedState((persistedState) => {
+  return mutatePersistedState(async (persistedState) => {
+    await removeBookShare(bookId);
     const result = moveBookToTrashInState(persistedState, bookId, now());
     if (!result) throw statusError(404, '书籍不存在或已被彻底删除');
     return result;
@@ -43,9 +45,10 @@ export async function restorePersistedBookFromTrash(bookId: string, { now = Date
 
 export async function permanentlyDeletePersistedBook(bookId: string, { now = Date.now } = {}) {
   const deletedAt = now();
-  const wasPresent = await mutatePersistedState((persistedState) =>
-    permanentlyDeleteBookInState(persistedState, bookId, deletedAt),
-  );
+  const wasPresent = await mutatePersistedState(async (persistedState) => {
+    await removeBookShare(bookId);
+    return permanentlyDeleteBookInState(persistedState, bookId, deletedAt);
+  });
   await removeBookFiles(bookId);
   return { bookId, deletedAt, wasPresent };
 }
@@ -56,8 +59,9 @@ export async function purgeExpiredTrashedBooks({ now = Date.now, logger = consol
   const candidateIds = expiredTrashedBookIds(currentState, timestamp);
   if (!candidateIds.length) return [];
 
-  const deletedBookIds = await mutatePersistedState((persistedState) => {
+  const deletedBookIds = await mutatePersistedState(async (persistedState) => {
     const expiredIds = expiredTrashedBookIds(persistedState, timestamp);
+    for (const bookId of expiredIds) await removeBookShare(bookId);
     expiredIds.forEach((bookId) => permanentlyDeleteBookInState(persistedState, bookId, timestamp));
     return expiredIds;
   });

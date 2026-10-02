@@ -156,3 +156,9 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 `server/modules/books/resources.ts` 管理书籍级图片收藏清单，通过 `bookRoutes` 的 `/api/books/:bookId/resources` 提供列表、保存与移除接口；`PATCH /api/books/:bookId/resources/:imageId` 仅更新已收藏图片的标题。标题经 schema 校验并去除首尾空白，不允许空值或超过 200 字，重命名保留原图、收藏顺序和时间。只接受当前书籍目录内已存在的图片 UUID，服务端构造图片 URL；保存按 UUID 幂等。清单以版本化 JSON 原子写入图片目录，权限为 0600，目录为 0700。写入复用 `mutatePersistedState` 的串行队列并检查书籍有效性，避免与书籍删除产生孤立数据。清单损坏时返回失败，不覆盖旧文件。
 
 资源清单由服务端独立管理，不参与客户端状态快照，因此无需新增 `LearningState`、分区映射、store version 或迁移，旧书籍默认空列表。彻底删除复用现有图片目录清理。前端由 书籍详情页的资源上下文管理当前书籍列表，通用聊天组件仅提供可选图片组件接口，不依赖书籍详情页的私有实现。图片预览复用 `ExpandableImage` 的移动端返回与全屏交互。
+
+### 公开书籍分享
+
+`server/modules/books/shares.ts` 将 256 位随机令牌与书籍关联，映射存放在权限 0600 的 `book-shares.json`，创建、撤销和删除复用服务端状态写队列，不新增 LearningState 字段。`shareRoutes.ts` 在认证中间件之前挂载且只允许明确的 GET/HEAD 元数据、封面、EPUB 路由，其余私人 API 仍需认证。公开响应禁止缓存，令牌撤销后每次访问重新验证；不返回笔记、进度、书单或 AI 配置。
+
+`/share/:token` 在启动时选择独立 lazy 页面，跳过登录、状态 hydration 和后台同步；`src/api/book-shares` 负责所有分享请求，匿名读取不携带会话。只读 Foliate 预览复用 `src/util/reading/foliateBrowser.ts` 的章节兼容通道，私人阅读器仍使用原有布局和标注逻辑。公开章节额外施加 CSP，阻止脚本、外部网络和表单；预览状态仅在内存中，不导入持久化 store。
