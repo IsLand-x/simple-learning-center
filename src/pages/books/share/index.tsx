@@ -26,9 +26,11 @@ export function BookSharePage({ token }: { token: string }) {
       });
     const update = () => setPreview(window.location.hash === '#preview');
     window.addEventListener('hashchange', update);
+    window.addEventListener('popstate', update);
     return () => {
       disposed = true;
       window.removeEventListener('hashchange', update);
+      window.removeEventListener('popstate', update);
     };
   }, [token]);
   if (error)
@@ -49,7 +51,11 @@ export function BookSharePage({ token }: { token: string }) {
         <Preview
           token={token}
           onClose={() => {
-            window.location.hash = '';
+            if (window.history.state?.bookSharePreview) window.history.back();
+            else {
+              window.history.replaceState(null, '', window.location.pathname);
+              setPreview(false);
+            }
           }}
         />
       </Suspense>
@@ -80,7 +86,8 @@ export function BookSharePage({ token }: { token: string }) {
           <Button
             theme="solid"
             onClick={() => {
-              window.location.hash = 'preview';
+              window.history.pushState({ bookSharePreview: true }, '', '#preview');
+              setPreview(true);
             }}
           >
             预览书籍

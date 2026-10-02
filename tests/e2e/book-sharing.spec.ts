@@ -79,6 +79,12 @@ test('三点菜单分享，匿名只读预览、下载及撤销', async ({ page,
     .not.toBe(first);
   await guest.goBack();
   await expect(guest.getByRole('button', { name: '预览书籍' })).toBeVisible();
+  const historyLength = await guest.evaluate(() => window.history.length);
+  await guest.getByRole('button', { name: '预览书籍' }).click();
+  await expect(guest.getByRole('button', { name: '下一页' })).toBeEnabled();
+  await guest.getByRole('button', { name: '返回分享页' }).click();
+  await expect(guest.getByRole('button', { name: '预览书籍' })).toBeVisible();
+  expect(await guest.evaluate(() => window.history.length)).toBe(historyLength);
   await guest.reload();
   await expect(guest.getByRole('button', { name: '预览书籍' })).toBeVisible();
   expect(privateRequests).toEqual([]);
