@@ -99,6 +99,17 @@ export function protectReaderStateFromClient(
   const protectedState = structuredClone(persistedState);
   const incoming = protectedState.state;
   const current = currentPersistedState.state;
+  // Progress/chat writes carry the browser's older note snapshot. Keep newer
+  // server edits of existing notes; an omitted note still represents deletion.
+  const currentNotes = new Map((current.notes ?? []).map((note) => [note.id, note]));
+  if (Array.isArray(incoming.notes)) {
+    incoming.notes = incoming.notes.map((note) => {
+      const latest = currentNotes.get(note.id);
+      return latest && latest.bookId === note.bookId && latest.updatedAt > note.updatedAt
+        ? structuredClone(latest)
+        : note;
+    });
+  }
   const highlights = mergeLatestById(
     stateArray(incoming, 'highlights'),
     stateArray(current, 'highlights'),

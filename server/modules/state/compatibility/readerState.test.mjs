@@ -207,3 +207,19 @@ test('未升级的客户端不能用本机时钟覆盖新版阅读偏好', () =>
   assert.equal(merged.state.readerStyleUpdatedAt, 400);
   assert.equal(merged.state.readerLayoutUpdatedAt, 400);
 });
+
+test('笔记只接受较新版本，并保留显式删除及跨书籍边界', () => {
+  const note = { id: 'note', bookId: 'book', content: 'AI 新正文', updatedAt: 200 };
+  const current = { version: 33, state: { notes: [note] } };
+  const snapshot = (notes) => ({ version: 33, state: { notes } });
+  const stale = { ...note, content: '旧正文', updatedAt: 100 };
+  assert.deepEqual(protectReaderStateFromClient(snapshot([stale]), current).state.notes, [note]);
+  const newer = { ...note, content: '用户后续编辑', updatedAt: 300 };
+  assert.deepEqual(protectReaderStateFromClient(snapshot([newer]), current).state.notes, [newer]);
+  assert.deepEqual(protectReaderStateFromClient(snapshot([]), current).state.notes, []);
+  const otherBook = { ...stale, bookId: 'other' };
+  assert.deepEqual(protectReaderStateFromClient(snapshot([otherBook]), current).state.notes, [
+    otherBook,
+  ]);
+  assert.equal(stale.content, '旧正文');
+});

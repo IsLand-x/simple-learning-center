@@ -39,8 +39,23 @@ function entry(page: Page, mobile: boolean) {
     : page.locator('.activity-bar button').first();
 }
 
-async function mockJobs(page: Page, delayedStart = false) {
-  let job: AiJob | undefined;
+async function mockJobs(page: Page, delayedStart = false, background = false) {
+  let job: AiJob | undefined = background
+    ? {
+        id: 'activity-job',
+        bookId: book.id,
+        conversationId: 'other-conversation',
+        userMessageId: 'background-user',
+        assistantMessageId: 'activity-answer',
+        status: 'running',
+        revision: 1,
+        content: '其他对话的后台任务',
+        dialogueContent: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }
+    : undefined;
+  let servedRevision = 0;
   let submitted = false;
   let cancellations = 0;
   let releaseStart = () => {};
@@ -71,12 +86,24 @@ async function mockJobs(page: Page, delayedStart = false) {
       return route.fulfill({ status: 202, json: job });
     }
     if (url.pathname.endsWith('/events')) return route.abort();
+    servedRevision = job?.revision ?? 0;
     return route.fulfill({
-      json: url.pathname === '/api/ai/jobs' ? { jobs: job ? [job] : [] } : job,
+      json:
+        url.pathname === '/api/ai/jobs'
+          ? {
+              jobs:
+                job &&
+                (!url.searchParams.get('conversationId') ||
+                  url.searchParams.get('conversationId') === job.conversationId)
+                  ? [job]
+                  : [],
+            }
+          : job,
     });
   });
   return {
     submitted: () => submitted,
+    servedRevision: () => servedRevision,
     cancellations: () => cancellations,
     releaseStart,
     complete: () => {
@@ -232,3 +259,46 @@ for (const width of [375, 768, 1024, 1440]) {
     });
   }
 }
+
+test('浏览 Codex 模型时后台回复更新不会跳回 Kimi', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'mobile-chrome';
+  await seed(page);
+  const snapshot = await (await page.request.get('/api/state/preferences')).json();
+  snapshot.state.openAIConfigs = [
+    {
+      id: 'kimi',
+      name: 'Kimi Coding',
+      baseUrl: 'https://example.invalid/v1',
+      apiKey: 'test-only',
+      models: ['kimi-coding'],
+      createdAt: 1,
+      updatedAt: 1,
+    },
+    {
+      id: 'codex',
+      name: 'ChatGPT Codex',
+      baseUrl: 'https://example.invalid/v1',
+      apiKey: 'test-only',
+      models: Array.from({ length: 30 }, (_, index) => `codex-test-${index}`),
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  ];
+  snapshot.state.aiPreferences = { provider: 'api:kimi', model: 'kimi-coding' };
+  await page.request.put('/api/state/preferences', { data: snapshot });
+  const jobs = await mockJobs(page, false, true);
+  await page.goto(`/books/${book.id}`);
+  await entry(page, mobile).click();
+  await expect(page.locator('.reader-ai-input')).toBeVisible();
+  await page.locator('.ai-composer-model-cascader').click();
+  await page.getByText('ChatGPT Codex', { exact: true }).hover();
+  const lastModel = page.getByText('codex-test-29', { exact: true });
+  await lastModel.scrollIntoViewIfNeeded();
+  await lastModel.hover();
+  await page.mouse.wheel(0, 400);
+  jobs.progress('更新回复以触发模型选择器重新渲染');
+  await expect.poll(jobs.servedRevision).toBe(2);
+  await expect(lastModel).toBeVisible();
+  await lastModel.click();
+  await expect(page.locator('.ai-composer-model-cascader')).toContainText('codex-test-29');
+});

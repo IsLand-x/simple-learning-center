@@ -44,10 +44,13 @@ export function useReaderConversationJobs({
       const notesRevision = Number(job.notesRevision || 0);
       const synchronizedRevision = synchronizedNoteRevisionsRef.current.get(job.id) ?? 0;
       if (notesRevision > synchronizedRevision) {
-        synchronizedNoteRevisionsRef.current.set(job.id, notesRevision);
         noteSyncQueueRef.current = noteSyncQueueRef.current
           .catch(() => undefined)
-          .then(() => synchronizeLearningState());
+          .then(async () => {
+            if ((synchronizedNoteRevisionsRef.current.get(job.id) ?? 0) >= notesRevision) return;
+            await synchronizeLearningState();
+            synchronizedNoteRevisionsRef.current.set(job.id, notesRevision);
+          });
         void noteSyncQueueRef.current.catch((error) => {
           console.warn('同步 AI 修改的阅读笔记失败', error);
         });

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Cascader } from '@douyinfe/semi-ui';
 import type { AiProvider, OpenAICompatibleConfig } from '../../../contracts/ai';
 
@@ -16,17 +17,23 @@ export function AiModelSelector({
   className?: string;
   onChange: (selection: unknown) => void;
 }) {
-  const treeData = configs.map((config) => ({
-    label: config.name,
-    value: `api:${config.id}`,
-    children: config.models.map((item) => ({ label: item, value: item })),
-  }));
+  const treeData = useMemo(
+    () =>
+      configs.map((config) => ({
+        label: config.name,
+        value: `api:${config.id}`,
+        children: config.models.map((item) => ({ label: item, value: item })),
+      })),
+    [configs],
+  );
+  // Semi compares the controlled value by reference and resets its active path.
+  const value = useMemo(() => (provider && model ? [provider, model] : []), [provider, model]);
   return (
     <Cascader
       aria-label="选择 AI 供应商和模型"
       size="small"
       treeData={treeData}
-      value={provider && model ? [provider, model] : []}
+      value={value}
       placeholder="选择供应商 / 模型"
       disabled={disabled}
       showNext="hover"

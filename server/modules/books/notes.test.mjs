@@ -8,7 +8,8 @@ const dataDirectory = await mkdtemp(join(tmpdir(), 'learning-center-ai-notes-'))
 process.env.LEARNING_CENTER_DATA_DIR = dataDirectory;
 
 const { createBookNote, readBookNotes, updateBookNote } = await import('./notes.js');
-const { writePersistedState } = await import('../state/stateStore.js');
+const { protectClientState } = await import('../state/compatibility/clientState.js');
+const { writePersistedState, readPersistedState } = await import('../state/stateStore.js');
 
 test('AI 阅读笔记支持创建、读取和带版本保护的编辑', async (t) => {
   t.after(() => rm(dataDirectory, { force: true, recursive: true }));
@@ -28,6 +29,7 @@ test('AI 阅读笔记支持创建、读取和带版本保护的编辑', async (t
   assert.equal(listed.length, 1);
   assert.equal(listed[0].content, '# 初稿\n\n第一版');
 
+  const staleBrowserSnapshot = await readPersistedState();
   const updated = await updateBookNote(
     'book-a',
     created.id,
@@ -43,6 +45,10 @@ test('AI 阅读笔记支持创建、读取和带版本保护的编辑', async (t
   );
   await assert.rejects(createBookNote('book-a', '测试书', '重复笔记'), /已经存在阅读笔记/);
 
+  // An unrelated reading-progress write must not undo a successful AI edit.
+  await writePersistedState(staleBrowserSnapshot, false, (incoming, current) =>
+    protectClientState((state) => state, incoming, current),
+  );
   const finalNotes = await readBookNotes('book-a');
   assert.equal(finalNotes[0].content, '# 修订稿\n\n第二版');
 });
