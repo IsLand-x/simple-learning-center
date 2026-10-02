@@ -323,7 +323,7 @@ test('reader AI highlight questions and in-panel settings persist across desktop
   expect(preferencesWrite.status()).toBe(204);
 
   const highlightedText = '复制意味着在通过网络连接的多台机器上保留同一份数据副本。';
-  const readingResponse = await page.request.get('/api/state/reading');
+  const readingResponse = await page.request.get('/api/state/highlights');
   expect(readingResponse.ok()).toBe(true);
   const reading = await readingResponse.json();
   reading.state.highlights = [
@@ -342,7 +342,7 @@ test('reader AI highlight questions and in-panel settings persist across desktop
       updatedAt: timestamp,
     },
   ];
-  const readingWrite = await page.request.put('/api/state/reading', { data: reading });
+  const readingWrite = await page.request.put('/api/state/highlights', { data: reading });
   expect(readingWrite.status()).toBe(204);
 
   const libraryResponse = await page.request.get('/api/state/library');

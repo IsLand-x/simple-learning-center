@@ -82,7 +82,7 @@ async function patchStateDomain(page: Page, domain: string, changes: Record<stri
   const response = await page.request.get(`/api/state/${domain}`);
   expect(response.ok()).toBe(true);
   const snapshot = await response.json();
-  if (domain === 'reading' && Array.isArray(changes.highlights)) {
+  if (domain === 'highlights' && Array.isArray(changes.highlights)) {
     // Existing highlights deliberately survive stale snapshots; reset them through tombstones.
     changes = {
       ...changes,
@@ -140,7 +140,7 @@ export async function prepareWorkspace(
   const seed = async (domain: string, changes: Record<string, unknown>) => {
     if (!visualOnly) return patchStateDomain(page, domain, changes);
     // Never inherit another test's server values or browser defaults in a pixel fixture.
-    snapshots.set(domain, { version: 33, state: structuredClone(changes) });
+    snapshots.set(domain, { version: 35, state: structuredClone(changes) });
   };
 
   await seed('library', {
@@ -149,12 +149,9 @@ export async function prepareWorkspace(
     trashedBooks: [],
     deletedBookTombstones: [],
   });
-  await seed('reading', {
-    highlights: [],
-    notes: [],
-    readingSessions: [],
-    deletedHighlightTombstones: [],
-  });
+  await seed('reading', { readingSessions: [] });
+  await seed('notes', { notes: [], deletedNoteTombstones: [] });
+  await seed('highlights', { highlights: [], deletedHighlightTombstones: [] });
   await seed('conversations', { chats: [], chatSessions: [] });
   await seed('preferences', {
     themeMode: theme,

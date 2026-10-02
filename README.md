@@ -19,7 +19,7 @@
 
 详细规则见 [`docs/architecture.md`](docs/architecture.md)。前端输出到 `dist/`，后端 TypeScript 输出到 `server-dist/`；测试与容器运行编译后的 Node ESM。服务端仍使用文件系统，保持唯一状态写队列，不需要数据库。
 
-页面路由、API、Cookie、ETag、SSE、`data/` 目录、六个状态分区与 persist key 均保持兼容。纯结构调整不升级 store version。不要直接编辑构建产物。
+页面路由、Cookie、ETag、SSE、`data/` 目录和 persist key 保持兼容；旧版 `/api/state` 继续保留。笔记、高亮和阅读记录分别使用独立状态接口，当前 store version 为 35。不要直接编辑构建产物。
 
 ```bash
 npm run verify       # lint、格式、组件/边界、死代码、单元测试与生产构建
@@ -144,7 +144,7 @@ data/
 
 默认目录是项目根目录下的 `data/`。可以通过 `LEARNING_CENTER_DATA_DIR` 改到其他磁盘、备份目录或容器挂载卷。
 
-运行时数据不再依赖浏览器 localStorage 或 IndexedDB。浏览器通过书架、阅读、对话、RSS、视频和偏好设置六个独立状态分区按页面加载与更新；旧版 `/api/state` 继续用于旧客户端兼容和首次迁移。各分区同步支持独立 ETag，其他功能的数据发生变化不会触发当前页面重复下载。备份、恢复或迁移时，直接复制完整的 `data/` 目录即可。
+运行时数据不再依赖浏览器 localStorage 或 IndexedDB。浏览器通过书架、阅读记录、笔记、高亮、对话、RSS、视频和偏好设置八个独立状态分区按页面加载与更新；旧版 `/api/state` 继续用于旧客户端兼容和首次迁移。各分区同步支持独立 ETag，其他功能的数据发生变化不会触发当前页面重复下载。备份、恢复或迁移时，直接复制完整的 `data/` 目录即可。
 
 ### 旧版浏览器数据自动迁移
 

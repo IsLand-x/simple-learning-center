@@ -2,13 +2,9 @@ import type { StateDomain, StateDomainData } from '../api/state/type';
 
 export const STATE_DOMAIN_FIELDS = {
   library: ['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'],
-  reading: [
-    'highlights',
-    'deletedHighlightTombstones',
-    'notes',
-    'deletedNoteTombstones',
-    'readingSessions',
-  ],
+  reading: ['readingSessions'],
+  notes: ['notes', 'deletedNoteTombstones'],
+  highlights: ['highlights', 'deletedHighlightTombstones'],
   conversations: ['chats', 'chatSessions'],
   rss: [
     'rssFolders',
@@ -34,14 +30,21 @@ export const STATE_DOMAIN_FIELDS = {
   ],
 } as const satisfies { [Domain in StateDomain]: readonly (keyof StateDomainData[Domain])[] };
 
-export const LEARNING_STORE_VERSION = 34;
+export const LEARNING_STORE_VERSION = 35;
 
 export const ALL_STATE_DOMAINS = Object.freeze(Object.keys(STATE_DOMAIN_FIELDS) as StateDomain[]);
 
 export const LIBRARY_STATE_DOMAINS = ['preferences', 'library'] as const;
-export const READER_STATE_DOMAINS = ['preferences', 'library', 'reading', 'conversations'] as const;
+export const READER_STATE_DOMAINS = [
+  'preferences',
+  'library',
+  'reading',
+  'notes',
+  'highlights',
+  'conversations',
+] as const;
 export const RSS_STATE_DOMAINS = ['preferences', 'rss', 'conversations', 'videos'] as const;
-export const VIDEO_STATE_DOMAINS = ['preferences', 'videos', 'reading', 'conversations'] as const;
+export const VIDEO_STATE_DOMAINS = ['preferences', 'videos', 'notes', 'conversations'] as const;
 export const SETTINGS_STATE_DOMAINS = ['preferences'] as const;
 
 export function stateDomainsForPath(pathname: string): readonly StateDomain[] {

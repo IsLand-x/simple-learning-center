@@ -123,8 +123,6 @@ export function useReaderConversation({
     };
   }, [chatAreaRef, chats, markRead]);
   const lastAppliedJobRef = useRef<AiJob>();
-  const synchronizedNoteRevisionsRef = useRef(new Map<string, number>());
-  const noteSyncQueueRef = useRef(Promise.resolve());
   useEffect(() => {
     setStatusMessage('');
     if (!provider && configs[0]) {
@@ -163,8 +161,6 @@ export function useReaderConversation({
     reportJob,
     trackedJobs,
     lastAppliedJobRef,
-    synchronizedNoteRevisionsRef,
-    noteSyncQueueRef,
     activeJobId,
     setActiveJobId,
     setStreamingAssistant,

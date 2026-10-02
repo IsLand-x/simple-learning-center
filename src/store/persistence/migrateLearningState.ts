@@ -393,5 +393,6 @@ export function migrateLearningState(persistedState: unknown, version: number) {
   if (version < 34) {
     migrated = { ...migrated, deletedNoteTombstones: migrated.deletedNoteTombstones ?? [] };
   }
+  // Version 35 splits transport domains; existing note/highlight data stays intact.
   return migrated;
 }

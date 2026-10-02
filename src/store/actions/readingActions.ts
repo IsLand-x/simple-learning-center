@@ -60,12 +60,18 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
         };
       }),
     addNote: (note) =>
-      set((state) => ({
-        notes: [note, ...state.notes],
-        deletedNoteTombstones: state.deletedNoteTombstones.filter(
-          (item) => item.noteId !== note.id,
-        ),
-      })),
+      set((state) => {
+        const deletedAt =
+          state.deletedNoteTombstones.find(
+            (item) => item.noteId === note.id && item.bookId === note.bookId,
+          )?.deletedAt ?? 0;
+        return {
+          notes: [{ ...note, updatedAt: Math.max(note.updatedAt, deletedAt + 1) }, ...state.notes],
+          deletedNoteTombstones: state.deletedNoteTombstones.filter(
+            (item) => item.noteId !== note.id,
+          ),
+        };
+      }),
     setBookNoteContent: (bookId, bookTitle, content) =>
       set((state) => {
         const existing = state.notes
@@ -112,7 +118,9 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
     updateNote: (noteId, changes) =>
       set((state) => ({
         notes: state.notes.map((note) =>
-          note.id === noteId ? { ...note, ...changes, updatedAt: Date.now() } : note,
+          note.id === noteId
+            ? { ...note, ...changes, updatedAt: Math.max(Date.now(), note.updatedAt + 1) }
+            : note,
         ),
       })),
     deleteNote: (noteId) =>

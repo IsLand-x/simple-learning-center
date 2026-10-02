@@ -3,7 +3,6 @@ import { aiApi } from '../../../../../api/ai/index';
 import type { AiJob } from '../../../../../api/ai/type';
 
 import type { MutableRefObject } from 'react';
-import { synchronizeLearningState } from '../../../../../store/learningStateSync';
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import type { ConversationJobControls } from '../../../../../types/conversation';
 import type { BookItem } from '../../../../../../contracts/books';
@@ -14,8 +13,6 @@ export function useReaderConversationJobs({
   reportJob,
   trackedJobs,
   lastAppliedJobRef,
-  synchronizedNoteRevisionsRef,
-  noteSyncQueueRef,
   activeJobId,
   setActiveJobId,
   setStreamingAssistant,
@@ -27,8 +24,6 @@ export function useReaderConversationJobs({
   reportJob: (job: AiJob) => void;
   trackedJobs: AiJob[];
   lastAppliedJobRef: MutableRefObject<AiJob | undefined>;
-  synchronizedNoteRevisionsRef: MutableRefObject<Map<string, number>>;
-  noteSyncQueueRef: MutableRefObject<Promise<void>>;
 }) {
   const applyJob = useCallback(
     (job: AiJob) => {
@@ -41,20 +36,6 @@ export function useReaderConversationJobs({
       )
         return;
       lastAppliedJobRef.current = job;
-      const notesRevision = Number(job.notesRevision || 0);
-      const synchronizedRevision = synchronizedNoteRevisionsRef.current.get(job.id) ?? 0;
-      if (notesRevision > synchronizedRevision) {
-        noteSyncQueueRef.current = noteSyncQueueRef.current
-          .catch(() => undefined)
-          .then(async () => {
-            if ((synchronizedNoteRevisionsRef.current.get(job.id) ?? 0) >= notesRevision) return;
-            await synchronizeLearningState();
-            synchronizedNoteRevisionsRef.current.set(job.id, notesRevision);
-          });
-        void noteSyncQueueRef.current.catch((error) => {
-          console.warn('同步 AI 修改的阅读笔记失败', error);
-        });
-      }
       if (job.status === 'queued' || job.status === 'running') {
         setActiveJobId(job.id);
         setStreamingAssistant({
@@ -106,8 +87,6 @@ export function useReaderConversationJobs({
     [
       reportJob,
       lastAppliedJobRef,
-      noteSyncQueueRef,
-      synchronizedNoteRevisionsRef,
       setActiveJobId,
       setStatus,
       setStatusMessage,

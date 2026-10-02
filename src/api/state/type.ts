@@ -66,14 +66,9 @@ export interface LearningData {
 
 export interface StateDomainData {
   library: Pick<LearningData, 'books' | 'bookLists' | 'trashedBooks' | 'deletedBookTombstones'>;
-  reading: Pick<
-    LearningData,
-    | 'highlights'
-    | 'deletedHighlightTombstones'
-    | 'notes'
-    | 'deletedNoteTombstones'
-    | 'readingSessions'
-  >;
+  reading: Pick<LearningData, 'readingSessions'>;
+  notes: Pick<LearningData, 'notes' | 'deletedNoteTombstones'>;
+  highlights: Pick<LearningData, 'highlights' | 'deletedHighlightTombstones'>;
   conversations: Pick<LearningData, 'chats' | 'chatSessions'>;
   rss: Pick<
     LearningData,
