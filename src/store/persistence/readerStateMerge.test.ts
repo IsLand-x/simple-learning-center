@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { HighlightItem } from '../../types';
+import type { HighlightItem } from '../../../contracts/reading';
 import { defaultReaderPreferences } from '../defaults';
 import { mergeReaderHighlights, mergeReaderPreferences } from './readerStateMerge';
 

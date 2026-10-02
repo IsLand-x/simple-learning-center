@@ -3,21 +3,11 @@
 .missing-book,
 .route-loading {
   display: grid;
-  min-height: 360px;
-  place-items: center;
-  align-content: center;
-  gap: 16px;
 }
 
 .reader-error-fallback {
   display: grid;
-  width: 100%;
   height: 100%;
-  place-items: center;
-  align-content: center;
-  gap: 16px;
-  padding: 24px;
-  background: var(--semi-color-bg-0);
 }
 
 .reader-error-fallback__actions {
@@ -26,7 +16,95 @@
 }
 
 .route-loading {
-  width: 100%;
   height: 100%;
+}
+
+/* Immersive image viewer: controls and canvas keep safe-area edge spacing. */
+.expandable-image.semi-button {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  height: auto;
+  padding: 0;
+  cursor: zoom-in;
+  white-space: normal;
+}
+
+.expandable-image .semi-button-content {
+  min-width: 0;
+}
+
+.expandable-image.semi-button:focus-visible {
+  outline: 2px solid var(--semi-color-focus-border);
+  outline-offset: 2px;
+}
+
+.image-viewer .semi-modal-content {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0;
   background: var(--semi-color-bg-0);
+}
+
+.image-viewer .semi-modal-body {
+  margin: 0;
+}
+
+.image-viewer__content {
+  display: flex;
+  flex-direction: column;
+}
+
+.image-viewer__toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.image-viewer__toolbar .semi-button {
+  touch-action: manipulation;
+}
+
+.image-viewer__canvas {
+  flex: 1;
+  overflow: hidden;
+}
+
+.image-viewer__stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  flex-shrink: 0;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* Preserve Semi button appearance while providing 44px mobile hit targets. */
+@media (max-width: 800px) {
+  .image-viewer__toolbar {
+    gap: 12px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    padding-bottom: 12px;
+  }
+
+  .image-viewer__toolbar .semi-button {
+    position: relative;
+  }
+
+  .image-viewer__toolbar .semi-button::after {
+    content: '';
+    position: absolute;
+    inset: -6px 0;
+    min-width: 44px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .image-viewer__toolbar .semi-button-group {
+    gap: 12px;
+  }
 }

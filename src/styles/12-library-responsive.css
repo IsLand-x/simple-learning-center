@@ -19,24 +19,14 @@
 
   .book-lists-workspace {
     display: flex;
-    min-height: 0;
     flex-direction: column;
-    gap: 12px;
-    overflow: visible;
     border: 0;
     border-radius: 0;
-    background: transparent;
   }
 
   .book-list-nav {
-    overflow: hidden;
     border: 1px solid var(--semi-color-border);
     border-radius: var(--semi-border-radius-medium);
-    background: var(--semi-color-bg-1);
-  }
-
-  .book-list-nav__heading {
-    min-height: 40px;
   }
 
   .book-list-nav__items {
@@ -44,18 +34,17 @@
     overflow-x: auto;
     overflow-y: hidden;
     flex-direction: row;
-    scrollbar-width: none;
   }
 
   .book-list-nav__items::-webkit-scrollbar {
     display: none;
   }
 
-  .book-list-nav__item {
-    width: 180px;
-    min-width: 180px;
+  .book-list-nav .book-list-nav__handle {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
     min-height: 44px;
-    padding-left: 10px;
   }
 
   .book-list-nav__item::before {
@@ -69,16 +58,8 @@
   }
 
   .book-list-detail {
-    overflow: hidden;
     border: 1px solid var(--semi-color-border);
     border-radius: var(--semi-border-radius-medium);
-    background: var(--semi-color-bg-1);
-  }
-
-  .book-list-detail__header {
-    min-height: 0;
-    flex-wrap: wrap;
-    padding: 12px;
   }
 
   .book-list-detail__identity {
@@ -120,46 +101,14 @@
     border-radius: 3px 6px 6px 3px;
   }
 
-  .book-list-book > .semi-button {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-  }
-
   .book-list-form .semi-input,
   .book-list-form .semi-input-textarea,
   .book-picker .semi-input {
     font-size: 16px;
   }
 
-  .epub-import-modal__upload .semi-button,
-  .epub-import-modal__actions .semi-button {
-    min-height: 44px;
-  }
-
   .epub-import-modal__actions .semi-button:last-child {
     flex: 1;
-  }
-
-  .book-picker__list {
-    max-height: 50dvh;
-  }
-
-  .book-picker__item {
-    min-height: 76px;
-  }
-
-  .book-trash__notice {
-    padding: 10px 12px;
-  }
-
-  .book-trash__item {
-    min-height: 96px;
-    padding: 12px 8px 12px 12px;
-  }
-
-  .book-trash__actions .semi-button {
-    min-height: 44px;
   }
 }
 
@@ -175,15 +124,6 @@
 
   .library-toolbar--lists .toolbar-actions {
     margin-left: auto;
-  }
-
-  .book-trash__item {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-
-  .book-trash__actions {
-    grid-column: 1 / -1;
-    justify-content: flex-end;
   }
 }
 

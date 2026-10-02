@@ -1,8 +1,12 @@
-import { markdownNoteTitle } from '../../lib/markdownNotes';
-import { normalizeAiReasoningEffort } from '../../lib/aiReasoning';
-import { normalizeHiddenReaderAiPromptTemplateIds } from '../../lib/readerAiPrompts';
-import { legacyReaderPaperColor, readerDensityFromLineHeight } from '../../lib/readerThemes';
-import type { AiPreferences, ChatMessage, ChatSession, HighlightItem, NoteItem } from '../../types';
+import { markdownNoteTitle } from '../../util/notes/markdownNotes';
+import { normalizeAiReasoningEffort } from '../../util/ai/aiReasoning';
+import { normalizeHiddenReaderAiPromptTemplateIds } from '../../util/ai/readerAiPrompts';
+import {
+  legacyReaderPaperColor,
+  readerDensityFromLineHeight,
+} from '../../util/reading/readerThemes';
+import type { AiPreferences, ChatMessage, ChatSession } from '../../../contracts/ai';
+import type { HighlightItem, NoteItem } from '../../../contracts/reading';
 import {
   DEFAULT_RSS_DIGEST_PROMPT,
   defaultAiPreferences,
@@ -377,6 +381,19 @@ export function migrateLearningState(persistedState: unknown, version: number) {
     };
   }
   if (version < 33) {
+    migrated = {
+      ...migrated,
+      chats: (migrated.chats ?? []).map((message) =>
+        message.role === 'assistant'
+          ? { ...message, readAt: message.readAt ?? Math.max(1, message.createdAt) }
+          : message,
+      ),
+    };
+  }
+  if (version < 34) {
+    migrated = { ...migrated, deletedNoteTombstones: migrated.deletedNoteTombstones ?? [] };
+  }
+  if (version < 35) {
     migrated = {
       ...migrated,
       books: (migrated.books ?? []).map((book) => {

@@ -1,4 +1,4 @@
-import type { NoteItem } from '../../types';
+import type { NoteItem } from '../../../contracts/reading';
 import type { LearningState, LearningStoreSet } from '../learningState';
 
 type ReadingActions = Pick<
@@ -59,13 +59,25 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
           ],
         };
       }),
-    addNote: (note) => set((state) => ({ notes: [note, ...state.notes] })),
+    addNote: (note) =>
+      set((state) => ({
+        notes: [note, ...state.notes],
+        deletedNoteTombstones: state.deletedNoteTombstones.filter(
+          (item) => item.noteId !== note.id,
+        ),
+      })),
     setBookNoteContent: (bookId, bookTitle, content) =>
       set((state) => {
-        const timestamp = Date.now();
         const existing = state.notes
           .filter((note) => note.bookId === bookId)
           .sort((left, right) => left.createdAt - right.createdAt)[0];
+        const timestamp = Math.max(
+          Date.now(),
+          (existing?.updatedAt ?? 0) + 1,
+          ...state.deletedNoteTombstones
+            .filter((item) => item.bookId === bookId)
+            .map((item) => item.deletedAt + 1),
+        );
         const note: NoteItem = existing
           ? {
               ...existing,
@@ -85,6 +97,16 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
             };
         return {
           notes: [note, ...state.notes.filter((item) => item.bookId !== bookId)],
+          deletedNoteTombstones: [
+            ...state.deletedNoteTombstones.filter((item) => item.noteId !== note.id),
+            ...state.notes
+              .filter((item) => item.bookId === bookId && item.id !== note.id)
+              .map((item) => ({
+                noteId: item.id,
+                bookId,
+                deletedAt: Math.max(timestamp, item.updatedAt + 1),
+              })),
+          ],
         };
       }),
     updateNote: (noteId, changes) =>
@@ -94,7 +116,17 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
         ),
       })),
     deleteNote: (noteId) =>
-      set((state) => ({ notes: state.notes.filter((note) => note.id !== noteId) })),
+      set((state) => {
+        const note = state.notes.find((item) => item.id === noteId);
+        if (!note) return state;
+        return {
+          notes: state.notes.filter((item) => item.id !== noteId),
+          deletedNoteTombstones: [
+            ...state.deletedNoteTombstones.filter((item) => item.noteId !== noteId),
+            { noteId, bookId: note.bookId, deletedAt: Math.max(Date.now(), note.updatedAt + 1) },
+          ],
+        };
+      }),
     upsertReadingSession: (session) =>
       set((state) => {
         const exists = state.readingSessions.some((item) => item.id === session.id);

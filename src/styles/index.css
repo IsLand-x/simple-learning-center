@@ -1,0 +1,20 @@
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+/* Utilities share the existing unlayered cascade with scoped Semi/EPUB overrides. */
+@import "tailwindcss/utilities.css";
+@import "./01-tokens.css";
+@import "./02-rss.css";
+@import "./03-base.css";
+@import "./04-app-shell.css";
+@import "./05-library-shell.css";
+@import "./06-settings.css";
+@import "./07-library.css";
+@import "./08-shared-states.css";
+@import "./09-reader.css";
+@import "./10-responsive.css";
+@import "./11-video.css";
+@import "./12-library-responsive.css";
+
+/* Match the application's existing inclusive mobile breakpoint exactly. */
+@custom-variant mobile (@media (max-width: 800px));

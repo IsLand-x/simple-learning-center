@@ -5,25 +5,30 @@ import { join } from 'node:path';
 
 const dataDirectory = await mkdtemp(join(tmpdir(), 'learning-center-e2e-'));
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const useBuild = process.env.LEARNING_CENTER_E2E_PRODUCTION === '1';
 const environment = {
   ...process.env,
   LEARNING_CENTER_API_PROXY: 'http://127.0.0.1:18787',
   LEARNING_CENTER_DATA_DIR: dataDirectory,
   LEARNING_CENTER_MODE: 'local',
-  LEARNING_CENTER_PORT: '18787',
+  LEARNING_CENTER_PORT: useBuild ? '15173' : '18787',
   LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS: '1800000',
 };
 const children = [
-  spawn(process.execPath, ['server/index.mjs'], {
+  spawn(process.execPath, ['server-dist/index.js'], {
     cwd: new URL('..', import.meta.url),
     env: environment,
     stdio: 'inherit',
   }),
-  spawn(npmCommand, ['run', 'dev:web', '--', '--port', '15173', '--strictPort'], {
-    cwd: new URL('..', import.meta.url),
-    env: environment,
-    stdio: 'inherit',
-  }),
+  ...(!useBuild
+    ? [
+        spawn(npmCommand, ['run', 'dev:web', '--', '--port', '15173', '--strictPort'], {
+          cwd: new URL('..', import.meta.url),
+          env: environment,
+          stdio: 'inherit',
+        }),
+      ]
+    : []),
 ];
 
 let stopping = false;

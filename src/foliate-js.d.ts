@@ -75,12 +75,16 @@ declare module 'foliate-js/view.js' {
     open: (book: string | File | Blob | FoliateBook) => Promise<void>;
     close: () => void;
     init: (options: { lastLocation?: string; showTextStart?: boolean }) => Promise<void>;
-    goTo: (target: string | number | { fraction: number }) => Promise<FoliateNavigationTarget | undefined>;
+    goTo: (
+      target: string | number | { fraction: number },
+    ) => Promise<FoliateNavigationTarget | undefined>;
     next: (distance?: number) => Promise<void>;
     prev: (distance?: number) => Promise<void>;
     deselect: () => void;
     getCFI: (index: number, range?: Range) => string;
-    resolveNavigation: (target: string | number | { fraction: number }) => FoliateNavigationTarget | undefined;
+    resolveNavigation: (
+      target: string | number | { fraction: number },
+    ) => FoliateNavigationTarget | undefined;
     addAnnotation: (annotation: FoliateAnnotation, remove?: boolean) => Promise<unknown>;
     deleteAnnotation: (annotation: FoliateAnnotation) => Promise<unknown>;
   }

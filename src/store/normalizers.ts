@@ -1,5 +1,6 @@
-import { normalizeReaderCustomStyle } from '../lib/readerThemes';
-import type { ReaderCustomStyle, ReaderFont, ReaderTheme, RssFeed } from '../types';
+import { normalizeReaderCustomStyle } from '../util/reading/readerThemes';
+import type { ReaderCustomStyle, ReaderFont, ReaderTheme } from '../../contracts/reading';
+import type { RssFeed } from '../../contracts/rss';
 
 export function normalizeReaderFont(font: unknown): ReaderFont {
   if (font === 'kai' || font === 'wenkai-screen') return 'kai';

@@ -11,3 +11,5 @@ outputs
 *.epub
 *.log
 *.tsbuildinfo
+
+server-dist

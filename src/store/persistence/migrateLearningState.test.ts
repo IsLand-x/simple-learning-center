@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../../lib/readerAiPrompts';
+import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../../util/ai/readerAiPrompts';
 import { migrateLearningState } from './migrateLearningState';
 
 describe('learning state migrations', () => {
@@ -121,18 +121,60 @@ describe('learning state migrations', () => {
     expect(preserved.aiPreferences?.reasoningEffort).toBe('max');
   });
 
-  it('preserves valid book pins and removes invalid legacy values', () => {
-    const migrated = migrateLearningState(
-      {
-        books: [{ id: 'valid', pinnedAt: 100 }, { id: 'invalid', pinnedAt: -1 }, { id: 'unread' }],
-      },
-      32,
-    );
+  it.each([32, 33, 34])(
+    'preserves valid book pins and removes invalid legacy values from version %s',
+    (version) => {
+      const migrated = migrateLearningState(
+        {
+          books: [
+            { id: 'valid', pinnedAt: 100 },
+            { id: 'invalid', pinnedAt: -1 },
+            { id: 'unread' },
+          ],
+        },
+        version,
+      );
 
-    expect(migrated.books?.map((book) => ({ id: book.id, pinnedAt: book.pinnedAt }))).toEqual([
-      { id: 'valid', pinnedAt: 100 },
-      { id: 'invalid', pinnedAt: undefined },
-      { id: 'unread', pinnedAt: undefined },
-    ]);
-  });
+      expect(migrated.books?.map((book) => ({ id: book.id, pinnedAt: book.pinnedAt }))).toEqual([
+        { id: 'valid', pinnedAt: 100 },
+        { id: 'invalid', pinnedAt: undefined },
+        { id: 'unread', pinnedAt: undefined },
+      ]);
+    },
+  );
+});
+
+it('preserves API key and additive OAuth configs without changing their state domain', () => {
+  const configs = [
+    {
+      id: 'old',
+      name: '旧供应商',
+      baseUrl: 'https://example.com',
+      apiKey: 'test',
+      models: ['old-model'],
+      createdAt: 1,
+      updatedAt: 1,
+    },
+    {
+      id: 'oauth',
+      oauthProvider: 'openai-codex' as const,
+      name: 'ChatGPT',
+      baseUrl: 'https://chatgpt.com/backend-api',
+      apiKey: '',
+      models: ['test-model'],
+      createdAt: 2,
+      updatedAt: 2,
+    },
+  ];
+  const migrated = migrateLearningState({ openAIConfigs: configs }, 32);
+  expect(migrated.openAIConfigs).toEqual(configs);
+});
+
+it('adds explicit note deletions without losing existing version 33 notes', () => {
+  const notes = [
+    { id: 'note', bookId: 'book', content: '已有笔记', title: '标题', createdAt: 1, updatedAt: 2 },
+  ];
+  const migrated = migrateLearningState({ notes }, 33);
+  expect(migrated.notes).toEqual(notes);
+  expect(migrated.deletedNoteTombstones).toEqual([]);
 });

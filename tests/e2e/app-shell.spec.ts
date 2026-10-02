@@ -1,9 +1,10 @@
+import { expectSemiButtonSize } from './semi-button-size';
 import { expect, test, type Page } from '@playwright/test';
 import {
   DEFAULT_READER_AI_ASSISTANT_PROMPT,
   READER_AI_PROMPT_TEMPLATES,
-} from '../../src/lib/readerAiPrompts';
-import { demoBooks } from '../../src/data/demo';
+} from '../../src/util/ai/readerAiPrompts';
+import { demoBooks } from '../../src/util/fixtures/demo';
 
 interface SubmittedAiJob {
   bookId: string;
@@ -16,11 +17,21 @@ interface SubmittedAiJob {
 }
 
 async function selectTheme(page: Page, theme: 'light' | 'dark') {
+  // Wait for the app shell and persisted preferences before inspecting the theme.
+  await expect(page.getByRole('button', { name: /切换为[深浅]色主题/ })).toBeVisible();
   const currentTheme = await page.locator('body').getAttribute('theme-mode');
-  if (currentTheme === theme) return;
-  const targetLabel = theme === 'dark' ? '切换为深色主题' : '切换为浅色主题';
-  await page.getByRole('button', { name: targetLabel }).click();
+  if (currentTheme !== theme) {
+    const targetLabel = theme === 'dark' ? '切换为深色主题' : '切换为浅色主题';
+    await page.getByRole('button', { name: targetLabel }).click();
+  }
   await expect(page.locator('body')).toHaveAttribute('theme-mode', theme);
+  // A following page.goto must not race the asynchronous preference write.
+  await expect
+    .poll(async () => {
+      const response = await page.request.get('/api/state/preferences');
+      return (await response.json()).state.themeMode;
+    })
+    .toBe(theme);
 }
 
 async function expectInsideViewport(page: Page, selector: string) {
@@ -53,18 +64,22 @@ async function expectFormModalEdgeSpacing(page: Page, minimumSpacing: number) {
 
 test('all top-level routes load through their state-domain gates', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
+  // Cold production navigation also initializes the local data service and PWA cache.
+  test.setTimeout(90_000);
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible({ timeout: 15_000 });
 
   await page.goto('/settings');
-  await expect(page.getByRole('heading', { name: '设置' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '设置' })).toBeVisible({ timeout: 15_000 });
 
   await page.goto('/rss?source=all&range=all');
-  await expect(page.getByRole('heading', { name: 'RSS', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'RSS', exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
 
   await page.goto('/videos');
-  await expect(page.getByRole('heading', { name: '视频学习' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '视频学习' })).toBeVisible({ timeout: 15_000 });
 });
 
 test('theme switching keeps the application on semantic dark mode', async ({ page }, testInfo) => {
@@ -160,6 +175,7 @@ test('library book context menu dismisses and manages pinning, lists, tags, and 
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
+  test.setTimeout(90_000);
 
   await page.goto('/');
   await selectTheme(page, 'light');
@@ -223,6 +239,39 @@ test('library book context menu dismisses and manages pinning, lists, tags, and 
     otherBooksBounds?.y ?? 0,
   );
 
+  await expect
+    .poll(async () => {
+      const response = await page.request.get('/api/state/library');
+      const snapshot = await response.json();
+      return snapshot.state.books.find((book: { id: string }) => book.id === 'demo-data-intensive')
+        ?.pinnedAt;
+    })
+    .toBeGreaterThan(0);
+  await page.reload();
+  await expect(pinnedSection).toContainText('Designing Data-Intensive Applications');
+  for (const theme of ['light', 'dark'] as const) {
+    await page.setViewportSize({ width: 1024, height: 1000 });
+    await selectTheme(page, theme);
+    for (const width of [375, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect(pinnedSection).toBeVisible();
+      const bounds = await pinnedSection.boundingBox();
+      expect(bounds?.x).toBeGreaterThanOrEqual(0);
+      expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(width);
+      const dimensions = await page.evaluate(() => ({
+        width: document.documentElement.clientWidth,
+        scroll: document.documentElement.scrollWidth,
+      }));
+      expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.width);
+      await page.screenshot({
+        path: testInfo.outputPath(`pinned-${width}-${theme}.png`),
+        fullPage: true,
+        animations: 'disabled',
+      });
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await selectTheme(page, 'light');
   await bookCard.click({ button: 'right' });
   await contextMenu.getByRole('menuitem', { name: /取消置顶$/ }).click();
   await expect(pinnedSection).toBeHidden();
@@ -298,6 +347,8 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
+  // This flow includes reader loading and several persisted settings requests.
+  test.setTimeout(90_000);
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
@@ -411,6 +462,8 @@ test('reader AI highlight questions and in-panel settings persist across desktop
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
+  // This flow includes reader loading and several persisted settings requests.
+  test.setTimeout(90_000);
 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
@@ -587,17 +640,14 @@ test('reader AI highlight questions and in-panel settings persist across desktop
   await page.getByRole('button', { name: '打开更多功能，默认显示 AI 助手' }).click();
   await expect(shortcuts).toBeVisible();
   await expect(shortcuts.getByRole('button')).toHaveCount(READER_AI_PROMPT_TEMPLATES.length - 1);
-  const mobileShortcutHeight = await summarizeChapter.evaluate(
-    (element) => element.getBoundingClientRect().height,
-  );
-  expect(Math.round(mobileShortcutHeight)).toBeGreaterThanOrEqual(44);
+  await expectSemiButtonSize(summarizeChapter);
   await expectInsideViewport(page, '.reader-ai-input');
   const mobileDimensions = await page.evaluate(() => ({
     clientWidth: document.documentElement.clientWidth,
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(mobileDimensions.scrollWidth).toBeLessThanOrEqual(mobileDimensions.clientWidth);
-  expect(Math.round((await settingsButton.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(44);
+  await expectSemiButtonSize(settingsButton);
   await settingsButton.click();
   await expect(settingsDialog).toBeVisible();
   await expect
@@ -620,4 +670,106 @@ test('reader AI highlight questions and in-panel settings persist across desktop
   );
   await expect(page.getByRole('switch', { name: '自动隐藏思考过程' })).toBeChecked();
   await expect(page.getByRole('switch', { name: '显示快捷方式：总结全书' })).not.toBeChecked();
+});
+
+test('OpenAPI token settings support generation and revocation across themes and viewports', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chrome');
+  test.setTimeout(90_000);
+  await page.request.delete('/api/settings/openapi-token', {
+    headers: { 'X-Learning-Center-Request': '1' },
+  });
+  await page.goto('/settings');
+  await page.getByRole('tab', { name: 'OpenAPI', exact: true }).click();
+  const panel = page.locator('.openapi-settings');
+  await expect(panel.getByRole('button', { name: '生成 Token', exact: true })).toBeEnabled();
+  await panel.getByRole('button', { name: '生成 Token', exact: true }).click();
+  await expect(panel.getByLabel('OpenAPI Token', { exact: true })).toHaveValue(/^lc_/);
+  for (const theme of ['light', 'dark'] as const) {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await selectTheme(page, theme);
+    for (const width of [375, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(panel.getByRole('button', { name: '复制 Token' })).toBeVisible();
+      const bounds = await panel.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      if (width <= 800) {
+        await expectSemiButtonSize(panel.getByRole('button', { name: '复制 Token' }));
+      }
+    }
+  }
+  await page.reload();
+  await page.getByRole('tab', { name: 'OpenAPI', exact: true }).click();
+  await expect(panel.getByText('已配置 Token', { exact: true })).toBeVisible();
+  await expect(panel.getByLabel('OpenAPI Token', { exact: true })).toHaveCount(0);
+  await panel.getByRole('button', { name: '撤销 Token', exact: true }).click();
+  await page.keyboard.press('Enter');
+  await expect(panel.getByText('尚未配置 Token', { exact: true })).toBeVisible();
+});
+
+test('MCP settings show reusable token config and library tools', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chrome');
+  test.setTimeout(90_000);
+  await page.request.delete('/api/settings/openapi-token', {
+    headers: { 'X-Learning-Center-Request': '1' },
+  });
+  await page.goto('/settings');
+  if (process.env.LEARNING_CENTER_E2E_PRODUCTION === '1') {
+    await page.evaluate(async () => {
+      await navigator.serviceWorker.ready;
+    });
+    await page.reload();
+    await expect
+      .poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
+      .toBe(true);
+  }
+  await page.getByRole('tab', { name: 'MCP', exact: true }).click();
+  const panel = page.locator('.mcp-settings');
+  await panel.getByRole('button', { name: '生成 Token', exact: true }).click();
+  await expect(panel.getByLabel('MCP 配置 JSON')).toContainText('lc_');
+  await expect(panel.getByRole('button', { name: '复制配置 JSON' })).toBeEnabled();
+  await expect(panel.locator('.mcp-settings__tools li')).toHaveCount(8);
+  const config = JSON.parse(await panel.getByLabel('MCP 配置 JSON').innerText());
+  const connection = config.mcpServers['learning-center'];
+  const token = connection.headers.Authorization.slice('Bearer '.length);
+  expect(connection.type).toBe('http');
+  expect(connection.url).toBe(new URL('/api/openapi/mcp', page.url()).href);
+  expect(connection.command).toBeUndefined();
+  await expect(panel.getByRole('button', { name: '下载本地连接脚本' })).toHaveCount(0);
+  const response = await page.request.post(connection.url, {
+    headers: { ...connection.headers, Accept: 'application/json, text/event-stream' },
+    data: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+  });
+  expect(response.ok()).toBe(true);
+  expect((await response.json()).result.tools).toHaveLength(8);
+  for (const theme of ['light', 'dark'] as const) {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await selectTheme(page, theme);
+    for (const width of [375, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await panel.getByRole('heading', { name: 'MCP 连接配置' }).scrollIntoViewIfNeeded();
+      const screenshotPath = testInfo.outputPath(`mcp-${theme}-${width}.png`);
+      await page.screenshot({ path: screenshotPath, mask: [panel.getByLabel('MCP 配置 JSON')] });
+      await testInfo.attach(`mcp-${theme}-${width}`, {
+        path: screenshotPath,
+        contentType: 'image/png',
+      });
+      await panel.getByText('upload_book', { exact: true }).scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: testInfo.outputPath(`mcp-tools-${theme}-${width}.png`),
+        mask: [panel.getByLabel('MCP 配置 JSON')],
+      });
+      const bounds = await panel.boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      if (width <= 800)
+        await expectSemiButtonSize(panel.getByRole('button', { name: '复制配置 JSON' }));
+    }
+  }
+  await page.reload();
+  await page.getByRole('tab', { name: 'MCP', exact: true }).click();
+  await expect(panel.getByLabel('MCP 配置 JSON')).toContainText(token);
 });

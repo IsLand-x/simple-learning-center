@@ -2,6 +2,7 @@ import type { LearningState, LearningStoreSet } from '../learningState';
 
 type ConversationActions = Pick<
   LearningState,
+  | 'markChatMessagesRead'
   | 'createChatSession'
   | 'updateChatSession'
   | 'deleteChatSession'
@@ -11,6 +12,18 @@ type ConversationActions = Pick<
 
 export function createConversationActions(set: LearningStoreSet): ConversationActions {
   return {
+    markChatMessagesRead: (messageIds) =>
+      set((state) => {
+        const ids = new Set(messageIds);
+        const readAt = Date.now();
+        return {
+          chats: state.chats.map((message) =>
+            message.role === 'assistant' && !message.readAt && ids.has(message.id)
+              ? { ...message, readAt }
+              : message,
+          ),
+        };
+      }),
     createChatSession: (session) =>
       set((state) => ({
         chatSessions: [session, ...state.chatSessions.filter((item) => item.id !== session.id)],

@@ -1,0 +1,40 @@
+name: 重构预览镜像
+
+on:
+  push:
+    branches:
+      - 'IsLand-x/完全重构项目'
+
+concurrency:
+  group: learning-center-refactor-preview
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: 验证并发布独立预览镜像
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 读取提交时间
+        id: metadata
+        run: echo "updated_at=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/island-x/simple-learning-center:refactor-${{ github.sha }}
+          build-args: |
+            APP_BUILD_REVISION=${{ github.sha }}
+            APP_UPDATED_AT=${{ steps.metadata.outputs.updated_at }}
+          cache-from: type=gha,scope=refactor-preview
+          cache-to: type=gha,mode=max,scope=refactor-preview

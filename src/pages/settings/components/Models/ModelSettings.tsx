@@ -1,0 +1,74 @@
+import { OAuthProviders } from './OAuthProviders';
+import { Button, Empty, Typography } from '@douyinfe/semi-ui';
+import { IconPlus } from '@douyinfe/semi-icons';
+import { createUuid } from '../../../../util/uuid';
+import { useLearningStore } from '../../../../store/useLearningStore';
+import { ConfigEditor } from './ConfigEditor';
+
+const { Text } = Typography;
+
+export interface ModelSettingsProps {
+  editingConfigId: string | null;
+  onEditingConfigChange: (configId: string | null) => void;
+}
+
+export function ModelSettings({ editingConfigId, onEditingConfigChange }: ModelSettingsProps) {
+  const configs = useLearningStore((state) => state.openAIConfigs);
+  const addConfig = useLearningStore((state) => state.addOpenAIConfig);
+
+  const add = () => {
+    const timestamp = Date.now();
+    const id = createUuid();
+    addConfig({
+      id,
+      name: `模型 ${configs.length + 1}`,
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '',
+      models: ['gpt-4.1-mini'],
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    onEditingConfigChange(id);
+  };
+
+  return (
+    <>
+      <div className="settings-tab-actions justify-end [margin-bottom:12px]">
+        <Button icon={<IconPlus />} theme="solid" type="primary" onClick={add}>
+          添加模型
+        </Button>
+      </div>
+      <section
+        className="settings-notice [margin-right:auto] [margin-left:auto] [gap:4px] [margin-bottom:16px] [padding:12px_14px] [background:var(--semi-color-fill-0)] mobile:[padding:14px]"
+        aria-label="模型 API Key 存储说明"
+      >
+        <Text strong>保存在服务器数据目录</Text>
+        <Text size="small" type="tertiary">
+          API Key 会写入服务器数据目录，模型请求由学习中心服务端发起，不要求供应商开放浏览器
+          CORS。远程模式请务必启用访问认证和 HTTPS。
+        </Text>
+      </section>
+      <OAuthProviders />
+      <section
+        className="api-config-list [margin-right:auto] [margin-left:auto]"
+        aria-label="AI 模型配置列表"
+      >
+        {configs.some((config) => !config.oauthProvider) ? (
+          configs
+            .filter((config) => !config.oauthProvider)
+            .map((config) => (
+              <ConfigEditor
+                key={config.id}
+                config={config}
+                editing={editingConfigId === config.id}
+                onEdit={() => onEditingConfigChange(config.id)}
+                onClose={() => onEditingConfigChange(null)}
+              />
+            ))
+        ) : (
+          <Empty title="还没有 API Key 模型" />
+        )}
+      </section>
+    </>
+  );
+}
