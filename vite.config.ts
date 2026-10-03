@@ -855,6 +855,8 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        // Downloads and public APIs must reach the server even for navigation requests.
+        navigateFallbackDenylist: [/^\/api\//],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
     }),

@@ -1,0 +1,13 @@
+/* Preserve Semi button visuals while extending the mobile touch hit area. */
+@media (max-width: 800px) {
+  .book-share-page .semi-button {
+    position: relative;
+  }
+  .book-share-page .semi-button::before {
+    position: absolute;
+    inset: -6px;
+    min-width: 44px;
+    min-height: 44px;
+    content: '';
+  }
+}

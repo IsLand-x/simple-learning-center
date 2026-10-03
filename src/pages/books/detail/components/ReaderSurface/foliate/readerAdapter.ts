@@ -1,11 +1,9 @@
 import { Overlayer, type FoliateOverlayRect } from 'foliate-js/overlayer.js';
 import type {
   FoliateAnnotation,
-  FoliateBook,
   FoliateRendererContent,
   View as FoliateView,
 } from 'foliate-js/view.js';
-import 'foliate-js/view.js?learning-center-srcdoc-v1';
 import type { HighlightItem, ReaderPreferences } from '../../../../../../../contracts/reading';
 import {
   getReaderFontStylesheet,
@@ -19,109 +17,9 @@ import { createReaderTextSelectionCursor } from '../textCursor';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const COMMENT_BADGE_SIZE = 20;
-const SRCDOC_SECTION_PREFIX = 'learning-center-srcdoc:';
-const preparedBooks = new WeakSet<FoliateBook>();
-
-interface FoliateTransformDetail {
-  data: string | Blob | Promise<string | Blob>;
-  name: string;
-  type: string;
-}
-
 export interface ReaderFoliateAnnotation extends FoliateAnnotation {
   highlightId: string;
   comment?: string;
-}
-
-export function createFoliateView() {
-  return document.createElement('foliate-view') as FoliateView;
-}
-
-function sanitizeEpubMarkup(source: string, mediaType: string) {
-  const normalizedMediaType = mediaType.toLowerCase();
-  const parserType: DOMParserSupportedType = normalizedMediaType.includes('svg')
-    ? 'image/svg+xml'
-    : normalizedMediaType.includes('xml')
-      ? 'application/xhtml+xml'
-      : 'text/html';
-  let document = new DOMParser().parseFromString(source, parserType);
-  if (document.querySelector('parsererror')) {
-    document = new DOMParser().parseFromString(source, 'text/html');
-  }
-  document
-    .querySelectorAll('script, meta[http-equiv="refresh" i]')
-    .forEach((element) => element.remove());
-  document.querySelectorAll('*').forEach((element) => {
-    Array.from(element.attributes).forEach((attribute) => {
-      if (/^on/i.test(attribute.name)) element.removeAttribute(attribute.name);
-    });
-  });
-  return new XMLSerializer().serializeToString(document);
-}
-
-function decodeHref(value: string) {
-  try {
-    return decodeURI(value);
-  } catch {
-    return value;
-  }
-}
-
-function createImageSectionMarkup(source: string) {
-  const escapedSource = source
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-  return `<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;display:grid;place-items:center;min-height:100vh"><img src="${escapedSource}" alt="" style="display:block;max-width:100%;max-height:100vh"></body></html>`;
-}
-
-export function prepareFoliateBookForBrowser(view: FoliateView) {
-  const { book } = view;
-  if (preparedBooks.has(book)) return;
-  preparedBooks.add(book);
-
-  const sourceByName = new Map<string, string>();
-  const mediaTypeByName = new Map<string, string>();
-  book.transformTarget?.addEventListener('data', (event) => {
-    const detail = (event as CustomEvent<FoliateTransformDetail>).detail;
-    mediaTypeByName.set(detail.name, detail.type);
-    mediaTypeByName.set(decodeHref(detail.name), detail.type);
-    if (!detail.type.includes('html') && !detail.type.includes('svg')) return;
-    detail.data = Promise.resolve(detail.data).then((data) => {
-      if (typeof data !== 'string') return data;
-      const source = sanitizeEpubMarkup(data, detail.type);
-      sourceByName.set(detail.name, source);
-      sourceByName.set(decodeHref(detail.name), source);
-      return source;
-    });
-  });
-
-  book.sections.forEach((section) => {
-    const load = section.load?.bind(section);
-    if (!load) return;
-    section.load = async () => {
-      const fallbackUrl = await load();
-      const sectionId = section.id;
-      const decodedSectionId = sectionId ? decodeHref(sectionId) : undefined;
-      const source = sectionId
-        ? (sourceByName.get(sectionId) ?? sourceByName.get(decodedSectionId ?? ''))
-        : undefined;
-      if (source) return `${SRCDOC_SECTION_PREFIX}${source}`;
-      const mediaType = sectionId
-        ? (mediaTypeByName.get(sectionId) ?? mediaTypeByName.get(decodedSectionId ?? ''))
-        : undefined;
-      if (fallbackUrl && mediaType?.startsWith('image/') && !mediaType.includes('svg')) {
-        return `${SRCDOC_SECTION_PREFIX}${createImageSectionMarkup(fallbackUrl)}`;
-      }
-      if (!section.createDocument) return fallbackUrl;
-      const document = await section.createDocument();
-      return `${SRCDOC_SECTION_PREFIX}${sanitizeEpubMarkup(
-        new XMLSerializer().serializeToString(document),
-        document.contentType,
-      )}`;
-    };
-  });
 }
 
 export function applyFoliateReaderLayout(view: FoliateView, compactLayout: boolean) {

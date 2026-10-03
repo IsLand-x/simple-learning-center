@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'feat/**'
+      - 'codex/book-sharing'
       - 'IsLand-x/完全重构项目'
   pull_request:
 

@@ -1,3 +1,7 @@
+import {
+  createFoliateView,
+  prepareFoliateBookForBrowser,
+} from '../../../../../../util/reading/foliateBrowser';
 import type { FoliateRelocateDetail, View as FoliateView } from 'foliate-js/view.js';
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { booksApi } from '../../../../../../api/books/index';
@@ -16,12 +20,7 @@ import { createFoliateTrackpadNavigation } from './trackpadNavigation';
 import type { BookItem } from '../../../../../../../contracts/books';
 import type { HighlightItem, ReaderPreferences } from '../../../../../../../contracts/reading';
 import type { ReaderHighlightTarget, ReaderSelection } from '../../../../../../types/reader';
-import {
-  configureFoliateReader,
-  createFoliateView,
-  getFoliateContents,
-  prepareFoliateBookForBrowser,
-} from './readerAdapter';
+import { configureFoliateReader, getFoliateContents } from './readerAdapter';
 
 type MutableReaderRef<T> = { current: T };
 
