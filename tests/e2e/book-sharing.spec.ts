@@ -19,8 +19,8 @@ test('三点菜单分享，匿名只读预览、下载及撤销', async ({ page,
   await page.goto(`/books/${book.id}`);
   const more = page.getByRole('button', { name: '更多书籍操作' });
   await expect(more).toBeVisible();
-  if (testInfo.project.name === 'mobile-chrome') await more.click();
-  else await more.hover();
+  await more.click();
+  await expect(page.getByRole('menuitem', { name: '分享', exact: true })).toBeVisible();
   await page.getByRole('menuitem', { name: '分享', exact: true }).click();
   await expect(page).toHaveURL(/\/share\/[a-f0-9]{64}$/);
   const shareUrl = page.url();
