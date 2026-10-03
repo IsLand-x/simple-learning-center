@@ -1,3 +1,4 @@
+import type { DoubanBookInfo } from '../../../contracts/books';
 import { apiTransport } from '../http/transport';
 import type { BookShareLink, SharedBook } from './type';
 
@@ -16,6 +17,12 @@ export class BookSharesApi {
   get(token: string): Promise<SharedBook> {
     return this.transport.json(`/api/public/book-shares/${encodeURIComponent(token)}`, {
       credentials: 'omit',
+    });
+  }
+  getDouban(token: string, signal: AbortSignal): Promise<DoubanBookInfo> {
+    return this.transport.json(`/api/public/book-shares/${encodeURIComponent(token)}/douban`, {
+      credentials: 'omit',
+      signal,
     });
   }
   async loadEpub(token: string, signal: AbortSignal): Promise<ArrayBuffer> {

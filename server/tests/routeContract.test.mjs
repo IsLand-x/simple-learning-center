@@ -8,6 +8,8 @@ const expectedRoutes = [
     path: '/api/*',
   },
   { method: 'ALL', path: '/api/public/book-shares/*' },
+  { method: 'GET', path: '/api/public/book-shares/:token/douban' },
+  { method: 'ALL', path: '/api/public/book-shares/:token/douban' },
   { method: 'GET', path: '/api/public/book-shares/:token' },
   { method: 'GET', path: '/api/public/book-shares/:token/epub' },
   { method: 'HEAD', path: '/api/public/book-shares/:token/epub' },

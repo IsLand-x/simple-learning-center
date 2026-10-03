@@ -59,10 +59,12 @@ test('分享只公开明确授权的书籍，匿名读取、撤销、删除和�
   assert.equal((await remote.request(`${path}/notes`)).status, 401);
   assert.equal((await remote.request(path, { method: 'POST' })).status, 405);
   assert.equal((await remote.request('/api/public/book-shares/shared')).status, 404);
+  assert.equal((await remote.request('/api/public/book-shares/shared/douban')).status, 404);
   assert.equal((await remote.request(`/api/public/book-shares/${'0'.repeat(64)}`)).status, 404);
   assert.equal((await local.request('/api/books/shared/share', { method: 'DELETE' })).status, 204);
   assert.equal((await remote.request(path)).status, 404);
   assert.equal((await remote.request(`${path}/epub`)).status, 404);
+  assert.equal((await remote.request(`${path}/douban`)).status, 404);
   const next = await (await local.request('/api/books/shared/share', { method: 'POST' })).json();
   assert.notEqual(next.token, links[0].token);
   assert.equal((await local.request('/api/books/shared/trash', { method: 'POST' })).status, 200);

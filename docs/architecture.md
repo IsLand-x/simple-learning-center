@@ -162,3 +162,5 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 `server/modules/books/shares.ts` 将 256 位随机令牌与书籍关联，映射存放在权限 0600 的 `book-shares.json`，创建、撤销和删除复用服务端状态写队列，不新增 LearningState 字段。`shareRoutes.ts` 在认证中间件之前挂载且只允许明确的 GET/HEAD 元数据、封面、EPUB 路由，其余私人 API 仍需认证。公开响应禁止缓存，令牌撤销后每次访问重新验证；不返回笔记、进度、书单或 AI 配置。
 
 `/share/:token` 在启动时选择独立 lazy 页面，跳过登录、状态 hydration 和后台同步；`src/api/book-shares` 负责所有分享请求，匿名读取不携带会话。只读 Foliate 预览复用 `src/util/reading/foliateBrowser.ts` 的章节兼容通道，私人阅读器仍使用原有布局和标注逻辑。公开章节额外施加 CSP，阻止脚本、外部网络和表单；预览状态仅在内存中，不导入持久化 store。
+
+豆瓣公开信息由 books 域 `douban.ts` 负责：固定 HTTPS 主机、禁止重定向、四秒请求超时、响应大小上限和 schema 校验；同时核对候选及详情页的书名和作者，提取纯文本简介与安全原文链接。缓存仅存在服务进程内，最多 200 项，同一查询合并并发请求。公开 `/api/public/book-shares/:token/douban` 每次先校验分享令牌，前端独立可取消请求，不阻塞分享元数据或 EPUB 下载。

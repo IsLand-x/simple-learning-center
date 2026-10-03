@@ -1,3 +1,4 @@
+import { doubanBooks } from './douban.js';
 import { createRouter } from '../../http/router.js';
 import { methodNotAllowed } from '../../http/responses.js';
 import { storedFileResponse } from '../../http/storedFileResponse.js';
@@ -12,6 +13,11 @@ export function createPublicBookShareRoutes() {
     c.header('X-Content-Type-Options', 'nosniff');
     await next();
   });
+  app.get('/:token/douban', async (c) => {
+    const book = await resolveBookShare(c.req.param('token'));
+    return c.json(await doubanBooks.lookup(book.title, book.author));
+  });
+  app.all('/:token/douban', methodNotAllowed);
   app.get('/:token', async (c) => {
     const book = await resolveBookShare(c.req.param('token'));
     return c.json({ title: book.title, author: book.author });

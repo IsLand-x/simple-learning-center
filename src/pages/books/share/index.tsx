@@ -1,3 +1,4 @@
+import { DoubanBookSection } from './components/DoubanBookSection';
 import { useEffect, useState, lazy, Suspense } from 'react';
 import { Button, Empty, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { bookSharesApi } from '../../../api/book-shares';
@@ -108,6 +109,7 @@ export function BookSharePage({ token }: { token: string }) {
           </Button>
         </div>
         <Typography.Text type="tertiary">无需登录即可阅读和下载</Typography.Text>
+        <DoubanBookSection token={token} title={book.title} />
       </div>
     </main>
   );

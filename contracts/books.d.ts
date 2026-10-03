@@ -46,3 +46,16 @@ export interface DeletedBookTombstone {
   bookId: string;
   deletedAt: number;
 }
+
+export type DoubanBookInfo =
+  | {
+      status: 'matched';
+      title: string;
+      url: string;
+      reviewsUrl: string;
+      description: string;
+      rating: number | null;
+      reviews: Array<{ title: string; author: string; url: string }>;
+      fetchedAt: number;
+    }
+  | { status: 'not_found' | 'unavailable'; searchUrl: string };

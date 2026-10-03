@@ -36,8 +36,34 @@ test('三点菜单分享，匿名只读预览、下载及撤销', async ({ page,
       privateRequests.push(request.url());
   });
   await guest.route('**/api/auth/**', (route) => route.fulfill({ status: 401 }));
+  await guest.route('**/api/public/book-shares/*/douban', (route) =>
+    route.fulfill({
+      json: {
+        status: 'matched',
+        title: book.title,
+        description: '这是一段用于验证分享页的原创简介。',
+        rating: 8.6,
+        url: 'https://book.douban.com/subject/1234/',
+        reviewsUrl: 'https://book.douban.com/subject/1234/reviews',
+        reviews: [
+          {
+            title: '读书时如何思考',
+            author: '示例读者',
+            url: 'https://book.douban.com/review/5678/',
+          },
+        ],
+        fetchedAt: 1,
+      },
+    }),
+  );
   await guest.goto(shareUrl);
   await expect(guest.getByText('朋友送给你了这本书，快来看看吧')).toBeVisible();
+  await expect(guest.getByText('这是一段用于验证分享页的原创简介。')).toBeVisible();
+  await expect(guest.getByText('豆瓣评分 8.6')).toBeVisible();
+  await expect(guest.getByRole('link', { name: '读书时如何思考' })).toHaveAttribute(
+    'href',
+    'https://book.douban.com/review/5678/',
+  );
   for (const theme of ['light', 'dark']) {
     await guest.evaluate((mode) => {
       document.body.setAttribute('theme-mode', mode);
@@ -48,6 +74,7 @@ test('三点菜单分享，匿名只读预览、下载及撤销', async ({ page,
       expect(await guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
+      await guest.getByRole('region', { name: '豆瓣书籍信息' }).scrollIntoViewIfNeeded();
       await guest.screenshot({ path: testInfo.outputPath(`share-${theme}-${width}.png`) });
     }
   }
@@ -87,6 +114,18 @@ test('三点菜单分享，匿名只读预览、下载及撤销', async ({ page,
   expect(await guest.evaluate(() => window.history.length)).toBe(historyLength);
   await guest.reload();
   await expect(guest.getByRole('button', { name: '预览书籍' })).toBeVisible();
+  await guest.unroute('**/api/public/book-shares/*/douban');
+  await guest.route('**/api/public/book-shares/*/douban', (route) =>
+    route.fulfill({
+      json: {
+        status: 'unavailable',
+        searchUrl: 'https://search.douban.com/book/subject_search?search_text=test&cat=1001',
+      },
+    }),
+  );
+  await guest.reload();
+  await expect(guest.getByText('豆瓣信息暂时无法获取')).toBeVisible();
+  await expect(guest.getByRole('button', { name: '下载 EPUB' })).toBeEnabled();
   expect(privateRequests).toEqual([]);
   expect((await guest.request.get(`/api/public/book-shares/${shareToken}`)).ok()).toBe(true);
   await page.request.delete(`/api/books/${book.id}/share`);
