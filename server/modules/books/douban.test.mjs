@@ -66,3 +66,15 @@ test('重定向、过大响应及恶意候选标识不能变成任意 URL 请求
   const oversized = new DoubanBookLookup(async () => new Response('x'.repeat(64_001)));
   assert.equal((await oversized.lookup('示例书', '示例作者')).status, 'unavailable');
 });
+
+test('长书名按 Unicode 字符截断，编码异常不影响分享接口', async () => {
+  const urls = [];
+  const lookup = new DoubanBookLookup(async (url) => {
+    urls.push(new URL(url));
+    return new Response('[]');
+  });
+  const result = await lookup.lookup('书'.repeat(199) + '📚尾', '作者');
+  assert.equal(result.status, 'not_found');
+  assert.equal(urls[0].searchParams.get('q'), '书'.repeat(199) + '📚');
+  assert.equal((await lookup.lookup('书\ud800', '作者')).status, 'not_found');
+});

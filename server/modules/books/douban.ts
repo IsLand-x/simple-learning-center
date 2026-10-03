@@ -74,13 +74,14 @@ export class DoubanBookLookup {
   }
 
   private async load(title: string, author: string): Promise<DoubanBookInfo> {
-    const searchUrl = `https://search.douban.com/book/subject_search?search_text=${encodeURIComponent(title.slice(0, 200))}&cat=1001`;
-    if (!normalize(author) || author === '未知作者') return { status: 'not_found', searchUrl };
+    const queryTitle = Array.from(title).slice(0, 200).join('');
+    const searchUrl = `https://search.douban.com/book/subject_search?${new URLSearchParams({ search_text: queryTitle, cat: '1001' })}`;
     try {
+      if (!normalize(author) || author === '未知作者') return { status: 'not_found', searchUrl };
       const suggestions = suggestionSchema.parse(
         JSON.parse(
           await this.read(
-            `https://book.douban.com/j/subject_suggest?q=${encodeURIComponent(title.slice(0, 200))}`,
+            `https://book.douban.com/j/subject_suggest?${new URLSearchParams({ q: queryTitle })}`,
             64_000,
           ),
         ),
