@@ -154,7 +154,7 @@ export function createInfographicTools({
   let failed = false;
   return {
     plan_infographic: {
-      description: `用户要求信息图时，先读取相关正文或用户引用，再根据当前问题自动选择预设，整理内容稿。内容稿会展示给读者，本工具不生图。拿到 plan_id 后，在下一轮调用 generate_infographic。\n${INFOGRAPHIC_GUIDANCE}`,
+      description: `用户要求信息图或漫画时，先读取相关正文或用户引用，再根据当前问题自动选择预设，整理内容稿。内容稿会展示给读者，本工具不生图。拿到 plan_id 后，在下一轮调用 generate_infographic。\n${INFOGRAPHIC_GUIDANCE}`,
       inputSchema: planSchema,
       execute: async (params: unknown, signal?: AbortSignal) => {
         signal?.throwIfAborted();
@@ -163,6 +163,8 @@ export function createInfographicTools({
             `每条消息最多规划 ${MAX_IMAGES_PER_REQUEST} 张图片，其余主题请在下一条消息生成。`,
           );
         const plan = validate(planSchema, params);
+        if (plan.preset === 'comic' && (plan.nodes.length < 4 || plan.nodes.length > 6))
+          throw new Error('章节导读漫画需要 4—6 格，每个节点对应一格，请收窄主题并保持故事连贯。');
         const ids = new Set(plan.nodes.map((node) => node.id));
         if (
           ids.size !== plan.nodes.length ||

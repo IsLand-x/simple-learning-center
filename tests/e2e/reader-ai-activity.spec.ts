@@ -225,6 +225,11 @@ for (const width of [375, 768, 1024, 1440]) {
       await page.goto(`/books/${book.id}`);
       const button = entry(page, mobile);
       await button.click();
+      await expect(page.getByRole('button', { name: '发送提示词：生成漫画' })).toBeVisible();
+      await expect
+        .poll(async () => (await page.locator('.right-panel').boundingBox())?.y ?? Infinity)
+        .toBeLessThan((page.viewportSize()?.height ?? 900) * 0.15);
+      await page.screenshot({ path: testInfo.outputPath('comic-shortcut.png') });
       await send(page);
       await expect(button.locator('[data-ai-activity="running"]')).toBeAttached();
       if (mobile) await page.evaluate(() => history.back());
@@ -344,4 +349,30 @@ test('AI 新建笔记后旧阅读快照不会删除文件，笔记面板及刷�
   if (mobile) await entry(page, true).click();
   await page.getByRole('button', { name: '打开笔记', exact: true }).click();
   await expect(editor).toContainText(content);
+});
+
+test('生成漫画仅对订阅生图可用，发送本章导读需求并防止重复生成', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'mobile-chrome';
+  await seed(page);
+  await page.goto(`/books/${book.id}`);
+  await entry(page, mobile).click();
+  const comic = page.getByRole('button', { name: '发送提示词：生成漫画' });
+  await expect(comic).toBeDisabled();
+  const snapshot = await (await page.request.get('/api/state/preferences')).json();
+  snapshot.state.openAIConfigs[0].oauthProvider = 'openai-codex';
+  expect((await page.request.put('/api/state/preferences', { data: snapshot })).status()).toBe(204);
+  await page.reload();
+  if (!(await comic.isVisible())) await entry(page, mobile).click();
+  await mockJobs(page);
+  await expect(comic).toBeEnabled();
+  const request = page.waitForRequest(
+    (item) => item.url().endsWith('/api/ai/jobs') && item.method() === 'POST',
+  );
+  await comic.click();
+  const body = (await request).postDataJSON();
+  expect(body.bookId).toBe(book.id);
+  expect(body.userMessage.content).toContain('当前章节的导读漫画');
+  expect(body.userMessage.content).toContain('生活例子');
+  expect(body.userMessage.content).toContain('comic');
+  await expect(comic).toBeDisabled();
 });

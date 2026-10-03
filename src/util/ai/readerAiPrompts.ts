@@ -3,6 +3,12 @@ export const DEFAULT_READER_AI_ASSISTANT_PROMPT =
 
 export const READER_AI_PROMPT_TEMPLATES = [
   {
+    id: 'chapter-comic',
+    label: '生成漫画',
+    prompt:
+      '请生成一张当前章节的导读漫画图片（默认 4—6 格，简体中文），用通俗的生活例子介绍作者的核心观点，让初次阅读的人也能理解。范围始终是当前章节，不要因为附带选区或历史对话而改成其他章节。先读取当前章节正文，必要时继续读取相关段落，确认作者的观点、依据和适用边界；材料不足时如实说明。使用 plan_infographic 的 comic 预设，先展示逐格故事、观点与章节出处，再调用 generate_infographic 实际生成图片，不要只给漫画脚本。保持角色和场景连贯、阅读顺序清晰，气泡文字简短；生活例子标为“补充解释/类比”，不要伪装成作者原话，也不要虚构书中事实。最后一格回到作者观点和本章的阅读问题；生成后展示漫画和必要的覆盖限制。',
+  },
+  {
     id: 'infographic',
     label: '生成信息图',
     prompt:

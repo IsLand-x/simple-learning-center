@@ -110,8 +110,9 @@ test('失败不自动重试，取消不保存，结构方案先于图片请求�
   }
 });
 
-test('六种预设分别使用对应绘图规则，并保留信息类型和逐项来源', async () => {
+test('七种预设分别使用对应绘图规则，并保留信息类型和逐项来源', async () => {
   assert.deepEqual(Object.keys(INFOGRAPHIC_PRESETS), [
+    'comic',
     'concept',
     'mechanism',
     'comparison',
@@ -137,6 +138,14 @@ test('六种预设分别使用对应绘图规则，并保留信息类型和逐�
     const { plan_id, outline } = await tools.plan_infographic.execute({
       ...plan,
       preset,
+      ...(preset === 'comic'
+        ? {
+            nodes: [
+              ...plan.nodes,
+              ...plan.nodes.map((node) => ({ ...node, id: `${node.id}-next` })),
+            ],
+          }
+        : {}),
       follow_up_topics: ['副本故障处理'],
     });
     assert.match(outline, /原文概括/);
@@ -444,4 +453,74 @@ test('共享生图预算限制四张，不能通过全景工具绕过上限', as
       (item) => item.name === 'generate_book_knowledge_map' && item.status === 'failed',
     ),
   );
+});
+
+test('章节漫画通过真实 Agent 循环读取正文、规划四格并生成带来源的图片', async () => {
+  const comicPlan = {
+    ...plan,
+    title: '复制方式导读漫画',
+    preset: 'comic',
+    layout: '四格漫画，先出现问题，再展示两种做法，最后总结作者观点',
+    nodes: [
+      ...plan.nodes,
+      {
+        ...plan.nodes[0],
+        id: 'example',
+        label: '给同学传纸条',
+        detail: '等同学确认收到再继续讨论',
+        kind: 'explanation',
+      },
+      {
+        ...plan.nodes[1],
+        id: 'conclusion',
+        label: '回到作者观点',
+        detail: '等待确认会增加延迟，需要考虑取舍',
+      },
+    ],
+    relationships: [
+      { from: 'sync', to: 'async', label: '第二格' },
+      { from: 'async', to: 'example', label: '第三格生活类比' },
+      { from: 'example', to: 'conclusion', label: '第四格总结' },
+    ],
+  };
+  const tools = createInfographicTools({});
+  await assert.rejects(tools.plan_infographic.execute({ ...plan, preset: 'comic' }), /4—6 格/);
+  const faux = fauxProvider({ tokensPerSecond: 0 });
+  faux.setResponses([
+    (context) => {
+      assert.match(getCurrentSystemPrompt(context.messages), /漫画先读取当前章节正文/);
+      return fauxAssistantMessage(fauxToolCall('read_current_chapter', {}), {
+        stopReason: 'toolUse',
+      });
+    },
+    fauxAssistantMessage(fauxToolCall('plan_infographic', comicPlan), { stopReason: 'toolUse' }),
+    (context) => {
+      const last = context.messages.filter((message) => message.role === 'toolResult').at(-1);
+      const { plan_id } = JSON.parse(last.content[0].text);
+      return fauxAssistantMessage(fauxToolCall('generate_infographic', { plan_id }), {
+        stopReason: 'toolUse',
+      });
+    },
+    fauxAssistantMessage('本章导读漫画已生成。'),
+  ]);
+  let generated = 0;
+  const result = await runServerAiChat({
+    ...options,
+    messages: [{ role: 'user', content: '生成本章导读漫画，用通俗生活例子解释作者观点' }],
+    oauth: { runtime: async () => runtimeFor(faux) },
+    infographicImageGenerator: async ({ prompt }) => {
+      generated++;
+      assert.match(prompt, /真正的分格漫画/);
+      assert.match(prompt, /类比不是证据/);
+      assert.match(prompt, /给同学传纸条/);
+      assert.match(prompt, /当前章节：复制/);
+      return Buffer.from('fixture');
+    },
+    infographicImageSave: async () => imageUrl,
+  });
+  assert.equal(generated, 1);
+  assert.match(result.content, /章节导读漫画/);
+  assert.match(result.content, /补充解释/);
+  assert.match(result.content, /仅覆盖本次读取的章节片段/);
+  assert.ok(result.content.includes(imageUrl));
 });

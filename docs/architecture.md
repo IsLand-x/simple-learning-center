@@ -145,6 +145,8 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 
 ### 信息图结构规划与生图
 
+章节导读漫画是 `ai/generation/presets.ts` 的 `comic` 预设，复用 `plan_infographic → generate_infographic`，节点对应漫画分格、关系对应阅读顺序。阅读器快捷模板默认要求读取当前章节，以正文为依据规划生活类比；不新增生图端点、独立任务或持久化字段，继续使用所选 ChatGPT/Codex 账号和既有图片保存能力。
+
 `server/modules/ai/generation/infographic.ts` 提供 `plan_infographic` 和 `generate_infographic`，仅在阅读任务选择 `openai-codex` 时挂载。方案使用 TypeBox schema 限定标题、目的、布局、节点、关系、出处、限制和样式，并校验节点唯一性和关系引用；生成时必须携带当前请求最新方案的随机 ID。方案仅保留在任务内存中，其可读文本与图片结果通过现有消息流写入 conversations 分区，不增加 Zustand 字段或迁移。
 
 规划阶段先发布可读方案，生图复用 `codexImage.ts` 与 `saveKnowledgeMap` 的鉴权、取消、超时、原子写入和删除竞态保护。并行的重复生图调用共享同一个 Promise，包括失败结果；与全书地图共用单次尝试额度，禁止失败后切换工具自动重试。服务端直接发布最终图片消息，成功后结束 Agent 轮次，避免依赖模型重新输出图片 URL。前端复用既有快捷提示词、Semi AI Chat 和图片查看器。
