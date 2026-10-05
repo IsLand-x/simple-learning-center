@@ -674,17 +674,15 @@
   }
 
   .reader-ai-settings-dialog .semi-modal-body {
-    max-height: calc(100dvh - 88px);
+    max-height: calc(100dvh - 220px);
   }
 
   .reader-ai-settings-dialog .ai-assistant-settings {
     padding: 14px;
   }
 
-  .reader-ai-settings-dialog .ai-assistant-settings__footer {
-    bottom: -14px;
-    margin: 0 -14px -14px;
-    padding: 10px 14px calc(20px + env(safe-area-inset-bottom));
+  .reader-ai-settings-dialog .semi-modal-footer {
+    margin: 20px 0;
   }
 }
 

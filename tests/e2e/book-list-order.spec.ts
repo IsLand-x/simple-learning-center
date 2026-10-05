@@ -124,6 +124,17 @@ test('list handles and long labels fit both themes at representative widths', as
     for (const width of [375, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       const handle = page.locator('.book-list-nav__handle').first();
+      // Crossing the mobile breakpoint remounts the drag context. Wait for its
+      // accessible keyboard instructions before focusing the replacement handle.
+      await expect
+        .poll(() =>
+          handle.evaluate(
+            (element) =>
+              document.getElementById(element.getAttribute('aria-describedby') ?? '')
+                ?.textContent ?? '',
+          ),
+        )
+        .toContain(width <= 800 ? '左右' : '上下');
       await page.keyboard.press('Tab');
       await handle.focus();
       await expect(handle).toBeFocused();

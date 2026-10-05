@@ -4,10 +4,15 @@ import type { AiChatContext } from './jobs/types.js';
 import { defineTool } from './toolDefinition.js';
 import type { ToolDefinition } from './toolDefinition.js';
 import { readBookPassage, searchBookContent } from '../books/search.js';
-import { createBookNote, readBookNotes, updateBookNote } from '../books/notes.js';
+import { appendBookNote, createBookNote, readBookNotes, updateBookNote } from '../books/notes.js';
 import { readWebPage, searchWeb } from '../../infrastructure/http/webSearch.js';
 
-export const DEFAULT_NOTE_ACTIONS = { createBookNote, readBookNotes, updateBookNote };
+export const DEFAULT_NOTE_ACTIONS = {
+  appendBookNote,
+  createBookNote,
+  readBookNotes,
+  updateBookNote,
+};
 type ToolContext = Pick<
   AiChatContext,
   | 'resourceType'
@@ -269,9 +274,21 @@ export function createAgentTools({
       inputSchema: Type.Object({}),
       execute: async () => noteActions.readBookNotes(book!.id),
     }),
+    append_book_note: defineTool({
+      description:
+        '用户要求添加或记录笔记时优先使用本工具。将新增 Markdown 内容原子追加到当前笔记区域，保留已有正文；没有笔记时自动创建。仅传入新增内容，不要重复整篇笔记。',
+      inputSchema: Type.Object({
+        content: Type.String({
+          minLength: 1,
+          maxLength: 100_000,
+          description: '新增的 Markdown 笔记内容',
+        }),
+      }),
+      execute: async ({ content }) => noteActions.appendBookNote(book!.id, book!.title, content),
+    }),
     create_book_note: defineTool({
       description:
-        '仅在用户明确要求写入笔记、且 read_book_notes 确认当前书籍没有笔记时，新建 Markdown 阅读笔记。已有笔记时必须改用 update_book_note。',
+        '仅在用户明确要求写入笔记、且 read_book_notes 确认当前书籍没有笔记时，新建 Markdown 阅读笔记。已有笔记时追加内容必须改用 append_book_note，明确要求修改原文时使用 update_book_note。',
       inputSchema: Type.Object({
         content: Type.String({
           minLength: 1,

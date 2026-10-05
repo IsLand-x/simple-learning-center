@@ -250,6 +250,7 @@ const expectedRoutes = [
     method: 'ALL',
     path: '/api/ai/jobs/:jobId',
   },
+  { method: 'GET', path: '/api/books/:bookId/share' },
   { method: 'POST', path: '/api/books/:bookId/share' },
   { method: 'DELETE', path: '/api/books/:bookId/share' },
   { method: 'ALL', path: '/api/books/:bookId/share' },

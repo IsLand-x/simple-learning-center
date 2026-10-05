@@ -1,4 +1,5 @@
 import { protectClientState } from './compatibility/clientState.js';
+import { mergeClientNoteDrafts } from './noteDrafts.js';
 import type { PersistedState } from './types.js';
 import type { AppDependencies } from '../../dependencies.js';
 import { createRouter } from '../../http/router.js';
@@ -58,9 +59,16 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
       false,
       async (incomingSnapshot: PersistedState, currentState: PersistedState | null) => {
         const mergedState = mergeStateDomainSnapshot(currentState, incomingSnapshot, domain);
+        if (domain === 'notes' && snapshot.notesBase !== undefined)
+          mergeClientNoteDrafts(mergedState, currentState, snapshot.notesBase);
         return protectClientState(aiJobs.protectPersistedState, mergedState, currentState);
       },
     );
+    if (domain === 'notes' && snapshot.notesBase !== undefined) {
+      const serialized = serializeStateDomainSnapshot(await readPersistedState(), domain)!;
+      c.header('ETag', serialized.etag);
+      return c.body(serialized.body, 200, { 'Content-Type': 'application/json; charset=utf-8' });
+    }
     return noContent(c);
   });
   app.all('/:domain', methodNotAllowed);

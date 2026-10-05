@@ -4,6 +4,9 @@ import type { BookShareLink, SharedBook } from './type';
 
 export class BookSharesApi {
   constructor(private readonly transport = apiTransport) {}
+  status(bookId: string): Promise<BookShareLink | null> {
+    return this.transport.json(`/api/books/${encodeURIComponent(bookId)}/share`);
+  }
   create(bookId: string): Promise<BookShareLink> {
     return this.transport.json(`/api/books/${encodeURIComponent(bookId)}/share`, {
       method: 'POST',

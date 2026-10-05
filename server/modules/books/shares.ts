@@ -53,6 +53,12 @@ export function revokeBookShare(bookId: string) {
   });
 }
 
+export async function getBookShare(bookId: string) {
+  requireBook(await libraryState(), bookId);
+  const share = (await readShares()).find((item) => item.bookId === bookId);
+  return share ? { token: share.token, url: `/share/${share.token}` } : null;
+}
+
 export async function resolveBookShare(token: string) {
   if (!tokenSchema.safeParse(token).success) throw statusError(404, '分享不存在或已停止');
   const state = await libraryState();

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Button, Switch, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import {
   DEFAULT_READER_AI_ASSISTANT_PROMPT,
@@ -14,11 +15,13 @@ export function ReaderAiSettingsForm({
   visible = true,
   onCancel,
   onSaved,
+  footerHost,
 }: {
   showHeading?: boolean;
   visible?: boolean;
   onCancel?: () => void;
   onSaved?: () => void;
+  footerHost?: HTMLElement | null;
 }) {
   const aiPreferences = useLearningStore((state) => state.aiPreferences);
   const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
@@ -53,7 +56,7 @@ export function ReaderAiSettingsForm({
     );
   };
 
-  const save = (event: FormEvent) => {
+  const save = (event: FormEvent | { preventDefault: () => void }) => {
     event.preventDefault();
     if (!changed) return;
     setAiPreferences({
@@ -69,6 +72,36 @@ export function ReaderAiSettingsForm({
     promptDraft === DEFAULT_READER_AI_ASSISTANT_PROMPT &&
     autoHideReasoningDraft === false &&
     hiddenTemplateIdsDraft.length === 0;
+
+  const actions = (
+    <div className="ai-assistant-settings__footer justify-between">
+      <Text size="small" type="tertiary">
+        {changed ? '有尚未保存的修改' : '当前配置已保存'}
+      </Text>
+      <div className="ai-assistant-settings__actions mobile:justify-end">
+        {onCancel && (
+          <Button theme="borderless" type="tertiary" onClick={onCancel}>
+            取消
+          </Button>
+        )}
+        <Button
+          disabled={isDefault}
+          theme="borderless"
+          type="tertiary"
+          onClick={() => {
+            setPromptDraft(DEFAULT_READER_AI_ASSISTANT_PROMPT);
+            setAutoHideReasoningDraft(false);
+            setHiddenTemplateIdsDraft([]);
+          }}
+        >
+          恢复默认
+        </Button>
+        <Button disabled={!changed} onClick={save} theme="solid" type="primary">
+          保存设置
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <form
@@ -138,12 +171,12 @@ export function ReaderAiSettingsForm({
                     {template.prompt}
                   </Text>
                 </div>
-                <label className="ai-assistant-settings__switch-target [width:54px] [min-width:54px] [min-height:44px] justify-center">
+                <label className="ai-assistant-settings__switch-target [width:44px] [min-width:44px] [min-height:44px] justify-center">
                   <Switch
                     aria-label={`显示快捷方式：${template.label}`}
                     aria-describedby={descriptionId}
                     checked={templateVisible}
-                    size="large"
+                    size="small"
                     onChange={(checked) => setTemplateVisible(template.id, checked)}
                   />
                 </label>
@@ -161,45 +194,19 @@ export function ReaderAiSettingsForm({
               开启后，模型生成时默认收起思考内容；仍可点击“正在思考”手动查看。
             </Text>
           </div>
-          <label className="ai-assistant-settings__switch-target [width:54px] [min-width:54px] [min-height:44px] justify-center">
+          <label className="ai-assistant-settings__switch-target [width:44px] [min-width:44px] [min-height:44px] justify-center">
             <Switch
               aria-label="自动隐藏思考过程"
               aria-describedby="auto-hide-reasoning-description"
               checked={autoHideReasoningDraft}
-              size="large"
+              size="small"
               onChange={setAutoHideReasoningDraft}
             />
           </label>
         </div>
       </section>
 
-      <div className="ai-assistant-settings__footer justify-between">
-        <Text size="small" type="tertiary">
-          {changed ? '有尚未保存的修改' : '当前配置已保存'}
-        </Text>
-        <div className="ai-assistant-settings__actions mobile:justify-end">
-          {onCancel && (
-            <Button theme="borderless" type="tertiary" onClick={onCancel}>
-              取消
-            </Button>
-          )}
-          <Button
-            disabled={isDefault}
-            theme="borderless"
-            type="tertiary"
-            onClick={() => {
-              setPromptDraft(DEFAULT_READER_AI_ASSISTANT_PROMPT);
-              setAutoHideReasoningDraft(false);
-              setHiddenTemplateIdsDraft([]);
-            }}
-          >
-            恢复默认
-          </Button>
-          <Button disabled={!changed} htmlType="submit" theme="solid" type="primary">
-            保存设置
-          </Button>
-        </div>
-      </div>
+      {footerHost === undefined ? actions : footerHost ? createPortal(actions, footerHost) : null}
     </form>
   );
 }

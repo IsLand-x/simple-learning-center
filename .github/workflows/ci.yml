@@ -6,6 +6,7 @@ on:
       - main
       - 'feat/**'
       - 'codex/book-sharing'
+      - 'codex/reader-content-fixes'
       - 'IsLand-x/完全重构项目'
   pull_request:
 

@@ -40,18 +40,48 @@ test('分享只公开明确授权的书籍，匿名读取、撤销、删除和�
   const remote = createApp({ mode: 'remote', password: 'test-share', serveFrontend: false });
   assert.equal((await remote.request('/api/books/shared/share', { method: 'POST' })).status, 401);
   assert.equal((await remote.request('/api/books/shared')).status, 401);
+  assert.equal(await (await local.request('/api/books/shared/share')).json(), null);
+  assert.equal((await remote.request('/api/books/shared/share')).status, 401);
   const links = await Promise.all(
     [1, 2].map(async () =>
       (await local.request('/api/books/shared/share', { method: 'POST' })).json(),
     ),
   );
   assert.deepEqual(links[0], links[1]);
+  assert.deepEqual(await (await local.request('/api/books/shared/share')).json(), links[0]);
   assert.match(links[0].token, /^[a-f0-9]{64}$/);
   assert.equal((await stat(join(directory, 'book-shares.json'))).mode & 0o777, 0o600);
   const path = `/api/public/book-shares/${links[0].token}`;
   const metadata = await remote.request(path);
   assert.deepEqual(await metadata.json(), { title: '朋友的书', author: '作者' });
   assert.equal(metadata.headers.get('Cache-Control'), 'private, no-store');
+  const library = await (await local.request('/api/state/library')).json();
+  library.state.books[0].title = '重命名后的书';
+  library.state.books[0].updatedAt = Date.now();
+  assert.equal(
+    (
+      await local.request('/api/state/library', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(library),
+      })
+    ).status,
+    204,
+  );
+  assert.equal((await (await remote.request(path)).json()).title, '重命名后的书');
+  const { doubanBooks } = await import('./douban.js');
+  const lookup = doubanBooks.lookup;
+  let queriedTitle;
+  doubanBooks.lookup = async (title) => {
+    queriedTitle = title;
+    return { status: 'unavailable', searchUrl: 'https://search.douban.com/book/subject_search' };
+  };
+  try {
+    assert.equal((await remote.request(`${path}/douban`)).status, 200);
+    assert.equal(queriedTitle, '重命名后的书');
+  } finally {
+    doubanBooks.lookup = lookup;
+  }
   const epub = await remote.request(`${path}/epub`);
   assert.equal(await epub.text(), 'epub');
   assert.match(epub.headers.get('Content-Disposition'), /^attachment;/);
@@ -62,6 +92,7 @@ test('分享只公开明确授权的书籍，匿名读取、撤销、删除和�
   assert.equal((await remote.request('/api/public/book-shares/shared/douban')).status, 404);
   assert.equal((await remote.request(`/api/public/book-shares/${'0'.repeat(64)}`)).status, 404);
   assert.equal((await local.request('/api/books/shared/share', { method: 'DELETE' })).status, 204);
+  assert.equal(await (await local.request('/api/books/shared/share')).json(), null);
   assert.equal((await remote.request(path)).status, 404);
   assert.equal((await remote.request(`${path}/epub`)).status, 404);
   assert.equal((await remote.request(`${path}/douban`)).status, 404);

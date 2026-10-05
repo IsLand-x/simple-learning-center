@@ -52,7 +52,7 @@ contracts/
 - 视频导入弹窗自己持有 URL 和提交状态；播放时间、播放器 ref 和字幕模式是播放器与字幕共用状态，保留在稳定页面范围。学习笔记逻辑位于播放区域。
 - 设置页模型编辑 ID 需要在 Tabs 卸载/重建内容时保留，因此仍由稳定的设置页拥有；输入字段和提交状态留在表单。
 
-根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 36，library / reading / notes / highlights / conversations / rss / videos / preferences 八个分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。
+根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 36，library / reading / notes / highlights / conversations / rss / videos / preferences 八个分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护；当前客户端另外传输非持久化的 notesBase 编辑基准，服务端在单实例写队列内进行正文合并并返回规范快照，持久化核心订阅保存结果以更新当前编辑区。独立文本修改自动合并，重叠修改保留完整草稿。AI 新增笔记使用同一写队列原子追加，替换仍要求读取版本。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。
 
 ## API 与类型
 

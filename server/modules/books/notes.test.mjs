@@ -47,7 +47,10 @@ test('AI 阅读笔记支持创建、读取和带版本保护的编辑', async (t
     updateBookNote('book-a', created.id, created.updatedAt, '过期版本'),
     /笔记已在其他位置更新/,
   );
-  await assert.rejects(createBookNote('book-a', '测试书', '重复笔记'), /已经存在阅读笔记/);
+  await assert.rejects(
+    createBookNote('book-a', '测试书', '重复笔记'),
+    /添加内容请使用 append_book_note/,
+  );
 
   // An unrelated reading-progress write must not undo a successful AI edit.
   await writePersistedState(staleBrowserSnapshot, false, (incoming, current) =>

@@ -11,6 +11,7 @@ import type {
 import type { BookSearchIndex } from '../api/reading/type';
 import type { StateStorage } from 'zustand/middleware';
 import type { BookItem } from '../../contracts/books';
+import type { NoteItem } from '../../contracts/reading';
 import { loadLegacyBookSearchIndex, loadLegacyEpubFile } from './persistence/legacyBrowser';
 import { stateApi } from '../api/state';
 import {
@@ -29,9 +30,18 @@ const loadedDomains = new Set<StateDomain>();
 const activeDomains = new Set<StateDomain>();
 const domainEtags = new Map<StateDomain, string>();
 const domainPayloads = new Map<StateDomain, string>();
+const domainSubmittedPayloads = new Map<StateDomain, string>();
 const domainQueuedPayloads = new Map<StateDomain, string>();
 const domainLoadPromises = new Map<StateDomain, Promise<void>>();
 const domainLocalRevisions = new Map<StateDomain, number>();
+const noteSaveListeners = new Set<() => void>();
+
+export function subscribeServerNoteSaves(listener: () => void) {
+  noteSaveListeners.add(listener);
+  return () => {
+    noteSaveListeners.delete(listener);
+  };
+}
 
 function parseStateEnvelope(rawState: string) {
   try {
@@ -102,6 +112,7 @@ async function fetchStateDomain(domain: StateDomain) {
   const nextEtag = response.etag;
   if (nextEtag) domainEtags.set(domain, nextEtag);
   domainPayloads.set(domain, JSON.stringify(stateDomainSnapshot(snapshot, domain)));
+  domainSubmittedPayloads.delete(domain);
   mergePreparedState(snapshot);
 }
 
@@ -181,6 +192,7 @@ function resetDomainCache() {
   activeDomains.clear();
   domainEtags.clear();
   domainPayloads.clear();
+  domainSubmittedPayloads.clear();
   domainQueuedPayloads.clear();
   domainLocalRevisions.clear();
 }
@@ -238,23 +250,49 @@ export const serverStateStorage: StateStorage = {
   setItem: async (_name, value) => {
     const envelope = parseStateEnvelope(value);
     const domains = [...activeDomains];
-    const domainBodies = new Map<StateDomain, { body: string; snapshot: StateDomainSnapshot }>();
+    const domainBodies = new Map<
+      StateDomain,
+      { body: string; snapshot: StateDomainSnapshot; notesBase?: NoteItem[]; revision: number }
+    >();
     for (const domain of domains) {
       const snapshot = stateDomainSnapshot(envelope, domain);
       const body = JSON.stringify(snapshot);
+      const previous =
+        domainQueuedPayloads.get(domain) ??
+        domainSubmittedPayloads.get(domain) ??
+        domainPayloads.get(domain);
+      if (previous === body) {
+        // An unrelated action may still serialize the pre-merge editor value
+        // while hydration is pending. Keep the canonical note response intact.
+        if (domain !== 'notes') mergePreparedState(snapshot);
+        continue;
+      }
       mergePreparedState(snapshot);
-      if ((domainQueuedPayloads.get(domain) ?? domainPayloads.get(domain)) === body) continue;
-      domainBodies.set(domain, { body, snapshot });
+      const revision = (domainLocalRevisions.get(domain) ?? 0) + 1;
+      const baseline = domainQueuedPayloads.get(domain) ?? domainPayloads.get(domain);
+      const notesBase =
+        domain === 'notes'
+          ? ((baseline ? parseStateEnvelope(baseline).state?.notes : undefined) ?? [])
+          : undefined;
+      domainBodies.set(domain, { body, snapshot, notesBase, revision });
       domainQueuedPayloads.set(domain, body);
       domainLocalRevisions.set(domain, (domainLocalRevisions.get(domain) ?? 0) + 1);
     }
     stateWriteQueue = stateWriteQueue
       .catch(() => undefined)
       .then(async () => {
-        for (const [domain, { body, snapshot }] of domainBodies) {
+        for (const [domain, { body, snapshot, notesBase, revision }] of domainBodies) {
           try {
-            await stateApi.writeDomain(domain, snapshot);
-            domainPayloads.set(domain, body);
+            const saved = await stateApi.writeDomain(domain, snapshot, notesBase);
+            // Compare notes against the last submitted local draft until the
+            // store has observed the canonical response, rather than treating
+            // an unchanged stale value as a new edit on a progress save.
+            domainPayloads.set(domain, saved ? JSON.stringify(saved) : body);
+            if (domain === 'notes') domainSubmittedPayloads.set(domain, body);
+            if (saved && domain === 'notes' && domainLocalRevisions.get(domain) === revision) {
+              mergePreparedState(saved);
+              noteSaveListeners.forEach((listener) => listener());
+            }
           } finally {
             if (domainQueuedPayloads.get(domain) === body) domainQueuedPayloads.delete(domain);
           }

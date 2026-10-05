@@ -20,6 +20,7 @@ vi.mock('@douyinfe/semi-ui', () => ({
 vi.mock('../../../store/serverStateStorage', () => ({
   serverStateStorage: { getItem: vi.fn(async () => null), setItem: vi.fn(), removeItem: vi.fn() },
   waitForServerStateWrites: vi.fn(async () => undefined),
+  subscribeServerNoteSaves: vi.fn(() => () => undefined),
 }));
 vi.mock('../../../store/learningStateSync', () => ({ synchronizeLearningState: vi.fn() }));
 vi.mock('../../../util/reading/readerFonts', async (original) => ({

@@ -54,7 +54,13 @@ export function MarkdownNoteEditor({ ariaLabel, content, onChange }: MarkdownNot
 
   useEffect(() => {
     if (editor.getMarkdown() === content) return;
+    const { from, to } = editor.state.selection;
+    const focused = editor.isFocused;
     editor.commands.setContent(content, { contentType: 'markdown', emitUpdate: false });
+    if (focused) {
+      const end = editor.state.doc.content.size;
+      editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) });
+    }
   }, [content, editor]);
 
   const editorState = useEditorState({

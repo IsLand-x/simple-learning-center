@@ -166,7 +166,7 @@ test('图片权限、鉴权、路径校验、彻底删除清理与删除竞态',
   const response = await app.request(result.imageUrl);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('content-type'), 'image/png');
-  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.equal(response.headers.get('cache-control'), 'private, max-age=31536000, immutable');
   assert.equal((await app.request('/api/books/book/knowledge-maps/invalid')).status, 400);
   const remote = createApp({
     mode: 'remote',

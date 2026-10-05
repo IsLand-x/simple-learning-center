@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { serverStateStorage } from './serverStateStorage';
+import { serverStateStorage, subscribeServerNoteSaves } from './serverStateStorage';
 import { LEARNING_STORE_VERSION } from './stateDomains';
 import { createConversationActions } from './actions/conversationActions';
 import { createLibraryActions } from './actions/libraryActions';
@@ -34,3 +34,9 @@ export const useLearningStore = create<LearningState>()(
     },
   ),
 );
+
+subscribeServerNoteSaves(() => {
+  void Promise.resolve(useLearningStore.persist.rehydrate()).catch((error: unknown) => {
+    console.warn('同步已保存的阅读笔记失败', error);
+  });
+});

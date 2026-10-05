@@ -238,6 +238,10 @@ test('PiAgent 先读取版本再编辑当前书籍笔记', async () => {
       ),
       { stopReason: 'toolUse' },
     ),
+    fauxAssistantMessage(
+      fauxToolCall('append_book_note', { content: '新增见解' }, { id: 'append-note' }),
+      { stopReason: 'toolUse' },
+    ),
     fauxAssistantMessage('笔记已经按你的要求更新。'),
   ]);
   const calls = [];
@@ -246,6 +250,10 @@ test('PiAgent 先读取版本再编辑当前书籍笔记', async () => {
     async readBookNotes(bookId) {
       calls.push(['read', bookId]);
       return [{ id: 'book-note:book-a', content: '# 原笔记', updatedAt: 10 }];
+    },
+    async appendBookNote(bookId, bookTitle, content) {
+      calls.push(['append', bookId, bookTitle, content]);
+      return { id: 'book-note:book-a', content: '# AI 修订后的笔记\n\n新增见解', updatedAt: 12 };
     },
     async createBookNote() {
       throw new Error('不应创建笔记');
@@ -284,9 +292,11 @@ test('PiAgent 先读取版本再编辑当前书籍笔记', async () => {
   assert.deepEqual(calls, [
     ['read', 'book-a'],
     ['update', 'book-a', 'book-note:book-a', 10, '# AI 修订后的笔记'],
+    ['append', 'book-a', '测试书', '新增见解'],
   ]);
   assert.deepEqual(changedNotes, [
     { id: 'book-note:book-a', content: '# AI 修订后的笔记', updatedAt: 11 },
+    { id: 'book-note:book-a', content: '# AI 修订后的笔记\n\n新增见解', updatedAt: 12 },
   ]);
   assert.equal(result.content, '笔记已经按你的要求更新。');
 });

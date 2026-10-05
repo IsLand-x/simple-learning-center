@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExpandableImage } from '../ExpandableImage';
 import { MarkdownLink } from './MarkdownLink';
+import { remarkReadableStrong } from './remarkReadableStrong';
 
 export function CspSafeMarkdown({
   content,
@@ -17,7 +18,7 @@ export function CspSafeMarkdown({
   return (
     <div className={`${className} csp-chat-markdown min-w-0 [max-width:100%]`.trim()}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkReadableStrong]}
         components={{ img: ImageComponent, a: MarkdownLink }}
       >
         {content}

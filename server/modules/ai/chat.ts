@@ -80,6 +80,11 @@ export async function runServerAiChat({
   const piModel = runtime.model;
   const trackedNoteActions = {
     readBookNotes: noteActions.readBookNotes,
+    async appendBookNote(...args: Parameters<typeof noteActions.appendBookNote>) {
+      const note = await noteActions.appendBookNote(...args);
+      onNoteChange?.(note);
+      return note;
+    },
     async createBookNote(...args: Parameters<typeof noteActions.createBookNote>) {
       const note = await noteActions.createBookNote(...args);
       onNoteChange?.(note);

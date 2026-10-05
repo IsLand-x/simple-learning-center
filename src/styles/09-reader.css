@@ -630,8 +630,18 @@
   background: var(--semi-color-bg-2);
 }
 
+.reader-ai-settings-dialog .semi-modal-content {
+  max-height: calc(100dvh - 32px);
+}
+
+.reader-ai-settings-dialog .semi-modal-header,
+.reader-ai-settings-dialog .semi-modal-footer {
+  flex-shrink: 0;
+}
+
 .reader-ai-settings-dialog .semi-modal-body {
-  max-height: min(74dvh, 700px);
+  min-height: 0;
+  max-height: min(65dvh, 620px);
   overflow: auto;
 }
 
@@ -643,13 +653,8 @@
   background: var(--semi-color-bg-2);
 }
 
-.reader-ai-settings-dialog .ai-assistant-settings__footer {
-  position: sticky;
-  bottom: -20px;
-  z-index: 1;
-  margin: 0 -20px -20px;
-  padding: 12px 20px calc(24px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--semi-color-border);
+.reader-ai-settings-dialog .semi-modal-footer {
+  padding-bottom: env(safe-area-inset-bottom);
   background: var(--semi-color-bg-2);
 }
 

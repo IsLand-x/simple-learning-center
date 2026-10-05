@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - 'codex/book-sharing'
+      - 'codex/reader-content-fixes'
 
 concurrency:
   group: learning-center-book-share-preview

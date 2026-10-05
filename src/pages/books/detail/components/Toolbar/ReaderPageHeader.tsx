@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { BookShareLink } from '../../../../../api/book-shares/type';
+import { BookRenameDialog } from './BookRenameDialog';
 import { bookSharesApi } from '../../../../../api/book-shares';
 import { IconArrowLeft, IconDeleteStroked, IconMore } from '@douyinfe/semi-icons';
 import { Button, Dropdown, Progress, Tooltip, Typography, Toast } from '@douyinfe/semi-ui';
@@ -46,23 +48,60 @@ export function ReaderPageHeader({
   const navigate = useNavigate();
   const trashBook = useLearningStore((state) => state.trashBook);
   const [sharing, setSharing] = useState(false);
+  const [share, setShare] = useState<BookShareLink | null>(null);
+  const [shareLoading, setShareLoading] = useState(true);
+  const [renaming, setRenaming] = useState(false);
+  useEffect(() => {
+    let active = true;
+    setShareLoading(true);
+    setShare(null);
+    void bookSharesApi
+      .status(book.id)
+      .then((value) => {
+        if (active) setShare(value);
+      })
+      .catch((error: unknown) => {
+        if (active) Toast.error(error instanceof Error ? error.message : '读取分享状态失败');
+      })
+      .finally(() => {
+        if (active) setShareLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [book.id]);
   const handleShare = async () => {
     if (sharing) return;
     setSharing(true);
     try {
-      const share = await bookSharesApi.create(book.id);
-      window.location.assign(share.url);
+      const created = await bookSharesApi.create(book.id);
+      setShare(created);
+      window.location.assign(created.url);
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : '分享失败');
       setSharing(false);
     }
   };
   const handleRevokeShare = async () => {
+    if (sharing) return;
+    setSharing(true);
     try {
       await bookSharesApi.revoke(book.id);
+      setShare(null);
       Toast.success('已停止分享，原链接已失效');
     } catch (error) {
       Toast.error(error instanceof Error ? error.message : '停止分享失败');
+    } finally {
+      setSharing(false);
+    }
+  };
+  const handleCopyShare = async () => {
+    if (!share) return;
+    try {
+      await navigator.clipboard.writeText(new URL(share.url, window.location.origin).href);
+      Toast.success('分享链接已复制');
+    } catch {
+      Toast.error('复制失败，请检查浏览器剪贴板权限');
     }
   };
   const handleDelete = () => {
@@ -139,18 +178,24 @@ export function ReaderPageHeader({
           position="bottomRight"
           render={
             <Dropdown.Menu>
-              <Dropdown.Item
-                disabled={sharing || book.kind !== 'epub'}
-                onClick={() => void handleShare()}
-              >
-                分享
-              </Dropdown.Item>
-              <Dropdown.Item
-                disabled={book.kind !== 'epub'}
-                onClick={() => void handleRevokeShare()}
-              >
-                停止分享
-              </Dropdown.Item>
+              <Dropdown.Item onClick={() => setRenaming(true)}>重命名书籍</Dropdown.Item>
+              {share ? (
+                <>
+                  <Dropdown.Item disabled={sharing} onClick={() => void handleCopyShare()}>
+                    复制分享链接
+                  </Dropdown.Item>
+                  <Dropdown.Item disabled={sharing} onClick={() => void handleRevokeShare()}>
+                    停止分享
+                  </Dropdown.Item>
+                </>
+              ) : (
+                <Dropdown.Item
+                  disabled={shareLoading || sharing || book.kind !== 'epub'}
+                  onClick={() => void handleShare()}
+                >
+                  分享本书
+                </Dropdown.Item>
+              )}
               <Dropdown.Item type="danger" icon={<IconDeleteStroked />} onClick={handleDelete}>
                 删除
               </Dropdown.Item>
@@ -165,6 +210,7 @@ export function ReaderPageHeader({
           />
         </Dropdown>
       </div>
+      {renaming && <BookRenameDialog book={book} onClose={() => setRenaming(false)} />}
     </header>
   );
 }

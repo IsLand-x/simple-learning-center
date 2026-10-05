@@ -54,7 +54,10 @@ export async function createBookNote(bookId: unknown, bookTitle: unknown, conten
   const normalizedContent = requireContent(content);
   return mutatePersistedState((persistedState) => {
     if (notesForBook(persistedState.state, normalizedBookId).length) {
-      throw statusError(409, '当前书籍已经存在阅读笔记，请先读取笔记并使用 update_book_note 更新');
+      throw statusError(
+        409,
+        '当前书籍已经存在阅读笔记；添加内容请使用 append_book_note，只有明确修改原文时才读取笔记并使用 update_book_note',
+      );
     }
     const deletedVersion =
       (persistedState.state.deletedNoteTombstones ?? []).find(
@@ -73,6 +76,57 @@ export async function createBookNote(bookId: unknown, bookTitle: unknown, conten
     };
     const notes = Array.isArray(persistedState.state.notes) ? persistedState.state.notes : [];
     persistedState.state.notes = [note, ...notes];
+    return publicNote(note);
+  });
+}
+
+export async function appendBookNote(bookId: unknown, bookTitle: unknown, content: unknown) {
+  const normalizedBookId = requireIdentifier(bookId, '书籍');
+  const normalizedBookTitle = requireIdentifier(bookTitle, '书名');
+  const addition = requireContent(content);
+  return mutatePersistedState((persisted) => {
+    const notes = notesForBook(persisted.state, normalizedBookId);
+    const existing = notes[0];
+    const original =
+      notes.length > 1
+        ? notes
+            .map((note) => `## ${note.title || '阅读笔记'}\n\n${note.content}`)
+            .join('\n\n---\n\n')
+        : (existing?.content ?? '');
+    const combined = requireContent([original, addition].filter(Boolean).join('\n\n'));
+    const deletedVersion = Math.max(
+      0,
+      ...(persisted.state.deletedNoteTombstones ?? [])
+        .filter((item) => item.bookId === normalizedBookId)
+        .map((item) => item.deletedAt),
+    );
+    const timestamp = Math.max(
+      Date.now(),
+      deletedVersion + 1,
+      ...notes.map((note) => note.updatedAt + 1),
+    );
+    const note: NoteItem = existing
+      ? { ...existing, content: combined, updatedAt: timestamp }
+      : {
+          id: `book-note:${normalizedBookId}`,
+          bookId: normalizedBookId,
+          title: `${normalizedBookTitle} · 阅读笔记`,
+          content: combined,
+          fileName: 'reading-note.md',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+    persisted.state.notes = [
+      note,
+      ...(persisted.state.notes ?? []).filter((item) => item.bookId !== normalizedBookId),
+    ];
+    persisted.state.deletedNoteTombstones = (persisted.state.deletedNoteTombstones ?? [])
+      .filter((item) => item.noteId !== note.id)
+      .concat(
+        notes
+          .filter((item) => item.id !== note.id)
+          .map((item) => ({ noteId: item.id, bookId: normalizedBookId, deletedAt: timestamp })),
+      );
     return publicNote(note);
   });
 }

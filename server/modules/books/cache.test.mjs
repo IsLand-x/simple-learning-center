@@ -35,3 +35,35 @@ test('EPUB 私有缓存重新验证、替换和删除', async () => {
   await rm(path);
   assert.equal((await app.request('/api/books/cache-book', options)).status, 404);
 });
+
+test('生成图片长时间私有缓存并支持 GET/HEAD ETag 重验证', async () => {
+  const { knowledgeMapDirectoryPath, atomicWrite } =
+    await import('../../infrastructure/fs/files.js');
+  const { createApp } = await import('../../app.js');
+  const { join } = await import('node:path');
+  const id = '11111111-1111-4111-8111-111111111111';
+  const image = join(knowledgeMapDirectoryPath('images'), `${id}.png`);
+  await atomicWrite(image, Buffer.from('image'));
+  const app = createApp({ mode: 'local', serveFrontend: false });
+  const url = `/api/books/images/knowledge-maps/${id}`;
+  const first = await app.request(url);
+  assert.equal(first.headers.get('Cache-Control'), 'private, max-age=31536000, immutable');
+  assert.equal(await first.text(), 'image');
+  const etag = first.headers.get('ETag');
+  assert.ok(etag);
+  for (const method of ['GET', 'HEAD']) {
+    const cached = await app.request(url, {
+      method,
+      headers: { 'If-None-Match': `"other", ${etag.replace(/^W\//, '')}` },
+    });
+    assert.equal(cached.status, 304);
+    assert.equal(await cached.text(), '');
+    assert.equal(cached.headers.get('ETag'), etag);
+  }
+  await atomicWrite(image, Buffer.from('updated-image'));
+  const changed = await app.request(url, { headers: { 'If-None-Match': etag } });
+  assert.equal(changed.status, 200);
+  assert.notEqual(changed.headers.get('ETag'), etag);
+  const remote = createApp({ mode: 'remote', password: 'test-cache', serveFrontend: false });
+  assert.equal((await remote.request(url, { headers: { 'If-None-Match': etag } })).status, 401);
+});

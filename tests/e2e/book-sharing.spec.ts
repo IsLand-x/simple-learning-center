@@ -21,7 +21,17 @@ test('三点菜单分享，匿名只读预览、下载及撤销', async ({ page,
   await expect(more).toBeVisible();
   if (testInfo.project.name === 'mobile-chrome') await more.click();
   else await more.hover();
-  await page.getByRole('menuitem', { name: '分享', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: '停止分享' })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: '重命名书籍' }).click();
+  const rename = page.getByRole('dialog', { name: '重命名书籍' });
+  await rename.getByRole('textbox', { name: '书籍名称' }).fill('简短书名');
+  await rename.getByRole('button', { name: '保存名称' }).click();
+  await expect(rename).toBeHidden();
+  book.title = '简短书名';
+  await expect(page.locator('.reader-header__title')).toContainText(book.title);
+  if (testInfo.project.name === 'mobile-chrome') await more.click();
+  else await more.hover();
+  await page.getByRole('menuitem', { name: '分享本书', exact: true }).click();
   await expect(page).toHaveURL(/\/share\/[a-f0-9]{64}$/);
   const shareUrl = page.url();
   const shareToken = shareUrl.split('/').pop()!;
@@ -128,7 +138,19 @@ test('三点菜单分享，匿名只读预览、下载及撤销', async ({ page,
   await expect(guest.getByRole('button', { name: '下载 EPUB' })).toBeEnabled();
   expect(privateRequests).toEqual([]);
   expect((await guest.request.get(`/api/public/book-shares/${shareToken}`)).ok()).toBe(true);
-  await page.request.delete(`/api/books/${book.id}/share`);
+  await page.goto(`/books/${book.id}`);
+  if (testInfo.project.name === 'mobile-chrome') await more.click();
+  else await more.hover();
+  await expect(page.getByRole('menuitem', { name: '复制分享链接' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: '分享本书' })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: '停止分享' }).click();
+  await expect
+    .poll(async () => (await page.request.get(`/api/books/${book.id}/share`)).json())
+    .toBeNull();
+  if (testInfo.project.name === 'mobile-chrome') await more.click();
+  else await more.hover();
+  await expect(page.getByRole('menuitem', { name: '分享本书' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: '停止分享' })).toHaveCount(0);
   await guest.reload();
   await expect(guest.getByText('无法打开分享', { exact: true })).toBeVisible();
   await context.close();

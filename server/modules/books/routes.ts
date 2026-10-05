@@ -1,4 +1,4 @@
-import { createBookShare, revokeBookShare } from './shares.js';
+import { createBookShare, getBookShare, revokeBookShare } from './shares.js';
 import { createRouter } from '../../http/router.js';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -29,6 +29,7 @@ const BOOK_ROUTE = '/:bookId';
 
 export function createBookRoutes() {
   const app = createRouter();
+  app.get(`${BOOK_ROUTE}/share`, async (c) => c.json(await getBookShare(c.req.param('bookId'))));
   app.post(`${BOOK_ROUTE}/share`, async (c) =>
     c.json(await createBookShare(c.req.param('bookId'))),
   );
@@ -69,8 +70,8 @@ export function createBookRoutes() {
     const response = await storedFileResponse(
       c,
       join(knowledgeMapDirectoryPath(c.req.param('bookId')), `${id}.png`),
+      'private, max-age=31536000, immutable',
     );
-    response.headers.set('Cache-Control', 'private, no-store');
     response.headers.set('X-Content-Type-Options', 'nosniff');
     return response;
   });
