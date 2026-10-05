@@ -33,7 +33,7 @@ LEARNING_CENTER_E2E_PRODUCTION=1 LEARNING_CENTER_E2E_BROWSER=chromium npm run te
 
 `visual-regression.spec.ts` 比较书架、阅读器、RSS 阅读、视频学习和设置页面，共 40 张完整视口截图。每个页面都覆盖浅色/深色以及 375、768、1024、1440 四种宽度。`login-layout.spec.ts` 用相同组合覆盖未登录的应用壳，另有 8 张截图，共 48 张基线。
 
-2026-10-05 的阅读排版优化在同一固定容器中更新了 8 张演示阅读器截图，并通过 `reader-typography.spec.ts` 新增 8 张真实 EPUB 排版截图（浅色象牙纸与深色墨夜纸，各覆盖四种宽度）。原创样张由 `node tests/fixtures/generate-reader-regression.mjs --typography` 生成，包含标题、嵌套列表、引用、代码、表格及作者指定的居中与缩进；语义断言同时检查标题层级、留白、等宽代码与原有排版保留。其余页面基线保持不变。
+2026-10-05 的阅读排版优化在同一固定容器中更新了 8 张演示阅读器截图，并通过 `reader-typography.spec.ts` 新增 8 张真实 EPUB 排版截图（浅色象牙纸与深色墨夜纸，各覆盖四种宽度）。原创样张由 `node tests/fixtures/generate-reader-regression.mjs --typography` 生成，包含标题、嵌套列表、引用、代码、表格及作者指定的居中与缩进；语义断言同时检查标题层级、留白、等宽代码与原有排版保留。同日针对 Kindle/Calibre 标准 `h3/h4` 小标题补充明确粗体和递进字号，新增 8 张小标题截图；原创样张通过 `--headings` 生成，不包含个人书籍正文，并检查 `h3–h6` 字重、嵌套 span、标题居中和正文缩进。其余页面基线保持不变。
 
 基线来自重构前提交 `8f9ed13c288538868cdaf143cc53805d307b1349` 的不可变生产构建。首次宿主机截图在 CI 暴露了 OpenCloudOS/Ubuntu 的字体 fallback 差异，及书架旧截图混入先前用例进度的问题；修正后在固定测试容器内，用同一旧构建重新采集。新构建只参与比较，不用于生成重构基线。
 

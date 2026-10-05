@@ -23,6 +23,7 @@ const files = {
 // Match converted EPUB paragraph structure without redistributing any real book.
 const converted = process.argv.includes('--converted');
 const typography = process.argv.includes('--typography');
+const headings = process.argv.includes('--headings');
 if (typography) {
   files['EPUB/chapter.xhtml'] = chapter(
     '第一章 · 阅读中的层次与节奏',
@@ -38,6 +39,18 @@ if (typography) {
         'long_identifier_without_spaces_'.repeat(14) +
         '</span></code></pre><table><tr><td><p id="table-cell">表格原有间距</p></td></tr></table><p class="authored">作者指定的居中与首行缩进保留。</p>' +
         paragraphs,
+    );
+}
+// Reproduce the reported Kindle/Calibre h3/h4 structure with original test prose.
+if (headings) {
+  files['EPUB/chapter.xhtml'] = chapter('小标题层级测试', '')
+    .replace(
+      '</head>',
+      '<style>h3.kindle-cn-heading3-c{font-size:1.375em;font-weight:bold;line-height:1.2;text-align:center;margin:2em 0 1em}h4.kindle-cn-heading5{font-size:1.125em;font-weight:bold;line-height:1.2;margin:2em 0 1.5em}.calibre1{text-indent:2em;margin:0}h4 span{font-weight:normal}</style></head>',
+    )
+    .replace(
+      '<h1>小标题层级测试</h1><p></p>' + paragraphs,
+      '<h4 class="kindle-cn-heading5"><span>理解个人与共同体</span></h4><p class="calibre1">这是原创测试文字。小标题应以字号、字重和留白建立层次，让读者清楚辨认段落之间的关系。</p><h3 class="kindle-cn-heading3-c" id="section">共同选择的边界</h3><p class="calibre1">居中标题保持书籍原有对齐方式，同时呈现清晰的节标题层级。</p><h5>补充说明</h5><p class="calibre1">较深层标题仍需要明确字重。</p><h6>阅读提示</h6><p class="calibre1">正文保持原有密度与缩进。</p>',
     );
 }
 if (converted) {
@@ -99,11 +112,13 @@ end.writeUInt32LE(centralDirectory.length, 12);
 end.writeUInt32LE(offset, 16);
 await writeFile(
   new URL(
-    typography
-      ? './reader-typography.epub'
-      : converted
-        ? './reader-converted.epub'
-        : './reader-regression.epub',
+    headings
+      ? './reader-headings.epub'
+      : typography
+        ? './reader-typography.epub'
+        : converted
+          ? './reader-converted.epub'
+          : './reader-regression.epub',
     import.meta.url,
   ),
   Buffer.concat([...entries, centralDirectory, end]),

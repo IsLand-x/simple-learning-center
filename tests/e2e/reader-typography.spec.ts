@@ -9,7 +9,11 @@ test.use({
   serviceWorkers: 'block',
 });
 
-async function openTypographyBook(page: Page, theme = 'light'): Promise<Frame> {
+async function openTypographyBook(
+  page: Page,
+  theme = 'light',
+  fixture = 'reader-typography',
+): Promise<Frame> {
   await page.route('https://cdn.jsdelivr.net/**', (route) => route.abort());
   await prepareWorkspace(page, { theme });
   const response = await page.request.get('/api/state/preferences');
@@ -25,7 +29,7 @@ async function openTypographyBook(page: Page, theme = 'light'): Promise<Frame> {
   const { token } = await tokenResponse.json();
   const upload = await page.request.post('/api/openapi/v1/books?filename=typography.epub', {
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/epub+zip' },
-    data: await readFile(new URL('../fixtures/reader-typography.epub', import.meta.url)),
+    data: await readFile(new URL(`../fixtures/${fixture}.epub`, import.meta.url)),
   });
   expect(upload.status()).toBe(201);
   const { book } = await upload.json();
@@ -34,7 +38,7 @@ async function openTypographyBook(page: Page, theme = 'light'): Promise<Frame> {
   await expect
     .poll(async () => {
       for (const candidate of page.frames()) {
-        if (await candidate.locator('h2').count()) {
+        if (await candidate.locator('h2, h4').count()) {
           frame = candidate;
           return true;
         }
@@ -43,7 +47,7 @@ async function openTypographyBook(page: Page, theme = 'light'): Promise<Frame> {
     })
     .toBe(true);
   if (!frame) throw new Error('排版测试章节未加载');
-  await expect(frame.locator('h1')).toBeVisible();
+  await expect(frame.locator('h1, h4').first()).toBeVisible();
   await frame.evaluate(() => document.fonts.ready);
   await expect(page.getByText(/第 1 页 \/ 共 \d+ 页/)).toBeVisible();
   return frame;
@@ -66,6 +70,7 @@ test('EPUB typography preserves hierarchy, list rhythm, code and authored alignm
       const heading = style(selector);
       return {
         size: ratio(heading.fontSize, body.fontSize),
+        weight: heading.fontWeight,
         lineHeight: ratio(heading.lineHeight, heading.fontSize),
         before: Number.parseFloat(heading.marginTop),
         after: Number.parseFloat(heading.marginBottom),
@@ -92,7 +97,8 @@ test('EPUB typography preserves hierarchy, list rhythm, code and authored alignm
     };
   });
   metrics.headings.forEach((heading, index) => {
-    expect(heading.size).toBeCloseTo([1.65, 1.35, 1.15][index], 2);
+    expect(heading.size).toBeCloseTo([1.65, 1.35, 1.2][index], 2);
+    expect(heading.weight).toBe('700');
     expect(heading.lineHeight).toBeCloseTo(1.35, 2);
     if (index > 0) expect(heading.before).toBeGreaterThan(heading.after * 2);
   });
@@ -117,6 +123,43 @@ for (const theme of ['light', 'dark']) {
     { width: 1024, height: 768 },
     { width: 1440, height: 900 },
   ]) {
+    test(`EPUB subheading visual: ${theme} ${viewport.width}`, async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop-chrome');
+      await page.setViewportSize(viewport);
+      const frame = await openTypographyBook(page, theme, 'reader-headings');
+      const metrics = await frame.evaluate(() => {
+        const bodySize = Number.parseFloat(getComputedStyle(document.body).fontSize);
+        return ['h3', 'h4', 'h5', 'h6'].map((selector) => {
+          const element = document.querySelector(selector)!;
+          const style = getComputedStyle(element);
+          const fontSize = Number.parseFloat(style.fontSize);
+          return {
+            size: fontSize / bodySize,
+            weight: style.fontWeight,
+            alignment: style.textAlign,
+            lineHeight: Number.parseFloat(style.lineHeight) / fontSize,
+            before: Number.parseFloat(style.marginTop),
+            after: Number.parseFloat(style.marginBottom),
+          };
+        });
+      });
+      metrics.forEach((heading, index) => {
+        expect(heading.size).toBeCloseTo([1.2, 1.1, 1, 1][index], 2);
+        expect(heading.weight).toBe('700');
+        expect(heading.lineHeight).toBeCloseTo(1.35, 2);
+        if (index !== 1) expect(heading.before).toBeGreaterThan(heading.after * 2);
+      });
+      expect(metrics[0].alignment).toBe('center');
+      await expect(frame.locator('h4 span')).toHaveCSS('font-weight', '700');
+      await expect(frame.locator('h4 span')).toHaveCSS('font-size', `${18 * 1.1}px`);
+      await expect(frame.locator('p').first()).toHaveCSS('text-indent', '36px');
+      await page.mouse.move(0, 0);
+      await expect(page).toHaveScreenshot(`epub-headings-${theme}-${viewport.width}.png`, {
+        animations: 'disabled',
+        caret: 'hide',
+        maxDiffPixelRatio: 0.001,
+      });
+    });
     test(`EPUB typography visual: ${theme} ${viewport.width}`, async ({ page }, testInfo) => {
       test.skip(testInfo.project.name !== 'desktop-chrome');
       await page.setViewportSize(viewport);
