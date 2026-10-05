@@ -1,6 +1,7 @@
 # EPUB 测试夹具
 
 - `openapi-sample.epub` 是原有单章最小夹具，用于 OpenAPI 与 MCP 契约测试。
+- `reader-converted.epub` 使用同样的原创文字模拟 div/span 段落、固定行高及表格，用于验证转换型 EPUB 的间距兼容；通过 `node tests/fixtures/generate-reader-regression.mjs --converted` 生成。
 - `reader-regression.epub` 是两章、每章 40 段的阅读器回归夹具。全部中文文字为本测试编写，内容及元数据可在 `generate-reader-regression.mjs` 中审查；没有个人书籍、第三方版权正文、联网资源或字体文件。
 
 使用 Node.js 内置 API 确定性生成阅读器夹具，无需安装其他依赖：

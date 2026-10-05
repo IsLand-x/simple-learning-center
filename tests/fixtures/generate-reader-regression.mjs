@@ -20,6 +20,23 @@ const files = {
     '<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>目录</title></head><body><nav epub:type="toc"><ol><li><a href="chapter.xhtml">第一章</a></li><li><a href="chapter2.xhtml">第二章</a></li></ol></nav></body></html>',
 };
 
+// Match converted EPUB paragraph structure without redistributing any real book.
+const converted = process.argv.includes('--converted');
+if (converted) {
+  files['EPUB/chapter.xhtml'] = files['EPUB/chapter.xhtml']
+    .replace(
+      '</head>',
+      '<style>.body,.calibre1{line-height:130%;margin:0;padding:0}.body{white-space:pre-wrap}span{line-height:130%}</style></head>',
+    )
+    .replace('<body>', '<body><div class="body">')
+    .replaceAll('<p>', '<div class="calibre1"><span>')
+    .replaceAll('</p>', '</span></div>')
+    .replace(
+      '</body>',
+      '<table><tr><td><div id="table-cell">表格原有间距</div></td></tr></table><pre><span id="code">代码原有行高</span></pre></div></body>',
+    );
+}
+
 function crc32(bytes) {
   let crc = 0xffffffff;
   for (const byte of bytes) {
@@ -63,6 +80,6 @@ end.writeUInt16LE(Object.keys(files).length, 10);
 end.writeUInt32LE(centralDirectory.length, 12);
 end.writeUInt32LE(offset, 16);
 await writeFile(
-  new URL('./reader-regression.epub', import.meta.url),
+  new URL(converted ? './reader-converted.epub' : './reader-regression.epub', import.meta.url),
   Buffer.concat([...entries, centralDirectory, end]),
 );
