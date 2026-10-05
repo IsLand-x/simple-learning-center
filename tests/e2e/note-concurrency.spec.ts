@@ -62,10 +62,19 @@ test('用户自动保存与 AI 追加同时发生，笔记区和刷新结果保�
         ).content,
     )
     .toBe('用户原文\n\nAI 新增见解');
-  await editor.focus();
-  await page.keyboard.press('Control+Home');
-  await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('ArrowRight');
+  // Position the DOM caret explicitly: platform shortcuts can race with the
+  // editor's focus selection restoration after applying the canonical note.
+  await editor.evaluate((element) => {
+    const text = element.querySelector('p')?.firstChild;
+    if (!text || text.nodeType !== Node.TEXT_NODE) throw new Error('笔记首段缺少文字');
+    (element as HTMLElement).focus();
+    const range = document.createRange();
+    range.setStart(text, 2);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
   await page.keyboard.insertText('继续');
   await expect
     .poll(
