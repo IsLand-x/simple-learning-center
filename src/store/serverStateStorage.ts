@@ -36,6 +36,15 @@ const domainLoadPromises = new Map<StateDomain, Promise<void>>();
 const domainLocalRevisions = new Map<StateDomain, number>();
 const noteSaveListeners = new Set<() => void>();
 
+interface DomainWrite {
+  body: string;
+  snapshot: StateDomainSnapshot;
+  notesBase?: NoteItem[];
+  revision: number;
+}
+
+let pendingNoteWrite: DomainWrite | undefined;
+
 export function subscribeServerNoteSaves(listener: () => void) {
   noteSaveListeners.add(listener);
   return () => {
@@ -188,6 +197,7 @@ async function initializeServerState(rawState: string) {
 
 function resetDomainCache() {
   preparedState = null;
+  pendingNoteWrite = undefined;
   loadedDomains.clear();
   activeDomains.clear();
   domainEtags.clear();
@@ -250,10 +260,7 @@ export const serverStateStorage: StateStorage = {
   setItem: async (_name, value) => {
     const envelope = parseStateEnvelope(value);
     const domains = [...activeDomains];
-    const domainBodies = new Map<
-      StateDomain,
-      { body: string; snapshot: StateDomainSnapshot; notesBase?: NoteItem[]; revision: number }
-    >();
+    const domainBodies = new Map<StateDomain, DomainWrite>();
     for (const domain of domains) {
       const snapshot = stateDomainSnapshot(envelope, domain);
       const body = JSON.stringify(snapshot);
@@ -262,9 +269,9 @@ export const serverStateStorage: StateStorage = {
         domainSubmittedPayloads.get(domain) ??
         domainPayloads.get(domain);
       if (previous === body) {
-        // An unrelated action may still serialize the pre-merge editor value
-        // while hydration is pending. Keep the canonical note response intact.
-        if (domain !== 'notes') mergePreparedState(snapshot);
+        // The cache already contains this snapshot. Re-merging unchanged
+        // domains would parse and serialize every note once per domain on each
+        // keystroke; it can also replace a pending canonical note response.
         continue;
       }
       mergePreparedState(snapshot);
@@ -274,15 +281,26 @@ export const serverStateStorage: StateStorage = {
         domain === 'notes'
           ? ((baseline ? parseStateEnvelope(baseline).state?.notes : undefined) ?? [])
           : undefined;
-      domainBodies.set(domain, { body, snapshot, notesBase, revision });
+      if (domain === 'notes' && pendingNoteWrite) {
+        // Keep one waiting draft behind the active request, retaining the base
+        // of the first unsent edit so concurrent AI changes still merge safely.
+        pendingNoteWrite.body = body;
+        pendingNoteWrite.snapshot = snapshot;
+        pendingNoteWrite.revision = revision;
+      } else {
+        const write = { body, snapshot, notesBase, revision };
+        domainBodies.set(domain, write);
+        if (domain === 'notes') pendingNoteWrite = write;
+      }
       domainQueuedPayloads.set(domain, body);
       domainLocalRevisions.set(domain, (domainLocalRevisions.get(domain) ?? 0) + 1);
     }
     stateWriteQueue = stateWriteQueue
       .catch(() => undefined)
       .then(async () => {
-        for (const [domain, { body, snapshot, notesBase, revision }] of domainBodies) {
-          try {
+        try {
+          for (const [domain, { body, snapshot, notesBase, revision }] of domainBodies) {
+            if (domain === 'notes') pendingNoteWrite = undefined;
             const saved = await stateApi.writeDomain(domain, snapshot, notesBase);
             // Compare notes against the last submitted local draft until the
             // store has observed the canonical response, rather than treating
@@ -293,7 +311,12 @@ export const serverStateStorage: StateStorage = {
               mergePreparedState(saved);
               noteSaveListeners.forEach((listener) => listener());
             }
-          } finally {
+          }
+        } finally {
+          // An earlier domain can fail before the note request starts. Release
+          // that unsent draft too, so subsequent edits can schedule a retry.
+          if (pendingNoteWrite === domainBodies.get('notes')) pendingNoteWrite = undefined;
+          for (const [domain, { body }] of domainBodies) {
             if (domainQueuedPayloads.get(domain) === body) domainQueuedPayloads.delete(domain);
           }
         }

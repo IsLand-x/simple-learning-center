@@ -91,3 +91,84 @@ test('用户自动保存与 AI 追加同时发生，笔记区和刷新结果保�
   await expect(editor).toContainText('用户继续原文');
   await expect(editor).toContainText('AI 新增见解');
 });
+
+test('长笔记连续输入时合并待保存草稿，刷新保留内容且没有页面异常', async ({ page }, testInfo) => {
+  const book = { ...demoBooks[0], id: `long-note-${testInfo.project.name}` };
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('crash', () => errors.push('浏览器页面崩溃'));
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
+  const library = await (await page.request.get('/api/state/library')).json();
+  library.state.books = [book];
+  await page.request.put('/api/state/library', { data: library });
+  const notes = await (await page.request.get('/api/state/notes')).json();
+  const content = Array.from(
+    { length: 1000 },
+    (_, index) =>
+      `第${index + 1}段：${'这是一段用来验证长笔记编辑和自动保存的中文内容。'.repeat(4)}`,
+  ).join('\n\n');
+  const timestamp = Date.now();
+  notes.state.notes = [
+    {
+      id: `book-note:${book.id}`,
+      bookId: book.id,
+      title: '长笔记',
+      content,
+      fileName: 'reading-note.md',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  ];
+  await page.request.put('/api/state/notes', { data: notes });
+  await page.route('**/api/ai/jobs**', (route) => route.fulfill({ json: { jobs: [] } }));
+  await page.goto(`/books/${book.id}`);
+  const openNotes = async () => {
+    if (testInfo.project.name === 'mobile-chrome')
+      await page.getByRole('button', { name: '打开更多功能，默认显示 AI 助手' }).click();
+    await page.getByRole('button', { name: '打开笔记', exact: true }).click();
+  };
+  await openNotes();
+  const editor = page.getByLabel(`编辑《${book.title}》的 Markdown 笔记`);
+  await expect(editor.locator('p')).toHaveCount(1000);
+  await editor.evaluate((element) => {
+    (element as HTMLElement).focus();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
+  let writes = 0;
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/state/notes', async (route) => {
+    if (route.request().method() !== 'PUT') return route.continue();
+    writes++;
+    if (writes === 1) await gate;
+    await route.continue();
+  });
+  await page.keyboard.insertText('新增');
+  await expect.poll(() => writes).toBe(1);
+  await page.keyboard.type('abcdefghijklmnopqrstuvwxyz');
+  release();
+  const expected = `${content}新增abcdefghijklmnopqrstuvwxyz`;
+  await expect
+    .poll(
+      async () =>
+        (await (await page.request.get('/api/state/notes')).json()).state.notes.find(
+          (note: { bookId: string }) => note.bookId === book.id,
+        ).content,
+    )
+    .toBe(expected);
+  expect(writes).toBe(2);
+  expect(errors).toEqual([]);
+  await page.reload();
+  await openNotes();
+  await expect(editor).toContainText('新增abcdefghijklmnopqrstuvwxyz');
+  await expect(editor.locator('p')).toHaveCount(1000);
+  expect(errors).toEqual([]);
+});

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   IconBold,
   IconCode,
@@ -37,26 +37,37 @@ const editorExtensions = [
 ];
 
 export function MarkdownNoteEditor({ ariaLabel, content, onChange }: MarkdownNoteEditorProps) {
-  const editor = useEditor({
-    extensions: editorExtensions,
-    content,
-    contentType: 'markdown',
-    editorProps: {
+  const appliedContent = useRef(content);
+  const editorProps = useMemo(
+    () => ({
       attributes: {
         'aria-label': ariaLabel,
         class: 'tiptap-markdown-editor__prosemirror',
       },
-    },
+    }),
+    [ariaLabel],
+  );
+  const editor = useEditor({
+    extensions: editorExtensions,
+    content,
+    contentType: 'markdown',
+    shouldRerenderOnTransaction: false,
+    editorProps,
     onUpdate: ({ editor: currentEditor }) => {
-      onChange(currentEditor.getMarkdown());
+      const markdown = currentEditor.getMarkdown();
+      appliedContent.current = markdown;
+      onChange(markdown);
     },
   });
 
   useEffect(() => {
-    if (editor.getMarkdown() === content) return;
+    // Local saves echo the emitted Markdown. Comparing that string avoids
+    // serializing the entire document again for every keystroke or hydration.
+    if (appliedContent.current === content) return;
     const { from, to } = editor.state.selection;
     const focused = editor.isFocused;
     editor.commands.setContent(content, { contentType: 'markdown', emitUpdate: false });
+    appliedContent.current = content;
     if (focused) {
       const end = editor.state.doc.content.size;
       editor.commands.setTextSelection({ from: Math.min(from, end), to: Math.min(to, end) });
