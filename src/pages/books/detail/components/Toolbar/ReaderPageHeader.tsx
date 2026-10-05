@@ -174,7 +174,7 @@ export function ReaderPageHeader({
         className="reader-header__actions [margin-left:auto] mobile:[transition:opacity_140ms_ease,_transform_180ms_ease,_visibility_0s_linear]"
       >
         <Dropdown
-          trigger="hover"
+          trigger="click"
           position="bottomRight"
           render={
             <Dropdown.Menu>
