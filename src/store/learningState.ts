@@ -29,6 +29,7 @@ export interface LearningState extends LearningData {
   setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
   setBookPinned: (bookId: string, pinned: boolean, pinnedAt?: number) => void;
+  setBookArchived: (bookId: string, archived: boolean, changedAt?: number) => void;
   trashBook: (bookId: string, deletedAt?: number) => void;
   restoreBook: (bookId: string, restoredAt?: number) => void;
   deleteBookPermanently: (bookId: string, deletedAt?: number) => void;

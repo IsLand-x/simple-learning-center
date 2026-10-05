@@ -30,7 +30,7 @@ export const STATE_DOMAIN_FIELDS = {
   ],
 } as const satisfies { [Domain in StateDomain]: readonly (keyof StateDomainData[Domain])[] };
 
-export const LEARNING_STORE_VERSION = 36;
+export const LEARNING_STORE_VERSION = 37;
 
 export const ALL_STATE_DOMAINS = Object.freeze(Object.keys(STATE_DOMAIN_FIELDS) as StateDomain[]);
 

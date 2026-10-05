@@ -42,7 +42,7 @@ for (const theme of ['light', 'dark']) {
         if (screen.name === 'library') {
           // A progress/recency mismatch can fit below the pixel threshold; assert the fixture too.
           const firstBook = page.locator('.book-card').first();
-          await expect(firstBook.getByRole('button')).toHaveAttribute(
+          await expect(firstBook.getByRole('button', { name: /^打开《/ })).toHaveAttribute(
             'aria-label',
             '打开《Designing Data-Intensive Applications》，已读 0%',
           );

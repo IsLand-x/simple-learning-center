@@ -18,6 +18,7 @@ export function bookCoverTone(bookId: string): CoverTone {
 
 export function sortBooksByShelfOrder(books: BookItem[]) {
   return [...books].sort((left, right) => {
+    if (Boolean(left.archivedAt) !== Boolean(right.archivedAt)) return left.archivedAt ? 1 : -1;
     const leftPinnedAt = left.pinnedAt ?? 0;
     const rightPinnedAt = right.pinnedAt ?? 0;
     if (leftPinnedAt || rightPinnedAt) {

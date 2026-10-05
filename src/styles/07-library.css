@@ -554,3 +554,18 @@
   display: flex;
   align-items: center;
 }
+
+/* Keep native Semi button visuals while extending the mobile pointer target. */
+.book-card__menu::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  content: '';
+  transform: translate(-50%, -50%);
+}
+.book-card__menu:focus-visible {
+  outline: 2px solid var(--semi-color-focus-border);
+  outline-offset: 2px;
+}

@@ -9,6 +9,7 @@ import { Button, ButtonGroup, Empty, Input, Typography } from '@douyinfe/semi-ui
 import type { BookItem } from '../../../../contracts/books';
 import { LibraryBookContextMenu } from './components/BookLists/LibraryBookContextMenu';
 import { ImportBooksButton } from './components/ImportBooksButton';
+import { ArchivedBooksSection } from './components/Shelf/ArchivedBooksSection';
 import { BookCard } from './components/Shelf/BookCard';
 import { BookListEditor } from './components/BookLists/BookListEditor';
 import { BookListsView } from './components/BookLists/BookListsView';
@@ -124,7 +125,7 @@ export function LibraryPage() {
       </div>
 
       {page.section === 'shelf' ? (
-        page.filteredBooks.length ? (
+        page.filteredBooks.length || page.archivedCount ? (
           <div className="library-shelf" aria-label="书籍列表">
             {page.pinnedBooks.length > 0 && (
               <section className="library-book-section" aria-labelledby="pinned-books-title">
@@ -159,6 +160,16 @@ export function LibraryPage() {
                 <div className="book-grid">{page.unpinnedBooks.map(renderBookCard)}</div>
               </section>
             )}
+            {page.archivedCount > 0 && (
+              <ArchivedBooksSection
+                key={`${page.query}:${page.filter}`}
+                count={page.archivedCount}
+                matchingCount={page.archivedBooks.length}
+                filtered={Boolean(page.query.trim()) || page.filter !== 'all'}
+              >
+                {page.archivedBooks.map(renderBookCard)}
+              </ArchivedBooksSection>
+            )}
           </div>
         ) : (
           <div className="library-empty [min-height:360px] [place-items:center] [align-content:center] [gap:16px]">
@@ -189,6 +200,7 @@ export function LibraryPage() {
         menu={page.bookContextMenu}
         onClose={page.closeBookContextMenu}
         onDelete={page.deleteBook}
+        onArchivedChange={(book, archived) => page.setBookArchived(book.id, archived)}
         onPinnedChange={(book, pinned) => page.setBookPinned(book.id, pinned)}
         onRequestCreateList={(book) => page.openCreateBookList(book.id)}
         onToggleBookList={page.toggleBookList}

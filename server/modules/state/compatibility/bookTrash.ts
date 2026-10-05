@@ -1,4 +1,5 @@
 import type { BookItem, TrashedBookItem } from '../../../../contracts/books.js';
+import { mergeBookArchive } from './bookArchive.js';
 import type { PersistedState } from '../types.js';
 const BOOK_TRASH_STATE_VERSION = 25;
 const BOOK_TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
@@ -61,8 +62,9 @@ export function protectBookTrashStateFromClient(
   for (const book of incomingBooks) {
     if (typeof book?.id !== 'string' || unavailableBookIds.has(book.id)) continue;
     const currentBook = mergedBooks.get(book.id);
-    if (!currentBook || bookUpdatedAt(book) >= bookUpdatedAt(currentBook))
-      mergedBooks.set(book.id, book);
+    const selected =
+      !currentBook || bookUpdatedAt(book) >= bookUpdatedAt(currentBook) ? book : currentBook;
+    mergedBooks.set(book.id, mergeBookArchive(selected, book, currentBook));
   }
 
   const incomingOrder = incomingBooks

@@ -410,5 +410,33 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       }),
     };
   }
+  // Archiving is optional metadata within the existing library books partition.
+  // Missing fields keep all legacy books on the ordinary shelf.
+  if (version < 37 && Array.isArray(migrated.books)) {
+    migrated = {
+      ...migrated,
+      books: migrated.books.map((book) => {
+        const { archivedAt, archiveUpdatedAt, ...rest } = book;
+        const validArchive =
+          typeof archivedAt === 'number' && Number.isFinite(archivedAt) && archivedAt > 0;
+        const validVersion =
+          typeof archiveUpdatedAt === 'number' &&
+          Number.isFinite(archiveUpdatedAt) &&
+          archiveUpdatedAt > 0;
+        return {
+          ...rest,
+          ...(validArchive ? { archivedAt } : {}),
+          ...(validVersion || validArchive
+            ? {
+                archiveUpdatedAt: Math.max(
+                  validVersion ? archiveUpdatedAt : 0,
+                  validArchive ? archivedAt : 0,
+                ),
+              }
+            : {}),
+        };
+      }),
+    };
+  }
   return migrated;
 }

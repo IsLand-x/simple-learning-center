@@ -91,3 +91,39 @@ describe('manual book pinning', () => {
     expect(getState().books.find((item) => item.id === book.id)?.updatedAt).toBe(4);
   });
 });
+
+describe('book archiving', () => {
+  it('preserves reading data, pins and list membership, and persists archive and unarchive decisions', () => {
+    const { actions, getState } = setup();
+    const original = getState().books[0];
+    actions.setBookListBooks('a', [original.id]);
+    actions.setBookPinned(original.id, true, 5);
+    const before = getState();
+    actions.setBookArchived(original.id, true, 10);
+    actions.setBookArchived(original.id, true, 20);
+    expect(getState().books.find((book) => book.id === original.id)).toEqual({
+      ...original,
+      pinnedAt: 5,
+      archivedAt: 10,
+      archiveUpdatedAt: 10,
+    });
+    expect(getState().bookLists).toBe(before.bookLists);
+    expect(getState().trashedBooks).toBe(before.trashedBooks);
+    expect(getState().notes).toBe(before.notes);
+    actions.updateBook(original.id, { progress: 50, updatedAt: 30 });
+    const restored = mergeLearningState(
+      JSON.parse(JSON.stringify({ books: getState().books })),
+      useLearningStore.getInitialState(),
+    );
+    expect(restored.books.find((book) => book.id === original.id)?.archivedAt).toBe(10);
+    actions.setBookArchived(original.id, false, 9);
+    const unarchived = getState().books.find((book) => book.id === original.id)!;
+    expect(unarchived).not.toHaveProperty('archivedAt');
+    expect(unarchived.archiveUpdatedAt).toBe(11);
+    expect(unarchived.updatedAt).toBe(30);
+    expect(unarchived.pinnedAt).toBe(5);
+    expect(unarchived.progress).toBe(50);
+    actions.setBookArchived('missing', true, 40);
+    expect(getState().books.find((book) => book.id === original.id)).toBe(unarchived);
+  });
+});

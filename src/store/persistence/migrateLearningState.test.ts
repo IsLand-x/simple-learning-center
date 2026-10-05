@@ -199,3 +199,25 @@ it('preserves version 34 notes and highlights when splitting their transport dom
   };
   expect(migrateLearningState(previous, 34)).toEqual(previous);
 });
+
+it('keeps legacy books active and preserves archive decisions in the existing books domain', () => {
+  const migrated = migrateLearningState(
+    {
+      books: [
+        { id: 'legacy', progress: 40, pinnedAt: 10 },
+        { id: 'archived', archivedAt: 20 },
+        { id: 'unarchived', archiveUpdatedAt: 30 },
+        { id: 'invalid', archivedAt: -1, archiveUpdatedAt: Infinity },
+      ],
+      notes: [{ id: 'note', content: '保留正文' }],
+    },
+    36,
+  );
+  expect(migrated.books).toEqual([
+    { id: 'legacy', progress: 40, pinnedAt: 10 },
+    { id: 'archived', archivedAt: 20, archiveUpdatedAt: 20 },
+    { id: 'unarchived', archiveUpdatedAt: 30 },
+    { id: 'invalid' },
+  ]);
+  expect(migrated.notes).toEqual([{ id: 'note', content: '保留正文' }]);
+});

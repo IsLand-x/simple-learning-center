@@ -65,6 +65,20 @@ describe('library ordering', () => {
   });
 });
 
+it('always places archived books after the active shelf, even when pinned or recently read', () => {
+  const source = [
+    createBook({ id: 'archived', archivedAt: 10, pinnedAt: 20, updatedAt: 100 }),
+    createBook({ id: 'active', updatedAt: 1 }),
+    createBook({ id: 'pinned', pinnedAt: 1, updatedAt: 1 }),
+  ];
+  expect(sortBooksByShelfOrder(source).map((book) => book.id)).toEqual([
+    'pinned',
+    'active',
+    'archived',
+  ]);
+  expect(filterLibraryBooks(source, 'all', '书名')).toHaveLength(3);
+});
+
 describe('library pin stability', () => {
   it('does not move pinned books when reading progress changes, including equal pin times', () => {
     const books = [

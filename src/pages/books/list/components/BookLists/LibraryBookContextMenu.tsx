@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  IconArchive,
   IconChevronRight,
   IconDeleteStroked,
   IconFavoriteList,
@@ -22,6 +23,7 @@ export function LibraryBookContextMenu({
   menu,
   onClose,
   onDelete,
+  onArchivedChange,
   onPinnedChange,
   onRequestCreateList,
   onToggleBookList,
@@ -30,6 +32,7 @@ export function LibraryBookContextMenu({
   menu: LibraryBookContextMenuState | null;
   onClose: () => void;
   onDelete: (book: BookItem) => void;
+  onArchivedChange: (book: BookItem, archived: boolean) => void;
   onPinnedChange: (book: BookItem, pinned: boolean) => void;
   onRequestCreateList: (book: BookItem) => void;
   onToggleBookList: (book: BookItem, bookList: BookList) => void;
@@ -142,6 +145,16 @@ export function LibraryBookContextMenu({
               </span>
             </Dropdown.Item>
           </Dropdown>
+          <Dropdown.Item
+            icon={<IconArchive />}
+            onClick={() => {
+              const { book } = menu;
+              onClose();
+              onArchivedChange(book, !book.archivedAt);
+            }}
+          >
+            {menu.book.archivedAt ? '取消存档' : '存档'}
+          </Dropdown.Item>
           <Dropdown.Divider />
           <Dropdown.Item
             type="danger"

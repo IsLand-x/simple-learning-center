@@ -16,6 +16,8 @@ export interface BookItem {
   createdAt: number;
   updatedAt: number;
   pinnedAt?: number;
+  archivedAt?: number;
+  archiveUpdatedAt?: number;
   progress: number;
   currentCfi?: string;
   currentChapter: string;

@@ -18,6 +18,7 @@ export function useLibraryState() {
   const bookLists = useLearningStore((state) => state.bookLists);
   const trashedBooks = useLearningStore((state) => state.trashedBooks);
   const createBookList = useLearningStore((state) => state.createBookList);
+  const setBookArchived = useLearningStore((state) => state.setBookArchived);
   const setBookPinned = useLearningStore((state) => state.setBookPinned);
   const setBookListBooks = useLearningStore((state) => state.setBookListBooks);
   const trashBook = useLearningStore((state) => state.trashBook);
@@ -35,13 +36,18 @@ export function useLibraryState() {
   );
 
   const pinnedBooks = useMemo(
-    () => filteredBooks.filter((book) => Boolean(book.pinnedAt)),
+    () => filteredBooks.filter((book) => !book.archivedAt && Boolean(book.pinnedAt)),
     [filteredBooks],
   );
   const unpinnedBooks = useMemo(
-    () => filteredBooks.filter((book) => !book.pinnedAt),
+    () => filteredBooks.filter((book) => !book.archivedAt && !book.pinnedAt),
     [filteredBooks],
   );
+  const archivedBooks = useMemo(
+    () => filteredBooks.filter((book) => Boolean(book.archivedAt)),
+    [filteredBooks],
+  );
+  const archivedCount = books.filter((book) => Boolean(book.archivedAt)).length;
   const bookListsByBookId = useMemo(() => {
     const listsByBookId = new Map<string, BookList[]>();
     bookLists.forEach((bookList) => {
@@ -88,6 +94,9 @@ export function useLibraryState() {
     setCreateForBookId(null);
   };
   return {
+    archivedBooks,
+    archivedCount,
+    setBookArchived,
     pinnedBooks,
     unpinnedBooks,
     bookListsByBookId,
