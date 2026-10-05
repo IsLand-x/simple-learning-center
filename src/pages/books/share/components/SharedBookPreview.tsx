@@ -1,4 +1,5 @@
-import { Button, Select, Spin, Typography } from '@douyinfe/semi-ui';
+import { Button, Select, Typography } from '@douyinfe/semi-ui';
+import { BookShareLoading } from './BookShareLoading';
 import { useSharedBookPreview } from './useSharedBookPreview';
 
 export function SharedBookPreview({ token, onClose }: { token: string; onClose: () => void }) {
@@ -18,7 +19,7 @@ export function SharedBookPreview({ token, onClose }: { token: string; onClose: 
         <div ref={hostRef} className="h-full w-full" />
         {status === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center [background:var(--semi-color-bg-0)]">
-            <Spin tip="正在加载书籍" />
+            <BookShareLoading text="正在加载书籍" fullScreen={false} />
           </div>
         )}
         {error && (

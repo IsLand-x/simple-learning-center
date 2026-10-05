@@ -1,6 +1,7 @@
 import { DoubanBookSection } from './components/DoubanBookSection';
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { Button, Empty, Spin, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Empty, Toast, Typography } from '@douyinfe/semi-ui';
+import { BookShareLoading } from './components/BookShareLoading';
 import { bookSharesApi } from '../../../api/book-shares';
 import type { SharedBook } from '../../../api/book-shares/type';
 
@@ -40,15 +41,10 @@ export function BookSharePage({ token }: { token: string }) {
         <Empty title="无法打开分享" description={error} />
       </div>
     );
-  if (!book)
-    return (
-      <div className="flex h-dvh items-center justify-center">
-        <Spin tip="正在加载分享" />
-      </div>
-    );
+  if (!book) return <BookShareLoading text="正在加载分享" />;
   if (preview)
     return (
-      <Suspense fallback={<Spin tip="正在加载阅读器" />}>
+      <Suspense fallback={<BookShareLoading text="正在加载阅读器" />}>
         <Preview
           token={token}
           onClose={() => {
