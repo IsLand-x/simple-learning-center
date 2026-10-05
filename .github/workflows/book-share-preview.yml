@@ -1,10 +1,8 @@
 name: 书籍分享预览镜像
 
 on:
-  push:
-    branches:
-      - 'codex/book-sharing'
-      - 'codex/reader-content-fixes'
+  # 仅在用户明确要求预览时手动启动，日常发布走 main 的生产工作流。
+  workflow_dispatch:
 
 concurrency:
   group: learning-center-book-share-preview

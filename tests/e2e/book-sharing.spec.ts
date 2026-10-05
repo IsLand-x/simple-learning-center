@@ -23,6 +23,7 @@ test('三点菜单分享，匿名只读预览、下载及撤销', async ({ page,
   await expect(page.getByRole('menuitem', { name: '停止分享' })).toHaveCount(0);
   await page.getByRole('menuitem', { name: '重命名书籍' }).click();
   const rename = page.getByRole('dialog', { name: '重命名书籍' });
+  await expect(page.getByRole('menuitem', { name: '重命名书籍' })).toBeHidden();
   await rename.getByRole('textbox', { name: '书籍名称' }).fill('简短书名');
   await rename.getByRole('button', { name: '保存名称' }).click();
   await expect(rename).toBeHidden();

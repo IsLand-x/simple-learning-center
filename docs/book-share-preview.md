@@ -1,6 +1,6 @@
 # 书籍分享预览
 
-分享功能分支为 `codex/book-sharing`，阅读器修复分支为 `codex/reader-content-fixes`，共用这份独立预览部署流程。推送触发工程验证和“书籍分享预览镜像”，镜像标记为 `ghcr.io/island-x/simple-learning-center:book-share-<完整提交 SHA>`，不更新 latest 或生产服务。
+本页保留历史预览环境的操作说明。当前问题修复和新需求默认通过 `main` 发布到生产，不再自动更新预览环境；只有用户明确要求预览时才手动启动“书籍分享预览镜像”。分享功能分支为 `codex/book-sharing`，阅读器修复分支为 `codex/reader-content-fixes`；历史镜像标记为 `ghcr.io/island-x/simple-learning-center:book-share-<完整提交 SHA>`。
 
 独立容器 `learning-center-book-share-preview`、数据卷 `learning-center-book-share-preview-data` 和私有环境文件 `/home/orca/.local/share/learning-center-book-share-preview.env` 与所有既有实例隔离。服务仅监听 `127.0.0.1:4178`，采用远程认证，凭据文件权限 0600。示例仅使用仓库原创 `tests/fixtures/reader-regression.epub`；不复制真实书籍、笔记、阅读记录或供应商凭据。
 

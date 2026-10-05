@@ -51,6 +51,7 @@ export function ReaderPageHeader({
   const [share, setShare] = useState<BookShareLink | null>(null);
   const [shareLoading, setShareLoading] = useState(true);
   const [renaming, setRenaming] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
   useEffect(() => {
     let active = true;
     setShareLoading(true);
@@ -72,6 +73,7 @@ export function ReaderPageHeader({
   }, [book.id]);
   const handleShare = async () => {
     if (sharing) return;
+    setMenuVisible(false);
     setSharing(true);
     try {
       const created = await bookSharesApi.create(book.id);
@@ -84,6 +86,7 @@ export function ReaderPageHeader({
   };
   const handleRevokeShare = async () => {
     if (sharing) return;
+    setMenuVisible(false);
     setSharing(true);
     try {
       await bookSharesApi.revoke(book.id);
@@ -97,6 +100,7 @@ export function ReaderPageHeader({
   };
   const handleCopyShare = async () => {
     if (!share) return;
+    setMenuVisible(false);
     try {
       await navigator.clipboard.writeText(new URL(share.url, window.location.origin).href);
       Toast.success('分享链接已复制');
@@ -105,6 +109,7 @@ export function ReaderPageHeader({
     }
   };
   const handleDelete = () => {
+    setMenuVisible(false);
     confirmMoveBookToTrash(book, (trashedBook) => {
       trashBook(book.id, trashedBook.deletedAt);
       navigate('/');
@@ -175,10 +180,19 @@ export function ReaderPageHeader({
       >
         <Dropdown
           trigger="click"
+          visible={menuVisible}
+          onVisibleChange={setMenuVisible}
           position="bottomRight"
           render={
             <Dropdown.Menu>
-              <Dropdown.Item onClick={() => setRenaming(true)}>重命名书籍</Dropdown.Item>
+              <Dropdown.Item
+                onClick={() => {
+                  setMenuVisible(false);
+                  setRenaming(true);
+                }}
+              >
+                重命名书籍
+              </Dropdown.Item>
               {share ? (
                 <>
                   <Dropdown.Item disabled={sharing} onClick={() => void handleCopyShare()}>

@@ -1,9 +1,8 @@
 name: 重构预览镜像
 
 on:
-  push:
-    branches:
-      - 'IsLand-x/完全重构项目'
+  # 仅在用户明确要求预览时手动启动，日常发布走 main 的生产工作流。
+  workflow_dispatch:
 
 concurrency:
   group: learning-center-refactor-preview

@@ -1,6 +1,6 @@
 # 整体重构测试实例
 
-本次重构在 `IsLand-x/完全重构项目` 分支交付，不合并 `main`。目录职责与实现约束见 [架构说明](architecture.md)，功能清单与原始评估见 [重构评估](plans/full-refactor-review.md)。
+本页记录此前在 `IsLand-x/完全重构项目` 分支交付独立测试实例的历史流程。当前问题修复和新需求默认通过 `main` 发布到生产，不再自动更新预览环境。目录职责与实现约束见 [架构说明](architecture.md)，功能清单与原始评估见 [重构评估](plans/full-refactor-review.md)。
 
 ## 隔离与访问
 
@@ -17,7 +17,7 @@
 
 ## 构建与重新部署
 
-分支推送触发“工程验证”与“重构预览镜像”。预览工作流只发布 `ghcr.io/island-x/simple-learning-center:refactor-<完整提交 SHA>`，不发布 `latest`，不触发生产部署。工程验证包括类型、lint、格式、模块边界、死代码、单元测试、Vite/PWA、浏览器回归与 Docker 构建。
+只有用户明确要求预览时才手动启动“重构预览镜像”。预览工作流只发布 `ghcr.io/island-x/simple-learning-center:refactor-<完整提交 SHA>`，不发布 `latest`，不触发生产部署。工程验证包括类型、lint、格式、模块边界、死代码、单元测试、Vite/PWA、浏览器回归与 Docker 构建。
 
 镜像通过验证后，在服务器执行：
 
