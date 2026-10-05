@@ -11,22 +11,36 @@ import {
 import { protectChatReadState } from './compatibility/chatReadState.js';
 import { protectBookTrashStateFromClient } from './compatibility/bookTrash.js';
 import { hydrateStateFromDisk, prepareStateForDisk } from './serialization.js';
-import type { PersistedState } from './types.js';
+import type { PersistedState, StoredState } from './types.js';
 
 // Every state.json mutation shares this queue, including resource existence checks.
 // Queue callbacks must not call readPersistedState or enqueue another mutation.
 let stateWriteQueue = Promise.resolve();
+let stateReadPromise: Promise<PersistedState | null> | undefined;
+
+function readStateFile() {
+  // Share only an in-flight disk read; subsequent reads still observe disk
+  // changes. Hydration clones each caller's selected fields independently.
+  stateReadPromise ??= readFile(STATE_FILE, 'utf8')
+    .then((content) => JSON.parse(content) as PersistedState)
+    .catch((error: unknown) => {
+      if (errorHasCode(error, 'ENOENT')) return null;
+      throw error;
+    })
+    .finally(() => {
+      stateReadPromise = undefined;
+    });
+  return stateReadPromise;
+}
 
 async function readPersistedStateFromDisk(
-  options: { hydrateNote?: (note: NoteItem) => boolean } = {},
+  options: {
+    hydrateNote?: (note: NoteItem) => boolean;
+    fields?: readonly (keyof StoredState)[];
+  } = {},
 ) {
-  try {
-    const diskState = JSON.parse(await readFile(STATE_FILE, 'utf8'));
-    return hydrateStateFromDisk(diskState, options.hydrateNote);
-  } catch (error) {
-    if (errorHasCode(error, 'ENOENT')) return null;
-    throw error;
-  }
+  const diskState = await readStateFile();
+  return diskState ? hydrateStateFromDisk(diskState, options.hydrateNote, options.fields) : null;
 }
 
 async function persistState(persistedState: PersistedState, protectClientSnapshot = true) {
@@ -62,6 +76,7 @@ async function persistState(persistedState: PersistedState, protectClientSnapsho
 
 export async function readPersistedState(options?: {
   hydrateNote?: (note: NoteItem) => boolean;
+  fields?: readonly (keyof StoredState)[];
 }): Promise<PersistedState | null> {
   await stateWriteQueue.catch(() => undefined);
   return readPersistedStateFromDisk(options);

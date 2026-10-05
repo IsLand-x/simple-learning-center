@@ -36,6 +36,10 @@ export function isStateDomain(value: unknown): value is keyof typeof STATE_DOMAI
   return typeof value === 'string' && Object.hasOwn(STATE_DOMAIN_FIELDS, value);
 }
 
+export function stateDomainFields(domain: keyof typeof STATE_DOMAIN_FIELDS) {
+  return STATE_DOMAIN_FIELDS[domain];
+}
+
 export function createStateDomainSnapshot(persistedState: PersistedState | null, domain: string) {
   if (!isStateDomain(domain)) throw statusError(404, '状态分区不存在');
   if (!persistedState?.state || typeof persistedState.state !== 'object') return null;

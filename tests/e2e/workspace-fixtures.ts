@@ -116,9 +116,13 @@ async function patchStateDomain(page: Page, domain: string, changes: Record<stri
 
 export async function prepareWorkspace(
   page: Page,
-  { visualOnly = false, theme = 'light' }: { visualOnly?: boolean; theme?: string } = {},
+  {
+    visualOnly = false,
+    theme = 'light',
+    fixedTime = true,
+  }: { visualOnly?: boolean; theme?: string; fixedTime?: boolean } = {},
 ) {
-  await page.clock.setFixedTime(new Date(fixtureTime));
+  if (fixedTime) await page.clock.setFixedTime(new Date(fixtureTime));
   // The player remains a real iframe; its third-party content is replaced with a static fixture.
   await page.route('https://www.youtube-nocookie.com/embed/**', (route) =>
     route.fulfill({

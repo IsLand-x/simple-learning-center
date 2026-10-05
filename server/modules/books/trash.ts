@@ -55,7 +55,10 @@ export async function permanentlyDeletePersistedBook(bookId: string, { now = Dat
 
 export async function purgeExpiredTrashedBooks({ now = Date.now, logger = console } = {}) {
   const timestamp = now();
-  const currentState = await readPersistedState({ hydrateNote: () => false });
+  const currentState = await readPersistedState({
+    fields: ['trashedBooks'],
+    hydrateNote: () => false,
+  });
   const candidateIds = expiredTrashedBookIds(currentState, timestamp);
   if (!candidateIds.length) return [];
 

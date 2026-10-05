@@ -9,6 +9,7 @@ import {
   isStateDomain,
   mergeStateDomainSnapshot,
   serializeStateDomainSnapshot,
+  stateDomainFields,
 } from './domains.js';
 import { readJsonRequest } from '../../http/body.js';
 import { readPersistedState, stateFileEtag, writePersistedState } from './stateStore.js';
@@ -43,7 +44,10 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
     const domain = c.req.param('domain');
     if (!isStateDomain(domain)) return c.json({ error: '状态分区不存在' }, 404);
     if (domain === 'library') await purgeExpiredTrashedBooks();
-    const state = await readPersistedState({ hydrateNote: () => domain === 'notes' });
+    const state = await readPersistedState({
+      fields: stateDomainFields(domain),
+      hydrateNote: () => domain === 'notes',
+    });
     const serialized = serializeStateDomainSnapshot(state, domain);
     if (!serialized) return noContent(c);
     c.header('ETag', serialized.etag);

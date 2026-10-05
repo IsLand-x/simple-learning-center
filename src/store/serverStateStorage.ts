@@ -1,3 +1,4 @@
+import { measureAsync } from '../util/browser/measureAsync';
 import { mergeReadingNotes } from './persistence/noteStateMerge';
 import { readingApi } from '../api/reading';
 import { booksApi } from '../api/books';
@@ -24,7 +25,8 @@ import {
 const STATE_STORAGE_KEY = 'learning-center-state-v1';
 
 let prepared = false;
-let preparedState: string | null = null;
+let preparedEnvelope: PersistedStateEnvelope | null = null;
+let preparedState: string | null | undefined;
 let stateWriteQueue = Promise.resolve();
 const loadedDomains = new Set<StateDomain>();
 const activeDomains = new Set<StateDomain>();
@@ -63,12 +65,22 @@ function parseStateEnvelope(rawState: string) {
   }
 }
 
+function serializePreparedState() {
+  if (!preparedEnvelope) return null;
+  return (preparedState ??= JSON.stringify(preparedEnvelope));
+}
+
+function preparedStateVersion() {
+  return preparedEnvelope?.version ?? 0;
+}
+
 function mergePreparedState(snapshot: PersistedStateEnvelope) {
-  const current = preparedState ? parseStateEnvelope(preparedState) : { state: {}, version: 0 };
-  preparedState = JSON.stringify({
+  const current = preparedEnvelope ?? { state: {}, version: 0 };
+  preparedEnvelope = {
     state: { ...current.state, ...snapshot.state },
     version: Math.max(current.version ?? 0, snapshot.version ?? 0),
-  });
+  };
+  preparedState = undefined;
 }
 
 function stateDomainSnapshot(
@@ -90,7 +102,7 @@ function stateDomainSnapshot(
 async function fetchStateDomain(domain: StateDomain) {
   const etag = domainEtags.get(domain);
   const localRevision = domainLocalRevisions.get(domain) ?? 0;
-  const response = await stateApi.readDomain(domain, etag);
+  const response = await measureAsync(`state:${domain}`, () => stateApi.readDomain(domain, etag));
   if (response.status === 304 || response.status === 204) {
     loadedDomains.add(domain);
     return;
@@ -100,8 +112,8 @@ async function fetchStateDomain(domain: StateDomain) {
   if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) {
     // A progress save during the request must not discard freshly created AI
     // notes. Merge only the versioned note fields; retain other local changes.
-    if (domain === 'notes' && preparedState) {
-      const local = parseStateEnvelope(preparedState);
+    if (domain === 'notes' && preparedEnvelope) {
+      const local = preparedEnvelope;
       mergePreparedState({
         version: snapshot.version,
         state: mergeReadingNotes(
@@ -136,7 +148,7 @@ async function loadStateDomain(domain: StateDomain, force: boolean) {
 
 async function loadStateDomains(domains: readonly StateDomain[], force = false) {
   await Promise.all([...new Set(domains)].map((domain) => loadStateDomain(domain, force)));
-  return preparedState;
+  return serializePreparedState();
 }
 
 export async function ensureServerStateDomains(domains: readonly StateDomain[]) {
@@ -196,7 +208,8 @@ async function initializeServerState(rawState: string) {
 }
 
 function resetDomainCache() {
-  preparedState = null;
+  preparedEnvelope = null;
+  preparedState = undefined;
   pendingNoteWrite = undefined;
   loadedDomains.clear();
   activeDomains.clear();
@@ -208,18 +221,18 @@ function resetDomainCache() {
 }
 
 export async function prepareServerState(onProgress?: (message: string) => void) {
-  if (prepared) return preparedState;
-  onProgress?.('正在连接本地数据服务…');
+  if (prepared) return serializePreparedState();
+  onProgress?.('正在读取页面数据…');
   const initialDomains = stateDomainsForPath(window.location.pathname);
   await loadStateDomains(initialDomains);
-  if (preparedState) {
-    if ((parseStateEnvelope(preparedState).version ?? 0) < LEARNING_STORE_VERSION) {
+  if (preparedEnvelope) {
+    if (preparedStateVersion() < LEARNING_STORE_VERSION) {
       onProgress?.('正在升级学习数据…');
       await loadStateDomains(ALL_STATE_DOMAINS);
     }
     activateServerStateDomains([...loadedDomains]);
     prepared = true;
-    return preparedState;
+    return serializePreparedState();
   }
 
   const legacyState = readLegacyBrowserState();
@@ -239,23 +252,20 @@ export async function prepareServerState(onProgress?: (message: string) => void)
     await initializeServerState(legacyState);
     resetDomainCache();
     await loadStateDomains(initialDomains);
-    if (
-      (preparedState ? (parseStateEnvelope(preparedState).version ?? 0) : 0) <
-      LEARNING_STORE_VERSION
-    ) {
+    if (preparedStateVersion() < LEARNING_STORE_VERSION) {
       await loadStateDomains(ALL_STATE_DOMAINS);
     }
   }
 
   activateServerStateDomains([...loadedDomains]);
   prepared = true;
-  return preparedState;
+  return serializePreparedState();
 }
 
 export const serverStateStorage: StateStorage = {
   getItem: async () => {
     if (!prepared) await prepareServerState();
-    return preparedState;
+    return serializePreparedState();
   },
   setItem: async (_name, value) => {
     const envelope = parseStateEnvelope(value);

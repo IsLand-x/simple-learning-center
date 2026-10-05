@@ -47,6 +47,8 @@ npm run test:e2e:container -- tests/e2e/visual-regression.spec.ts tests/e2e/logi
 
 截图差异容许比例为 `0.001`。不要在不同宿主机字体环境下更新容器基线。失败时先检查 `test-results/` 的 actual、expected 和 diff，确认差异来自环境还是产品；不要为了让重构通过而更新基线。浏览器、字体或截图夹具升级时，先在固定环境下验证旧构建并审查差异，再生成基线；产品有意修改 UI 时同样需要明确审查。
 
+`bootstrap-loading.spec.ts` 暂停鉴权与状态读取请求，验证连接、读取提示的阶段转换与 Performance 记录；新增 8 张启动等待截图，覆盖亮暗主题与四种宽度，并检查等待文字在暗色下为亮色、无横向溢出。
+
 ## RSS 与视频业务用例
 
 `rss-video-workflows.spec.ts` 在桌面和移动浏览器中验证：

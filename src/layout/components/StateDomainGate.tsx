@@ -45,7 +45,7 @@ export function StateDomainGate({ children, domains }: StateDomainGateProps) {
 
   if (error) {
     return (
-      <main className="route-loading [min-height:360px] [place-items:center] [align-content:center] [gap:16px] w-full [background:var(--semi-color-bg-0)]">
+      <main className="route-loading [min-height:360px] [place-items:center] [align-content:center] [gap:16px] w-full [background:var(--semi-color-bg-0)] [color:var(--semi-color-text-1)]">
         <p>{error}</p>
         <Button onClick={() => setAttempt((current) => current + 1)}>重新连接</Button>
       </main>

@@ -4,6 +4,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { authApi } from '../../api/auth';
 import { AUTHENTICATION_REQUIRED_EVENT } from '../../api/http/errors';
 import { applyAppTheme, readInitialThemeMode } from '../../util/appTheme';
+import { measureAsync } from '../../util/browser/measureAsync';
 import { ApplicationRoot } from './ApplicationRoot';
 import { BootstrapMessage } from './BootstrapMessage';
 
@@ -75,13 +76,17 @@ export function startApplication(rootElement: HTMLElement) {
 
   async function renderApplication() {
     try {
-      const session = await authApi.getSession();
+      showBootstrapMessage('正在连接数据服务…');
+      const session = await measureAsync('startup:session', () => authApi.getSession());
       if (!session.authenticated) {
         showLogin();
         return;
       }
-      await prepareServerState((message) => showBootstrapMessage(message));
-      await useLearningStore.persist.rehydrate();
+      await measureAsync('startup:state-preparation', () =>
+        prepareServerState((message) => showBootstrapMessage(message)),
+      );
+      showBootstrapMessage('正在恢复页面…');
+      await measureAsync('startup:rehydration', async () => useLearningStore.persist.rehydrate());
       useLearningStore.setState({});
       root.render(createElement(StrictMode, null, createElement(ApplicationRoot)));
       startServerStateSync();

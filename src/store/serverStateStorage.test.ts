@@ -14,6 +14,57 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('../api/state', () => ({ stateApi: mocks }));
 
+it('combines startup domains without reparsing an increasingly large prepared envelope', async () => {
+  vi.resetModules();
+  mocks.readDomain.mockReset();
+  window.history.replaceState(null, '', '/books/test');
+  const storage = await import('./serverStateStorage');
+  mocks.readDomain.mockImplementation(async (domain: StateDomain) => ({
+    status: 200,
+    etag: null,
+    snapshot: {
+      version: LEARNING_STORE_VERSION,
+      state:
+        domain === 'preferences'
+          ? { themeMode: 'dark' }
+          : domain === 'conversations'
+            ? {
+                chats: [
+                  {
+                    id: 'chat',
+                    bookId: 'test',
+                    role: 'assistant',
+                    content: '原创测试文字。'.repeat(10000),
+                    createdAt: 1,
+                  },
+                ],
+              }
+            : domain === 'notes'
+              ? {
+                  notes: [
+                    {
+                      id: 'note',
+                      bookId: 'test',
+                      title: '原创笔记',
+                      content: '原创笔记。'.repeat(10000),
+                      createdAt: 1,
+                      updatedAt: 1,
+                    },
+                  ],
+                }
+              : {},
+    },
+  }));
+  const parse = vi.spyOn(JSON, 'parse');
+  const prepared = await storage.prepareServerState();
+  expect(parse).not.toHaveBeenCalled();
+  const result = JSON.parse(prepared!);
+  expect(result.state.themeMode).toBe('dark');
+  expect(result.state.chats[0].id).toBe('chat');
+  expect(result.state.notes[0].id).toBe('note');
+  expect(await storage.serverStateStorage.getItem('test')).toBe(prepared);
+});
+
 it('does not drop freshly created server notes when progress changes during refresh', async () => {
   vi.resetModules();
   window.history.replaceState(null, '', '/books/test');
@@ -366,7 +417,7 @@ it('does not reprocess the complete prepared state for unchanged domains on an e
     'test',
     JSON.stringify({ version: LEARNING_STORE_VERSION, state: edited }),
   );
-  expect(parse).toHaveBeenCalledTimes(3);
+  expect(parse).toHaveBeenCalledTimes(2);
   expect(mocks.writeDomain.mock.calls.map((call) => call[0])).toEqual(['notes']);
   expect(JSON.parse((await storage.serverStateStorage.getItem('test'))!).state.notes).toEqual(
     edited.notes,

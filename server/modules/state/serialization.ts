@@ -11,7 +11,7 @@ import {
   notePath,
 } from '../../infrastructure/fs/files.js';
 import { statusError } from '../../infrastructure/http/errors.js';
-import type { PersistedState } from './types.js';
+import type { PersistedState, StoredState } from './types.js';
 
 function persistedStateNotes(persistedState: PersistedState | null) {
   const notes = persistedState?.state?.notes;
@@ -150,11 +150,23 @@ export async function prepareStateForDisk(persistedState: PersistedState) {
 export async function hydrateStateFromDisk(
   diskState: PersistedState & { formatVersion?: number; persistedState?: PersistedState },
   hydrateNote: (note: NoteItem) => boolean = () => true,
+  fields?: readonly (keyof StoredState)[],
 ) {
   const persistedState = diskState?.formatVersion === 1 ? diskState.persistedState : diskState;
   if (!persistedState || typeof persistedState !== 'object' || !persistedState.state) return null;
-  const hydratedState = structuredClone(persistedState);
+  // Project before cloning or touching resource files. A preference/progress
+  // read must not scan every cover or copy unrelated chats and RSS articles.
+  let selectedState = persistedState.state;
+  if (fields) {
+    selectedState = {};
+    for (const field of fields) {
+      if (Object.hasOwn(persistedState.state, field))
+        selectedState[field] = persistedState.state[field];
+    }
+  }
+  const hydratedState = structuredClone({ ...persistedState, state: selectedState });
   await externalizeStateCovers(hydratedState);
+  if (fields && !fields.includes('notes')) return hydratedState;
   hydratedState.state.notes = await Promise.all(
     persistedStateNotes(hydratedState).map(async (note) => {
       if (!note || typeof note !== 'object') return note;
