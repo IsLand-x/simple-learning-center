@@ -14,6 +14,7 @@ import { getDemoContent } from '../../../../../../util/fixtures/demo';
 import { ensureReaderFontStylesheet } from '../../../../../../util/reading/readerFonts';
 import {
   getReaderTextureStyle,
+  READER_PAGE_MAX_INLINE_SIZE,
   resolveReaderStyle,
 } from '../../../../../../util/reading/readerThemes';
 import { createReaderTextSelectionCursor } from '../textCursor';
@@ -298,6 +299,9 @@ export function useDemoReader({
       (readerStyle.fontSize * readerStyle.density.lineHeight - readerStyle.fontSize) / 2,
     )}px`,
     '--reader-paragraph-spacing': `${readerStyle.density.paragraphSpacing}em`,
+    '--reader-page-max-inline-size': READER_PAGE_MAX_INLINE_SIZE,
+    '--reader-line-height': readerStyle.density.lineHeight,
+    '--reader-letter-spacing': readerStyle.density.letterSpacing,
   } as CSSProperties;
   const readerTextureStyle = getReaderTextureStyle(readerStyle.texture, readerStyle.isDark);
   return {

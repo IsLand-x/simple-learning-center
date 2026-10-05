@@ -9,6 +9,8 @@ import type {
 
 type PresetTheme = Exclude<ReaderTheme, 'custom'>;
 
+export const READER_PAGE_MAX_INLINE_SIZE = '760px';
+
 interface ReaderPalette {
   paperColor: string;
   textColor: string;

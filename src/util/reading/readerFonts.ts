@@ -1,8 +1,9 @@
 import type { ReaderFont } from '../../../contracts/reading';
 
 export const READER_FONT_STACKS: Record<ReaderFont, string> = {
-  'system-serif': '"Songti SC", STSong, SimSun, Georgia, serif',
-  'source-serif': '"Noto Serif SC", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", serif',
+  'system-serif': 'Charter, "Songti SC", STSong, SimSun, Georgia, serif',
+  'source-serif':
+    'Charter, "Noto Serif SC", "Source Han Serif SC", "Noto Serif CJK SC", "Songti SC", Georgia, serif',
   sans: '"Noto Sans SC", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif',
   kai: '"LXGW WenKai", "Kaiti SC", STKaiti, KaiTi, serif',
   bright: '"LXGW Bright", "LXGW WenKai", "Kaiti SC", serif',

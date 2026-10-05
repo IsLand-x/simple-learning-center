@@ -30,7 +30,7 @@ test('同步阅读状态保留手动目录滚动，切换章节和重新展开�
   await expect
     .poll(async () => {
       const current = await (await page.request.get('/api/state/library')).json();
-      return current.state.books[0].currentCfi;
+      return current.state.books.find((item: { id: string }) => item.id === book.id)?.currentCfi;
     })
     .toBe('demo:chapter-1:scroll:0.000000');
   // Move away from the current chapter, as when browsing a long table of contents.
@@ -41,8 +41,10 @@ test('同步阅读状态保留手动目录滚动，切换章节和重新展开�
 
   // A newer server snapshot recreates the TOC array without changing the chapter.
   const updated = await (await page.request.get('/api/state/library')).json();
-  updated.state.books[0].progress = 43;
-  updated.state.books[0].updatedAt = Date.now() + 5000;
+  const updatedBook = updated.state.books.find((item: { id: string }) => item.id === book.id);
+  expect(updatedBook).toBeDefined();
+  updatedBook.progress = 43;
+  updatedBook.updatedAt = Date.now() + 5000;
   expect((await page.request.put('/api/state/library', { data: updated })).status()).toBe(204);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(toc.getByRole('status')).toHaveText('43% · 80 章');

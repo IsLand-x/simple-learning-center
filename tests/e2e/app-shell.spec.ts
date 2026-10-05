@@ -433,18 +433,19 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
   const userBubble = page.locator('.ai-message--user').last();
   const expectParagraphStack = async () => {
     await expect(userBubble.locator('p')).toHaveCount(2);
-    const layout = await userBubble.evaluate((element) => {
-      const paragraphs = Array.from(element.querySelectorAll('p')).map((paragraph) => {
-        const bounds = paragraph.getBoundingClientRect();
-        return { top: bounds.top, bottom: bounds.bottom };
-      });
-      return {
-        flexDirection: window.getComputedStyle(element).flexDirection,
-        paragraphs,
-      };
-    });
-    expect(layout.flexDirection).toBe('column');
-    expect(layout.paragraphs[1].top).toBeGreaterThanOrEqual(layout.paragraphs[0].bottom);
+    // Resizing moves the conversation into a SideSheet; retry against the live
+    // bubble rather than reading computed styles from an element being detached.
+    await expect(userBubble).toHaveCSS('flex-direction', 'column');
+    await expect
+      .poll(() =>
+        userBubble.evaluate((element) => {
+          const paragraphs = Array.from(element.querySelectorAll('p')).map((paragraph) =>
+            paragraph.getBoundingClientRect(),
+          );
+          return paragraphs.length === 2 && paragraphs[1].top >= paragraphs[0].bottom;
+        }),
+      )
+      .toBe(true);
   };
 
   await expectParagraphStack();

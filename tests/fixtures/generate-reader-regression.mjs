@@ -22,6 +22,24 @@ const files = {
 
 // Match converted EPUB paragraph structure without redistributing any real book.
 const converted = process.argv.includes('--converted');
+const typography = process.argv.includes('--typography');
+if (typography) {
+  files['EPUB/chapter.xhtml'] = chapter(
+    '第一章 · 阅读中的层次与节奏',
+    '这份原创样张用于比较中文、English text 和技术标识 API 的阅读节奏。',
+  )
+    .replace(
+      '</head>',
+      '<style>h1{font-size:3em}h2{font-size:2em}h2 span{line-height:2.8;letter-spacing:.2em}pre{line-height:1.3}blockquote p{color:red}td p{margin:0}p.authored{text-align:center;text-indent:2em}</style></head>',
+    )
+    .replace(
+      paragraphs,
+      '<h2><span>先理解，再记录</span></h2><p>标题应该靠近它引出的段落，而段落之间保持稳定的停顿。</p><h3>把问题写下来</h3><ul><li>记录一个明确的问题</li><li><p>用原文核对自己的理解</p><ul><li>补充遗漏的条件</li></ul></li></ul><blockquote><p>引用保持可辨认的语气，也需要足够清晰的文字颜色。</p><p>第二段引用不应产生重复的尾部留白。</p></blockquote><p>行内代码 <code>reader.restore(cfi)</code> 保持等宽，<strong>重点文字</strong> 与 <em>强调文字</em> 保留原意。</p><pre><code><span id="code">const chapter = book.sections[0];\n' +
+        'long_identifier_without_spaces_'.repeat(14) +
+        '</span></code></pre><table><tr><td><p id="table-cell">表格原有间距</p></td></tr></table><p class="authored">作者指定的居中与首行缩进保留。</p>' +
+        paragraphs,
+    );
+}
 if (converted) {
   files['EPUB/chapter.xhtml'] = files['EPUB/chapter.xhtml']
     .replace(
@@ -80,6 +98,13 @@ end.writeUInt16LE(Object.keys(files).length, 10);
 end.writeUInt32LE(centralDirectory.length, 12);
 end.writeUInt32LE(offset, 16);
 await writeFile(
-  new URL(converted ? './reader-converted.epub' : './reader-regression.epub', import.meta.url),
+  new URL(
+    typography
+      ? './reader-typography.epub'
+      : converted
+        ? './reader-converted.epub'
+        : './reader-regression.epub',
+    import.meta.url,
+  ),
   Buffer.concat([...entries, centralDirectory, end]),
 );

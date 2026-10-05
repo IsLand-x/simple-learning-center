@@ -5,12 +5,14 @@ import type {
   View as FoliateView,
 } from 'foliate-js/view.js';
 import type { HighlightItem, ReaderPreferences } from '../../../../../../../contracts/reading';
+import readerProseStyles from '../../../../../../styles/reader-prose.css?inline';
 import {
   getReaderFontStylesheet,
   READER_FONT_STACKS,
 } from '../../../../../../util/reading/readerFonts';
 import {
   getReaderTextureStyle,
+  READER_PAGE_MAX_INLINE_SIZE,
   resolveReaderStyle,
 } from '../../../../../../util/reading/readerThemes';
 import { createReaderTextSelectionCursor } from '../textCursor';
@@ -36,7 +38,7 @@ export function configureFoliateReader(
   const renderer = view.renderer;
   renderer.setAttribute('flow', 'paginated');
   applyFoliateReaderLayout(view, compactLayout);
-  renderer.setAttribute('max-inline-size', '880px');
+  renderer.setAttribute('max-inline-size', READER_PAGE_MAX_INLINE_SIZE);
   renderer.setAttribute('max-block-size', '1440px');
   renderer.setAttribute('max-column-count', '1');
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -88,6 +90,10 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
     :root {
       color-scheme: ${style.isDark ? 'dark' : 'light'};
       --theme-bg-color: ${style.paperColor};
+      --reader-line-height: ${style.density.lineHeight};
+      --reader-letter-spacing: ${style.density.letterSpacing};
+      --reader-paragraph-spacing: ${style.density.paragraphSpacing}em;
+      --reader-muted-color: ${style.mutedTextColor};
       color: ${style.textColor} !important;
       background-color: ${style.paperColor} !important;
       background-image: ${texture.backgroundImage} !important;
@@ -127,19 +133,7 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
       color: ${style.textColor} !important;
       font-family: ${fontFamily} !important;
     }
-    /* Converted EPUBs often use leaf divs as paragraphs. Keep structural containers,
-       tables, illustrations and preformatted content outside paragraph spacing. */
-    body :is(p, li, blockquote, dd, div:not(:empty):not(:has(div, p, section, article, aside, header, footer, nav, h1, h2, h3, h4, h5, h6, ul, ol, dl, blockquote, dd, dt, hr, main, form, fieldset, table, pre, figure, img, svg, video))):not(:where(pre *, table *, svg *)) {
-      line-height: ${style.density.lineHeight} !important;
-      margin-block-end: ${style.density.paragraphSpacing}em !important;
-      hanging-punctuation: allow-end last;
-      widows: 2;
-      orphans: 2;
-    }
-    body :is(div, span):not(:where(pre, pre *, table *, svg *)) {
-      line-height: ${style.density.lineHeight} !important;
-      letter-spacing: ${style.density.letterSpacing} !important;
-    }
+    ${readerProseStyles.replaceAll('.reader-prose', 'body')}
     a, a:link, a:visited {
       color: ${style.accentColor} !important;
     }
@@ -149,9 +143,6 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
     }
     img, svg, video {
       max-width: 100% !important;
-    }
-    pre {
-      white-space: pre-wrap !important;
     }
     ::selection {
       color: ${style.textColor};

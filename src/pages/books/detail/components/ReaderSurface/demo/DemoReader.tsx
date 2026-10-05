@@ -46,6 +46,7 @@ export function DemoReader(
       }}
     >
       <article
+        className="reader-prose"
         style={{
           fontSize: readerStyle.fontSize,
           lineHeight: readerStyle.density.lineHeight,

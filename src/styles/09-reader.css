@@ -413,7 +413,7 @@
 }
 
 .demo-reader article {
-  width: clamp(520px, 82%, 920px);
+  width: min(100%, var(--reader-page-max-inline-size));
   max-width: calc(100% - 48px);
   margin: 0 auto;
   padding: clamp(40px, 7vh, 76px) clamp(28px, 6vw, 72px) 88px;
@@ -435,19 +435,6 @@
 .demo-reader article * {
   color: inherit !important;
   font-family: inherit !important;
-}
-
-.demo-reader h1 {
-  margin: 10px 0 30px;
-  color: inherit;
-  font-size: 1.75em;
-  line-height: 1.35;
-  letter-spacing: -0.02em;
-}
-
-.demo-reader p {
-  margin: 0 0 var(--reader-paragraph-spacing, 1.35em);
-  text-align: justify;
 }
 
 .reader-callout p {

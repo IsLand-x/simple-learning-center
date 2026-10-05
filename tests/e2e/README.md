@@ -33,6 +33,8 @@ LEARNING_CENTER_E2E_PRODUCTION=1 LEARNING_CENTER_E2E_BROWSER=chromium npm run te
 
 `visual-regression.spec.ts` 比较书架、阅读器、RSS 阅读、视频学习和设置页面，共 40 张完整视口截图。每个页面都覆盖浅色/深色以及 375、768、1024、1440 四种宽度。`login-layout.spec.ts` 用相同组合覆盖未登录的应用壳，另有 8 张截图，共 48 张基线。
 
+2026-10-05 的阅读排版优化在同一固定容器中更新了 8 张演示阅读器截图，并通过 `reader-typography.spec.ts` 新增 8 张真实 EPUB 排版截图（浅色象牙纸与深色墨夜纸，各覆盖四种宽度）。原创样张由 `node tests/fixtures/generate-reader-regression.mjs --typography` 生成，包含标题、嵌套列表、引用、代码、表格及作者指定的居中与缩进；语义断言同时检查标题层级、留白、等宽代码与原有排版保留。其余页面基线保持不变。
+
 基线来自重构前提交 `8f9ed13c288538868cdaf143cc53805d307b1349` 的不可变生产构建。首次宿主机截图在 CI 暴露了 OpenCloudOS/Ubuntu 的字体 fallback 差异，及书架旧截图混入先前用例进度的问题；修正后在固定测试容器内，用同一旧构建重新采集。新构建只参与比较，不用于生成重构基线。
 
 2026-09-26 重新采集时，旧版与新版使用完全相同的 `workspace-fixtures.ts`，没有修改原应用源码或构建文件。原构建 `dist/index.html` 的 SHA-256 为 `d959a0d5080d8a4211edbfa2bc2593e497c680e07017d2c8cbac5c05816b76a2`；43 个 `dist/assets/` 文件按相对路径排序，逐行拼接 `SHA-256 + 两个空格 + 相对路径 + 换行` 后的 SHA-256 为 `3669c911c75b84cc48ddc4de137b50ac64ed0ecfb9b4c1d618f5cba606466343`。这些摘要用于追踪基线来源，构建产物本身不提交。
