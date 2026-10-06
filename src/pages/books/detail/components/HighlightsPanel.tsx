@@ -21,7 +21,8 @@ export function HighlightsPanel({
   const highlights = useMemo(
     () =>
       allHighlights.filter(
-        (highlight) => highlight.bookId === bookId && highlight.kind !== 'comment',
+        (highlight) =>
+          highlight.bookId === bookId && highlight.kind !== 'comment' && highlight.kind !== 'term',
       ),
     [allHighlights, bookId],
   );

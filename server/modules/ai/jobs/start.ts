@@ -42,7 +42,9 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
             : 'chat'
         : resourceType === 'rssDigest'
           ? 'digest'
-          : 'chat';
+          : resourceType === 'book' && input?.purpose === 'glossary'
+            ? 'glossary'
+            : 'chat';
     const configId = requiredString(input?.configId, '模型配置', 200);
     const model = requiredString(input?.model, '模型名称', 300);
     const reasoningEffort = optionalReasoningEffort(input?.reasoningEffort);
@@ -100,6 +102,21 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
         ? (Array.isArray(state.books) ? state.books : []).find((item) => item.id === bookId)
         : undefined;
     if (resourceType === 'book' && !book) throw statusError(404, '找不到当前书籍');
+    const termId = purpose === 'glossary' ? requiredString(input?.termId, '术语', 200) : undefined;
+    const term = termId
+      ? (state.highlights ?? []).find(
+          (item) => item.id === termId && item.bookId === bookId && item.kind === 'term',
+        )
+      : undefined;
+    if (termId && !term) throw statusError(404, '术语已删除或不属于当前书籍');
+    if (
+      termId &&
+      [...jobs.values()].some(
+        (job) => job.termId === termId && ['queued', 'running'].includes(job.status),
+      )
+    ) {
+      throw statusError(409, '该术语正在生成释义');
+    }
     const rssItem =
       resourceType === 'rss'
         ? (Array.isArray(state.rssItems) ? state.rssItems : []).find(
@@ -249,6 +266,8 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
       model,
       reasoningEffort,
       purpose,
+      termId,
+      termUpdatedAt: term?.updatedAt ?? term?.createdAt,
       conversationId,
       userMessageId,
       assistantMessageId: randomUUID(),

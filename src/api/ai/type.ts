@@ -6,10 +6,11 @@ export interface AiJob {
   id: string;
   bookId: string;
   resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
+  termId?: string;
   rssItemId?: string;
   videoId?: string;
   digestDate?: string;
-  purpose?: 'chat' | 'summary' | 'translation' | 'digest';
+  purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary';
   conversationId: string;
   userMessageId: string;
   assistantMessageId: string;
@@ -31,11 +32,12 @@ export interface StartAiJobInput {
   reasoningEffort?: Exclude<AiReasoningEffort, 'auto'>;
   bookId: string;
   resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
+  termId?: string;
   rssItemId?: string;
   videoId?: string;
   digestDate?: string;
   digestItemIds?: string[];
-  purpose?: 'chat' | 'summary' | 'translation' | 'digest';
+  purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary';
   conversationId: string;
   userMessage: {
     id: string;

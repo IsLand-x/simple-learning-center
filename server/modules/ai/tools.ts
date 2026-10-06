@@ -321,7 +321,7 @@ export function createAgentTools({
         noteActions.updateBookNote(book!.id, note_id, expected_updated_at, content),
     }),
     read_book_highlights: defineTool({
-      description: '读取当前书籍的高亮及读者为高亮添加的评论。',
+      description: '读取当前书籍的高亮、评论与术语释义。',
       inputSchema: Type.Object({}),
       execute: async () =>
         highlights.slice(0, 80).map((item) => ({
@@ -330,6 +330,7 @@ export function createAgentTools({
           chapter: item.chapter,
           page: item.page,
           comment: item.comment,
+          definition: item.definition,
         })),
     }),
     read_reading_history: defineTool({

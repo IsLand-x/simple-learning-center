@@ -438,5 +438,7 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       }),
     };
   }
+  // Version 38 adds optional term metadata in the existing highlights partition.
+  // Preserve every legacy mark; no eager conversion or second storage source.
   return migrated;
 }

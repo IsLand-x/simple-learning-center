@@ -56,7 +56,10 @@ export function useDemoReader({
   const content = getDemoContent(chapter?.href ?? 'chapter-5');
   const chapterHighlights = useMemo(
     () =>
-      highlights.filter((highlight) => highlight.cfi.startsWith(`demo:${chapter?.href ?? ''}:`)),
+      highlights.filter(
+        (highlight) =>
+          highlight.kind === 'term' || highlight.cfi.startsWith(`demo:${chapter?.href ?? ''}:`),
+      ),
     [chapter?.href, highlights],
   );
   const readerStyle = resolveReaderStyle(preferences);

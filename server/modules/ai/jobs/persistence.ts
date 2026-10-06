@@ -6,6 +6,20 @@ import { upsertDigestRun } from './model.js';
 export async function persistAssistant(job: AiJob, result: AiResult) {
   await mutatePersistedState((persistedState) => {
     const state = persistedState.state;
+    if (job.purpose === 'glossary' && job.termId && result.content.trim()) {
+      state.highlights = (state.highlights ?? []).map((term) =>
+        term.id === job.termId &&
+        term.bookId === job.bookId &&
+        term.kind === 'term' &&
+        (term.updatedAt ?? term.createdAt) === job.termUpdatedAt
+          ? {
+              ...term,
+              definition: result.content.trim(),
+              updatedAt: Math.max(Date.now(), (term.updatedAt ?? term.createdAt) + 1),
+            }
+          : term,
+      );
+    }
     const sessions = Array.isArray(state.chatSessions) ? state.chatSessions : [];
     if (!sessions.some((session) => session.id === job.conversationId)) return;
     const message: ChatMessage = {

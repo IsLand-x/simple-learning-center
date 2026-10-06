@@ -59,6 +59,7 @@ describe('reader annotation state ownership', () => {
       currentChapter: book.currentChapter,
       readerRef,
       onShowHighlights,
+      onShowGlossary: vi.fn(),
       onOpenAssistant,
       setPanelQuote,
     });
@@ -86,6 +87,25 @@ describe('reader annotation state ownership', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+  });
+
+  it('deduplicates terms in the current book, preserves their source CFI and cancels all occurrences via the shared id', () => {
+    act(() => annotations.setSelection(selection));
+    act(() => annotations.saveTerm());
+    expect(state.highlights[0]).toMatchObject({
+      kind: 'term',
+      cfi: selection.cfi,
+      text: selection.text,
+      bookId: initialBook.id,
+    });
+    const id = state.highlights[0].id;
+    act(() => annotations.setSelection({ ...selection, cfi: 'another-occurrence' }));
+    act(() => annotations.saveTerm());
+    expect(state.addHighlight).toHaveBeenCalledTimes(1);
+    act(() => root.render(<Reader />));
+    act(() => annotations.showHighlightActions({ highlightId: id, rect: selection.rect }));
+    act(() => annotations.cancelHighlight());
+    expect(state.deleteHighlight).toHaveBeenCalledWith(id);
   });
 
   it('keeps a pending comment marker and draft through progress updates and keyboard resize, then resets on another book', () => {

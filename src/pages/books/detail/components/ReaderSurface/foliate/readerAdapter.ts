@@ -21,6 +21,7 @@ const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const COMMENT_BADGE_SIZE = 20;
 export interface ReaderFoliateAnnotation extends FoliateAnnotation {
   highlightId: string;
+  kind?: HighlightItem['kind'];
   comment?: string;
 }
 
@@ -165,6 +166,7 @@ export function createFoliateAnnotation(highlight: HighlightItem): ReaderFoliate
   return {
     value: highlight.cfi,
     highlightId: highlight.id,
+    kind: highlight.kind,
     comment: highlight.comment,
   };
 }
@@ -237,6 +239,28 @@ export function drawFoliateHighlight({
   preferences: ReaderPreferences;
   iconTemplate: HTMLElement | null;
 }) {
+  if (annotation.kind === 'term') {
+    const group = document.createElementNS(SVG_NAMESPACE, 'g');
+    group.classList.add('reader-term');
+    group.setAttribute('data-highlight-id', annotation.highlightId);
+    const color = resolveReaderStyle(preferences).accentColor;
+    for (const rect of rects) {
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      const path = document.createElementNS(SVG_NAMESPACE, 'path');
+      const baseline = rect.bottom - 1;
+      let d = `M ${rect.left} ${baseline}`;
+      for (let x = rect.left; x < rect.right; x += 6) {
+        const end = Math.min(x + 6, rect.right);
+        d += ` Q ${x + (end - x) / 4} ${baseline - 2} ${x + (end - x) / 2} ${baseline} Q ${x + ((end - x) * 3) / 4} ${baseline + 2} ${end} ${baseline}`;
+      }
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', '1.5');
+      group.append(path);
+    }
+    return group;
+  }
   const { group, expandedRects } = drawExpandedFoliateHighlight(rects, preferences);
   group.classList.add('reader-highlight');
   group.setAttribute('data-highlight-id', annotation.highlightId);

@@ -1,5 +1,6 @@
 import type { View as FoliateView } from 'foliate-js/view.js';
 import { useCallback } from 'react';
+import { loadedAnnotations } from './termAnnotations';
 import type { HighlightItem, ReaderPreferences } from '../../../../../../../contracts/reading';
 import { annotationSignature } from './interactionHelpers';
 import { createFoliateAnnotation, getFoliateContents } from './readerAdapter';
@@ -25,7 +26,7 @@ export function useFoliateAnnotationSync({
       if (!visibleOverlayer) return false;
 
       const desired = new Map<string, { highlight: HighlightItem; signature: string }>();
-      highlightsRef.current.forEach((highlight) => {
+      loadedAnnotations(view, sectionIndex, highlightsRef.current).forEach((highlight) => {
         const target = view.resolveNavigation(highlight.cfi);
         if (target?.index !== sectionIndex) return;
         desired.set(highlight.cfi, {

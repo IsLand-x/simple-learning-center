@@ -31,6 +31,7 @@ export function ReaderPageContent() {
     readerRef,
     currentChapter: navigation.currentChapter,
     onShowHighlights: layout.revealHighlights,
+    onShowGlossary: () => layout.changePanel('glossary'),
     onOpenAssistant: () => changeActivePanel('ai'),
     setPanelQuote: conversations.setPanelQuote,
   });
@@ -128,6 +129,8 @@ export function ReaderPageContent() {
           onCreateComment={annotations.createCommentFromSelection}
           onEditHighlightComment={annotations.editHighlightComment}
           onSaveHighlight={annotations.saveHighlight}
+          onAddTerm={annotations.saveTerm}
+          onCancelTerm={annotations.cancelSelectedTerm}
           onSaveHighlightComment={annotations.saveHighlightComment}
           onViewHighlight={annotations.viewHighlight}
         />

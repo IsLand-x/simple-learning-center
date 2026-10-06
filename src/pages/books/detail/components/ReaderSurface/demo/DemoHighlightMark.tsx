@@ -75,7 +75,7 @@ export function DemoHighlightMark({
     <mark
       ref={markRef}
       aria-label={highlight.comment ? `${highlight.text}，有评论` : highlight.text}
-      className={`reader-inline-highlight relative [padding:var(--reader-highlight-vertical-padding,_0)_0] [background:color-mix(in_srgb,_var(--reader-highlight-color)_78%,_transparent)] [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${highlight.comment ? ' reader-inline-highlight--commented' : ''}`}
+      className={`${highlight.kind === 'term' ? 'reader-inline-term' : 'reader-inline-highlight'} relative [padding:var(--reader-highlight-vertical-padding,_0)_0] [background:color-mix(in_srgb,_var(--reader-highlight-color)_78%,_transparent)] [box-decoration-break:clone] [-webkit-box-decoration-break:clone] ${highlight.comment ? ' reader-inline-highlight--commented' : ''}`}
       role="button"
       tabIndex={0}
       onClick={openHighlightActions}

@@ -14,6 +14,7 @@ type ReaderAnnotationsOptions = {
   currentChapter: string;
   readerRef: RefObject<ReaderSurfaceHandle>;
   onShowHighlights: () => void;
+  onShowGlossary: () => void;
   onOpenAssistant: () => void;
   setPanelQuote: (quote: NonNullable<ChatMessage['quote']>) => void;
 };
@@ -24,6 +25,7 @@ export function useReaderAnnotations({
   currentChapter,
   readerRef,
   onShowHighlights,
+  onShowGlossary,
   onOpenAssistant,
   setPanelQuote,
 }: ReaderAnnotationsOptions) {
@@ -92,6 +94,35 @@ export function useReaderAnnotations({
     ];
   }, [book, currentChapter, highlights, pendingCommentSelection]);
 
+  const saveTerm = () => {
+    if (!book || !selection) return;
+    const text = selection.text.trim().replace(/\s+/g, ' ');
+    if (!text || text.length > 100) {
+      Toast.warning('请选择 100 字以内的术语');
+      return;
+    }
+    const existing = highlights.find((item) => item.kind === 'term' && item.text === text);
+    if (!existing) {
+      const createdAt = Date.now();
+      addHighlight({
+        id: createUuid(),
+        bookId: book.id,
+        kind: 'term',
+        text,
+        cfi: selection.cfi,
+        chapter: currentChapter,
+        page: book.currentPage,
+        createdAt,
+        updatedAt: createdAt,
+      });
+    }
+    readerRef.current?.clearSelection();
+    setSelection(null);
+    setActiveHighlightTarget(null);
+    onShowGlossary();
+    Toast.success(existing ? '术语已在术语表中' : '已添加到术语表');
+  };
+
   const saveHighlight = () => {
     if (!book || !selection) return;
     const existingHighlight = highlights.find((highlight) => highlight.cfi === selection.cfi);
@@ -143,7 +174,8 @@ export function useReaderAnnotations({
   const viewHighlight = () => {
     if (!activeHighlight) return;
     setFocusedHighlightId(activeHighlight.id);
-    onShowHighlights();
+    if (activeHighlight.kind === 'term') onShowGlossary();
+    else onShowHighlights();
     setActiveHighlightTarget(null);
     setCommentingHighlightId(null);
   };
@@ -252,6 +284,22 @@ export function useReaderAnnotations({
     readerHighlights,
     dismissActions,
     saveHighlight,
+    saveTerm,
+    cancelSelectedTerm:
+      selection &&
+      highlights.some(
+        (item) => item.kind === 'term' && item.text === selection.text.trim().replace(/\s+/g, ' '),
+      )
+        ? () => {
+            const term = highlights.find(
+              (item) =>
+                item.kind === 'term' && item.text === selection.text.trim().replace(/\s+/g, ' '),
+            );
+            if (term) deleteHighlight(term.id);
+            readerRef.current?.clearSelection();
+            setSelection(null);
+          }
+        : undefined,
     showHighlightActions,
     cancelHighlight,
     viewHighlight,

@@ -65,16 +65,20 @@ export function HighlightToolbar({
         </Button>
         {showViewHighlight && activeHighlight.kind !== 'comment' && (
           <Button icon={<IconBookmark />} onClick={onViewHighlight}>
-            <span className="selection-toolbar__label--full">在高亮中查看</span>
+            <span className="selection-toolbar__label--full">
+              {activeHighlight.kind === 'term' ? '在术语表中查看' : '在高亮中查看'}
+            </span>
             <span className="selection-toolbar__label--compact">查看</span>
           </Button>
         )}
-        <Button icon={<IconComment />} onClick={onEditHighlightComment}>
-          <span className="selection-toolbar__label--full">
-            {activeHighlight.comment ? '查看评论' : '评论'}
-          </span>
-          <span className="selection-toolbar__label--compact">评论</span>
-        </Button>
+        {activeHighlight.kind !== 'term' && (
+          <Button icon={<IconComment />} onClick={onEditHighlightComment}>
+            <span className="selection-toolbar__label--full">
+              {activeHighlight.comment ? '查看评论' : '评论'}
+            </span>
+            <span className="selection-toolbar__label--compact">评论</span>
+          </Button>
+        )}
       </ButtonGroup>
     </div>
   );

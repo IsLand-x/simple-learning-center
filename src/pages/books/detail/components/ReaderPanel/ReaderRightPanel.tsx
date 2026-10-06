@@ -6,6 +6,7 @@ import { AiConversationPanel } from '../AssistantPanel/AiConversationPanel';
 import { ReaderAiSettingsDialog } from '../AssistantPanel/ReaderAiSettingsDialog';
 import { BookNotePanel } from '../BookNotePanel/BookNotePanel';
 import { CommentsPanel } from '../CommentsPanel';
+import { GlossaryPanel } from '../GlossaryPanel/GlossaryPanel';
 import { HighlightsPanel } from '../HighlightsPanel';
 import { BookResourcesProvider } from '../ResourcesPanel/BookResourcesProvider';
 import { BookResourcesPanel } from '../ResourcesPanel/BookResourcesPanel';
@@ -125,6 +126,9 @@ export function ReaderRightPanel({
         )}
         {activePanel === 'resources' && <BookResourcesPanel />}
         {activePanel === 'notes' && <BookNotePanel book={book} />}
+        {activePanel === 'glossary' && (
+          <GlossaryPanel book={book} onJump={onJumpHighlight} getCurrentText={getCurrentText} />
+        )}
         {activePanel === 'highlights' && (
           <HighlightsPanel
             bookId={book.id}

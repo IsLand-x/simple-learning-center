@@ -158,7 +158,10 @@ export function ReaderMobileChrome({
                 onClearSelectedText={onClearSelectedText}
                 onStartNewConversation={onStartNewConversation}
                 onResumeConversation={onResumeConversation}
-                onJumpHighlight={onJumpHighlight}
+                onJumpHighlight={(highlight) => {
+                  onJumpHighlight(highlight);
+                  if (activePanel === 'glossary') onChangePanel(null);
+                }}
                 focusedHighlightId={focusedHighlightId}
               />
             )}

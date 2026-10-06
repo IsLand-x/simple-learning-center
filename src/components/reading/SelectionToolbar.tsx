@@ -1,4 +1,4 @@
-import { IconAIStrokedLevel1, IconBookmark, IconComment } from '@douyinfe/semi-icons';
+import { IconAIStrokedLevel1, IconBookmark, IconComment, IconBook } from '@douyinfe/semi-icons';
 import { Button, ButtonGroup } from '@douyinfe/semi-ui';
 import type { ReaderSelection } from '../../types/reader';
 import { clamp } from '../../util/format';
@@ -7,11 +7,15 @@ export function SelectionToolbar({
   onAskAboutSelection,
   onSaveHighlight,
   onCreateComment,
+  onAddTerm,
+  onCancelTerm,
 }: {
   selection: ReaderSelection;
   onAskAboutSelection: () => void;
   onSaveHighlight: () => void;
   onCreateComment: () => void;
+  onAddTerm?: () => void;
+  onCancelTerm?: () => void;
 }) {
   return (
     <div
@@ -43,6 +47,20 @@ export function SelectionToolbar({
         <Button icon={<IconComment />} onClick={onCreateComment}>
           评论
         </Button>
+        {onAddTerm && (
+          <Button
+            icon={<IconBook />}
+            onClick={onCancelTerm ?? onAddTerm}
+            aria-label={onCancelTerm ? '取消术语高亮' : '添加到术语表'}
+          >
+            <span className="selection-toolbar__label--full">
+              {onCancelTerm ? '取消术语高亮' : '添加到术语表'}
+            </span>
+            <span className="selection-toolbar__label--compact">
+              {onCancelTerm ? '取消术语' : '术语'}
+            </span>
+          </Button>
+        )}
       </ButtonGroup>
     </div>
   );

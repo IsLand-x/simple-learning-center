@@ -30,7 +30,8 @@ export interface DeletedHighlightTombstone {
 export interface HighlightItem {
   id: string;
   bookId: string;
-  kind?: 'highlight' | 'comment';
+  kind?: 'highlight' | 'comment' | 'term';
+  definition?: string;
   text: string;
   cfi: string;
   chapter: string;

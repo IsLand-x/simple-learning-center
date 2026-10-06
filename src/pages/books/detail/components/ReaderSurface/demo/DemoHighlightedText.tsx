@@ -12,7 +12,17 @@ export function DemoHighlightedText({
   onHighlightClick: (target: ReaderHighlightTarget) => void;
 }) {
   const candidates = highlights
-    .map((highlight) => ({ highlight, start: text.indexOf(highlight.text) }))
+    .flatMap((highlight) => {
+      if (highlight.kind !== 'term') return [{ highlight, start: text.indexOf(highlight.text) }];
+      const matches: Array<{ highlight: HighlightItem; start: number }> = [];
+      if (!highlight.text) return matches;
+      let start = text.indexOf(highlight.text);
+      while (start >= 0) {
+        matches.push({ highlight, start });
+        start = text.indexOf(highlight.text, start + highlight.text.length);
+      }
+      return matches;
+    })
     .filter((match) => match.start >= 0)
     .sort((left, right) => left.start - right.start);
   const matches: typeof candidates = [];
@@ -30,7 +40,7 @@ export function DemoHighlightedText({
     if (start > cursor) content.push(text.slice(cursor, start));
     content.push(
       <DemoHighlightMark
-        key={highlight.id}
+        key={`${highlight.id}:${start}`}
         highlight={highlight}
         onHighlightClick={onHighlightClick}
       />,

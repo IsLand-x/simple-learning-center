@@ -1,3 +1,5 @@
+import { loadedAnnotations } from './termAnnotations';
+import { getFoliateContents } from './readerAdapter';
 import type { View as FoliateView } from 'foliate-js/view.js';
 import type { HighlightItem, ReaderPreferences } from '../../../../../../../contracts/reading';
 import type { ReaderHighlightTarget } from '../../../../../../types/reader';
@@ -54,7 +56,12 @@ export function createFoliateAnnotationEvents({
 
   const handleShowAnnotation = (event: Event) => {
     const { value, range } = (event as CustomEvent<FoliateShowAnnotationDetail>).detail;
-    const highlight = highlightsRef.current.find((item) => item.cfi === value);
+    const view = viewRef.current;
+    const highlight = view
+      ? getFoliateContents(view)
+          .flatMap(({ index }) => loadedAnnotations(view, index, highlightsRef.current))
+          .find((item) => item.cfi === value)
+      : undefined;
     if (!highlight) return;
     onHighlightClickRef.current({
       highlightId: highlight.id,

@@ -70,3 +70,18 @@ describe('reader state merge', () => {
     expect(result.readerPreferencesUpdatedAt).toBe(30);
   });
 });
+
+it('merges term definitions by version and does not revive a deleted term', () => {
+  const term: HighlightItem = { ...highlight('term', 5), kind: 'term', definition: '旧释义' };
+  const result = mergeReaderHighlights(
+    { highlights: [term] },
+    { highlights: [{ ...term, updatedAt: 6, definition: '手动释义' }] },
+  );
+  expect(result.highlights[0]).toMatchObject({ kind: 'term', definition: '手动释义' });
+  expect(
+    mergeReaderHighlights(
+      { highlights: [term] },
+      { deletedHighlightTombstones: [{ highlightId: 'term', bookId: term.bookId, deletedAt: 7 }] },
+    ).highlights,
+  ).toEqual([]);
+});

@@ -17,6 +17,11 @@ export function ReaderActivityBar({ activePanel, onChangePanel }: ReaderActivity
         activePanel={activePanel}
         onClick={() => toggle('resources')}
       />
+      <ActivityButton
+        panel="glossary"
+        activePanel={activePanel}
+        onClick={() => toggle('glossary')}
+      />
       <ActivityButton panel="notes" activePanel={activePanel} onClick={() => toggle('notes')} />
       <ActivityButton
         panel="comments"

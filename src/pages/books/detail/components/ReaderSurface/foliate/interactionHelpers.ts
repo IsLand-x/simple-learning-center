@@ -1,5 +1,6 @@
 import type { View as FoliateView } from 'foliate-js/view.js';
 import type { HighlightItem, ReaderPreferences } from '../../../../../../../contracts/reading';
+import { loadedAnnotations } from './termAnnotations';
 import { resolveReaderStyle } from '../../../../../../util/reading/readerThemes';
 import { expandFoliateHighlightRects } from './readerAdapter';
 
@@ -26,7 +27,7 @@ export function findFoliateHighlightAtPoint({
 }) {
   const style = resolveReaderStyle(preferences);
   const targetLineHeight = style.fontSize * style.density.lineHeight;
-  for (const highlight of highlights) {
+  for (const highlight of loadedAnnotations(view, sectionIndex, highlights).reverse()) {
     const resolved = view.resolveNavigation(highlight.cfi);
     if (resolved?.index !== sectionIndex || typeof resolved.anchor !== 'function') continue;
     const anchor = resolved.anchor(doc);
@@ -97,6 +98,7 @@ export function annotationSignature(highlight: HighlightItem, preferences: Reade
   const style = resolveReaderStyle(preferences);
   return [
     highlight.id,
+    highlight.kind,
     highlight.comment ?? '',
     style.highlightColor,
     style.textColor,

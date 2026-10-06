@@ -14,7 +14,7 @@ import type { prepareRssTranslationSource } from '../../rss/translation.js';
 
 export type ReasoningEffort = Exclude<AiReasoningEffort, 'auto'>;
 export type ResourceType = 'book' | 'rss' | 'video' | 'rssDigest';
-export type JobPurpose = 'chat' | 'summary' | 'translation' | 'digest';
+export type JobPurpose = 'chat' | 'summary' | 'translation' | 'digest' | 'glossary';
 type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface AiResult {
@@ -28,6 +28,8 @@ export interface AiJob {
   bookId: string;
   resourceType: ResourceType;
   purpose: JobPurpose;
+  termId?: string;
+  termUpdatedAt?: number;
   rssItemId?: string;
   videoId?: string;
   digestDate?: string;
@@ -96,6 +98,7 @@ export type AiChatRunner = (
 export interface AiJobRequest {
   resourceType?: unknown;
   purpose?: unknown;
+  termId?: unknown;
   configId?: unknown;
   model?: unknown;
   reasoningEffort?: unknown;

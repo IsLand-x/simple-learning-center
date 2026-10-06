@@ -1,5 +1,13 @@
 export type RightPanel =
-  'ai' | 'history' | 'resources' | 'notes' | 'highlights' | 'comments' | 'trajectory' | null;
+  | 'ai'
+  | 'history'
+  | 'resources'
+  | 'notes'
+  | 'glossary'
+  | 'highlights'
+  | 'comments'
+  | 'trajectory'
+  | null;
 
 export interface ReaderSelection {
   text: string;

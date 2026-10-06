@@ -21,6 +21,8 @@ interface ReaderSelectionOverlaysProps {
   onCreateComment: () => void;
   onEditHighlightComment: () => void;
   onSaveHighlight: () => void;
+  onAddTerm?: () => void;
+  onCancelTerm?: () => void;
   onSaveHighlightComment: () => void;
   onViewHighlight: () => void;
   showViewHighlight?: boolean;
@@ -41,6 +43,8 @@ export function ReaderSelectionOverlays({
   onCreateComment,
   onEditHighlightComment,
   onSaveHighlight,
+  onAddTerm,
+  onCancelTerm,
   onSaveHighlightComment,
   onViewHighlight,
   showViewHighlight = true,
@@ -54,6 +58,8 @@ export function ReaderSelectionOverlays({
           selection={selection}
           onAskAboutSelection={onAskAboutSelection}
           onSaveHighlight={onSaveHighlight}
+          onAddTerm={onAddTerm}
+          onCancelTerm={onCancelTerm}
           onCreateComment={onCreateComment}
         />
       )}

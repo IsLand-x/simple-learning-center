@@ -221,3 +221,17 @@ it('keeps legacy books active and preserves archive decisions in the existing bo
   ]);
   expect(migrated.notes).toEqual([{ id: 'note', content: '保留正文' }]);
 });
+
+it('keeps existing highlights and optional term metadata when upgrading to version 38', () => {
+  const original = {
+    id: 'ordinary',
+    bookId: 'book',
+    text: '原文',
+    cfi: 'original',
+    chapter: '一',
+    createdAt: 1,
+  };
+  const term = { ...original, id: 'term', kind: 'term', definition: '释义', updatedAt: 2 };
+  const result = migrateLearningState({ highlights: [original, term] }, 37);
+  expect(result.highlights).toEqual([original, term]);
+});

@@ -31,6 +31,14 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
         return {
           highlights: state.highlights.map((highlight) => {
             if (highlight.id !== highlightId) return highlight;
+            const changedAt = Math.max(updatedAt, (highlight.updatedAt ?? highlight.createdAt) + 1);
+            if ('definition' in changes) {
+              return {
+                ...highlight,
+                definition: changes.definition?.trim() || undefined,
+                updatedAt: changedAt,
+              };
+            }
             const comment = changes.comment?.trim();
             if (!comment) {
               const {
@@ -48,7 +56,7 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
       set((state) => {
         const highlight = state.highlights.find((item) => item.id === highlightId);
         if (!highlight) return state;
-        const deletedAt = Date.now();
+        const deletedAt = Math.max(Date.now(), (highlight.updatedAt ?? highlight.createdAt) + 1);
         return {
           highlights: state.highlights.filter((item) => item.id !== highlightId),
           deletedHighlightTombstones: [

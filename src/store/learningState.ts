@@ -41,7 +41,10 @@ export interface LearningState extends LearningData {
   moveBookInList: (bookListId: string, sourceIndex: number, destinationIndex: number) => void;
   removeBookFromList: (bookListId: string, bookId: string) => void;
   addHighlight: (highlight: HighlightItem) => void;
-  updateHighlight: (highlightId: string, changes: Partial<Pick<HighlightItem, 'comment'>>) => void;
+  updateHighlight: (
+    highlightId: string,
+    changes: Partial<Pick<HighlightItem, 'comment' | 'definition'>>,
+  ) => void;
   deleteHighlight: (highlightId: string) => void;
   addNote: (note: NoteItem) => void;
   setBookNoteContent: (bookId: string, bookTitle: string, content: string) => void;

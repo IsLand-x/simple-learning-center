@@ -168,3 +168,6 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 `/share/:token` 在启动时选择独立 lazy 页面，跳过登录、状态 hydration 和后台同步；`src/api/book-shares` 负责所有分享请求，匿名读取不携带会话。只读 Foliate 预览复用 `src/util/reading/foliateBrowser.ts` 的章节兼容通道，私人阅读器仍使用原有布局和标注逻辑。公开章节额外施加 CSP，阻止脚本、外部网络和表单；预览状态仅在内存中，不导入持久化 store。
 
 豆瓣公开信息由 books 域 `douban.ts` 负责：固定 HTTPS 主机、禁止重定向、四秒请求超时、响应大小上限和 schema 校验；同时核对候选及详情页的书名和作者，提取纯文本简介与安全原文链接。缓存仅存在服务进程内，最多 200 项，同一查询合并并发请求。公开 `/api/public/book-shares/:token/douban` 每次先校验分享令牌，前端独立可取消请求，不阻塞分享元数据或 EPUB 下载。
+
+
+阅读术语表属于 `books/detail/components/GlossaryPanel`，在桌面辅助栏与移动抽屉复用同一面板。术语复用 `HighlightItem.kind = term` 及可选 `definition`，只归属既有 `highlights` 分区；默认空高亮、删除记录、客户端/服务端时间戳合并与书籍清理规则继续覆盖术语。store version 38 不重写旧标记。Foliate 只扫描已加载章节，缓存文本 Range 对应的 CFI，不修改 EPUB DOM，不缓存屏幕坐标；波浪线由 Overlayer 按当前排版绘制。释义使用既有 PiAgent 任务流程，`purpose = glossary` 与 `termId` 经过服务端书籍归属校验，结果在单实例写队列内仅更新仍存在且未被手改的术语。面板集中查询任务，仅活跃任务继续轮询，重开时恢复结果。
