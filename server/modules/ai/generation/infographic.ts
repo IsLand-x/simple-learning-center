@@ -1,3 +1,5 @@
+import type { ImageHostingResult } from '../../books/imageHosting.js';
+import { publishBookImage } from '../../books/imageHosting.js';
 import type { JsonObject, Static, TSchema } from '@earendil-works/pi-ai';
 import type { BookItem } from '../../../../contracts/books.js';
 import type { PiRuntime } from '../runtime.js';
@@ -139,18 +141,26 @@ export function createInfographicTools({
   reserveImage = () => {},
   generateImage = generateCodexImage,
   save = saveKnowledgeMap,
+  publishImage = publishBookImage,
 }: {
   book: BookItem;
   runtime: PiRuntime;
   onPlan?: (outline: string, planId: string) => void;
   onStage?: (stage: string, status: 'in_progress' | 'completed' | 'failed', planId: string) => void;
-  onResult?: (result: { imageUrl: string; outline: string }, planId: string) => void;
+  onResult?: (
+    result: { imageUrl: string; outline: string } & ImageHostingResult,
+    planId: string,
+  ) => void;
   reserveImage?: () => void;
   generateImage?: typeof generateCodexImage;
   save?: typeof saveKnowledgeMap;
+  publishImage?: typeof publishBookImage;
 }) {
   const plans = new Map<string, { plan: Static<typeof planSchema>; outline: string }>();
-  const generations = new Map<string, Promise<{ imageUrl: string; outline: string }>>();
+  const generations = new Map<
+    string,
+    Promise<{ imageUrl: string; outline: string } & ImageHostingResult>
+  >();
   let failed = false;
   return {
     plan_infographic: {
@@ -240,7 +250,8 @@ export function createInfographicTools({
               });
               signal?.throwIfAborted();
               const imageUrl = await save(book, png, signal);
-              const result = { imageUrl, outline: planned.outline };
+              const hosting = await publishImage({ bookId: book.id, imageUrl, png, signal });
+              const result = { imageUrl, outline: planned.outline, ...hosting };
               onResult?.(result, plan_id);
               onStage?.(`信息图已生成并保存：${planned.plan.title}`, 'completed', plan_id);
               return result;

@@ -1,3 +1,4 @@
+import { publishBookImage } from '../../books/imageHosting.js';
 import type { BookItem } from '../../../../contracts/books.js';
 import type { BookPassage } from '../../books/search.js';
 import type { PiRuntime } from '../runtime.js';
@@ -70,6 +71,7 @@ export async function generateBookKnowledgeMap({
   summarize = analyze,
   generateImage = generateCodexImage,
   save = saveKnowledgeMap,
+  publishImage = publishBookImage,
 }: {
   book: BookItem;
   runtime: PiRuntime;
@@ -79,6 +81,7 @@ export async function generateBookKnowledgeMap({
   summarize?: typeof analyze;
   generateImage?: typeof generateCodexImage;
   save?: typeof saveKnowledgeMap;
+  publishImage?: typeof publishBookImage;
 }) {
   const passages = await load(book);
   const batches = passageBatches(passages);
@@ -126,7 +129,9 @@ export async function generateBookKnowledgeMap({
   });
   signal?.throwIfAborted();
   const imageUrl = await save(book, png, signal);
+  const hosting = await publishImage({ bookId: book.id, imageUrl, png, signal });
   return {
+    ...hosting,
     imageUrl,
     outline,
     passages: passages.length,

@@ -1,3 +1,4 @@
+import { imageHostingMarkdown } from './generation/imageHostingMarkdown.js';
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { UserMessage } from '@earendil-works/pi-ai';
 import { generateBookKnowledgeMap } from './generation/knowledgeMap.js';
@@ -132,7 +133,7 @@ export async function runServerAiChat({
             .then((result) => {
               const entry = ensureEntry('message', 'knowledge-map-result');
               entry.status = 'completed';
-              entry.text = `![全景知识地图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})\n\n${result.outline}\n\n已分析 ${result.passages} 个正文段落（${result.batches} 批）。${result.coverage}`;
+              entry.text = `![全景知识地图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})${imageHostingMarkdown(result)}\n\n${result.outline}\n\n已分析 ${result.passages} 个正文段落（${result.batches} 批）。${result.coverage}`;
               ensureEntry('tool', 'knowledge-map-stage').status = 'completed';
               publish();
               return result;
@@ -172,7 +173,7 @@ export async function runServerAiChat({
           },
           onResult: (result, planId) => {
             const entry = ensureEntry('message', `infographic-result:${planId}`);
-            entry.text = `![信息图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})\n\n图片中的文字与关系请对照原文核查。`;
+            entry.text = `![信息图](${result.imageUrl})\n\n[查看或保存原图](${result.imageUrl})${imageHostingMarkdown(result)}\n\n图片中的文字与关系请对照原文核查。`;
             entry.status = 'completed';
             publish();
           },

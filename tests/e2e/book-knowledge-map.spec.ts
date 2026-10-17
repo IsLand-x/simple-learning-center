@@ -6,6 +6,7 @@ import { demoBooks } from '../../src/util/fixtures/demo';
 
 const book = demoBooks[0];
 const imageUrl = `/api/books/${book.id}/knowledge-maps/11111111-1111-4111-8111-111111111111`;
+const cosUrl = 'https://images.example.test/learning-center/2026-10-17/image.png';
 const imageFixture =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720"><rect width="1200" height="720" fill="#f5f5f5"/><text x="600" y="300" text-anchor="middle" fill="#222222" font-size="44">全景知识地图（测试图片）</text><text x="600" y="400" text-anchor="middle" fill="#222222" font-size="30">主题 → 核心观点 → 论据与含义</text></svg>';
 
@@ -64,7 +65,7 @@ for (const scenario of [
         );
         const content =
           (scenario.alt === '信息图' ? `![第二张信息图](${secondImageUrl})\n\n` : '') +
-          `信息图内容稿：复制方式对比\n\n图型：维度对比图；原文概括，对应来源 s1\n\n![${scenario.alt}](${imageUrl})\n\n[查看或保存原图](${imageUrl})\n\n核心观点与含义\n\n覆盖全部已提取正文；不包含扫描图片。`;
+          `信息图内容稿：复制方式对比\n\n图型：维度对比图；原文概括，对应来源 s1\n\n![${scenario.alt}](${imageUrl})\n\n[查看或保存原图](${imageUrl})\n\n[COS 原图链接（公开访问）](${cosUrl})\n\n核心观点与含义\n\n覆盖全部已提取正文；不包含扫描图片。`;
         await page.route('**/api/ai/jobs**', async (route) => {
           const request = route.request();
           if (request.method() === 'POST') {
@@ -112,6 +113,10 @@ for (const scenario of [
         await expect(page.getByRole('link', { name: '查看或保存原图' })).toHaveAttribute(
           'href',
           imageUrl,
+        );
+        await expect(page.getByRole('link', { name: 'COS 原图链接（公开访问）' })).toHaveAttribute(
+          'href',
+          cosUrl,
         );
         expect(
           await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -180,6 +185,10 @@ for (const scenario of [
         await page.getByText('全景知识地图', { exact: true }).last().click();
         await expect(image).toBeVisible();
         await expect(image).toHaveJSProperty('naturalWidth', 1200);
+        await expect(page.getByRole('link', { name: 'COS 原图链接（公开访问）' })).toHaveAttribute(
+          'href',
+          cosUrl,
+        );
         await trigger.click();
         await expect(viewer).toBeVisible();
         await viewer.getByRole('button', { name: '关闭图片' }).click();

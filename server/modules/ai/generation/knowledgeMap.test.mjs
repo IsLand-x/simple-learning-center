@@ -178,3 +178,30 @@ test('图片权限、鉴权、路径校验、彻底删除清理与删除竞态',
   assert.equal((await app.request(result.imageUrl)).status, 404);
   await assert.rejects(generateBookKnowledgeMap(options), /书籍已删除/);
 });
+
+test('全景生图先保存本地原图再发布 COS，保留本地与云端链接', async () => {
+  const events = [];
+  const localUrl = '/api/books/book/knowledge-maps/11111111-1111-4111-8111-111111111111';
+  const cosUrl = 'https://images.example.test/learning-center/2026-10-17/image.png';
+  const result = await generateBookKnowledgeMap({
+    book,
+    runtime: {},
+    load: async () => passages,
+    summarize: async () => '内容稿',
+    generateImage: async () => png,
+    save: async () => {
+      events.push('local');
+      return localUrl;
+    },
+    publishImage: async (input) => {
+      events.push('cos');
+      assert.equal(input.imageUrl, localUrl);
+      assert.equal(input.bookId, book.id);
+      assert.deepEqual(input.png, png);
+      return { cosUrl };
+    },
+  });
+  assert.deepEqual(events, ['local', 'cos']);
+  assert.equal(result.imageUrl, localUrl);
+  assert.equal(result.cosUrl, cosUrl);
+});

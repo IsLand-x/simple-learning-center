@@ -50,6 +50,7 @@ const imageUrl = '/api/books/book/knowledge-maps/11111111-1111-4111-8111-1111111
 test('规划校验节点和关系；生图必须使用本次有效方案', async () => {
   let generated = 0;
   const tools = createInfographicTools({
+    book: { id: 'book', title: '测试书籍', fileSize: 42 },
     generateImage: async () => {
       generated++;
       return Buffer.from('fixture');
@@ -87,6 +88,7 @@ test('失败不自动重试，取消不保存，结构方案先于图片请求�
     const events = [];
     let calls = 0;
     const tools = createInfographicTools({
+      book: { id: 'book', title: '测试书籍', fileSize: 42 },
       onPlan: () => events.push('plan'),
       onStage: (_stage, status) => events.push(status),
       generateImage: async ({ prompt, signal }) => {
@@ -123,6 +125,7 @@ test('七种预设分别使用对应绘图规则，并保留信息类型和逐�
   for (const [preset, definition] of Object.entries(INFOGRAPHIC_PRESETS)) {
     let draft = '';
     const tools = createInfographicTools({
+      book: { id: 'book', title: '测试书籍', fileSize: 42 },
       onPlan: (value) => {
         draft = value;
       },
@@ -157,7 +160,10 @@ test('七种预设分别使用对应绘图规则，并保留信息类型和逐�
 });
 
 test('不能伪装原文、遗漏来源、使用未知预设或用过量文字塞满图片', async () => {
-  const tools = createInfographicTools({ generateImage: () => assert.fail('不得生图') });
+  const tools = createInfographicTools({
+    book: { id: 'book', title: '测试书籍', fileSize: 42 },
+    generateImage: () => assert.fail('不得生图'),
+  });
   const invalidPlans = [
     { ...plan, preset: 'poster' },
     { ...plan, selection_reason: ' ' },
@@ -380,6 +386,7 @@ test('前一张成功后一张失败保留图片，并禁止通过新方案重�
   let attempts = 0;
   const results = [];
   const tools = createInfographicTools({
+    book: { id: 'book', title: '测试书籍', fileSize: 42 },
     generateImage: async () => {
       if (++attempts > 1) throw new Error('额度不足');
       return Buffer.from('fixture');
@@ -483,7 +490,7 @@ test('章节漫画通过真实 Agent 循环读取正文、规划四格并生成�
       { from: 'example', to: 'conclusion', label: '第四格总结' },
     ],
   };
-  const tools = createInfographicTools({});
+  const tools = createInfographicTools({ book: { id: 'book', title: '测试书籍', fileSize: 42 } });
   await assert.rejects(tools.plan_infographic.execute({ ...plan, preset: 'comic' }), /4—6 格/);
   const faux = fauxProvider({ tokensPerSecond: 0 });
   faux.setResponses([
@@ -523,4 +530,33 @@ test('章节漫画通过真实 Agent 循环读取正文、规划四格并生成�
   assert.match(result.content, /补充解释/);
   assert.match(result.content, /仅覆盖本次读取的章节片段/);
   assert.ok(result.content.includes(imageUrl));
+});
+
+test('信息图先保存本地再发布 COS，同一方案重复调用仅上传一次', async () => {
+  const events = [];
+  const cosUrl = 'https://images.example.test/learning-center/2026-10-17/image.png';
+  const tools = createInfographicTools({
+    book: { id: 'book', title: '测试书籍', fileSize: 42 },
+    generateImage: async () => Buffer.from('png'),
+    save: async () => {
+      events.push('local');
+      return imageUrl;
+    },
+    publishImage: async (input) => {
+      events.push('cos');
+      assert.equal(input.imageUrl, imageUrl);
+      assert.equal(input.bookId, 'book');
+      return { cosUrl };
+    },
+  });
+  const planned = await tools.plan_infographic.execute(plan);
+  const results = await Promise.all([
+    tools.generate_infographic.execute({ plan_id: planned.plan_id }),
+    tools.generate_infographic.execute({ plan_id: planned.plan_id }),
+  ]);
+  assert.deepEqual(events, ['local', 'cos']);
+  for (const result of results) {
+    assert.equal(result.imageUrl, imageUrl);
+    assert.equal(result.cosUrl, cosUrl);
+  }
 });

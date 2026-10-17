@@ -177,3 +177,10 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 `LEARNING_CENTER_ASSET_ORIGIN` 仅参与构建，通过 Vite 的资源 URL 渲染、构建期 CSP 精确放行、发布标识文件名和 Workbox URL 前缀映射将版本资源交给独立 CDN；应用路由、API、manifest 和 Service Worker 保持同源。Docker 与生产工作流传递同名构建参数，未设置时保持本地与既有部署行为。
 
 `server/http/staticAsset.ts` 定义唯一的版本资源路径规则。`registerStaticOriginGuard` 在所有业务路由之前处理 CDN 覆盖的静态请求头，只允许版本资源 GET/HEAD，防止静态域名代理私有或公共业务 API。静态服务对公开版本资源提供 CORS 与 immutable 缓存，缺失资源不再回退为 HTML；这项行为由服务端测试覆盖。
+
+
+## AI 图片的 COS 副本
+
+AI generation 在 books 保存本地原图后调用 `books/imageHosting.ts`，由服务端读取数据目录 `cos-images.json`，通过腾讯云官方 SDK 生成签名、使用可取消且限时的 HTTPS 请求上传 PNG。对象以配置前缀、上海日期 `YYYY-MM-DD` 和唯一图片 ID 组织。生图结果保留本地 `imageUrl`，另外提供可选 `cosUrl` 或 `uploadWarning`，由 AI 对话持久化为普通 Markdown；前端资源收藏仍按本地原图 ID 识别。
+
+上传成功后在原图旁保存无密钥的 `.cos.json` 对象记录，落盘前复用单实例状态队列核对书籍仍存在，避免上传期间删除书籍后遗留正常成功结果。网络上传不占用状态写队列。取消、上传结果不明或保存记录失败时尝试清理云端对象；明确的 4xx（包括对象冲突）不删除已有对象。彻底删除与回收站清理先删除有记录的 COS 对象，成功后再删除本地图片目录；失败保留记录，允许重试。若请求与清理都遇到网络故障，提示用户云端清理未完成，由运维核对 COS 对象。该副本不参与 Zustand 分区同步，凭据仅保存在服务器数据目录。
