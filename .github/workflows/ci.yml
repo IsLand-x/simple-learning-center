@@ -40,6 +40,13 @@ jobs:
       - name: 浏览器与视觉回归
         run: npm run test:e2e:container
 
+      - name: 验证 CDN 构建与离线缓存
+        env:
+          LEARNING_CENTER_ASSET_ORIGIN: https://cdn.example.invalid
+        run: |
+          npx vite build
+          npm run test:e2e:container -- cdn-assets.spec.ts
+
       - name: 保留浏览器验证产物
         if: failure()
         uses: actions/upload-artifact@v4

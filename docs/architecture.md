@@ -171,3 +171,9 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 
 
 阅读术语表属于 `books/detail/components/GlossaryPanel`，在桌面辅助栏与移动抽屉复用同一面板。术语复用 `HighlightItem.kind = term` 及可选 `definition`，只归属既有 `highlights` 分区；默认空高亮、删除记录、客户端/服务端时间戳合并与书籍清理规则继续覆盖术语。store version 38 不重写旧标记。Foliate 只扫描已加载章节，缓存文本 Range 对应的 CFI，不修改 EPUB DOM，不缓存屏幕坐标；波浪线由 Overlayer 按当前排版绘制。释义使用既有 PiAgent 任务流程，`purpose = glossary` 与 `termId` 经过服务端书籍归属校验，结果在单实例写队列内仅更新仍存在且未被手改的术语。面板集中查询任务，仅活跃任务继续轮询，重开时恢复结果。
+
+### 可选的静态资源分发
+
+`LEARNING_CENTER_ASSET_ORIGIN` 仅参与构建，通过 Vite 的资源 URL 渲染、构建期 CSP 精确放行和 Workbox URL 前缀映射将版本资源交给独立 CDN；应用路由、API、manifest 和 Service Worker 保持同源。Docker 与生产工作流传递同名构建参数，未设置时保持本地与既有部署行为。
+
+`server/http/staticAsset.ts` 定义唯一的版本资源路径规则。`registerStaticOriginGuard` 在所有业务路由之前处理 CDN 覆盖的静态请求头，只允许版本资源 GET/HEAD，防止静态域名代理私有或公共业务 API。静态服务对公开版本资源提供 CORS 与 immutable 缓存，缺失资源不再回退为 HTML；这项行为由服务端测试覆盖。

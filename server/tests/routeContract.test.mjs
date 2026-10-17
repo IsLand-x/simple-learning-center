@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import { createApp } from '../app.js';
 
 const expectedRoutes = [
+  // Static CDN isolation must run before public routes and authentication.
+  { method: 'ALL', path: '/*' },
   {
     method: 'ALL',
     path: '/api/*',

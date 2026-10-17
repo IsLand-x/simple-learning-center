@@ -2,7 +2,7 @@ import { createPublicBookShareRoutes } from './modules/books/shareRoutes.js';
 import { createDependencies } from './dependencies.js';
 import type { AppOptions } from './dependencies.js';
 import { registerErrorHandler } from './http/responses.js';
-import { registerApiHeaders } from './http/middleware.js';
+import { registerApiHeaders, registerStaticOriginGuard } from './http/middleware.js';
 import { createRouter } from './http/router.js';
 import { createAiOAuthRoutes } from './modules/ai/oauthRoutes.js';
 import { createAiRoutes } from './modules/ai/routes.js';
@@ -30,6 +30,7 @@ export function createApp({ serveFrontend = true, ...options }: AppOptions = {})
   const dependencies = createDependencies(options);
 
   // Keep authorization, route, method fallback and static fallback order stable.
+  registerStaticOriginGuard(app);
   registerApiHeaders(app);
   app.route('/api/public/book-shares', createPublicBookShareRoutes());
   registerAuthenticationMiddleware(app, dependencies);

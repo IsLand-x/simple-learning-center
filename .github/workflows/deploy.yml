@@ -49,6 +49,7 @@ jobs:
           build-args: |
             APP_BUILD_REVISION=${{ github.sha }}
             APP_UPDATED_AT=${{ steps.metadata.outputs.updated_at }}
+            LEARNING_CENTER_ASSET_ORIGIN=${{ vars.LEARNING_CENTER_ASSET_ORIGIN }}
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}

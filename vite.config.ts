@@ -12,6 +12,26 @@ const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.met
 const apiProxyTarget = process.env.LEARNING_CENTER_API_PROXY?.trim()
   || 'http://127.0.0.1:8787';
 
+// Only generated assets use the CDN; navigation, public files and SW stay same-origin.
+const assetOrigin = process.env.LEARNING_CENTER_ASSET_ORIGIN?.trim().replace(/\/$/, '') || '';
+if (assetOrigin) {
+  const url = new URL(assetOrigin);
+  if (url.protocol !== 'https:' || url.origin !== assetOrigin) {
+    throw new Error('LEARNING_CENTER_ASSET_ORIGIN 必须是无路径的 HTTPS 源地址');
+  }
+}
+
+function staticAssetContentPolicy(): Plugin {
+  return {
+    name: 'static-asset-content-policy',
+    apply: 'build',
+    transformIndexHtml(html) {
+      if (!assetOrigin) return html;
+      return html.replace(/(script-src|style-src|font-src) 'self'/g, `$1 'self' ${assetOrigin}`);
+    },
+  };
+}
+
 function readGitMetadata(args: string[]) {
   try {
     return execFileSync('git', args, { encoding: 'utf8' }).trim();
@@ -794,6 +814,14 @@ function foliateSrcdocCompatibility(): Plugin {
 }
 
 export default defineConfig({
+  experimental: {
+    renderBuiltUrl(filename, { type }) {
+      if (assetOrigin && type === 'asset' && filename.startsWith('assets/')) {
+        return `${assetOrigin}/${filename}`;
+      }
+      return undefined;
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
     __APP_REVISION__: JSON.stringify(appRevision),
@@ -805,6 +833,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    staticAssetContentPolicy(),
     foliateSrcdocCompatibility(),
     react(),
     tailwindcss(),
@@ -855,6 +884,8 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
+        // Precache the same URLs that the HTML and generated imports actually request.
+        modifyURLPrefix: assetOrigin ? { 'assets/': `${assetOrigin}/assets/` } : {},
         // Downloads and public APIs must reach the server even for navigation requests.
         navigateFallbackDenylist: [/^\/api\//],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
