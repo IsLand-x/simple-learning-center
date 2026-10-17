@@ -4,27 +4,35 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLearningStore } from '../../../../store/useLearningStore';
 import type { HighlightItem } from '../../../../../contracts/reading';
+import { sortAnnotations, type AnnotationSortOrder } from './annotationSorting';
 
 const { Text } = Typography;
 
 export function HighlightsPanel({
   bookId,
   focusedHighlightId,
+  sortOrder,
   onJumpHighlight,
 }: {
   bookId: string;
   focusedHighlightId?: string | null;
+  sortOrder: AnnotationSortOrder;
   onJumpHighlight: (highlight: HighlightItem) => void;
 }) {
   const allHighlights = useLearningStore((state) => state.highlights);
   const deleteHighlight = useLearningStore((state) => state.deleteHighlight);
   const highlights = useMemo(
     () =>
-      allHighlights.filter(
-        (highlight) =>
-          highlight.bookId === bookId && highlight.kind !== 'comment' && highlight.kind !== 'term',
+      sortAnnotations(
+        allHighlights.filter(
+          (highlight) =>
+            highlight.bookId === bookId &&
+            highlight.kind !== 'comment' &&
+            highlight.kind !== 'term',
+        ),
+        sortOrder,
       ),
-    [allHighlights, bookId],
+    [allHighlights, bookId, sortOrder],
   );
   const focusedCardRef = useRef<HTMLElement>(null);
   const [contextMenu, setContextMenu] = useState<{

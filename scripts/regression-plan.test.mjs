@@ -40,3 +40,14 @@ test('页面变动包含功能、视觉与路由；直接改测试不会遗漏',
   assert.ok(plan.specs.includes('tests/e2e/app-shell.spec.ts'));
   assert.ok(plan.specs.includes('tests/e2e/book-sharing.spec.ts'));
 });
+
+test('阅读侧栏变动包含术语、高亮和评论排序回归', () => {
+  const plan = regressionPlan([
+    change('src/pages/books/detail/components/ReaderPanel/ReaderRightPanel.tsx'),
+    change('src/pages/books/detail/components/annotationSorting.ts'),
+  ]);
+  assert.equal(plan.mode, 'related');
+  assert.ok(plan.specs.includes('tests/e2e/reader-annotation-sorting.spec.ts'));
+  assert.ok(plan.specs.includes('tests/e2e/reader-glossary.spec.ts'));
+  assert.ok(plan.specs.includes('tests/e2e/visual-regression.spec.ts'));
+});
