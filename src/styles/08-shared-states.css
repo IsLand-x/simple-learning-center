@@ -22,6 +22,7 @@
 /* Immersive image viewer: controls and canvas keep safe-area edge spacing. */
 .expandable-image.semi-button {
   display: inline-flex;
+  width: 100%;
   max-width: 100%;
   min-width: 44px;
   min-height: 44px;
@@ -32,6 +33,7 @@
 }
 
 .expandable-image .semi-button-content {
+  width: 100%;
   min-width: 0;
 }
 

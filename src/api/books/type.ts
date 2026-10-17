@@ -29,3 +29,8 @@ export interface SaveBookResourceRequest {
 export interface RenameBookResourceRequest {
   title: string;
 }
+
+export interface BookImageDimensions {
+  width: number;
+  height: number;
+}
