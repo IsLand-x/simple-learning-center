@@ -38,16 +38,18 @@ async function selectTerm(page: Page, mobile: boolean) {
 async function markedCount(page: Page) {
   return page.locator('foliate-view').evaluate((element) => {
     const view = element as View;
-    return view.renderer
-      .getContents()
-      .reduce(
-        (count, { overlayer }) =>
-          count +
-          ((overlayer as unknown as { element: Element }).element?.querySelectorAll(
-            '.reader-term path',
-          ).length ?? 0),
-        0,
-      );
+    const contents = view.renderer?.getContents();
+    // A reload can mount the custom element before Foliate opens its renderer.
+    // Keep polling until a document exists instead of throwing or reporting zero.
+    if (!contents?.length) return -1;
+    return contents.reduce(
+      (count, { overlayer }) =>
+        count +
+        ((overlayer as unknown as { element: Element }).element?.querySelectorAll(
+          '.reader-term path',
+        ).length ?? 0),
+      0,
+    );
   });
 }
 async function closePanel(page: Page, mobile: boolean) {

@@ -42,6 +42,7 @@ function publicNote(note: NoteItem) {
 export async function readBookNotes(bookId: unknown) {
   const normalizedBookId = requireIdentifier(bookId, '书籍');
   const persistedState = await readPersistedState({
+    fields: ['notes'],
     hydrateNote: (note) => note?.bookId === normalizedBookId,
   });
   if (!persistedState?.state) throw statusError(409, '服务端尚未初始化');

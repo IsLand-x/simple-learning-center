@@ -1,3 +1,4 @@
+import { compress } from 'hono/compress';
 import { protectClientState } from './compatibility/clientState.js';
 import { mergeClientNoteDrafts } from './noteDrafts.js';
 import type { PersistedState } from './types.js';
@@ -17,11 +18,22 @@ import { methodNotAllowed, noContent } from '../../http/responses.js';
 
 export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
   const app = createRouter();
+  app.use('*', compress({ encoding: 'gzip', contentTypeFilter: /^application\/json/ }));
   app.get('/', async (c) => {
     await purgeExpiredTrashedBooks();
     const etag = await stateFileEtag();
     if (etag) c.header('ETag', etag);
-    if (etag && c.req.header('If-None-Match') === etag) return c.body(null, 304);
+    if (
+      etag &&
+      c.req
+        .header('If-None-Match')
+        ?.split(',')
+        .some(
+          (value) =>
+            value.trim().replace(/^W\//, '') === etag.replace(/^W\//, '') || value.trim() === '*',
+        )
+    )
+      return c.body(null, 304);
     const state = await readPersistedState();
     return state ? c.json(state) : noContent(c);
   });
@@ -51,7 +63,15 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
     const serialized = serializeStateDomainSnapshot(state, domain);
     if (!serialized) return noContent(c);
     c.header('ETag', serialized.etag);
-    if (c.req.header('If-None-Match') === serialized.etag) return c.body(null, 304);
+    if (
+      c.req
+        .header('If-None-Match')
+        ?.split(',')
+        .some(
+          (value) => value.trim().replace(/^W\//, '') === serialized.etag || value.trim() === '*',
+        )
+    )
+      return c.body(null, 304);
     return c.body(serialized.body, 200, { 'Content-Type': 'application/json; charset=utf-8' });
   });
   app.put('/:domain', async (c) => {

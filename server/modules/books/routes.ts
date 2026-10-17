@@ -78,8 +78,7 @@ export function createBookRoutes() {
   app.on(['GET', 'HEAD'], `${BOOK_ROUTE}/cover`, async (c) => {
     const path = await findBookCoverPath(c.req.param('bookId'));
     if (!path) return c.json({ error: '书籍封面不存在' }, 404);
-    const response = await storedFileResponse(c, path);
-    response.headers.set('Cache-Control', 'private, max-age=604800');
+    const response = await storedFileResponse(c, path, 'private, max-age=604800');
     response.headers.set(
       'Content-Security-Policy',
       "sandbox; default-src 'none'; style-src 'unsafe-inline'",

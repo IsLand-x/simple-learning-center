@@ -11,7 +11,10 @@ export function requireBook(state: StoredState, id: string) {
 }
 
 export async function libraryState(hydrateNote: (note: NoteItem) => boolean = () => false) {
-  const persisted = await readPersistedState({ hydrateNote });
+  const persisted = await readPersistedState({
+    fields: ['books', 'bookLists', 'highlights', 'notes'],
+    hydrateNote,
+  });
   if (!persisted?.state) throw statusError(409, '请先打开应用完成初始化');
   return persisted.state;
 }

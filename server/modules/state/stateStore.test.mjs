@@ -120,3 +120,23 @@ test('并发分区读取相互隔离，并在提交后读取最新磁盘内容',
   });
   assert.equal((await readPersistedState({ fields: ['themeMode'] })).state.themeMode, 'dark');
 });
+
+test('复用快照仍能发现同长度外部替换、文件删除和解析失败后的修复', async () => {
+  const path = join(directory, 'state.json');
+  const original = await readFile(path, 'utf8');
+  const first = await readPersistedState({ fields: ['books'] });
+  first.state.books[0].title = '调用者自己的修改';
+  assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '原书名');
+  const replacement = original.replace('原书名', '新书名');
+  assert.equal(Buffer.byteLength(replacement), Buffer.byteLength(original));
+  await atomicWrite(path, replacement);
+  assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '新书名');
+  await atomicWrite(path, '{invalid JSON');
+  await assert.rejects(readPersistedState(), SyntaxError);
+  await atomicWrite(path, original);
+  assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '原书名');
+  await rm(path);
+  assert.equal(await readPersistedState(), null);
+  await atomicWrite(path, replacement);
+  assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '新书名');
+});

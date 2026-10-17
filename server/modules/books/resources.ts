@@ -42,7 +42,7 @@ function present(bookId: string, resources: Array<z.infer<typeof resourceSchema>
 }
 
 export async function listBookResources(bookId: string) {
-  requireBook(await readPersistedState({ hydrateNote: () => false }), bookId);
+  requireBook(await readPersistedState({ fields: ['books'] }), bookId);
   return present(bookId, await readResources(bookId));
 }
 

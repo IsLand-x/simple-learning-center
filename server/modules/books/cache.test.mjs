@@ -67,3 +67,30 @@ test('生成图片长时间私有缓存并支持 GET/HEAD ETag 重验证', async
   const remote = createApp({ mode: 'remote', password: 'test-cache', serveFrontend: false });
   assert.equal((await remote.request(url, { headers: { 'If-None-Match': etag } })).status, 401);
 });
+
+test('封面私有缓存支持条件请求，替换和删除不会返回旧封面', async () => {
+  const { coverDirectoryPath } = await import('../../infrastructure/fs/files.js');
+  const path = join(coverDirectoryPath('cover-book'), 'cover.svg');
+  await atomicWrite(path, Buffer.from('<svg>first</svg>'));
+  const app = createApp({ mode: 'local', serveFrontend: false });
+  const url = '/api/books/cover-book/cover';
+  const first = await app.request(url);
+  const etag = first.headers.get('ETag');
+  assert.ok(etag);
+  assert.equal(first.headers.get('Cache-Control'), 'private, max-age=604800');
+  assert.equal(await first.text(), '<svg>first</svg>');
+  for (const method of ['GET', 'HEAD']) {
+    const cached = await app.request(url, { method, headers: { 'If-None-Match': etag } });
+    assert.equal(cached.status, 304);
+    assert.equal(await cached.text(), '');
+  }
+  const remote = createApp({ mode: 'remote', password: 'cover-cache-test', serveFrontend: false });
+  assert.equal((await remote.request(url, { headers: { 'If-None-Match': etag } })).status, 401);
+  await atomicWrite(path, Buffer.from('<svg>replacement</svg>'));
+  const changed = await app.request(url, { headers: { 'If-None-Match': etag } });
+  assert.equal(changed.status, 200);
+  assert.notEqual(changed.headers.get('ETag'), etag);
+  assert.equal(await changed.text(), '<svg>replacement</svg>');
+  await rm(path);
+  assert.equal((await app.request(url, { headers: { 'If-None-Match': etag } })).status, 404);
+});

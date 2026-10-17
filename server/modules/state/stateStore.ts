@@ -16,21 +16,34 @@ import type { PersistedState, StoredState } from './types.js';
 // Every state.json mutation shares this queue, including resource existence checks.
 // Queue callbacks must not call readPersistedState or enqueue another mutation.
 let stateWriteQueue = Promise.resolve();
-let stateReadPromise: Promise<PersistedState | null> | undefined;
+let stateReadCache: { signature: string; result: Promise<PersistedState | null> } | undefined;
 
-function readStateFile() {
-  // Share only an in-flight disk read; subsequent reads still observe disk
-  // changes. Hydration clones each caller's selected fields independently.
-  stateReadPromise ??= readFile(STATE_FILE, 'utf8')
-    .then((content) => JSON.parse(content) as PersistedState)
-    .catch((error: unknown) => {
-      if (errorHasCode(error, 'ENOENT')) return null;
-      throw error;
-    })
-    .finally(() => {
-      stateReadPromise = undefined;
-    });
-  return stateReadPromise;
+async function readStateFile() {
+  let signature: string;
+  try {
+    const metadata = await stat(STATE_FILE, { bigint: true });
+    signature = `${metadata.dev}:${metadata.ino}:${metadata.size}:${metadata.mtimeNs}:${metadata.ctimeNs}`;
+  } catch (error) {
+    if (!errorHasCode(error, 'ENOENT')) throw error;
+    stateReadCache = undefined;
+    return null;
+  }
+  // Keep only the current file revision. Hydration projects and clones fields
+  // before exposing them, so callers cannot mutate this shared parsed snapshot.
+  // Inode/ctime also detect atomic replacements and same-size external edits.
+  if (stateReadCache?.signature === signature) return stateReadCache.result;
+  const entry = {
+    signature,
+    result: readFile(STATE_FILE, 'utf8').then((content) => JSON.parse(content) as PersistedState),
+  };
+  stateReadCache = entry;
+  try {
+    return await entry.result;
+  } catch (error) {
+    if (stateReadCache === entry) stateReadCache = undefined;
+    if (errorHasCode(error, 'ENOENT')) return null;
+    throw error;
+  }
 }
 
 async function readPersistedStateFromDisk(
@@ -43,9 +56,11 @@ async function readPersistedStateFromDisk(
   return diskState ? hydrateStateFromDisk(diskState, options.hydrateNote, options.fields) : null;
 }
 
-async function persistState(persistedState: PersistedState, protectClientSnapshot = true) {
-  const currentPersistedState = protectClientSnapshot ? await readPersistedStateFromDisk() : null;
-  const protectedState = protectClientSnapshot
+async function persistState(
+  persistedState: PersistedState,
+  currentPersistedState: PersistedState | null,
+) {
+  const protectedState = currentPersistedState
     ? protectBookTrashStateFromClient(
         protectBookListStateFromOlderClient(
           protectVideoStateFromOlderClient(
@@ -106,11 +121,11 @@ export function writePersistedState(
       if (initializeOnly && (await exists(STATE_FILE))) {
         throw statusError(409, '服务端已经包含数据');
       }
-      const currentPersistedState = transform ? await readPersistedStateFromDisk() : null;
+      const currentPersistedState = await readPersistedStateFromDisk();
       const nextState = transform
         ? await transform(structuredClone(persistedState), currentPersistedState)
         : persistedState;
-      await persistState(nextState, true);
+      await persistState(nextState, currentPersistedState);
     });
   stateWriteQueue = operation;
   return operation;
@@ -128,7 +143,7 @@ export function mutatePersistedState<T>(
       }
       const nextState = structuredClone(persistedState);
       const result = await mutator(nextState);
-      await persistState(nextState, false);
+      await persistState(nextState, null);
       return result;
     });
   stateWriteQueue = operation.then(

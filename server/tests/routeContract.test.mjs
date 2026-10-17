@@ -108,6 +108,7 @@ const expectedRoutes = [
     method: 'ALL',
     path: '/api/settings/system-info',
   },
+  { method: 'ALL', path: '/api/state/*' },
   {
     method: 'GET',
     path: '/api/state',
