@@ -9,21 +9,52 @@ on:
       - 'codex/reader-content-fixes'
       - 'IsLand-x/完全重构项目'
   pull_request:
+  workflow_dispatch:
+    inputs:
+      full_regression:
+        description: 强制完整浏览器回归
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 20 * * 0'
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: 选择回归范围
+        id: plan
+        env:
+          REGRESSION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
+          REGRESSION_FULL: ${{ (github.event_name == 'workflow_dispatch' && inputs.full_regression) || github.event_name == 'schedule' }}
+        run: node scripts/regression-plan.mjs
+
   verify:
+    needs: plan
+    if: needs.plan.outputs.mode != 'none'
+
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - name: 检出代码
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: 配置 Node.js
         uses: actions/setup-node@v7
@@ -35,10 +66,15 @@ jobs:
         run: npm ci
 
       - name: 测试与构建
-        run: npm run verify
+        run: |
+          node --test scripts/regression-plan.test.mjs
+          npm run verify
 
       - name: 浏览器与视觉回归
-        run: npm run test:e2e:container
+        env:
+          REGRESSION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
+          REGRESSION_FULL: ${{ (github.event_name == 'workflow_dispatch' && inputs.full_regression) || github.event_name == 'schedule' }}
+        run: node scripts/regression-plan.mjs --run-browser
 
       - name: 验证 CDN 构建与离线缓存
         env:
@@ -57,5 +93,15 @@ jobs:
       - name: 检查生产依赖安全告警
         run: npm audit --omit=dev --audit-level=high
 
-      - name: 验证 Docker 镜像构建
+      - name: 验证非发布分支的镜像构建
+        if: github.ref != 'refs/heads/main'
         run: docker build --tag learning-center:ci .
+
+  publish:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit

@@ -30,14 +30,15 @@ npm start
 npm run preview
 ```
 
-除纯文档修改外，完成代码或配置修改后至少执行：
+验证按风险与变动范围执行，避免本地与 CI 重复跑完整回归：
 
-```bash
-npm run verify
-git diff --check
-```
-
-涉及路由、交互、响应式、样式、PWA 或 Foliate 的修改还应执行 `npm run verify:full`；完整回归使用固定浏览器与字体的 Docker 测试容器；若本机缺少 Docker 等运行条件，必须明确记录未执行项。纯文档修改至少执行 `git diff --check`。构建中的第三方依赖警告可以记录，但不能忽略 TypeScript、Vite 或 PWA 构建失败。
+- 纯文档：`git diff --check`。
+- 小功能/修复：本地执行 lint、相关类型检查、相关单元测试；浏览器回归用 `node scripts/regression-plan.mjs --run-browser` 按未提交变动筛选。前端单元测试可用 `npx vitest related --run <变动文件...>`，没有匹配测试时补充行为验证，不能视为已经覆盖。
+- `node scripts/regression-plan.mjs` 先显示回归计划；`REGRESSION_BASE=<提交> node scripts/regression-plan.mjs --run-browser` 比较指定提交。CI 使用 push 前提交或 PR 基线，覆盖本次所有提交。局部页面变动包含对应功能、路由和视觉测试；术语标记有专门的较小回归集合。
+- 阅读器底层生命周期、分页与 CFI 几何、持久化/迁移、共享模块、依赖、构建配置、删除文件或无法识别的变动自动回退全量。新增功能目录须更新映射及其测试；不要为追求速度随意缩小匹配范围。
+- CI 保留全量 lint、类型、边界、单元测试和构建，浏览器按计划回归。服务端测试目前保留全量，不能声称已经按依赖筛选。全量浏览器只在一个位置执行；本地仅在排查失败或 CI 无法覆盖时额外执行 `npm run verify:full`，不因涉及 Foliate 或交互就机械重复。
+- 手动完整回归：`REGRESSION_FULL=true node scripts/regression-plan.mjs --run-browser`；CI 的“工程验证”支持手动运行并勾选 `full_regression`。定时全量回归用于发现映射遗漏。
+- 浏览器使用固定浏览器与字体的 Docker 容器；缺少运行条件必须记录未执行项。任何代码/配置改动仍须 `git diff --check`；不得忽略 TypeScript、Vite、PWA 构建失败。
 
 ## 目录职责
 
@@ -238,7 +239,7 @@ git diff --check
 
 ## Git 与提交
 
-- 提交前检查 `git status`、`git diff --check` 和 `npm run verify`；适用时再执行 `npm run verify:full`。
+- 提交前检查 `git status`、`git diff --check`，按上面的风险分级完成本地验证；CI 负责统一工程检查和选定的浏览器回归。生产镜像只在工程验证通过后构建一次，并按同一 digest 部署。
 - 不提交 `data/`、API Key、个人 EPUB、缓存、临时日志或编辑器配置。
 - commit message 应简洁描述用户可感知的结果。
 - 用户已明确要求后续直接发布生产：问题修复和新需求完成验证后，正常合并或快进发布到 `main`，通过既有生产工作流部署到 `https://learning-center.island-x.autos`。本条替代此前“只部署独立测试实例、不合并 main”的阶段性要求。
