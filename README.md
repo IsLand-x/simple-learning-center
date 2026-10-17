@@ -283,11 +283,11 @@ Linux 上如果挂载目录不可写，把 `.env` 中的 `LEARNING_CENTER_UID` �
 
 ### 可选的前端静态资源 CDN
 
-默认构建仍使用同源资源。生产构建可设置 `LEARNING_CENTER_ASSET_ORIGIN=https://static.island-x.autos`，仅将 Vite 生成的 `assets/` 资源切换到独立 HTTPS 源；必须是不带路径、查询或认证信息的 HTTPS 源地址。应用页面、`/api/`、公共图标、manifest 和 Service Worker 仍使用应用原域名。构建同时仅向 CSP 的脚本、样式和字体来源增加所配置的 CDN 源；Workbox 同步预缓存 CDN 资源，避免更新后引用的 URL 与离线缓存不一致。
+默认构建仍使用同源资源。生产构建可设置 `LEARNING_CENTER_ASSET_ORIGIN=https://static.island-x.autos`，仅将 Vite 生成的 `assets/` 资源切换到独立 HTTPS 源，并在 CDN 文件名中加入发布标识，避免复用旧发布缺少 CORS 头的浏览器缓存；必须是不带路径、查询或认证信息的 HTTPS 源地址。应用页面、`/api/`、公共图标、manifest 和 Service Worker 仍使用应用原域名。构建同时仅向 CSP 的脚本、样式和字体来源增加所配置的 CDN 源；Workbox 同步预缓存 CDN 资源，避免更新后引用的 URL 与离线缓存不一致。
 
 生产工作流通过同名 GitHub Repository Variable 将地址传入 Docker build arg；未设置时继续同源构建。关闭 CDN 时清空变量并重新发布即可，不能在旧 CDN 构建仍使用中时直接停用域名。
 
-腾讯 CDN 使用 `static.island-x.autos`、境外区域和网页小文件类型，以现有应用域名 HTTPS 回源，并设置回源 Host 与 SNI 为应用域名。所有回源请求必须覆盖请求头 `X-Learning-Center-Static-Only: 1`：服务端在认证与公共 API 路由之前限制为带哈希的 `/assets/` GET/HEAD 请求，其他请求返回不可缓存的 404。成功的版本资源提供公开 CORS 和一年 immutable 缓存；缺失资源返回不可缓存的 404，不回退为 HTML。CDN 默认不缓存，`/assets` 遵循源站缓存头，404/5xx 不缓存。
+腾讯 CDN 使用 `static.island-x.autos`、境外区域和网页小文件类型，以现有应用域名 HTTPS 回源，并设置回源 Host 与 SNI 为应用域名。所有回源请求必须覆盖请求头 `X-Learning-Center-Static-Only: 1`：服务端在认证与公共 API 路由之前限制为带哈希的 `/assets/` GET/HEAD 请求，其他请求返回不可缓存的 404。成功的版本资源提供公开 CORS 和一年 immutable 缓存；缺失资源返回不可缓存的 404，不回退为 HTML。CDN 默认不缓存，`/assets` 遵循源站缓存头，404/5xx 不缓存。CDN 边缘必须对 `/assets` 显式设置 `Access-Control-Allow-Origin: *`，保证已有缓存和各节点响应一致；首次接入或修复跨域配置时刷新该目录缓存。
 
 只分发公开构建文件，不向 CDN 上传书籍、封面、笔记、状态或密钥。启用前需要验证证书、CNAME、CORS、缓存命中、API 隔离、动态分包和 PWA。哈希文件发布后不要做全目录刷新；当前源站随容器替换构建文件，旧页面若遇到已不在源站的冷缓存分包会使用既有 preload 恢复逻辑刷新到新版。需要长期支持旧版离线页面时，应另行引入版本资源归档。
 

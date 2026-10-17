@@ -43,6 +43,7 @@ function readGitMetadata(args: string[]) {
 const appRevision = process.env.APP_BUILD_REVISION?.trim()
   || readGitMetadata(['rev-parse', 'HEAD'])
   || 'local';
+const assetRelease = appRevision.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 40);
 const appUpdatedAt = process.env.APP_UPDATED_AT?.trim()
   || readGitMetadata(['show', '-s', '--format=%cI', 'HEAD'])
   || new Date().toISOString();
@@ -814,6 +815,16 @@ function foliateSrcdocCompatibility(): Plugin {
 }
 
 export default defineConfig({
+  build: {
+    rolldownOptions: {
+      // A new release must not reuse browser/CDN responses created before CORS was enabled.
+      output: assetOrigin ? {
+        entryFileNames: `assets/[name]-${assetRelease}-[hash].js`,
+        chunkFileNames: `assets/[name]-${assetRelease}-[hash].js`,
+        assetFileNames: `assets/[name]-${assetRelease}-[hash][extname]`,
+      } : undefined,
+    },
+  },
   experimental: {
     renderBuiltUrl(filename, { type }) {
       if (assetOrigin && type === 'asset' && filename.startsWith('assets/')) {

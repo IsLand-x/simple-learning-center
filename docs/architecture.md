@@ -174,6 +174,6 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 
 ### 可选的静态资源分发
 
-`LEARNING_CENTER_ASSET_ORIGIN` 仅参与构建，通过 Vite 的资源 URL 渲染、构建期 CSP 精确放行和 Workbox URL 前缀映射将版本资源交给独立 CDN；应用路由、API、manifest 和 Service Worker 保持同源。Docker 与生产工作流传递同名构建参数，未设置时保持本地与既有部署行为。
+`LEARNING_CENTER_ASSET_ORIGIN` 仅参与构建，通过 Vite 的资源 URL 渲染、构建期 CSP 精确放行、发布标识文件名和 Workbox URL 前缀映射将版本资源交给独立 CDN；应用路由、API、manifest 和 Service Worker 保持同源。Docker 与生产工作流传递同名构建参数，未设置时保持本地与既有部署行为。
 
 `server/http/staticAsset.ts` 定义唯一的版本资源路径规则。`registerStaticOriginGuard` 在所有业务路由之前处理 CDN 覆盖的静态请求头，只允许版本资源 GET/HEAD，防止静态域名代理私有或公共业务 API。静态服务对公开版本资源提供 CORS 与 immutable 缓存，缺失资源不再回退为 HTML；这项行为由服务端测试覆盖。
