@@ -239,6 +239,9 @@ export async function prepareWorkspace(
 
   if (visualOnly) {
     // Pixel assertions isolate state loading from previous E2E writes. Business tests use real APIs.
+    await page.route(/\/api\/conversations(?:[/?].*)?$/, (route) =>
+      route.fulfill({ json: { sessions: [], nextCursor: null } }),
+    );
     await page.route(/\/api\/state(?:\/[^?]+)?(?:\?.*)?$/, async (route) => {
       const request = route.request();
       if (request.method() !== 'GET') return route.fulfill({ status: 204 });

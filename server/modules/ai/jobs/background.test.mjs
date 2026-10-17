@@ -64,6 +64,10 @@ test('关闭任务事件流不取消生成，完成与已读状态保存在服�
     });
     assert.equal(started.status, 202);
     const job = await started.json();
+    const summary = await (await app.request('/api/ai/jobs?bookId=book&view=summary')).json();
+    assert.equal(summary.jobs[0].id, job.id);
+    assert.equal(Object.hasOwn(summary.jobs[0], 'content'), false);
+    assert.equal(Object.hasOwn(summary.jobs[0], 'dialogueContent'), false);
     const events = await app.request(`/api/ai/jobs/${job.id}/events`);
     const reader = events.body.getReader();
     await reader.read();

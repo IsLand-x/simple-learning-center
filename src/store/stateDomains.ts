@@ -41,10 +41,9 @@ export const READER_STATE_DOMAINS = [
   'reading',
   'notes',
   'highlights',
-  'conversations',
 ] as const;
-export const RSS_STATE_DOMAINS = ['preferences', 'rss', 'conversations', 'videos'] as const;
-export const VIDEO_STATE_DOMAINS = ['preferences', 'videos', 'notes', 'conversations'] as const;
+export const RSS_STATE_DOMAINS = ['preferences', 'rss', 'videos'] as const;
+export const VIDEO_STATE_DOMAINS = ['preferences', 'videos', 'notes'] as const;
 export const SETTINGS_STATE_DOMAINS = ['preferences'] as const;
 
 export function stateDomainsForPath(pathname: string): readonly StateDomain[] {

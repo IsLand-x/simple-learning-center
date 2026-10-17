@@ -32,6 +32,22 @@ export interface ChatSession {
   updatedAt: number;
 }
 
+export interface ChatSessionSummary extends ChatSession {
+  messageCount: number;
+  unreadCount: number;
+}
+
+export interface ConversationPage {
+  sessions: ChatSessionSummary[];
+  nextCursor: string | null;
+}
+
+export interface ConversationMessagesPage {
+  session: ChatSession | null;
+  messages: ChatMessage[];
+  nextCursor: string | null;
+}
+
 export interface OpenAICompatibleConfig {
   oauthProvider?: 'openai-codex' | 'kimi-coding';
   id: string;

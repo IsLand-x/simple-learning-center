@@ -69,15 +69,21 @@ export function useContentConversationJobs({
   useEffect(() => {
     let disposed = false;
     void aiApi
-      .listJobs({ bookId: resourceId, conversationId: conversationId })
+      .listJobSummaries({ bookId: resourceId, conversationId })
       .then((jobs) => {
         if (disposed) return;
-        jobs
-          .filter((job) => job.status === 'completed')
-          .sort((left, right) => left.createdAt - right.createdAt)
-          .forEach(applyJob);
-        const runningJob = jobs.find((job) => job.status === 'queued' || job.status === 'running');
-        if (runningJob) applyJob(runningJob);
+        const latest =
+          jobs.find((job) => job.status === 'queued' || job.status === 'running') ?? jobs[0];
+        if (latest)
+          void aiApi
+            .getJob(latest.id)
+            .then((job) => {
+              if (!disposed) applyJob(job);
+            })
+            .catch((error: unknown) => {
+              if (!disposed)
+                setStatusMessage(error instanceof Error ? error.message : '读取任务失败');
+            });
       })
       .catch((error) => {
         if (!disposed)

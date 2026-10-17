@@ -62,6 +62,64 @@ async function mockJobs(page: Page, delayedStart = false, background = false) {
   const startGate = new Promise<void>((resolve) => {
     releaseStart = resolve;
   });
+  let persistedRevision = 0;
+  let saving = Promise.resolve();
+  let question = '后台问题';
+  const persistJob = (current: AiJob) => {
+    saving = saving.then(async () => {
+      if (current.revision <= persistedRevision) return;
+      const snapshot = await (await page.request.get('/api/state/conversations')).json();
+      const sessionExists = snapshot.state.chatSessions.some(
+        (session: { id: string }) => session.id === current.conversationId,
+      );
+      if (!sessionExists)
+        snapshot.state.chatSessions.push({
+          id: current.conversationId,
+          bookId: current.bookId,
+          title: question,
+          createdAt: current.createdAt,
+          updatedAt: current.updatedAt,
+        });
+      if (
+        !snapshot.state.chats.some(
+          (message: { id: string }) => message.id === current.userMessageId,
+        )
+      )
+        snapshot.state.chats.push({
+          id: current.userMessageId,
+          bookId: current.bookId,
+          conversationId: current.conversationId,
+          role: 'user',
+          content: question,
+          createdAt: current.createdAt,
+        });
+      if (current.status === 'completed') {
+        const existing = snapshot.state.chats.find(
+          (message: { id: string }) => message.id === current.assistantMessageId,
+        );
+        snapshot.state.chats = [
+          ...snapshot.state.chats.filter(
+            (message: { id: string }) => message.id !== current.assistantMessageId,
+          ),
+          {
+            ...existing,
+            id: current.assistantMessageId,
+            bookId: current.bookId,
+            conversationId: current.conversationId,
+            role: 'assistant',
+            content: current.content,
+            dialogueContent: current.dialogueContent,
+            createdAt: current.createdAt,
+          },
+        ];
+      }
+      expect(
+        (await page.request.put('/api/state/conversations', { data: snapshot })).status(),
+      ).toBe(204);
+      persistedRevision = current.revision;
+    });
+    return saving;
+  };
   await page.route('**/api/ai/jobs**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -69,6 +127,7 @@ async function mockJobs(page: Page, delayedStart = false, background = false) {
     if (request.method() === 'POST') {
       submitted = true;
       const input = request.postDataJSON();
+      question = input.userMessage.content;
       if (delayedStart) await startGate;
       job = {
         id: 'activity-job',
@@ -83,9 +142,11 @@ async function mockJobs(page: Page, delayedStart = false, background = false) {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
+      await persistJob(job);
       return route.fulfill({ status: 202, json: job });
     }
     if (url.pathname.endsWith('/events')) return route.abort();
+    if (job) await persistJob(job);
     servedRevision = job?.revision ?? 0;
     return route.fulfill({
       json:
@@ -299,6 +360,8 @@ test('浏览 Codex 模型时后台回复更新不会跳回 Kimi', async ({ page 
   await page.goto(`/books/${book.id}`);
   await entry(page, mobile).click();
   await expect(page.locator('.reader-ai-input')).toBeVisible();
+  // The task has a real persisted session; explicitly compose a separate conversation.
+  await page.getByRole('button', { name: '新建 AI 对话', exact: true }).click();
   await page.locator('.ai-composer-model-cascader').click();
   await page.getByText('ChatGPT Codex', { exact: true }).hover();
   const lastModel = page.getByText('codex-test-29', { exact: true });
@@ -315,6 +378,8 @@ test('浏览 Codex 模型时后台回复更新不会跳回 Kimi', async ({ page 
 test('AI 新建笔记后旧阅读快照不会删除文件，笔记面板及刷新均能显示正文', async ({
   page,
 }, testInfo) => {
+  // Includes a full reload and two editor mounts in the fixed browser container.
+  test.setTimeout(60_000);
   const mobile = testInfo.project.name === 'mobile-chrome';
   await seed(page);
   const jobs = await mockJobs(page);

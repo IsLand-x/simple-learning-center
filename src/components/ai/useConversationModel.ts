@@ -1,6 +1,7 @@
 import { useLearningStore } from '../../store/useLearningStore';
 import { coerceAiReasoningEffort } from '../../util/ai/aiReasoning';
 import type { AiProvider, ChatSession } from '../../../contracts/ai';
+import { Toast } from '@douyinfe/semi-ui';
 
 export function useConversationModel(currentSession: ChatSession | undefined) {
   const configs = useLearningStore((state) => state.openAIConfigs);
@@ -31,18 +32,23 @@ export function useConversationModel(currentSession: ChatSession | undefined) {
       reasoningEffort: nextReasoningEffort,
     });
     if (currentSession) {
-      updateChatSession(currentSession.id, {
+      void updateChatSession(currentSession.id, {
         provider: nextProvider,
         model: nextModel,
         reasoningEffort: nextReasoningEffort,
-      });
+      }).catch((error: unknown) =>
+        Toast.error(error instanceof Error ? error.message : '保存对话模型失败'),
+      );
     }
   };
   const chooseReasoningEffort = (nextValue: typeof reasoningEffort) => {
     const nextReasoningEffort = coerceAiReasoningEffort(nextValue, selectedConfig, model);
     setAiPreferences({ reasoningEffort: nextReasoningEffort });
     if (currentSession) {
-      updateChatSession(currentSession.id, { reasoningEffort: nextReasoningEffort });
+      void updateChatSession(currentSession.id, { reasoningEffort: nextReasoningEffort }).catch(
+        (error: unknown) =>
+          Toast.error(error instanceof Error ? error.message : '保存对话模型失败'),
+      );
     }
   };
   return {

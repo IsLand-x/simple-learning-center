@@ -114,6 +114,9 @@ export function createRssActions(set: LearningStoreSet): RssActions {
           }),
           chats: state.chats.filter((message) => !removedItemIds.has(message.bookId)),
           chatSessions: state.chatSessions.filter((session) => !removedItemIds.has(session.bookId)),
+          conversationSummaries: state.conversationSummaries.filter(
+            (session) => !removedItemIds.has(session.bookId),
+          ),
         };
       }),
     mergeRssItems: (feedId, items) =>

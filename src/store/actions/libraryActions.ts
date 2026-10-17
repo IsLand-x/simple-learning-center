@@ -142,6 +142,9 @@ export function createLibraryActions(set: LearningStoreSet): LibraryActions {
         notes: state.notes.filter((note) => note.bookId !== bookId),
         chats: state.chats.filter((message) => message.bookId !== bookId),
         chatSessions: state.chatSessions.filter((session) => session.bookId !== bookId),
+        conversationSummaries: state.conversationSummaries.filter(
+          (session) => session.bookId !== bookId,
+        ),
         readingSessions: state.readingSessions.filter((session) => session.bookId !== bookId),
       })),
     createBookList: (bookList) =>

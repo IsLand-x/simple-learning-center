@@ -1,14 +1,23 @@
-import type { AiJob } from '../../../../../api/ai/type';
+import type { AiJobSummary } from '../../../../../api/ai/type';
 
-import type { ChatMessage } from '../../../../../../contracts/ai';
+import type { ChatMessage, ChatSessionSummary } from '../../../../../../contracts/ai';
 
 export type ReaderAiActivity = 'idle' | 'running' | 'unread';
 
-export function resolveReaderAiActivity(bookId: string, jobs: AiJob[], chats: ChatMessage[]) {
+export function resolveReaderAiActivity(
+  bookId: string,
+  jobs: AiJobSummary[],
+  chats: ChatMessage[],
+  summaries: ChatSessionSummary[] = [],
+) {
   const running = jobs.find(
     (job) => job.bookId === bookId && (job.status === 'queued' || job.status === 'running'),
   );
   if (running) return { status: 'running' as const, conversationId: running.conversationId };
+  const unreadSession = summaries.find(
+    (session) => session.bookId === bookId && session.unreadCount > 0,
+  );
+  if (unreadSession) return { status: 'unread' as const, conversationId: unreadSession.id };
   const unread = chats.find(
     (message) => message.bookId === bookId && message.role === 'assistant' && !message.readAt,
   );

@@ -7,6 +7,7 @@ import { createRouter } from './http/router.js';
 import { createAiOAuthRoutes } from './modules/ai/oauthRoutes.js';
 import { createAiModelRoutes } from './modules/ai/modelRoutes.js';
 import { createAiRoutes } from './modules/ai/routes.js';
+import { createConversationRoutes } from './modules/ai/conversationRoutes.js';
 import { createAuthRoutes } from './modules/auth/routes.js';
 import { registerAuthenticationMiddleware } from './modules/auth/middleware.js';
 import { createBookRoutes } from './modules/books/routes.js';
@@ -42,6 +43,7 @@ export function createApp({ serveFrontend = true, ...options }: AppOptions = {})
   app.route('/api/health', createHealthRoutes(dependencies));
   app.route('/api/settings/system-info', createSystemInfoRoutes());
   app.route('/api/state', createStateRoutes(dependencies));
+  app.route('/api/conversations', createConversationRoutes());
   app.route('/api/ai/oauth', createAiOAuthRoutes(dependencies));
   app.route('/api/ai/models', createAiModelRoutes());
   app.route('/api/rss', createRssFeedRoutes(dependencies));

@@ -48,6 +48,14 @@ export class StateApi {
     });
   }
 
+  async migrateConversations(snapshot: StateDomainSnapshot<'conversations'>): Promise<void> {
+    await this.transport.request('/api/state/conversations?migrate=1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(snapshot),
+    });
+  }
+
   async writeDomain<Domain extends StateDomain>(
     domain: Domain,
     snapshot: StateDomainSnapshot<Domain>,

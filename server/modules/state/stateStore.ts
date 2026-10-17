@@ -97,6 +97,17 @@ export async function readPersistedState(options?: {
   return readPersistedStateFromDisk(options);
 }
 
+// Select small read models before cloning. Callbacks only inspect the cached
+// snapshot; the returned value is detached before it reaches a consumer.
+export async function readStateProjection<T>(
+  project: (state: StoredState, version: number) => T,
+): Promise<T> {
+  await stateWriteQueue.catch(() => undefined);
+  const disk = await readStateFile();
+  const envelope = disk?.formatVersion === 1 ? (disk.persistedState as PersistedState) : disk;
+  return structuredClone(project(envelope?.state ?? {}, envelope?.version ?? 0));
+}
+
 export async function stateFileEtag() {
   try {
     const metadata = await stat(STATE_FILE, { bigint: true });

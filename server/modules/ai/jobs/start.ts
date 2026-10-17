@@ -232,6 +232,8 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
         : undefined;
 
     await mutatePersistedState((nextPersistedState) => {
+      if (nextPersistedState.deletedConversationIds?.includes(conversationId))
+        throw statusError(404, '对话已删除，请开启新对话');
       const next = nextPersistedState.state;
       const sessions = Array.isArray(next.chatSessions) ? next.chatSessions : [];
       const existingSession = sessions.find((item) => item.id === conversationId);

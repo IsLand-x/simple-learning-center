@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { serverStateStorage, subscribeServerNoteSaves } from './serverStateStorage';
+import {
+  serverStateStorage,
+  subscribeServerNoteSaves,
+  migrateServerConversations,
+} from './serverStateStorage';
 import { LEARNING_STORE_VERSION } from './stateDomains';
 import { createConversationActions } from './actions/conversationActions';
 import { createLibraryActions } from './actions/libraryActions';
@@ -15,11 +19,11 @@ import { migrateLearningState } from './persistence/migrateLearningState';
 
 export const useLearningStore = create<LearningState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initialLearningState,
       ...createLibraryActions(set),
       ...createReadingActions(set),
-      ...createConversationActions(set),
+      ...createConversationActions(set, get),
       ...createRssActions(set),
       ...createVideoActions(set),
       ...createPreferenceActions(set),
@@ -29,7 +33,18 @@ export const useLearningStore = create<LearningState>()(
       version: LEARNING_STORE_VERSION,
       storage: createJSONStorage(() => serverStateStorage),
       skipHydration: true,
-      migrate: migrateLearningState,
+      partialize: ({
+        chats: _chats,
+        chatSessions: _sessions,
+        conversationSummaries: _summaries,
+        ...state
+      }) => state,
+      migrate: async (state, version) => {
+        const migrated = migrateLearningState(state, version);
+        await migrateServerConversations(migrated, version);
+        const { chats: _chats, chatSessions: _sessions, ...rest } = migrated;
+        return rest;
+      },
       merge: mergeLearningState,
     },
   ),

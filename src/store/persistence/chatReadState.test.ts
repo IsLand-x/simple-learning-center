@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { useLearningStore } from '../useLearningStore';
 import { createConversationActions } from '../actions/conversationActions';
 import { migrateLearningState } from './migrateLearningState';
 import { mergeLearningState } from './mergeLearningState';
 import type { ChatMessage } from '../../../contracts/ai';
+
+vi.mock('../../api/conversations', () => ({
+  conversationsApi: { markRead: vi.fn(async () => undefined) },
+}));
 
 const reply: ChatMessage = {
   id: 'reply',
@@ -28,7 +32,7 @@ describe('chat read receipts', () => {
     ]);
     expect(migrateLearningState({ chats: [reply] }, 33).chats).toEqual([reply]);
   });
-  it('marks only selected assistant replies and preserves receipt times', () => {
+  it('marks only selected assistant replies and preserves receipt times', async () => {
     let state = {
       ...useLearningStore.getInitialState(),
       chats: [
@@ -38,10 +42,13 @@ describe('chat read receipts', () => {
         { ...reply, id: 'other' },
       ],
     };
-    const actions = createConversationActions((change) => {
-      state = { ...state, ...(typeof change === 'function' ? change(state) : change) };
-    });
-    actions.markChatMessagesRead(['reply', 'read', 'user']);
+    const actions = createConversationActions(
+      (change) => {
+        state = { ...state, ...(typeof change === 'function' ? change(state) : change) };
+      },
+      () => state,
+    );
+    await actions.markChatMessagesRead(['reply', 'read', 'user']);
     expect(state.chats[0].readAt).toBeGreaterThan(1);
     expect(state.chats[1].readAt).toBe(12);
     expect(state.chats[2].readAt).toBeUndefined();

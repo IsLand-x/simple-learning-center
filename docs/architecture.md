@@ -54,7 +54,9 @@ contracts/
 
 刷新启动在鉴权后并行读取当前路由所需分区。服务端按 state.json 的设备、inode、大小和纳秒级 mtime/ctime 复用当前文件版本的解析结果，并发读取共享同一 Promise；每次读取仍检查文件版本，外部替换、删除和失败重试不会沿用旧快照。随后先选取分区字段，再克隆和恢复相关封面/笔记，调用者修改结果不影响缓存。状态 JSON 根据 Accept-Encoding 使用 gzip，压缩后的弱 ETag 与未压缩响应均支持条件重验证；数据继续保持 no-store。封面使用私有浏览器缓存和 ETag，书籍资源、笔记及目录查询只恢复所需状态字段；完整读取与所有写入继续使用原单实例提交队列，客户端写入的保护规则复用队列内已读取的当前快照。客户端缓存已合并的对象，并按需生成持久化 JSON，避免每收到一个分区都重解析与序列化全量状态。启动连接、分区读取与 rehydrate 的耗时记录到浏览器 Performance，仅含阶段名与时间。
 
-根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 37，library / reading / notes / highlights / conversations / rss / videos / preferences 八个分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护；当前客户端另外传输非持久化的 notesBase 编辑基准，服务端在单实例写队列内进行正文合并并返回规范快照，持久化核心订阅保存结果以更新当前编辑区。独立文本修改自动合并，重叠修改保留完整草稿。AI 新增笔记使用同一写队列原子追加，替换仍要求读取版本。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。存档同样使用 library 分区内的书籍可选元数据：`archivedAt` 表示当前存档，`archiveUpdatedAt` 独立记录存档与取消存档的修改版本；旧书籍缺省保持普通书架状态。服务端按该版本单独合并存档决定，旧客户端或较晚保存的阅读进度不会撤销存档；书籍和学习记录仍保存在原有位置。书架底部默认折叠存档区，搜索与筛选时展开匹配结果。
+对话读取从页面启动分区中移出：`/api/conversations?bookId=…` 按资源分页返回会话摘要（消息数与未读数由服务端计算），`/:id/messages?bookId=…&before=…` 使用消息 ID 游标按时间及 ID 稳定排序，每页默认 50 条。选择与计数发生在状态克隆前，摘要缓存与当前解析的状态对象绑定；客户端只保存已打开的消息页，使用有界 ETag 响应缓存，并仅刷新当前挂载的资源与会话。摘要延迟或失败不阻塞阅读，历史列表与消息区域各自展示加载、错误及重试。聊天缓存与摘要不进入常规 Zustand persist 快照；首次旧版迁移仍完整读取，对话格式发生变化时显式合并保存规范化结果，并保留读取后其他设备新增的会话与消息；随后清除迁移快照中的对话字段。模型修改、已读和删除使用独立接口，消息与首次会话由既有 AI 任务 API 原子保存，全部写入继续共享状态写队列。服务端 envelope 的 `deletedConversationIds` 是仅服务端维护的删除记录，旧客户端快照不能复活这些会话，新任务也不能复用已删除的 ID。原 `/api/state/conversations` 保留兼容，在同一文件版本内复用 JSON 与 ETag，避免 304 前重复克隆和序列化。磁盘实体仍保留于原 `state.json`，本轮不改变备份方式或引入数据库。阅读页的周期任务列表使用 `view=summary`，只有打开的会话读取任务正文及 SSE，隐藏面板时仍同步任务状态与 AI 笔记。
+
+根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 38，library / reading / notes / highlights / conversations / rss / videos / preferences 八个分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护；当前客户端另外传输非持久化的 notesBase 编辑基准，服务端在单实例写队列内进行正文合并并返回规范快照，持久化核心订阅保存结果以更新当前编辑区。独立文本修改自动合并，重叠修改保留完整草稿。AI 新增笔记使用同一写队列原子追加，替换仍要求读取版本。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。存档同样使用 library 分区内的书籍可选元数据：`archivedAt` 表示当前存档，`archiveUpdatedAt` 独立记录存档与取消存档的修改版本；旧书籍缺省保持普通书架状态。服务端按该版本单独合并存档决定，旧客户端或较晚保存的阅读进度不会撤销存档；书籍和学习记录仍保存在原有位置。书架底部默认折叠存档区，搜索与筛选时展开匹配结果。
 
 ## API 与类型
 
@@ -175,7 +177,6 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 
 豆瓣公开信息由 books 域 `douban.ts` 负责：固定 HTTPS 主机、禁止重定向、四秒请求超时、响应大小上限和 schema 校验；同时核对候选及详情页的书名和作者，提取纯文本简介与安全原文链接。缓存仅存在服务进程内，最多 200 项，同一查询合并并发请求。公开 `/api/public/book-shares/:token/douban` 每次先校验分享令牌，前端独立可取消请求，不阻塞分享元数据或 EPUB 下载。
 
-
 阅读术语表属于 `books/detail/components/GlossaryPanel`，在桌面辅助栏与移动抽屉复用同一面板。术语复用 `HighlightItem.kind = term` 及可选 `definition`，只归属既有 `highlights` 分区；默认空高亮、删除记录、客户端/服务端时间戳合并与书籍清理规则继续覆盖术语。store version 38 不重写旧标记。术语与普通标注均按保存时的原始 CFI 恢复，只标记最初选区，不扫描章节文本或生成其他同词位置的 CFI；不修改 EPUB DOM，不缓存屏幕坐标，波浪线由 Overlayer 按当前排版绘制。释义使用既有 PiAgent 任务流程，`purpose = glossary` 与 `termId` 经过服务端书籍归属校验，结果在单实例写队列内仅更新仍存在且未被手改的术语。面板集中查询任务，仅活跃任务继续轮询，重开时恢复结果。
 
 ### 可选的静态资源分发
@@ -183,7 +184,6 @@ PiAgent 的 `generate_book_knowledge_map` 是读书领域工具，每次用户�
 `LEARNING_CENTER_ASSET_ORIGIN` 仅参与构建，通过 Vite 的资源 URL 渲染、构建期 CSP 精确放行、发布标识文件名和 Workbox URL 前缀映射将版本资源交给独立 CDN；应用路由、API、manifest 和 Service Worker 保持同源。Docker 与生产工作流传递同名构建参数，未设置时保持本地与既有部署行为。
 
 `server/http/staticAsset.ts` 定义唯一的版本资源路径规则。`registerStaticOriginGuard` 在所有业务路由之前处理 CDN 覆盖的静态请求头，只允许版本资源 GET/HEAD，防止静态域名代理私有或公共业务 API。静态服务对公开版本资源提供 CORS 与 immutable 缓存，缺失资源不再回退为 HTML；这项行为由服务端测试覆盖。
-
 
 ## AI 图片的 COS 副本
 

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useReaderNoteSync } from './useReaderNoteSync';
 import { aiApi } from '../../../../../api/ai/index';
-import type { AiJob } from '../../../../../api/ai/type';
+import type { AiJobSummary } from '../../../../../api/ai/type';
 
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import { resolveReaderAiActivity } from './activity';
 import { ReaderAiActivityContext } from './useReaderAiActivity';
+import { useConversationSummaries } from '../../../../../components/ai/useConversationSummaries';
 
 export function ReaderAiActivityProvider({
   bookId,
@@ -14,10 +15,13 @@ export function ReaderAiActivityProvider({
   bookId: string;
   children: ReactNode;
 }) {
+  useConversationSummaries(bookId);
   const synchronizeJobNotes = useReaderNoteSync(bookId);
   const chats = useLearningStore((state) => state.chats);
+  const summaries = useLearningStore((state) => state.conversationSummaries);
+  const loadSummaries = useLearningStore((state) => state.loadConversationSummaries);
   const sessions = useLearningStore((state) => state.chatSessions);
-  const [jobs, setJobs] = useState<AiJob[]>([]);
+  const [jobs, setJobs] = useState<AiJobSummary[]>([]);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
   const [startingConversations, setStartingConversations] = useState<string[]>([]);
@@ -29,7 +33,7 @@ export function ReaderAiActivityProvider({
     );
   }, []);
   const reportJob = useCallback(
-    (job: AiJob) => {
+    (job: AiJobSummary) => {
       if (job.bookId !== bookId) return;
       synchronizeJobNotes(job);
       setJobs((previous) => {
@@ -37,24 +41,12 @@ export function ReaderAiActivityProvider({
         if (existing && existing.revision >= job.revision) return previous;
         return [...previous.filter((item) => item.id !== job.id), job];
       });
-      const store = useLearningStore.getState();
-      if (
-        job.status === 'completed' &&
-        store.chatSessions.some((session) => session.id === job.conversationId) &&
-        !store.chats.some((message) => message.id === job.assistantMessageId)
-      ) {
-        store.addChatMessage({
-          id: job.assistantMessageId,
-          bookId: job.bookId,
-          conversationId: job.conversationId,
-          role: 'assistant',
-          content: job.content,
-          dialogueContent: job.dialogueContent,
-          createdAt: job.createdAt,
-        });
+      const previous = jobsRef.current.find((item) => item.id === job.id);
+      if (!previous || (job.status === 'completed' && previous.revision !== job.revision)) {
+        void loadSummaries(bookId).catch(() => undefined);
       }
     },
-    [bookId, synchronizeJobNotes],
+    [bookId, loadSummaries, synchronizeJobNotes],
   );
 
   useEffect(() => {
@@ -63,7 +55,7 @@ export function ReaderAiActivityProvider({
     const poll = async () => {
       const previousJobs = jobsRef.current;
       try {
-        const next = await aiApi.listJobs({ bookId: bookId });
+        const next = await aiApi.listJobSummaries({ bookId });
         if (!disposed) {
           next.forEach(reportJob);
           const ids = new Set(next.map((job) => job.id));
@@ -93,13 +85,14 @@ export function ReaderAiActivityProvider({
         bookId,
         jobs.filter((job) => sessions.some((session) => session.id === job.conversationId)),
         chats,
+        summaries,
       ),
       ...(startingConversations[0]
         ? { status: 'running' as const, conversationId: startingConversations[0] }
         : {}),
       reportJob,
     }),
-    [bookId, chats, jobs, reportJob, sessions, setStarting, startingConversations],
+    [bookId, chats, jobs, reportJob, sessions, setStarting, startingConversations, summaries],
   );
   return (
     <ReaderAiActivityContext.Provider value={value}>{children}</ReaderAiActivityContext.Provider>

@@ -1,6 +1,6 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { aiApi } from '../../../../../api/ai/index';
-import type { AiJob } from '../../../../../api/ai/type';
+import type { AiJob, AiJobSummary } from '../../../../../api/ai/type';
 
 import type { MutableRefObject } from 'react';
 import { useLearningStore } from '../../../../../store/useLearningStore';
@@ -22,12 +22,15 @@ export function useReaderConversationJobs({
   book: BookItem;
   conversationId: string;
   reportJob: (job: AiJob) => void;
-  trackedJobs: AiJob[];
+  trackedJobs: AiJobSummary[];
   lastAppliedJobRef: MutableRefObject<AiJob | undefined>;
 }) {
+  const currentConversation = useRef(conversationId);
+  currentConversation.current = conversationId;
   const applyJob = useCallback(
     (job: AiJob) => {
       reportJob(job);
+      if (job.conversationId !== currentConversation.current) return;
       const previous = lastAppliedJobRef.current;
       if (
         previous &&
@@ -97,20 +100,43 @@ export function useReaderConversationJobs({
     .filter((job) => job.conversationId === conversationId)
     .sort((left, right) => right.createdAt - left.createdAt)[0];
   useEffect(() => {
-    if (latestTrackedJob) applyJob(latestTrackedJob);
-  }, [applyJob, latestTrackedJob]);
+    if (
+      !latestTrackedJob ||
+      (lastAppliedJobRef.current?.id === latestTrackedJob.id &&
+        lastAppliedJobRef.current.revision >= latestTrackedJob.revision)
+    )
+      return;
+    let disposed = false;
+    void aiApi
+      .getJob(latestTrackedJob.id)
+      .then((job) => {
+        if (!disposed) applyJob(job);
+      })
+      .catch((error: unknown) => {
+        if (!disposed) setStatusMessage(error instanceof Error ? error.message : '读取任务失败');
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [applyJob, latestTrackedJob, lastAppliedJobRef, setStatusMessage]);
   useEffect(() => {
     let disposed = false;
     void aiApi
-      .listJobs({ bookId: book.id, conversationId: conversationId })
+      .listJobSummaries({ bookId: book.id, conversationId })
       .then((jobs) => {
         if (disposed) return;
-        jobs
-          .filter((job) => job.status === 'completed')
-          .sort((left, right) => left.createdAt - right.createdAt)
-          .forEach(applyJob);
-        const runningJob = jobs.find((job) => job.status === 'queued' || job.status === 'running');
-        if (runningJob) applyJob(runningJob);
+        const latest =
+          jobs.find((job) => job.status === 'queued' || job.status === 'running') ?? jobs[0];
+        if (latest)
+          void aiApi
+            .getJob(latest.id)
+            .then((job) => {
+              if (!disposed) applyJob(job);
+            })
+            .catch((error: unknown) => {
+              if (!disposed)
+                setStatusMessage(error instanceof Error ? error.message : '读取任务失败');
+            });
       })
       .catch((error) => {
         if (!disposed)

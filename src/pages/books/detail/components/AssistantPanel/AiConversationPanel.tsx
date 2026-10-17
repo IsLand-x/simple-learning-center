@@ -8,6 +8,7 @@ import type { ChatMessage } from '../../../../../../contracts/ai';
 import { BookResourceImage } from '../ResourcesPanel/BookResourceImage';
 import { extractInputText, providerLabel } from './model';
 import { useReaderConversation } from './useReaderConversation';
+import { ConversationMessageControls } from '../../../../../components/ai/ConversationMessageControls';
 
 const { Text } = Typography;
 
@@ -25,6 +26,7 @@ export function AiConversationPanel({
   onClearSelectedText: () => void;
 }) {
   const {
+    messageLoading,
     chatAreaRef,
     userTurns,
     jumpToUserTurn,
@@ -55,6 +57,7 @@ export function AiConversationPanel({
   });
   return (
     <div className="right-panel__body min-h-0 ai-panel [gap:6px]">
+      <ConversationMessageControls {...messageLoading} />
       <div
         ref={chatAreaRef}
         className={`semi-chat-area${userTurns.length ? ' semi-chat-area--with-turn-nav' : ''}`}
