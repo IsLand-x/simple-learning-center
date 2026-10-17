@@ -1,4 +1,6 @@
 import type {
+  DiscoverModelsRequest,
+  DiscoverModelsResponse,
   AiJob,
   AiJobEventStream,
   AiJobListener,
@@ -10,6 +12,18 @@ import { apiTransport } from '../http/transport';
 
 export class AiApi {
   constructor(private readonly transport = apiTransport) {}
+
+  discoverModels(
+    input: DiscoverModelsRequest,
+    signal?: AbortSignal,
+  ): Promise<DiscoverModelsResponse> {
+    return this.transport.json('/api/ai/models/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal,
+    });
+  }
 
   startJob(input: StartAiJobInput): Promise<AiJob> {
     return this.transport.json('/api/ai/jobs', {
