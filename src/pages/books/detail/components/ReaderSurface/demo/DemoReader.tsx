@@ -61,9 +61,10 @@ export function DemoReader(
         </Text>
         <h1>{content.heading}</h1>
         {content.paragraphs.map((paragraph, index) => (
-          <p key={`${chapter?.id}-${index}`}>
+          <p key={`${chapter?.id}-${index}`} data-reader-paragraph-index={index}>
             <DemoHighlightedText
               text={paragraph}
+              paragraphIndex={index}
               highlights={chapterHighlights}
               onHighlightClick={onHighlightClick}
             />

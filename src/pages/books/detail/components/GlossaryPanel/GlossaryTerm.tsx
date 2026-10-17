@@ -68,7 +68,7 @@ export function GlossaryTerm({
           </Tooltip>
         </span>
         <span className="inline-flex items-center justify-center mobile:min-w-[44px] mobile:min-h-[44px]">
-          <Tooltip content="移出术语表并取消全书标记">
+          <Tooltip content="移出术语表并取消出处标记">
             <Button
               size="small"
               theme="borderless"

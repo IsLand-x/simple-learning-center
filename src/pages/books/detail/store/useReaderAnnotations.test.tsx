@@ -89,7 +89,7 @@ describe('reader annotation state ownership', () => {
     container.remove();
   });
 
-  it('deduplicates terms in the current book, preserves their source CFI and cancels all occurrences via the shared id', () => {
+  it('deduplicates terms in the current book, preserves their source CFI and retains cancellation from the original marker', () => {
     act(() => annotations.setSelection(selection));
     act(() => annotations.saveTerm());
     expect(state.highlights[0]).toMatchObject({
@@ -105,6 +105,20 @@ describe('reader annotation state ownership', () => {
     act(() => root.render(<Reader />));
     act(() => annotations.showHighlightActions({ highlightId: id, rect: selection.rect }));
     act(() => annotations.cancelHighlight());
+    expect(state.deleteHighlight).toHaveBeenCalledWith(id);
+  });
+
+  it('only offers selection cancellation at the original term CFI, not another matching word', () => {
+    act(() => annotations.setSelection(selection));
+    act(() => annotations.saveTerm());
+    act(() => root.render(<Reader />));
+    const id = state.highlights[0].id;
+    act(() => annotations.setSelection({ ...selection, cfi: 'another-occurrence' }));
+    expect(annotations.cancelSelectedTerm).toBeUndefined();
+    expect(state.deleteHighlight).not.toHaveBeenCalled();
+    act(() => annotations.setSelection(selection));
+    expect(annotations.cancelSelectedTerm).toBeTypeOf('function');
+    act(() => annotations.cancelSelectedTerm?.());
     expect(state.deleteHighlight).toHaveBeenCalledWith(id);
   });
 

@@ -56,10 +56,7 @@ export function useDemoReader({
   const content = getDemoContent(chapter?.href ?? 'chapter-5');
   const chapterHighlights = useMemo(
     () =>
-      highlights.filter(
-        (highlight) =>
-          highlight.kind === 'term' || highlight.cfi.startsWith(`demo:${chapter?.href ?? ''}:`),
-      ),
+      highlights.filter((highlight) => highlight.cfi.startsWith(`demo:${chapter?.href ?? ''}:`)),
     [chapter?.href, highlights],
   );
   const readerStyle = resolveReaderStyle(preferences);
@@ -86,9 +83,22 @@ export function useDemoReader({
       }
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
+      const startElement =
+        range.startContainer.nodeType === Node.ELEMENT_NODE
+          ? (range.startContainer as Element)
+          : range.startContainer.parentElement;
+      const paragraph = startElement?.closest<HTMLElement>('[data-reader-paragraph-index]');
+      let position = String(Date.now());
+      if (paragraph && paragraph.contains(range.endContainer)) {
+        const prefix = range.cloneRange();
+        prefix.selectNodeContents(paragraph);
+        prefix.setEnd(range.startContainer, range.startOffset);
+        const leadingSpace = range.toString().match(/^\s*/)?.[0].length ?? 0;
+        position = `${paragraph.dataset.readerParagraphIndex}:${prefix.toString().length + leadingSpace}`;
+      }
       onSelection({
         text: text.slice(0, 600),
-        cfi: `demo:${chapter?.href ?? 'chapter-1'}:selection:${Date.now()}`,
+        cfi: `demo:${chapter?.href ?? 'chapter-1'}:selection:${position}`,
         rect: {
           left: rect.left || fallbackX,
           top: rect.top || fallbackY,

@@ -286,14 +286,10 @@ export function useReaderAnnotations({
     saveHighlight,
     saveTerm,
     cancelSelectedTerm:
-      selection &&
-      highlights.some(
-        (item) => item.kind === 'term' && item.text === selection.text.trim().replace(/\s+/g, ' '),
-      )
+      selection && highlights.some((item) => item.kind === 'term' && item.cfi === selection.cfi)
         ? () => {
             const term = highlights.find(
-              (item) =>
-                item.kind === 'term' && item.text === selection.text.trim().replace(/\s+/g, ' '),
+              (item) => item.kind === 'term' && item.cfi === selection.cfi,
             );
             if (term) deleteHighlight(term.id);
             readerRef.current?.clearSelection();

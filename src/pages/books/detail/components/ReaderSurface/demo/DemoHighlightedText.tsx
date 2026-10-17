@@ -4,24 +4,27 @@ import { DemoHighlightMark } from './DemoHighlightMark';
 
 export function DemoHighlightedText({
   text,
+  paragraphIndex,
   highlights,
   onHighlightClick,
 }: {
   text: string;
+  paragraphIndex: number;
   highlights: HighlightItem[];
   onHighlightClick: (target: ReaderHighlightTarget) => void;
 }) {
   const candidates = highlights
-    .flatMap((highlight) => {
-      if (highlight.kind !== 'term') return [{ highlight, start: text.indexOf(highlight.text) }];
-      const matches: Array<{ highlight: HighlightItem; start: number }> = [];
-      if (!highlight.text) return matches;
-      let start = text.indexOf(highlight.text);
-      while (start >= 0) {
-        matches.push({ highlight, start });
-        start = text.indexOf(highlight.text, start + highlight.text.length);
-      }
-      return matches;
+    .map((highlight) => {
+      if (highlight.kind !== 'term') return { highlight, start: text.indexOf(highlight.text) };
+      const position = /:selection:(\d+):(\d+)$/.exec(highlight.cfi);
+      const start = position && Number(position[1]) === paragraphIndex ? Number(position[2]) : -1;
+      return {
+        highlight,
+        start:
+          start >= 0 && text.slice(start, start + highlight.text.length) === highlight.text
+            ? start
+            : -1,
+      };
     })
     .filter((match) => match.start >= 0)
     .sort((left, right) => left.start - right.start);

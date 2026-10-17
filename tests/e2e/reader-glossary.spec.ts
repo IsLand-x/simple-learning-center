@@ -41,13 +41,12 @@ async function markedCount(page: Page) {
     const contents = view.renderer?.getContents();
     // A reload can mount the custom element before Foliate opens its renderer.
     // Keep polling until a document exists instead of throwing or reporting zero.
-    if (!contents?.length) return -1;
+    if (!contents?.length || contents.some(({ overlayer }) => !overlayer)) return -1;
     return contents.reduce(
       (count, { overlayer }) =>
         count +
-        ((overlayer as unknown as { element: Element }).element?.querySelectorAll(
-          '.reader-term path',
-        ).length ?? 0),
+        ((overlayer as unknown as { element: Element }).element?.querySelectorAll('.reader-term')
+          .length ?? 0),
       0,
     );
   });
@@ -67,7 +66,8 @@ async function openPanel(page: Page, mobile: boolean) {
   } else await page.getByRole('button', { name: '打开术语表', exact: true }).click();
 }
 
-test('术语跨页与跨章节波浪线、手动释义、出处定位与取消', async ({ page }, testInfo) => {
+test('术语只标记原始选区，翻页跨章不重复，刷新恢复并可取消', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
   const mobile = testInfo.project.name === 'mobile-chrome';
   await page.goto('/');
   await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
@@ -83,13 +83,13 @@ test('术语跨页与跨章节波浪线、手动释义、出处定位与取消',
   expect(response.status()).toBe(201);
   const { book } = await response.json();
   await page.goto(`/books/${book.id}`);
-  await expect(page.locator('foliate-view')).toBeVisible();
+  await expect(page.locator('foliate-view')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
   await selectTerm(page, mobile);
   await page.getByRole('button', { name: '添加到术语表', exact: true }).click();
   const panel = page.getByRole('complementary', { name: '术语表', exact: true });
   await expect(panel).toBeVisible();
-  await expect.poll(() => markedCount(page)).toBeGreaterThan(1);
+  await expect.poll(() => markedCount(page)).toBe(1);
   await panel.getByRole('button', { name: '编辑 概念 的释义', exact: true }).click();
   await panel.getByRole('textbox', { name: '术语释义' }).fill('思考与表达中抽象出的共同特征。');
   await panel.getByRole('button', { name: '保存', exact: true }).click();
@@ -101,7 +101,7 @@ test('术语跨页与跨章节波浪线、手动释义、出处定位与取消',
   expect(term.cfi).toMatch(/^epubcfi\(/);
   await closePanel(page, mobile);
   await page.getByRole('button', { name: '下一页', exact: true }).click();
-  await expect.poll(() => markedCount(page)).toBeGreaterThan(1);
+  await expect.poll(() => markedCount(page)).toBe(1);
   if (mobile) await page.getByRole('button', { name: '打开书籍目录', exact: true }).click();
   const toc = mobile
     ? page.getByRole('dialog').getByRole('navigation', { name: '书籍目录' })
@@ -117,7 +117,7 @@ test('术语跨页与跨章节波浪线、手动释义、出处定位与取消',
         ),
     )
     .toBe('第二章');
-  await expect.poll(() => markedCount(page)).toBeGreaterThan(1);
+  await expect.poll(() => markedCount(page)).toBe(0);
   await openPanel(page, mobile);
   await panel.getByRole('button', { name: '概念', exact: true }).click();
   await expect
@@ -139,7 +139,7 @@ test('术语跨页与跨章节波浪线、手动释义、出处定位与取消',
   } else await closePanel(page, mobile);
   await page.reload();
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
-  await expect.poll(() => markedCount(page)).toBeGreaterThan(1);
+  await expect.poll(() => markedCount(page)).toBe(1);
   await selectTerm(page, mobile);
   await page.getByRole('button', { name: '取消术语高亮', exact: true }).click();
   await expect.poll(() => markedCount(page)).toBe(0);

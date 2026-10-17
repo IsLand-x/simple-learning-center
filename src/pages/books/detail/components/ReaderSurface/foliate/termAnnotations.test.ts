@@ -1,64 +1,54 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { View } from 'foliate-js/view.js';
 import type { HighlightItem } from '../../../../../../../contracts/reading';
-import { findTermRanges, loadedAnnotations } from './termAnnotations';
+import { loadedAnnotations } from './termAnnotations';
 
-const term = (text: string, id = text): HighlightItem => ({
-  id,
+const term: HighlightItem = {
+  id: 'economics',
   bookId: 'book',
   kind: 'term',
-  text,
-  cfi: 'original',
+  text: '经济学',
+  cfi: 'original-selection',
   chapter: '一',
   createdAt: 1,
   updatedAt: 1,
-});
-function chapter(html: string) {
-  const doc = document.implementation.createHTMLDocument();
-  doc.body.innerHTML = html;
-  return doc;
-}
+};
+
 describe('loaded term annotations', () => {
-  it('matches every occurrence across inline nodes without changing the EPUB DOM or crossing paragraphs', () => {
-    const doc = chapter('<p>术<em>语</em>，术语</p><p>术</p><p>语</p><script>术语</script>');
-    const before = doc.body.innerHTML;
-    const matches = findTermRanges(doc, [term('术语')]);
-    expect(matches.map((match) => match.range.toString())).toEqual(['术语', '术语']);
-    expect(doc.body.innerHTML).toBe(before);
-  });
-  it('escapes punctuation, handles whitespace, word boundaries and longest overlapping terms', () => {
-    const doc = chapter('<p>C++ C++17 art partial art. 机器学习 机器 deep\n <em>learning</em></p>');
-    const matches = findTermRanges(doc, [
-      term('C++'),
-      term('art'),
-      term('机器'),
-      term('机器学习'),
-      term('deep learning'),
-    ]);
-    expect(matches.map((match) => match.range.toString())).toEqual([
-      'deep\n learning',
-      '机器学习',
-      'C++',
-      'C++',
-      'art',
-      'art',
-      '机器',
-    ]);
-  });
-  it('scans only the loaded chapter, caches stable CFIs and invalidates on deletion', () => {
-    const doc = chapter('<p>术语 术语</p>');
-    const getCFI = vi.fn((_index: number, range: Range) => `cfi:${range.startOffset}`);
+  it('keeps only the saved selection instead of scanning repeated or compound words', () => {
+    const doc = document.implementation.createHTMLDocument();
+    doc.body.innerHTML = '<p>经济学、经济学家、经济学，另一处经济学。</p>';
+    const getContents = vi.fn(() => [{ index: 2, doc }]);
+    const getCFI = vi.fn();
     const view = {
-      renderer: { getContents: () => [{ index: 2, doc }] },
+      renderer: { getContents },
       getCFI,
-      resolveNavigation: () => ({ index: 2 }),
+      resolveNavigation: (cfi: string) => (cfi === term.cfi ? { index: 2 } : undefined),
     } as unknown as View;
-    const first = loadedAnnotations(view, 2, [term('术语')]);
-    expect(first.map((item) => item.cfi)).toEqual(['cfi:0', 'cfi:3']);
-    expect(first.every((item) => item.id === '术语')).toBe(true);
-    loadedAnnotations(view, 2, [term('术语')]);
-    expect(getCFI).toHaveBeenCalledTimes(2);
-    expect(loadedAnnotations(view, 1, [term('术语')])).toEqual([]);
+    expect(loadedAnnotations(view, 2, [term])).toEqual([term]);
+    expect(getContents).not.toHaveBeenCalled();
+    expect(getCFI).not.toHaveBeenCalled();
+    expect(doc.body.innerHTML).toBe('<p>经济学、经济学家、经济学，另一处经济学。</p>');
+  });
+
+  it('does not repeat a term in another chapter and removes it when deleted', () => {
+    const view = { resolveNavigation: () => ({ index: 2 }) } as unknown as View;
+    expect(loadedAnnotations(view, 1, [term])).toEqual([]);
     expect(loadedAnnotations(view, 2, [])).toEqual([]);
+    expect(loadedAnnotations(view, 2, [term])).toEqual([term]);
+  });
+
+  it('preserves ordinary highlights and ignores unresolved locations', () => {
+    const ordinary = {
+      ...term,
+      id: 'ordinary',
+      cfi: 'ordinary-selection',
+      kind: 'highlight' as const,
+    };
+    const invalid = { ...term, id: 'invalid', cfi: 'unresolved' };
+    const view = {
+      resolveNavigation: (cfi: string) => (cfi === 'unresolved' ? undefined : { index: 2 }),
+    } as unknown as View;
+    expect(loadedAnnotations(view, 2, [term, ordinary, invalid])).toEqual([term, ordinary]);
   });
 });
