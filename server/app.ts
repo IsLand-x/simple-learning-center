@@ -5,6 +5,7 @@ import { registerErrorHandler } from './http/responses.js';
 import { registerApiHeaders, registerStaticOriginGuard } from './http/middleware.js';
 import { createRouter } from './http/router.js';
 import { createAiOAuthRoutes } from './modules/ai/oauthRoutes.js';
+import { createAiModelRoutes } from './modules/ai/modelRoutes.js';
 import { createAiRoutes } from './modules/ai/routes.js';
 import { createAuthRoutes } from './modules/auth/routes.js';
 import { registerAuthenticationMiddleware } from './modules/auth/middleware.js';
@@ -42,6 +43,7 @@ export function createApp({ serveFrontend = true, ...options }: AppOptions = {})
   app.route('/api/settings/system-info', createSystemInfoRoutes());
   app.route('/api/state', createStateRoutes(dependencies));
   app.route('/api/ai/oauth', createAiOAuthRoutes(dependencies));
+  app.route('/api/ai/models', createAiModelRoutes());
   app.route('/api/rss', createRssFeedRoutes(dependencies));
   app.route('/api/source-credentials', createSourceCredentialRoutes(dependencies));
   app.route('/api/rss', createRssArticleRoutes(dependencies));

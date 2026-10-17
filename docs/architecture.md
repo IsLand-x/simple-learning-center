@@ -127,6 +127,12 @@ server/
 
 设置页直接生成 `type: http`、`url` 与 `headers.Authorization` 配置，不再提供 stdio 脚本或脚本下载路由。HTTP MCP 的 `upload_book` 接收文件名与 Base64（最大 10 MiB）；需要客户端自行读取本地文件。大文件继续通过同一 Token 的二进制 HTTP 上传接口（最大 100 MiB），服务端不会读取客户端传入的本地路径。
 
+## AI 供应商模型发现
+
+`server/modules/ai/modelRoutes.ts` 在现有认证中间件之后提供 `POST /api/ai/models/discover`，只接收 API 地址和可选 API Key。`modelDiscovery.ts` 校验 HTTP(S) 地址，规范化 `/models`、`/chat/completions` 后缀，并在根地址不支持模型列表时尝试同一供应商的 `/v1/models`。请求最多等待 15 秒、读取 2 MiB，不跟随重定向；上游原始响应与网络错误不会暴露到日志或前端。
+
+设置页通过 `api/ai` 请求发现接口。`useModelDiscovery.ts` 管理请求与取消，地址、Key 或编辑状态变化时取消旧请求；模型多选由页面私有组件负责。新配置先保留为页面草稿，确认后通过已有 `addOpenAIConfig` 一次保存为单个供应商，编辑时复用 `updateOpenAIConfig`。继续使用 `openAIConfigs[].models` 与 preferences 分区，无新增持久化字段或迁移；读书、RSS 与视频助手复用既有供应商与模型选择器。
+
 ## AI 供应商 OAuth
 
 `server/modules/ai/oauth.ts` 注册 Pi AI 的 `openai-codex` 与 `kimi-coding` 原生供应商，管理设备码登录、取消、超时和凭据刷新。`server/modules/ai/oauthRoutes.ts` 提供同源、受应用会话保护的状态与授权接口；前端设置 hook 轮询公开状态，UI 提供官方授权链接。浏览器不接收 access/refresh token。

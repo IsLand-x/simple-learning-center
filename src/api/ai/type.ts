@@ -60,3 +60,13 @@ export interface ListAiJobsRequest {
 
 export type AiJobListener = (job: AiJob) => void;
 export type AiJobEventStream = ReadableStream<Uint8Array>;
+
+export interface DiscoverModelsRequest {
+  baseUrl: string;
+  apiKey?: string;
+}
+
+export interface DiscoverModelsResponse {
+  baseUrl: string;
+  models: string[];
+}

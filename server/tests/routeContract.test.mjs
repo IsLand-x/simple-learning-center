@@ -153,6 +153,8 @@ const expectedRoutes = [
     method: 'DELETE',
     path: '/api/ai/oauth/:provider',
   },
+  { method: 'POST', path: '/api/ai/models/discover' },
+  { method: 'ALL', path: '/api/ai/models/discover' },
   {
     method: 'POST',
     path: '/api/rss/fetch',
