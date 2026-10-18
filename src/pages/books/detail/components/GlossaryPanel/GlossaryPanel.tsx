@@ -5,21 +5,28 @@ import type { HighlightItem } from '../../../../../../contracts/reading';
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import { useGlossaryExplanation } from './useGlossaryExplanation';
 import { GlossaryTerm } from './GlossaryTerm';
+import { sortAnnotations, type AnnotationSortOrder } from '../annotationSorting';
 
 export function GlossaryPanel({
   book,
   onJump,
   getCurrentText,
+  sortOrder,
 }: {
   book: BookItem;
   onJump: (term: HighlightItem) => void;
   getCurrentText: () => string;
+  sortOrder: AnnotationSortOrder;
 }) {
   const ai = useGlossaryExplanation(book.id, getCurrentText);
   const highlights = useLearningStore((state) => state.highlights);
   const terms = useMemo(
-    () => highlights.filter((item) => item.bookId === book.id && item.kind === 'term'),
-    [highlights, book.id],
+    () =>
+      sortAnnotations(
+        highlights.filter((item) => item.bookId === book.id && item.kind === 'term'),
+        sortOrder,
+      ),
+    [highlights, book.id, sortOrder],
   );
   return (
     <div className="right-panel__body glossary-panel min-h-0 min-w-0 overflow-auto [padding:8px_12px]">

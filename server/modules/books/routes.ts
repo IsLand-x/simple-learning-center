@@ -1,3 +1,4 @@
+import { readPngDimensions } from './imageDimensions.js';
 import { createBookShare, getBookShare, revokeBookShare } from './shares.js';
 import { createRouter } from '../../http/router.js';
 import { stat } from 'node:fs/promises';
@@ -67,11 +68,15 @@ export function createBookRoutes() {
     const id = c.req.param('imageId');
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))
       return c.json({ error: '图片标识不正确' }, 400);
-    const response = await storedFileResponse(
-      c,
-      join(knowledgeMapDirectoryPath(c.req.param('bookId')), `${id}.png`),
-      'private, max-age=31536000, immutable',
-    );
+    const path = join(knowledgeMapDirectoryPath(c.req.param('bookId')), `${id}.png`);
+    const response = await storedFileResponse(c, path, 'private, max-age=31536000, immutable');
+    if (response.status === 200) {
+      const dimensions = await readPngDimensions(path);
+      if (dimensions) {
+        response.headers.set('X-Image-Width', String(dimensions.width));
+        response.headers.set('X-Image-Height', String(dimensions.height));
+      }
+    }
     response.headers.set('X-Content-Type-Options', 'nosniff');
     return response;
   });

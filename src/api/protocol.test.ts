@@ -186,6 +186,30 @@ describe('书籍与索引的兼容读取协议', () => {
   });
 });
 
+describe('AI 模型发现协议', () => {
+  it('凭据通过同源 POST 正文发送，支持取消并返回规范化的供应商地址', async () => {
+    const { fetcher, transport } = createTransport();
+    const input = { baseUrl: 'https://provider.example', apiKey: 'test-key' };
+    const result = { baseUrl: 'https://provider.example/v1', models: ['model-a', 'model-b'] };
+    fetcher.mockResolvedValueOnce(Response.json(result));
+    const controller = new AbortController();
+    await expect(new AiApi(transport).discoverModels(input, controller.signal)).resolves.toEqual(
+      result,
+    );
+    expect(fetcher.mock.calls[0]).toEqual([
+      '/api/ai/models/discover',
+      {
+        cache: 'no-store',
+        credentials: 'same-origin',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+        signal: controller.signal,
+      },
+    ]);
+  });
+});
+
 describe('AI 任务事件流协议', () => {
   it('支持 UTF-8 跨分片、多行 data、末尾未换行事件并忽略非 job 事件', async () => {
     const { fetcher, transport } = createTransport();

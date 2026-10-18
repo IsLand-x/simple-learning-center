@@ -18,6 +18,7 @@ const domains = [
       'reader-typography',
       'reader-paragraph-spacing',
       'reader-glossary',
+      'reader-annotation-sorting',
       'reader-content-settings',
       'reader-ai-activity',
       'mobile-reader-overlays',

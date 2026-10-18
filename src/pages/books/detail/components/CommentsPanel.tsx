@@ -6,14 +6,17 @@ import { useLearningStore } from '../../../../store/useLearningStore';
 import type { HighlightItem } from '../../../../../contracts/reading';
 import { confirmDialog } from '../../../../util/confirmDialog';
 import { formatRelativeTime } from '../../../../util/format';
+import { sortAnnotations, type AnnotationSortOrder } from './annotationSorting';
 
 const { Text } = Typography;
 
 export function CommentsPanel({
   bookId,
   onJumpHighlight,
+  sortOrder,
 }: {
   bookId: string;
+  sortOrder: AnnotationSortOrder;
   onJumpHighlight: (highlight: HighlightItem) => void;
 }) {
   const allHighlights = useLearningStore((state) => state.highlights);
@@ -21,13 +24,13 @@ export function CommentsPanel({
   const deleteHighlight = useLearningStore((state) => state.deleteHighlight);
   const comments = useMemo(
     () =>
-      allHighlights
-        .filter((highlight) => highlight.bookId === bookId && highlight.comment?.trim())
-        .sort(
-          (left, right) =>
-            (right.commentUpdatedAt ?? right.createdAt) - (left.commentUpdatedAt ?? left.createdAt),
+      sortAnnotations(
+        allHighlights.filter(
+          (highlight) => highlight.bookId === bookId && highlight.comment?.trim(),
         ),
-    [allHighlights, bookId],
+        sortOrder,
+      ),
+    [allHighlights, bookId, sortOrder],
   );
   const [contextMenu, setContextMenu] = useState<{
     highlight: HighlightItem;

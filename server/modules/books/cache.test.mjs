@@ -94,3 +94,28 @@ test('封面私有缓存支持条件请求，替换和删除不会返回旧封�
   await rm(path);
   assert.equal((await app.request(url, { headers: { 'If-None-Match': etag } })).status, 404);
 });
+
+test('图片 GET/HEAD 提供原图尺寸，HEAD 无正文且仍受认证保护', async () => {
+  const { knowledgeMapDirectoryPath } = await import('../../infrastructure/fs/files.js');
+  const id = '22222222-2222-4222-8222-222222222222';
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7XcAAAAASUVORK5CYII=',
+    'base64',
+  );
+  await atomicWrite(join(knowledgeMapDirectoryPath('dimensions'), `${id}.png`), png);
+  const app = createApp({ mode: 'local', serveFrontend: false });
+  const url = `/api/books/dimensions/knowledge-maps/${id}`;
+  for (const method of ['GET', 'HEAD']) {
+    const response = await app.request(url, { method });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('X-Image-Width'), '1');
+    assert.equal(response.headers.get('X-Image-Height'), '1');
+    assert.equal(response.headers.get('Content-Length'), String(png.length));
+    assert.equal((await response.arrayBuffer()).byteLength, method === 'HEAD' ? 0 : png.length);
+  }
+  const remote = createApp({ mode: 'remote', password: 'dimension-test', serveFrontend: false });
+  const unauthorized = await remote.request(url, { method: 'HEAD' });
+  assert.equal(unauthorized.status, 401);
+  assert.equal(unauthorized.headers.get('X-Image-Width'), null);
+  assert.equal((await app.request(url.replace(id, 'invalid'), { method: 'HEAD' })).status, 400);
+});

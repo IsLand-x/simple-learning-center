@@ -1,3 +1,4 @@
+import { useBookImageDimensions } from './useBookImageDimensions';
 import { IconBookmark } from '@douyinfe/semi-icons';
 import { Button, Toast } from '@douyinfe/semi-ui';
 import { ExpandableImage } from '../../../../../components/ExpandableImage';
@@ -7,10 +8,11 @@ import { useBookResourcesContext } from './useBookResources';
 export function BookResourceImage({ src, alt = '' }: { src?: string; alt?: string }) {
   const { bookId, resources, pending, loading, mutate } = useBookResourcesContext();
   const imageId = bookResourceImageId(src, bookId);
+  const dimensions = useBookImageDimensions(bookId, imageId);
   const saved = resources.some((resource) => resource.imageId === imageId);
   return (
     <span className="book-resource-image block min-w-0">
-      <ExpandableImage src={src} alt={alt} />
+      <ExpandableImage src={src} alt={alt} dimensions={dimensions} />
       {imageId && (
         <Button
           className="book-resource-image__save"

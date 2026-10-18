@@ -1572,6 +1572,11 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   color: var(--semi-color-primary);
 }
 
+/* Image bubbles must reserve the same width before and after decoding. */
+.semi-chat-area .csp-chat-markdown:has(.expandable-image) {
+  width: 100%;
+}
+
 .csp-chat-markdown img {
   display: block;
   max-width: 100%;
@@ -1607,6 +1612,10 @@ body[theme-mode='dark'] .semi-chat-area .semi-ai-chat-dialogue-reasoning-header 
   width: 100%;
   height: 200px;
   overflow: hidden;
+}
+
+.book-resources__item .expandable-image__frame {
+  height: 100%;
 }
 
 .book-resources__item .expandable-image img {

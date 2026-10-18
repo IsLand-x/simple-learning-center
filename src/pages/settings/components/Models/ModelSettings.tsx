@@ -1,6 +1,8 @@
 import { OAuthProviders } from './OAuthProviders';
 import { Button, Empty, Typography } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
+import { useState } from 'react';
+import type { OpenAICompatibleConfig } from '../../../../../contracts/ai';
 import { createUuid } from '../../../../util/uuid';
 import { useLearningStore } from '../../../../store/useLearningStore';
 import { ConfigEditor } from './ConfigEditor';
@@ -14,17 +16,17 @@ export interface ModelSettingsProps {
 
 export function ModelSettings({ editingConfigId, onEditingConfigChange }: ModelSettingsProps) {
   const configs = useLearningStore((state) => state.openAIConfigs);
-  const addConfig = useLearningStore((state) => state.addOpenAIConfig);
+  const [draft, setDraft] = useState<OpenAICompatibleConfig | null>(null);
 
   const add = () => {
     const timestamp = Date.now();
     const id = createUuid();
-    addConfig({
+    setDraft({
       id,
-      name: `模型 ${configs.length + 1}`,
-      baseUrl: 'https://api.openai.com/v1',
+      name: '',
+      baseUrl: '',
       apiKey: '',
-      models: ['gpt-4.1-mini'],
+      models: [],
       createdAt: timestamp,
       updatedAt: timestamp,
     });
@@ -34,7 +36,13 @@ export function ModelSettings({ editingConfigId, onEditingConfigChange }: ModelS
   return (
     <>
       <div className="settings-tab-actions justify-end [margin-bottom:12px]">
-        <Button icon={<IconPlus />} theme="solid" type="primary" onClick={add}>
+        <Button
+          icon={<IconPlus />}
+          theme="solid"
+          type="primary"
+          onClick={add}
+          disabled={Boolean(draft)}
+        >
           添加模型
         </Button>
       </div>
@@ -53,21 +61,35 @@ export function ModelSettings({ editingConfigId, onEditingConfigChange }: ModelS
         className="api-config-list [margin-right:auto] [margin-left:auto]"
         aria-label="AI 模型配置列表"
       >
-        {configs.some((config) => !config.oauthProvider) ? (
-          configs
-            .filter((config) => !config.oauthProvider)
-            .map((config) => (
-              <ConfigEditor
-                key={config.id}
-                config={config}
-                editing={editingConfigId === config.id}
-                onEdit={() => onEditingConfigChange(config.id)}
-                onClose={() => onEditingConfigChange(null)}
-              />
-            ))
-        ) : (
-          <Empty title="还没有 API Key 模型" />
+        {draft && (
+          <ConfigEditor
+            key={draft.id}
+            config={draft}
+            isNew
+            editing
+            onEdit={() => undefined}
+            onClose={() => {
+              setDraft(null);
+              onEditingConfigChange(null);
+            }}
+          />
         )}
+        {configs.some((config) => !config.oauthProvider)
+          ? configs
+              .filter((config) => !config.oauthProvider)
+              .map((config) => (
+                <ConfigEditor
+                  key={config.id}
+                  config={config}
+                  editing={editingConfigId === config.id}
+                  onEdit={() => {
+                    setDraft(null);
+                    onEditingConfigChange(config.id);
+                  }}
+                  onClose={() => onEditingConfigChange(null)}
+                />
+              ))
+          : !draft && <Empty title="还没有 API Key 模型" />}
       </section>
     </>
   );

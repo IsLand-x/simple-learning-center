@@ -506,3 +506,25 @@
     gap: 8px;
   }
 }
+
+/* Model discovery keeps long provider IDs contained and mobile inputs readable. */
+.api-config-card .semi-select { max-width: 100%; }
+.api-config-card .semi-select-selection,
+.api-config-card .semi-select-selection .semi-tag { min-width: 0; }
+.api-config-card .semi-select-selection .semi-tag { max-width: min(220px, 50%); }
+.api-config-card .semi-select-selection .semi-tag-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 800px) {
+  .api-config-card .semi-input,
+  .api-config-card .semi-input-textarea,
+  .api-config-card .semi-select-input { font-size: 16px; }
+  .api-config-card button { position: relative; }
+  .api-config-card button::after {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2)) 0;
+  }
+}

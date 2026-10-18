@@ -125,3 +125,19 @@ declare module 'foliate-js/overlayer.js' {
     static highlight: FoliateOverlayDraw;
   }
 }
+
+declare module 'foliate-js/epubcfi.js' {
+  interface Step {
+    index: number;
+    offset?: number;
+  }
+  type Path = Step[][];
+  interface Range {
+    parent: Path;
+    start: Path;
+    end: Path;
+  }
+  export function parse(cfi: string): Path | Range;
+  export function collapse(cfi: Path | Range): Path;
+  export function compare(left: Path | Range, right: Path | Range): number;
+}

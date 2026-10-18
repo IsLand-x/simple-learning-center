@@ -1,5 +1,6 @@
 import type {
   BookResourcesResponse,
+  BookImageDimensions,
   DeleteBookResponse,
   EpubFile,
   RenameBookResourceRequest,
@@ -56,6 +57,23 @@ export class BooksApi {
 
   permanentlyDelete(bookId: string): Promise<DeleteBookResponse> {
     return this.transport.json(`/api/books/${encodeURIComponent(bookId)}`, { method: 'DELETE' });
+  }
+
+  async imageDimensions(bookId: string, imageId: string): Promise<BookImageDimensions | undefined> {
+    const response = await this.transport.request(
+      `/api/books/${encodeURIComponent(bookId)}/knowledge-maps/${encodeURIComponent(imageId)}`,
+      { method: 'HEAD', cache: 'force-cache' },
+      [404],
+    );
+    const width = Number(response.headers.get('X-Image-Width'));
+    const height = Number(response.headers.get('X-Image-Height'));
+    return response.ok &&
+      Number.isSafeInteger(width) &&
+      width > 0 &&
+      Number.isSafeInteger(height) &&
+      height > 0
+      ? { width, height }
+      : undefined;
   }
 
   listResources(bookId: string): Promise<BookResourcesResponse> {
