@@ -3,7 +3,7 @@ import {
   prepareFoliateBookForBrowser,
 } from '../../../../../../util/reading/foliateBrowser';
 import type { FoliateRelocateDetail, View as FoliateView } from 'foliate-js/view.js';
-import { useEffect, type Dispatch, type SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { booksApi } from '../../../../../../api/books/index';
 import { createFoliateAnnotationEvents } from './annotationEvents';
 import { bindFoliateDocumentInteractions } from './bindFoliateDocumentInteractions';
@@ -94,6 +94,11 @@ export function useFoliateReaderLifecycle({
   syncVisibleAnnotations,
   turnPage,
 }: FoliateReaderLifecycleOptions) {
+  const turnPageRef = useRef(turnPage);
+  useEffect(() => {
+    turnPageRef.current = turnPage;
+  }, [turnPage]);
+
   // Open and tear down the Foliate view only when the book identity changes.
   // Mutable refs carry current callbacks and presentation without reopening the EPUB.
   useEffect(() => {
@@ -110,6 +115,7 @@ export function useFoliateReaderLifecycle({
     });
     const trackpadNavigation = createFoliateTrackpadNavigation({
       viewRef,
+      turnPageRef,
       hasCustomMobileSelectionRef,
       touchPagingSelectionLockedRef,
       onContentInteractionRef,

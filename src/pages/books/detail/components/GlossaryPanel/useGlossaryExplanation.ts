@@ -45,7 +45,18 @@ export function useGlossaryExplanation(bookId: string, getCurrentText: () => str
           (job) => job.status === 'completed' && !completed.current.has(job.id),
         );
         if (fresh.length) {
-          await refreshServerState(['highlights', 'conversations']);
+          const store = useLearningStore.getState();
+          fresh.forEach((job) => {
+            if (job.termId && job.content.trim()) {
+              const currentTerm = store.highlights.find(
+                (item) => item.id === job.termId && item.bookId === bookId && item.kind === 'term',
+              );
+              if (currentTerm && !currentTerm.definition) {
+                store.updateHighlight(job.termId, { definition: job.content.trim() });
+              }
+            }
+          });
+          await refreshServerState(['highlights']);
           if (disposed) return;
           await useLearningStore.persist.rehydrate();
           fresh.forEach((job) => completed.current.add(job.id));

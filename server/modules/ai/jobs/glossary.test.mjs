@@ -97,6 +97,9 @@ test('术语释义后台落盘，校验归属、防重复请求，保留手改�
     await wait(job.id);
     let snapshot = await read();
     assert.equal(snapshot.state.highlights[0].definition, '结合本书语境的释义');
+    const fullState = await (await app.request('/api/state')).json();
+    assert.equal(fullState.state.chatSessions.length, 0);
+    assert.equal(fullState.state.chats.length, 0);
     const stale = structuredClone(snapshot);
     reset();
     const next = await (await request('/api/ai/jobs', 'POST', input())).json();

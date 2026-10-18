@@ -235,22 +235,24 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
       if (nextPersistedState.deletedConversationIds?.includes(conversationId))
         throw statusError(404, '对话已删除，请开启新对话');
       const next = nextPersistedState.state;
-      const sessions = Array.isArray(next.chatSessions) ? next.chatSessions : [];
-      const existingSession = sessions.find((item) => item.id === conversationId);
-      next.chatSessions = [
-        existingSession
-          ? {
-              ...existingSession,
-              provider,
-              model,
-              reasoningEffort: reasoningEffort || 'auto',
-              updatedAt: Math.max(existingSession.updatedAt, createdAt),
-            }
-          : session,
-        ...sessions.filter((item) => item.id !== conversationId),
-      ];
-      const chats = Array.isArray(next.chats) ? next.chats : [];
-      next.chats = [...chats.filter((item) => item.id !== userMessageId), userMessage];
+      if (purpose !== 'glossary') {
+        const sessions = Array.isArray(next.chatSessions) ? next.chatSessions : [];
+        const existingSession = sessions.find((item) => item.id === conversationId);
+        next.chatSessions = [
+          existingSession
+            ? {
+                ...existingSession,
+                provider,
+                model,
+                reasoningEffort: reasoningEffort || 'auto',
+                updatedAt: Math.max(existingSession.updatedAt, createdAt),
+              }
+            : session,
+          ...sessions.filter((item) => item.id !== conversationId),
+        ];
+        const chats = Array.isArray(next.chats) ? next.chats : [];
+        next.chats = [...chats.filter((item) => item.id !== userMessageId), userMessage];
+      }
       if (digestRun) upsertDigestRun(next, structuredClone(digestRun));
     });
 

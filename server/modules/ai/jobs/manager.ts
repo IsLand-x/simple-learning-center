@@ -115,6 +115,7 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
     let rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
     let rssDailyDigests = Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [];
     for (const job of jobs.values()) {
+      if (job.purpose === 'glossary') continue;
       const hasSession = sessions.some((session) => session.id === job.conversationId);
       const resumableRssTask =
         job.resourceType === 'rss' &&
