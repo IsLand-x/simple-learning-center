@@ -7,6 +7,8 @@ import type { ChatSession } from '../../../../../../contracts/ai';
 import { confirmDialog } from '../../../../../util/confirmDialog';
 import { formatRelativeTime } from '../../../../../util/format';
 import { providerLabel } from './model';
+import { useConversationSummaries } from '../../../../../components/ai/useConversationSummaries';
+import { ConversationMessageControls } from '../../../../../components/ai/ConversationMessageControls';
 
 export function ConversationHistoryPanel({
   bookId,
@@ -17,8 +19,8 @@ export function ConversationHistoryPanel({
   activeConversationId: string;
   onResumeConversation: (session: ChatSession) => void;
 }) {
-  const allChats = useLearningStore((state) => state.chats);
-  const allSessions = useLearningStore((state) => state.chatSessions);
+  const loadingState = useConversationSummaries(bookId);
+  const allSessions = useLearningStore((state) => state.conversationSummaries);
   const configs = useLearningStore((state) => state.openAIConfigs);
   const deleteChatSession = useLearningStore((state) => state.deleteChatSession);
   const [contextMenu, setContextMenu] = useState<{
@@ -58,50 +60,55 @@ export function ConversationHistoryPanel({
       okText: '删除',
       cancelText: '取消',
       okButtonProps: { type: 'danger' },
-      onOk: () => {
-        deleteChatSession(session.id);
-        Toast.success('对话已删除');
+      onOk: async () => {
+        try {
+          await deleteChatSession(session.id);
+          Toast.success('对话已删除');
+        } catch (error) {
+          Toast.error(error instanceof Error ? error.message : '删除对话失败');
+          throw error;
+        }
       },
     });
   };
 
   return (
     <div className="right-panel__body min-h-0 history-panel [gap:4px]">
-      {sessions.length ? (
-        sessions.map((session) => {
-          const messageCount = allChats.filter(
-            (message) => message.conversationId === session.id,
-          ).length;
-          const modelLabel = session.model || providerLabel(session.provider, configs);
-          const metaLabel = `${formatRelativeTime(session.updatedAt)} · ${modelLabel} · ${messageCount} 条消息`;
-          return (
-            <button
-              key={session.id}
-              type="button"
-              title="右键可删除这条对话"
-              className={`ai-history-item w-full [min-height:58px] justify-center [gap:5px] [padding:8px] [color:var(--semi-color-text-1)] [text-align:left] [background:transparent] ${session.id === activeConversationId ? ' ai-history-item--active' : ''}`}
-              onClick={() => onResumeConversation(session)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                setContextMenu({ session, x: event.clientX, y: event.clientY });
-              }}
-            >
-              <span className="ai-history-item__title min-w-0 justify-between">
-                <strong>{session.title}</strong>
-              </span>
-              <span
-                className="ai-history-item__meta block overflow-hidden [color:var(--semi-color-text-2)] text-ellipsis whitespace-nowrap"
-                title={metaLabel}
+      <ConversationMessageControls {...loadingState} />
+      {sessions.length
+        ? sessions.map((session) => {
+            const messageCount = session.messageCount;
+            const modelLabel = session.model || providerLabel(session.provider, configs);
+            const metaLabel = `${formatRelativeTime(session.updatedAt)} · ${modelLabel} · ${messageCount} 条消息`;
+            return (
+              <button
+                key={session.id}
+                type="button"
+                title="右键可删除这条对话"
+                className={`ai-history-item w-full [min-height:58px] justify-center [gap:5px] [padding:8px] [color:var(--semi-color-text-1)] [text-align:left] [background:transparent] ${session.id === activeConversationId ? ' ai-history-item--active' : ''}`}
+                onClick={() => onResumeConversation(session)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setContextMenu({ session, x: event.clientX, y: event.clientY });
+                }}
               >
-                {metaLabel}
-              </span>
-            </button>
-          );
-        })
-      ) : (
-        <Empty title="暂无历史对话" description="发送第一条消息后会自动保存到服务器" />
-      )}
+                <span className="ai-history-item__title min-w-0 justify-between">
+                  <strong>{session.title}</strong>
+                </span>
+                <span
+                  className="ai-history-item__meta block overflow-hidden [color:var(--semi-color-text-2)] text-ellipsis whitespace-nowrap"
+                  title={metaLabel}
+                >
+                  {metaLabel}
+                </span>
+              </button>
+            );
+          })
+        : !loadingState.loading &&
+          !loadingState.error && (
+            <Empty title="暂无历史对话" description="发送第一条消息后会自动保存到服务器" />
+          )}
       {contextMenu &&
         createPortal(
           <Dropdown

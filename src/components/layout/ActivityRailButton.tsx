@@ -17,7 +17,11 @@ export function ActivityRailButton({
   onClick: () => void;
 }) {
   return (
-    <Tooltip content={tooltip} position="left">
+    <Tooltip
+      className="activity-button__tooltip pointer-events-none"
+      content={tooltip}
+      position="left"
+    >
       <Button
         aria-label={ariaLabel}
         aria-pressed={active}

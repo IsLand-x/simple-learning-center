@@ -44,6 +44,9 @@ export function createVideoActions(set: LearningStoreSet): VideoActions {
           ],
           chats: state.chats.filter((message) => message.bookId !== resourceId),
           chatSessions: state.chatSessions.filter((session) => session.bookId !== resourceId),
+          conversationSummaries: state.conversationSummaries.filter(
+            (session) => session.bookId !== resourceId,
+          ),
         };
       }),
     addVideoTimestampNote: (note) =>

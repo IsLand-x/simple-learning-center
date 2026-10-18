@@ -110,3 +110,6 @@
     gap: 12px;
   }
 }
+.semi-portal-inner:has(> .activity-button__tooltip) {
+  pointer-events: none;
+}

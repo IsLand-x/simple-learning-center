@@ -2,6 +2,7 @@ import type {
   DiscoverModelsRequest,
   DiscoverModelsResponse,
   AiJob,
+  AiJobSummary,
   AiJobEventStream,
   AiJobListener,
   AiJobsResponse,
@@ -81,6 +82,13 @@ export class AiApi {
     if (input.conversationId) search.set('conversationId', input.conversationId);
     const payload = await this.transport.json<AiJobsResponse>(`/api/ai/jobs?${search}`);
     return Array.isArray(payload.jobs) ? payload.jobs : [];
+  }
+
+  async listJobSummaries(input: ListAiJobsRequest): Promise<AiJobSummary[]> {
+    const search = new URLSearchParams({ bookId: input.bookId, view: 'summary' });
+    if (input.conversationId) search.set('conversationId', input.conversationId);
+    const payload = await this.transport.json<{ jobs: AiJobSummary[] }>(`/api/ai/jobs?${search}`);
+    return payload.jobs;
   }
 
   cancelJob(jobId: string): Promise<AiJob> {

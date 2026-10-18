@@ -8,6 +8,7 @@ import type { VideoResource } from '../../../contracts/videos';
 import { AiConversationDialogue } from './AiConversationDialogue';
 import { AiModelSelector } from './AiModelSelector';
 import { AiReasoningEffortSelector } from './AiReasoningEffortSelector';
+import { ConversationMessageControls } from './ConversationMessageControls';
 
 const { Text } = Typography;
 
@@ -36,6 +37,7 @@ export function ContentConversationPanel({
   onClearSelectedText?: () => void;
 }) {
   const {
+    messageLoading,
     isVideo,
     resourceTitle,
     dialogueMessages,
@@ -57,6 +59,7 @@ export function ContentConversationPanel({
   } = useContentConversation({ resource, selectedText, onClearSelectedText });
   return (
     <div className="right-panel__body min-h-0 ai-panel [gap:6px] rss-ai-panel min-w-0 min-h-0">
+      <ConversationMessageControls {...messageLoading} />
       <div className="semi-chat-area rss-ai-panel__dialogue min-h-0" aria-live="polite">
         <AiConversationDialogue
           chats={dialogueMessages}

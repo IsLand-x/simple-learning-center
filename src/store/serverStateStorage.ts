@@ -173,6 +173,27 @@ export async function waitForServerStateWrites() {
   await stateWriteQueue;
 }
 
+export async function migrateServerConversations(state: Partial<LearningData>, version: number) {
+  if (!state.chats && !state.chatSessions) return;
+  if (version < 33) {
+    await stateApi.migrateConversations({
+      version: LEARNING_STORE_VERSION,
+      state: { chats: state.chats ?? [], chatSessions: state.chatSessions ?? [] },
+    });
+  }
+  if (preparedEnvelope?.state) {
+    delete preparedEnvelope.state.chats;
+    delete preparedEnvelope.state.chatSessions;
+    preparedState = undefined;
+  }
+  activeDomains.delete('conversations');
+  loadedDomains.delete('conversations');
+  domainPayloads.delete('conversations');
+  domainEtags.delete('conversations');
+  domainSubmittedPayloads.delete('conversations');
+  domainQueuedPayloads.delete('conversations');
+}
+
 function readLegacyBrowserState() {
   try {
     return window.localStorage.getItem(STATE_STORAGE_KEY);
@@ -269,7 +290,7 @@ export const serverStateStorage: StateStorage = {
   },
   setItem: async (_name, value) => {
     const envelope = parseStateEnvelope(value);
-    const domains = [...activeDomains];
+    const domains = [...activeDomains].filter((domain) => domain !== 'conversations');
     const domainBodies = new Map<StateDomain, DomainWrite>();
     for (const domain of domains) {
       const snapshot = stateDomainSnapshot(envelope, domain);

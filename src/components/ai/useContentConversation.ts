@@ -11,6 +11,8 @@ import type { VideoResource } from '../../../contracts/videos';
 import { requestReasoningEffort } from '../../util/ai/aiReasoning';
 import { createUuid } from '../../util/uuid';
 import { useContentConversationJobs } from './useContentConversationJobs';
+import { useConversationMessages } from './useConversationMessages';
+import { useConversationSummaries } from './useConversationSummaries';
 
 type AiStatus = 'unavailable' | 'ready' | 'generating' | 'error';
 
@@ -36,9 +38,29 @@ export function useContentConversation({
   const resourceTitle = isVideo ? resource.video.title : resource.item.title;
   const rawResourceId = isVideo ? resource.video.id : resource.item.id;
   const resourceId = `${resource.type}:${rawResourceId}`;
-  const conversationId = `${resource.type}-chat:${rawResourceId}`;
   const allChats = useLearningStore((state) => state.chats);
   const allSessions = useLearningStore((state) => state.chatSessions);
+  const summaries = useConversationSummaries(resourceId);
+  const [draftId, setDraftId] = useState(() => `${resource.type}-chat:${createUuid()}`);
+  useEffect(() => setDraftId(`${resource.type}-chat:${createUuid()}`), [resource.type, resourceId]);
+  const conversationId =
+    allSessions.find(
+      (session) => session.bookId === resourceId && session.id.startsWith(`${resource.type}-chat:`),
+    )?.id ?? draftId;
+  const messages = useConversationMessages(
+    resourceId,
+    conversationId,
+    !summaries.loading && !summaries.error,
+  );
+  const messageLoading = {
+    ...messages,
+    loading: summaries.loading || (!summaries.error && messages.loading),
+    error: summaries.error || messages.error,
+    retry: () => {
+      summaries.retry();
+      messages.retry();
+    },
+  };
   const createChatSession = useLearningStore((state) => state.createChatSession);
   const addChatMessage = useLearningStore((state) => state.addChatMessage);
   const chats = useMemo(
@@ -233,7 +255,8 @@ export function useContentConversation({
       ? [streamingAssistant]
       : []),
   ];
-  const canSend = status === 'ready' || status === 'error';
+  const canSend =
+    !messageLoading.loading && !messageLoading.error && (status === 'ready' || status === 'error');
   const stop = () => {
     if (!activeJobId) return;
     void aiApi
@@ -245,6 +268,7 @@ export function useContentConversation({
       });
   };
   return {
+    messageLoading,
     isVideo,
     resourceTitle,
     dialogueMessages,

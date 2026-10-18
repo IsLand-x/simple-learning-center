@@ -4,6 +4,7 @@ import type { StateDomain, StateDomainSnapshot, StateDomainResponse } from '../a
 
 const mocks = vi.hoisted(() => ({
   readDomain: vi.fn(),
+  migrateConversations: vi.fn(async () => undefined),
   writeDomain: vi.fn<
     (
       domain: StateDomain,
@@ -60,7 +61,8 @@ it('combines startup domains without reparsing an increasingly large prepared en
   expect(parse).not.toHaveBeenCalled();
   const result = JSON.parse(prepared!);
   expect(result.state.themeMode).toBe('dark');
-  expect(result.state.chats[0].id).toBe('chat');
+  expect(result.state.chats).toBeUndefined();
+  expect(mocks.readDomain.mock.calls.some(([domain]) => domain === 'conversations')).toBe(false);
   expect(result.state.notes[0].id).toBe('note');
   expect(await storage.serverStateStorage.getItem('test')).toBe(prepared);
 });
@@ -83,7 +85,7 @@ it('does not drop freshly created server notes when progress changes during refr
       }),
   );
   const refreshing = storage.refreshServerState(['notes']);
-  await vi.waitFor(() => expect(mocks.readDomain).toHaveBeenCalledTimes(7));
+  await vi.waitFor(() => expect(mocks.readDomain).toHaveBeenCalledTimes(6));
   const sessions = [{ id: 'session', bookId: 'test', startedAt: 1, endedAt: 2, durationMs: 1 }];
   await storage.serverStateStorage.setItem(
     'test',
@@ -422,4 +424,38 @@ it('does not reprocess the complete prepared state for unchanged domains on an e
   expect(JSON.parse((await storage.serverStateStorage.getItem('test'))!).state.notes).toEqual(
     edited.notes,
   );
+});
+
+it('preserves conversation normalization during one-time migration and then discards the full cache', async () => {
+  vi.resetModules();
+  mocks.readDomain.mockReset();
+  mocks.migrateConversations.mockClear();
+  window.history.replaceState(null, '', '/books/test');
+  const storage = await import('./serverStateStorage');
+  const chats = [
+    {
+      id: 'old',
+      bookId: 'test',
+      conversationId: 'legacy:test',
+      role: 'assistant' as const,
+      content: '旧回答',
+      createdAt: 1,
+      readAt: 1,
+    },
+  ];
+  mocks.readDomain.mockResolvedValue({
+    status: 200,
+    etag: null,
+    snapshot: { version: 32, state: { chats, chatSessions: [] } },
+  });
+  await storage.prepareServerState();
+  await storage.migrateServerConversations({ chats, chatSessions: [] }, 32);
+  expect(mocks.migrateConversations).toHaveBeenCalledWith({
+    version: LEARNING_STORE_VERSION,
+    state: { chats, chatSessions: [] },
+  });
+  expect(JSON.parse((await storage.serverStateStorage.getItem('test'))!).state).not.toHaveProperty(
+    'chats',
+  );
+  expect(storage.areServerStateDomainsActive(['conversations'])).toBe(false);
 });

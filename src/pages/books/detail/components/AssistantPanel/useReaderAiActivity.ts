@@ -1,15 +1,15 @@
 import { createContext, useContext } from 'react';
-import type { AiJob } from '../../../../../api/ai/type';
+import type { AiJobSummary } from '../../../../../api/ai/type';
 
 import type { ReaderAiActivity } from './activity';
 
 export const ReaderAiActivityContext = createContext<{
-  jobs: AiJob[];
+  jobs: AiJobSummary[];
   startingConversations: string[];
   setStarting: (conversationId: string, starting: boolean) => void;
   status: ReaderAiActivity;
   conversationId?: string;
-  reportJob: (job: AiJob) => void;
+  reportJob: (job: AiJobSummary) => void;
 }>({
   status: 'idle',
   jobs: [],

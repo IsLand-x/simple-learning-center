@@ -69,5 +69,7 @@ export interface StoredState {
 export interface PersistedState {
   state: StoredState;
   version: number;
+  // Server-owned deletion records are never accepted from client snapshots.
+  deletedConversationIds?: string[];
   [field: string]: unknown;
 }

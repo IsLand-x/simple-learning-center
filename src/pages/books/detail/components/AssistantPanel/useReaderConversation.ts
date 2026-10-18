@@ -21,6 +21,7 @@ import { createUuid } from '../../../../../util/uuid';
 import { getBookPassages } from './bookSearch';
 import { makeConversationTitle, type AiStatus } from './model';
 import { useReaderConversationJobs } from './useReaderConversationJobs';
+import { useConversationMessages } from '../../../../../components/ai/useConversationMessages';
 
 export function useReaderConversation({
   book,
@@ -35,6 +36,7 @@ export function useReaderConversation({
   getCurrentText: () => string;
   onClearSelectedText: () => void;
 }) {
+  const messageLoading = useConversationMessages(book.id, conversationId);
   const {
     reportJob,
     jobs: trackedJobs,
@@ -108,7 +110,10 @@ export function useReaderConversation({
     const check = () => {
       if (document.visibilityState !== 'visible' || !list.checkVisibility() || !list.clientHeight)
         return;
-      if (list.scrollHeight - list.scrollTop - list.clientHeight <= 32) markRead(unreadIds);
+      if (list.scrollHeight - list.scrollTop - list.clientHeight <= 32)
+        void markRead(unreadIds).catch((error: unknown) =>
+          Toast.error(error instanceof Error ? error.message : '标记已读失败'),
+        );
     };
     const frame = requestAnimationFrame(check);
     const observer = new ResizeObserver(check);
@@ -150,6 +155,7 @@ export function useReaderConversation({
     setAiPreferences,
   ]);
   useEffect(() => {
+    lastAppliedJobRef.current = undefined;
     setQuote(null);
     setOptimisticUserMessage(null);
     setStreamingAssistant(null);
@@ -199,11 +205,13 @@ export function useReaderConversation({
       reasoningEffort: nextReasoningEffort,
     });
     if (currentSession) {
-      updateChatSession(currentSession.id, {
+      void updateChatSession(currentSession.id, {
         provider: nextProvider,
         model: nextModel,
         reasoningEffort: nextReasoningEffort,
-      });
+      }).catch((error: unknown) =>
+        Toast.error(error instanceof Error ? error.message : '保存对话模型失败'),
+      );
     }
   };
   const chooseReasoningEffort = (nextValue: typeof reasoningEffort) => {
@@ -211,7 +219,10 @@ export function useReaderConversation({
     const nextReasoningEffort = coerceAiReasoningEffort(nextValue, selectedConfig, model);
     setAiPreferences({ reasoningEffort: nextReasoningEffort });
     if (currentSession) {
-      updateChatSession(currentSession.id, { reasoningEffort: nextReasoningEffort });
+      void updateChatSession(currentSession.id, { reasoningEffort: nextReasoningEffort }).catch(
+        (error: unknown) =>
+          Toast.error(error instanceof Error ? error.message : '保存对话模型失败'),
+      );
     }
   };
   const ensureSession = (question: string) => {
@@ -333,7 +344,8 @@ export function useReaderConversation({
   const userTurns = dialogueMessages
     .map((message, messageIndex) => ({ message, messageIndex }))
     .filter(({ message }) => message.role === 'user');
-  const canSend = status === 'ready' || status === 'error';
+  const canSend =
+    !messageLoading.loading && !messageLoading.error && (status === 'ready' || status === 'error');
   const jumpToUserTurn = (messageIndex: number) => {
     const chatArea = chatAreaRef.current;
     const list = chatArea?.querySelector<HTMLElement>('.semi-ai-chat-dialogue-list');
@@ -347,6 +359,7 @@ export function useReaderConversation({
     });
   };
   return {
+    messageLoading,
     chatAreaRef,
     userTurns,
     jumpToUserTurn,

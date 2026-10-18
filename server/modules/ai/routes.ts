@@ -15,10 +15,21 @@ export function createAiRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
   });
   app.get('/', (c) =>
     c.json({
-      jobs: aiJobs.list({
-        bookId: c.req.query('bookId'),
-        conversationId: c.req.query('conversationId'),
-      }),
+      jobs: aiJobs
+        .list({
+          bookId: c.req.query('bookId'),
+          conversationId: c.req.query('conversationId'),
+        })
+        .map((job) => {
+          if (c.req.query('view') !== 'summary') return job;
+          const {
+            content: _content,
+            dialogueContent: _dialogue,
+            translationHtml: _html,
+            ...summary
+          } = job;
+          return summary;
+        }),
     }),
   );
   app.get('/:jobId/events', (c) => {

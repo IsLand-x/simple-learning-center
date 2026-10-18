@@ -15,6 +15,8 @@ import {
 import { readJsonRequest } from '../../http/body.js';
 import { readPersistedState, stateFileEtag, writePersistedState } from './stateStore.js';
 import { methodNotAllowed, noContent } from '../../http/responses.js';
+import { readSerializedConversations } from './conversationSnapshot.js';
+import { mergeMigratedConversations } from './compatibility/conversations.js';
 
 export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
   const app = createRouter();
@@ -56,11 +58,17 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
     const domain = c.req.param('domain');
     if (!isStateDomain(domain)) return c.json({ error: '状态分区不存在' }, 404);
     if (domain === 'library') await purgeExpiredTrashedBooks();
-    const state = await readPersistedState({
-      fields: stateDomainFields(domain),
-      hydrateNote: () => domain === 'notes',
-    });
-    const serialized = serializeStateDomainSnapshot(state, domain);
+    const state =
+      domain === 'conversations'
+        ? null
+        : await readPersistedState({
+            fields: stateDomainFields(domain),
+            hydrateNote: () => domain === 'notes',
+          });
+    const serialized =
+      domain === 'conversations'
+        ? await readSerializedConversations()
+        : serializeStateDomainSnapshot(state, domain);
     if (!serialized) return noContent(c);
     c.header('ETag', serialized.etag);
     if (
@@ -83,6 +91,8 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
       false,
       async (incomingSnapshot: PersistedState, currentState: PersistedState | null) => {
         const mergedState = mergeStateDomainSnapshot(currentState, incomingSnapshot, domain);
+        if (domain === 'conversations' && c.req.query('migrate') === '1')
+          mergeMigratedConversations(mergedState, currentState);
         if (domain === 'notes' && snapshot.notesBase !== undefined)
           mergeClientNoteDrafts(mergedState, currentState, snapshot.notesBase);
         return protectClientState(aiJobs.protectPersistedState, mergedState, currentState);

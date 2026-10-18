@@ -26,6 +26,8 @@ export interface AiJob {
   completedAt?: number;
 }
 
+export type AiJobSummary = Omit<AiJob, 'content' | 'dialogueContent' | 'translationHtml'>;
+
 export interface StartAiJobInput {
   configId: string;
   model: string;

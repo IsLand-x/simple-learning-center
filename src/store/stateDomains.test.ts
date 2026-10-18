@@ -27,4 +27,10 @@ describe('stateDomainsForPath', () => {
     expect(ALL_STATE_DOMAINS).toEqual(Object.keys(STATE_DOMAIN_FIELDS));
     expect(new Set(ALL_STATE_DOMAINS).size).toBe(ALL_STATE_DOMAINS.length);
   });
+
+  it('never blocks content routes on the complete conversation history', () => {
+    for (const domains of [READER_STATE_DOMAINS, RSS_STATE_DOMAINS, VIDEO_STATE_DOMAINS]) {
+      expect(domains).not.toContain('conversations');
+    }
+  });
 });

@@ -4,6 +4,8 @@ import type {
   AiPreferences,
   ChatMessage,
   ChatSession,
+  ChatSessionSummary,
+  ConversationMessagesPage,
   OpenAICompatibleConfig,
 } from '../../contracts/ai';
 import type { BookItem, BookList } from '../../contracts/books';
@@ -25,6 +27,13 @@ import type { ThemeMode, WebSearchConfig } from '../../contracts/settings';
 import type { VideoResource, VideoTimestampNote } from '../../contracts/videos';
 
 export interface LearningState extends LearningData {
+  conversationSummaries: ChatSessionSummary[];
+  loadConversationSummaries: (bookId: string) => Promise<void>;
+  loadConversationMessages: (
+    bookId: string,
+    id: string,
+    before?: string,
+  ) => Promise<ConversationMessagesPage>;
   addBooks: (books: BookItem[]) => void;
   setBookCovers: (covers: Record<string, string>) => void;
   updateBook: (bookId: string, changes: Partial<BookItem>) => void;
@@ -53,12 +62,15 @@ export interface LearningState extends LearningData {
     changes: Partial<Pick<NoteItem, 'title' | 'content' | 'fileName'>>,
   ) => void;
   deleteNote: (noteId: string) => void;
-  markChatMessagesRead: (messageIds: string[]) => void;
+  markChatMessagesRead: (messageIds: string[]) => Promise<void>;
   createChatSession: (session: ChatSession) => void;
-  updateChatSession: (sessionId: string, changes: Partial<ChatSession>) => void;
-  deleteChatSession: (sessionId: string) => void;
+  updateChatSession: (
+    sessionId: string,
+    changes: Partial<Pick<ChatSession, 'provider' | 'model' | 'reasoningEffort'>>,
+  ) => Promise<void>;
+  deleteChatSession: (sessionId: string) => Promise<void>;
   addChatMessage: (message: ChatMessage) => void;
-  clearBookChats: (bookId: string) => void;
+  clearBookChats: (bookId: string) => Promise<void>;
   upsertReadingSession: (session: ReadingSession) => void;
   addRssFolder: (folder: RssFolder) => void;
   updateRssFolder: (folderId: string, changes: Partial<Pick<RssFolder, 'name'>>) => void;

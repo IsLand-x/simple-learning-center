@@ -1,12 +1,12 @@
 import { useCallback, useRef } from 'react';
-import type { AiJob } from '../../../../../api/ai/type';
+import type { AiJobSummary } from '../../../../../api/ai/type';
 import { synchronizeLearningState } from '../../../../../store/learningStateSync';
 
 export function useReaderNoteSync(bookId: string) {
   const revisions = useRef(new Map<string, number>());
   const queue = useRef(Promise.resolve());
   return useCallback(
-    (job: AiJob) => {
+    (job: AiJobSummary) => {
       const revision = job.notesRevision ?? 0;
       if (job.bookId !== bookId || revision <= (revisions.current.get(job.id) ?? 0)) return;
       queue.current = queue.current
