@@ -2,11 +2,7 @@ import { collapse, compare, parse } from 'foliate-js/epubcfi.js';
 import type { HighlightItem } from '../../../../../contracts/reading';
 
 export type AnnotationSortOrder =
-  | 'created-desc'
-  | 'created-asc'
-  | 'position'
-  | 'position-asc'
-  | 'position-desc';
+  'created-desc' | 'created-asc' | 'position' | 'position-asc' | 'position-desc';
 
 type Position = ReturnType<typeof parse> | null;
 
@@ -39,7 +35,8 @@ export function sortAnnotations(
   items: readonly HighlightItem[],
   order: AnnotationSortOrder,
 ): HighlightItem[] {
-  const isPositionSort = order === 'position' || order === 'position-asc' || order === 'position-desc';
+  const isPositionSort =
+    order === 'position' || order === 'position-asc' || order === 'position-desc';
   const entries = items.map((item) => ({
     item,
     position: isPositionSort ? annotationPosition(item.cfi) : null,
