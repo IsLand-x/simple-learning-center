@@ -30,15 +30,12 @@ npm start
 npm run preview
 ```
 
-验证按风险与变动范围执行，避免本地与 CI 重复跑完整回归：
+验证与部署流程精简约定：
 
 - 纯文档：`git diff --check`。
-- 小功能/修复：本地执行 lint、相关类型检查、相关单元测试；浏览器回归用 `node scripts/regression-plan.mjs --run-browser` 按未提交变动筛选。前端单元测试可用 `npx vitest related --run <变动文件...>`，没有匹配测试时补充行为验证，不能视为已经覆盖。
-- `node scripts/regression-plan.mjs` 先显示回归计划；`REGRESSION_BASE=<提交> node scripts/regression-plan.mjs --run-browser` 比较指定提交。CI 使用 push 前提交或 PR 基线，覆盖本次所有提交。局部页面变动包含对应功能、路由和视觉测试；术语标记有专门的较小回归集合。
-- 阅读器底层生命周期、分页与 CFI 几何、持久化/迁移、共享模块、依赖、构建配置、删除文件或无法识别的变动自动回退全量。新增功能目录须更新映射及其测试；不要为追求速度随意缩小匹配范围。
-- CI 保留全量 lint、类型、边界、单元测试和构建，浏览器按计划回归。服务端测试目前保留全量，不能声称已经按依赖筛选。全量浏览器只在一个位置执行；本地仅在排查失败或 CI 无法覆盖时额外执行 `npm run verify:full`，不因涉及 Foliate 或交互就机械重复。
-- 手动完整回归：`REGRESSION_FULL=true node scripts/regression-plan.mjs --run-browser`；CI 的“工程验证”支持手动运行并勾选 `full_regression`。定时全量回归用于发现映射遗漏。
-- 浏览器使用固定浏览器与字体的 Docker 容器；缺少运行条件必须记录未执行项。任何代码/配置改动仍须 `git diff --check`；不得忽略 TypeScript、Vite、PWA 构建失败。
+- 本地开发与提交：支持运行 `npm run format` 快速一键自动格式化；按需运行 `npm run lint` 与相关单元测试（`npx vitest related --run <变动文件...>` / `npm test`）。本地无需重复运行耗时的全量容器 E2E 回归，交由 CI 流水线按变动自动执行。
+- CI 精简：CI 保持必要的核心代码验证（lint、格式校验、组件与边界检查、死代码检查、前后端测试与构建），裁剪冗余离线缓存/CDN 重复校验与多余镜像构建；浏览器/视觉回归由定时任务或按需触发。
+- 部署：合并或 push 到 `main` 后自动触发验证并发布生产；push 后通过 `gh run list` / `gh run view` 关注部署状态即可。
 
 ## 目录职责
 
