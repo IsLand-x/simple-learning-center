@@ -29,6 +29,7 @@ export function ReaderRightPanel({
   onResumeConversation,
   onJumpHighlight,
   focusedHighlightId,
+  glossaryAi,
 }: ReaderRightPanelProps) {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [sortOrders, setSortOrders] = useState<{
@@ -190,6 +191,7 @@ export function ReaderRightPanel({
             onJump={onJumpHighlight}
             getCurrentText={getCurrentText}
             sortOrder={sortOrders.glossary}
+            glossaryAi={glossaryAi}
           />
         )}
         {activePanel === 'highlights' && (

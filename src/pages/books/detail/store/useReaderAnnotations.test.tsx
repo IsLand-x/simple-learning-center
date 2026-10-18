@@ -53,6 +53,7 @@ describe('reader annotation state ownership', () => {
   const onShowHighlights = vi.fn();
   const onOpenAssistant = vi.fn();
   const setPanelQuote = vi.fn();
+  const onTermAdded = vi.fn();
   function Reader({ book = initialBook }: { book?: BookItem }) {
     annotations = useReaderAnnotations({
       book,
@@ -62,6 +63,7 @@ describe('reader annotation state ownership', () => {
       onShowGlossary: vi.fn(),
       onOpenAssistant,
       setPanelQuote,
+      onTermAdded,
     });
     return null;
   }
@@ -98,10 +100,13 @@ describe('reader annotation state ownership', () => {
       text: selection.text,
       bookId: initialBook.id,
     });
+    expect(onTermAdded).toHaveBeenCalledTimes(1);
+    expect(onTermAdded).toHaveBeenCalledWith(state.highlights[0]);
     const id = state.highlights[0].id;
     act(() => annotations.setSelection({ ...selection, cfi: 'another-occurrence' }));
     act(() => annotations.saveTerm());
     expect(state.addHighlight).toHaveBeenCalledTimes(1);
+    expect(onTermAdded).toHaveBeenCalledTimes(1);
     act(() => root.render(<Reader />));
     act(() => annotations.showHighlightActions({ highlightId: id, rect: selection.rect }));
     act(() => annotations.cancelHighlight());

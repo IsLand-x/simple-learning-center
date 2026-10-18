@@ -17,6 +17,7 @@ type ReaderAnnotationsOptions = {
   onShowGlossary: () => void;
   onOpenAssistant: () => void;
   setPanelQuote: (quote: NonNullable<ChatMessage['quote']>) => void;
+  onTermAdded?: (term: HighlightItem) => void;
 };
 
 // Kept at the reader content lifetime so switching side panels preserves a draft.
@@ -28,6 +29,7 @@ export function useReaderAnnotations({
   onShowGlossary,
   onOpenAssistant,
   setPanelQuote,
+  onTermAdded,
 }: ReaderAnnotationsOptions) {
   const bookId = book?.id;
   const allHighlights = useLearningStore((state) => state.highlights);
@@ -104,7 +106,7 @@ export function useReaderAnnotations({
     const existing = highlights.find((item) => item.kind === 'term' && item.text === text);
     if (!existing) {
       const createdAt = Date.now();
-      addHighlight({
+      const newTerm: HighlightItem = {
         id: createUuid(),
         bookId: book.id,
         kind: 'term',
@@ -114,7 +116,9 @@ export function useReaderAnnotations({
         page: book.currentPage,
         createdAt,
         updatedAt: createdAt,
-      });
+      };
+      addHighlight(newTerm);
+      onTermAdded?.(newTerm);
     }
     readerRef.current?.clearSelection();
     setSelection(null);

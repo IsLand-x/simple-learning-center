@@ -5,6 +5,7 @@ import { ReaderStylePanel } from '../../../../components/reading/ReaderStylePane
 import type { BookItem, TocItem } from '../../../../../contracts/books';
 import type { ChatMessage, ChatSession } from '../../../../../contracts/ai';
 import type { HighlightItem, ReaderPreferences } from '../../../../../contracts/reading';
+import type { GlossaryExplanationState } from './GlossaryPanel/useGlossaryExplanation';
 import { ReaderRightPanel } from './ReaderPanel/ReaderRightPanel';
 import type { MobileReaderPanel } from './ReaderPanel/model';
 import type { ReaderSurfaceHandle } from './ReaderSurface/type';
@@ -37,6 +38,7 @@ interface ReaderMobileChromeProps {
   onStartNewConversation: () => void;
   onToggleToc: () => void;
   onUpdatePreferences: (changes: Partial<ReaderPreferences>) => void;
+  glossaryAi?: GlossaryExplanationState;
 }
 
 export function ReaderMobileChrome({
@@ -62,6 +64,7 @@ export function ReaderMobileChrome({
   onStartNewConversation,
   onToggleToc,
   onUpdatePreferences,
+  glossaryAi,
 }: ReaderMobileChromeProps) {
   return (
     <div className="reader-mobile-chrome">
@@ -163,6 +166,7 @@ export function ReaderMobileChrome({
                   if (activePanel === 'glossary') onChangePanel(null);
                 }}
                 focusedHighlightId={focusedHighlightId}
+                glossaryAi={glossaryAi}
               />
             )}
             <ReaderMobilePanelTabs activePanel={activePanel} onChangePanel={onChangePanel} />

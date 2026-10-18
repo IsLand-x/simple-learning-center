@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import type { BookItem } from '../../../../../../contracts/books';
 import type { HighlightItem } from '../../../../../../contracts/reading';
 import { useLearningStore } from '../../../../../store/useLearningStore';
-import { useGlossaryExplanation } from './useGlossaryExplanation';
+import { type GlossaryExplanationState, useGlossaryExplanation } from './useGlossaryExplanation';
 import { GlossaryTerm } from './GlossaryTerm';
 import { sortAnnotations, type AnnotationSortOrder } from '../annotationSorting';
 
@@ -12,13 +12,16 @@ export function GlossaryPanel({
   onJump,
   getCurrentText,
   sortOrder,
+  glossaryAi,
 }: {
   book: BookItem;
   onJump: (term: HighlightItem) => void;
   getCurrentText: () => string;
   sortOrder: AnnotationSortOrder;
+  glossaryAi?: GlossaryExplanationState;
 }) {
-  const ai = useGlossaryExplanation(book.id, getCurrentText);
+  const fallbackAi = useGlossaryExplanation(book.id, getCurrentText);
+  const ai = glossaryAi ?? fallbackAi;
   const highlights = useLearningStore((state) => state.highlights);
   const terms = useMemo(
     () =>

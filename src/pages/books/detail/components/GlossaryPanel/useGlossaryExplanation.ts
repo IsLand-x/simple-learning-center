@@ -78,7 +78,7 @@ export function useGlossaryExplanation(bookId: string, getCurrentText: () => str
     };
   }, [bookId, revision]);
 
-  const generate = async (term: HighlightItem) => {
+  const generate = async (term: HighlightItem, options?: { silent?: boolean }) => {
     const latest = jobs.find((job) => job.termId === term.id);
     if (
       starting.current.has(term.id) ||
@@ -121,7 +121,9 @@ export function useGlossaryExplanation(bookId: string, getCurrentText: () => str
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '无法生成释义';
       setErrors((current) => new Map(current).set(term.id, message));
-      Toast.error(message);
+      if (!options?.silent) {
+        Toast.error(message);
+      }
     } finally {
       starting.current.delete(term.id);
       setPending([...starting.current]);
@@ -138,3 +140,5 @@ export function useGlossaryExplanation(bookId: string, getCurrentText: () => str
   };
   return { configured: Boolean(config && model), generate, status };
 }
+
+export type GlossaryExplanationState = ReturnType<typeof useGlossaryExplanation>;

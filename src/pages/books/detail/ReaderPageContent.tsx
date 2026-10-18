@@ -12,6 +12,7 @@ import { useReaderAnnotations } from './store/useReaderAnnotations';
 import { useReaderConversations } from './store/useReaderConversations';
 import { useReaderLayout } from './store/useReaderLayout';
 import { useReaderNavigation } from './store/useReaderNavigation';
+import { useGlossaryExplanation } from './components/GlossaryPanel/useGlossaryExplanation';
 
 import { MissingReaderBook } from './components/MissingReaderBook';
 
@@ -26,6 +27,10 @@ export function ReaderPageContent() {
   const layout = useReaderLayout(book?.id);
   const navigation = useReaderNavigation(book, readerRef, layout.closeToc);
   const conversations = useReaderConversations(book?.id, changeActivePanel);
+  const glossaryAi = useGlossaryExplanation(
+    book?.id ?? '',
+    () => readerRef.current?.getCurrentText() ?? '',
+  );
   const annotations = useReaderAnnotations({
     book,
     readerRef,
@@ -34,6 +39,9 @@ export function ReaderPageContent() {
     onShowGlossary: () => layout.changePanel('glossary'),
     onOpenAssistant: () => changeActivePanel('ai'),
     setPanelQuote: conversations.setPanelQuote,
+    onTermAdded: (term) => {
+      void glossaryAi.generate(term, { silent: true });
+    },
   });
   function changeActivePanel(panel: MobileReaderPanel | null) {
     layout.changePanel(panel);
@@ -94,6 +102,7 @@ export function ReaderPageContent() {
         onReturnToProgress={navigation.returnToProgress}
         onStartNewConversation={conversations.startNewConversation}
         onUpdatePreferences={setPreferences}
+        glossaryAi={glossaryAi}
       >
         <ReaderSurface
           ref={readerRef}
@@ -163,6 +172,7 @@ export function ReaderPageContent() {
             layout.setCompactTocOpen(nextOpen);
           }}
           onUpdatePreferences={setPreferences}
+          glossaryAi={glossaryAi}
         />
       )}
     </main>

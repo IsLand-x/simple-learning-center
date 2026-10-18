@@ -5,6 +5,7 @@ import type { ChatMessage, ChatSession } from '../../../../../contracts/ai';
 import type { HighlightItem, ReaderPreferences } from '../../../../../contracts/reading';
 import type { RightPanel } from '../../../../types/reader';
 import { clamp } from '../../../../util/format';
+import type { GlossaryExplanationState } from './GlossaryPanel/useGlossaryExplanation';
 import { ReaderRightPanel } from './ReaderPanel/ReaderRightPanel';
 import type { ReaderSurfaceHandle } from './ReaderSurface/type';
 import { TableOfContents } from './TableOfContents/TableOfContents';
@@ -32,6 +33,7 @@ interface ReaderWorkspaceProps {
   onReturnToProgress?: () => void;
   onStartNewConversation: () => void;
   onUpdatePreferences: (changes: Partial<ReaderPreferences>) => void;
+  glossaryAi?: GlossaryExplanationState;
 }
 
 export function ReaderWorkspace({
@@ -56,6 +58,7 @@ export function ReaderWorkspace({
   onReturnToProgress,
   onStartNewConversation,
   onUpdatePreferences,
+  glossaryAi,
 }: ReaderWorkspaceProps) {
   const tocVisible = desktop && !compactReader && !preferences.tocCollapsed;
   const panelVisible = desktop && Boolean(activePanel);
@@ -138,6 +141,7 @@ export function ReaderWorkspace({
                     onResumeConversation={onResumeConversation}
                     onJumpHighlight={onJumpHighlight}
                     focusedHighlightId={focusedHighlightId}
+                    glossaryAi={glossaryAi}
                   />
                 )}
               </Allotment.Pane>

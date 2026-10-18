@@ -13,6 +13,7 @@ import type { BookItem } from '../../../../../../contracts/books';
 import type { ChatMessage, ChatSession } from '../../../../../../contracts/ai';
 import type { HighlightItem } from '../../../../../../contracts/reading';
 import type { RightPanel } from '../../../../../types/reader';
+import type { GlossaryExplanationState } from '../GlossaryPanel/useGlossaryExplanation';
 
 export interface ReaderRightPanelProps {
   book: BookItem;
@@ -26,6 +27,7 @@ export interface ReaderRightPanelProps {
   onResumeConversation: (session: ChatSession) => void;
   onJumpHighlight: (highlight: HighlightItem) => void;
   focusedHighlightId?: string | null;
+  glossaryAi?: GlossaryExplanationState;
 }
 
 export interface ReaderActivityBarProps {
