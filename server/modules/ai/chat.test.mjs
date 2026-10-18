@@ -380,7 +380,7 @@ test('OAuth 对话使用供应商运行时，不把配置中的 API Key 带入�
   assert.notEqual(requestedOptions.apiKey, 'must-not-be-used');
 });
 
-test('PiAgent 的订阅地图工具只执行一次，并将原图和分析可靠写入最终消息', async () => {
+test('PiAgent 的订阅地图工具只执行一次，并将 COS 原图和分析可靠写入最终消息', async () => {
   const faux = fauxProvider({ tokensPerSecond: 0 });
   faux.setResponses([
     fauxAssistantMessage(
@@ -411,6 +411,7 @@ test('PiAgent 的订阅地图工具只执行一次，并将原图和分析可靠
       onStage('正在分析正文 1/2');
       return {
         imageUrl: '/api/books/book/knowledge-maps/test',
+        cosUrl: 'https://images.example.test/map.png',
         outline: '核心观点与含义',
         passages: 20,
         batches: 2,
@@ -421,7 +422,9 @@ test('PiAgent 的订阅地图工具只执行一次，并将原图和分析可靠
   });
   assert.equal(generated, 1);
   assert.equal(faux.state.callCount, 2);
-  assert.match(result.content, /!\[全景知识地图\]/);
+  assert.ok(result.content.includes('![全景知识地图](https://images.example.test/map.png)'));
+  assert.ok(result.content.includes('[查看或保存原图](https://images.example.test/map.png)'));
+  assert.ok(!result.content.includes('/api/books/book/knowledge-maps/test'));
   assert.match(result.content, /核心观点与含义/);
   assert.match(result.content, /20 个正文段落/);
   assert.ok(
