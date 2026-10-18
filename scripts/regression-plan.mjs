@@ -3,7 +3,7 @@ import { appendFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const glossaryFiles =
-  /(?:\/termAnnotations(?:\.test)?\.ts$|\/DemoHighlightedText(?:\.test)?\.tsx$|\/ReaderGlossaryPanel\/)/;
+  /(?:\/termAnnotations(?:\.test)?\.ts$|\/DemoHighlightedText(?:\.test)?\.tsx$|\/ReaderGlossaryPanel\/|\/GlossaryPanel\/)/;
 const domains = [
   [
     /^src\/pages\/books\/list\//,

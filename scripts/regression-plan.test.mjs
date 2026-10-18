@@ -9,6 +9,13 @@ test('术语小改只选术语与移动交互回归，混合公共变动必须�
     'tests/e2e/mobile-reader-overlays.spec.ts',
     'tests/e2e/reader-glossary.spec.ts',
   ]);
+  const glossaryPanel = change(
+    'src/pages/books/detail/components/GlossaryPanel/useGlossaryExplanation.ts',
+  );
+  assert.deepEqual(regressionPlan([glossaryPanel]).specs, [
+    'tests/e2e/mobile-reader-overlays.spec.ts',
+    'tests/e2e/reader-glossary.spec.ts',
+  ]);
   assert.equal(regressionPlan([term, change('src/store/useLearningStore.ts')]).mode, 'full');
 });
 test('阅读器运行时、共享模块、持久化、依赖和未知变动全量兜底', () => {
