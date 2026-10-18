@@ -71,6 +71,7 @@ jobs:
           npm run verify
 
       - name: 浏览器与视觉回归
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.full_regression) || github.event_name == 'schedule'
         env:
           REGRESSION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
           REGRESSION_FULL: ${{ (github.event_name == 'workflow_dispatch' && inputs.full_regression) || github.event_name == 'schedule' }}
