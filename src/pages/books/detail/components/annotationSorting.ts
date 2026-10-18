@@ -1,7 +1,12 @@
 import { collapse, compare, parse } from 'foliate-js/epubcfi.js';
 import type { HighlightItem } from '../../../../../contracts/reading';
 
-export type AnnotationSortOrder = 'created-desc' | 'created-asc' | 'position';
+export type AnnotationSortOrder =
+  | 'created-desc'
+  | 'created-asc'
+  | 'position'
+  | 'position-asc'
+  | 'position-desc';
 
 type Position = ReturnType<typeof parse> | null;
 
@@ -34,21 +39,22 @@ export function sortAnnotations(
   items: readonly HighlightItem[],
   order: AnnotationSortOrder,
 ): HighlightItem[] {
+  const isPositionSort = order === 'position' || order === 'position-asc' || order === 'position-desc';
   const entries = items.map((item) => ({
     item,
-    position: order === 'position' ? annotationPosition(item.cfi) : null,
+    position: isPositionSort ? annotationPosition(item.cfi) : null,
   }));
   entries.sort((left, right) => {
-    if (order === 'position') {
+    if (isPositionSort) {
       if (!left.position && right.position) return 1;
       if (left.position && !right.position) return -1;
       if (left.position && right.position) {
         const difference = compare(left.position, right.position);
-        if (difference) return difference;
+        if (difference) return order === 'position-desc' ? -difference : difference;
       }
     }
     const difference = left.item.createdAt - right.item.createdAt;
-    return order === 'created-desc' ? -difference : difference;
+    return order === 'created-desc' || order === 'position-desc' ? -difference : difference;
   });
   return entries.map(({ item }) => item);
 }

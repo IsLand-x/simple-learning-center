@@ -70,12 +70,15 @@ test('三个侧栏默认最新在上，可分别切换时间与书籍位置排�
     await page.getByRole('option', { name: /添加时间正序$/ }).click();
     await expect(titles).toHaveText([`${kind}-0`, `${kind}-1`, `${kind}-2`]);
     await sort.click();
-    await page.getByRole('option', { name: /书籍位置$/ }).click();
+    await page.getByRole('option', { name: /书籍位置正序$/ }).click();
     await expect(titles).toHaveText([`${kind}-2`, `${kind}-0`, `${kind}-1`]);
+    await sort.click();
+    await page.getByRole('option', { name: /书籍位置倒序$/ }).click();
+    await expect(titles).toHaveText([`${kind}-1`, `${kind}-0`, `${kind}-2`]);
   }
   const glossary = await openPanel(page, '术语表', mobile);
   await expect(glossary.getByRole('combobox', { name: '术语表排序', exact: true })).toContainText(
-    '书籍位置',
+    '书籍位置倒序',
   );
   if (mobile) {
     await glossary.getByRole('combobox', { name: '术语表排序', exact: true }).click();

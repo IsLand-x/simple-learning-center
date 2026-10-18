@@ -76,4 +76,25 @@ describe('阅读侧栏排序', () => {
     ]);
     expect(sortAnnotations([], 'position')).toEqual([]);
   });
+
+  it('支持书籍位置正序与倒序排序', () => {
+    const items = [
+      annotation('middle', 'demo:chapter-2:selection:5:0', 1),
+      annotation('first', 'demo:chapter-1:selection:1:0', 2),
+      annotation('last', 'demo:chapter-3:selection:1:0', 3),
+      annotation('missing', '', 4),
+    ];
+    expect(ids(sortAnnotations(items, 'position-asc'))).toEqual([
+      'first',
+      'middle',
+      'last',
+      'missing',
+    ]);
+    expect(ids(sortAnnotations(items, 'position-desc'))).toEqual([
+      'last',
+      'middle',
+      'first',
+      'missing',
+    ]);
+  });
 });
