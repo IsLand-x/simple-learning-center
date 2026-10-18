@@ -639,9 +639,30 @@
     font-size: 16px;
   }
 
+  /* Give compact Semi selectors a touch target without stretching their surface. */
   .ai-composer-model-cascader.semi-cascader,
-  .ai-composer-reasoning-select.semi-select {
+  .ai-composer-reasoning-select.semi-select,
+  .reader-panel-sort.semi-select {
+    position: relative;
+    overflow: visible;
+    touch-action: manipulation;
+  }
+
+  .ai-composer-model-cascader.semi-cascader::before,
+  .ai-composer-reasoning-select.semi-select::before,
+  .reader-panel-sort.semi-select::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: max(100%, 44px);
+    transform: translateY(-50%);
+  }
+
+  .reader-ai-input .semi-aiChatInput-footer-configure {
     min-height: 44px;
+    align-items: center;
   }
 
   .ai-assistant-settings__footer {

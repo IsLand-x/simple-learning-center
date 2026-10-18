@@ -104,25 +104,22 @@ export function ReaderRightPanel({
                 ref={sortDropdown.selectRef}
                 onDropdownVisibleChange={sortDropdown.onDropdownVisibleChange}
                 aria-labelledby={sortLabelId}
-                className="w-[146px] shrink-0 mobile:min-h-[44px]"
+                className="reader-panel-sort w-[146px] shrink-0"
                 size="small"
                 value={sortOrders[sortablePanel]}
                 optionList={[
                   {
                     value: 'created-desc',
                     label: '添加时间倒序',
-                    className: 'mobile:min-h-[44px]',
                   },
-                  { value: 'created-asc', label: '添加时间正序', className: 'mobile:min-h-[44px]' },
+                  { value: 'created-asc', label: '添加时间正序' },
                   {
                     value: 'position-asc',
                     label: '书籍位置正序',
-                    className: 'mobile:min-h-[44px]',
                   },
                   {
                     value: 'position-desc',
                     label: '书籍位置倒序',
-                    className: 'mobile:min-h-[44px]',
                   },
                 ]}
                 onChange={(value) => {

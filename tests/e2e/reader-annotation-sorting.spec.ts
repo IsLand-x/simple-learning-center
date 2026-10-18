@@ -117,15 +117,40 @@ for (const theme of ['light', 'dark']) {
         const bar = await titlebar.boundingBox();
         expect(bounds!.x).toBeGreaterThan(bar!.x);
         expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(bar!.x + bar!.width);
-        if (width <= 800) expect(bounds!.height).toBeGreaterThanOrEqual(44);
+        const nativeHeight = await sort.evaluate(() => {
+          const reference = document.createElement('div');
+          reference.className = 'semi-select semi-select-small';
+          document.body.append(reference);
+          const height = parseFloat(getComputedStyle(reference).height);
+          reference.remove();
+          return height;
+        });
+        expect(bounds!.height).toBe(nativeHeight);
+        if (width <= 800) {
+          expect(
+            await sort.evaluate((element) =>
+              parseFloat(getComputedStyle(element, '::before').height),
+            ),
+          ).toBeGreaterThanOrEqual(44);
+          await page.mouse.click(
+            bounds!.x + bounds!.width / 2,
+            bounds!.y + bounds!.height / 2 - 20,
+          );
+          await page.getByRole('option', { name: /添加时间倒序$/ }).click();
+          await expect
+            .poll(() => page.evaluate(() => Boolean(history.state?.learningCenterAnnotationSort)))
+            .toBe(false);
+        }
         expect(await panel.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
           true,
         );
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
           true,
         );
+        await page.mouse.move(0, 0);
         await sort.focus();
         await page.keyboard.press('Enter');
+        await expect(page.getByRole('option', { name: /添加时间正序$/ })).toBeVisible();
         await page.keyboard.press('ArrowDown');
         await page.keyboard.press('Enter');
         await expect(sort).toContainText('添加时间正序');
