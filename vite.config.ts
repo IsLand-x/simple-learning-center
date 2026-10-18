@@ -850,7 +850,7 @@ export default defineConfig({
     tailwindcss(),
     sites(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'app-icon.svg', 'apple-touch-icon-180x180.png', 'og.png'],
       manifest: {
         id: '/',

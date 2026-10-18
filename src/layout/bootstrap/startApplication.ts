@@ -1,6 +1,6 @@
 import { createElement, StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
-import { registerSW } from 'virtual:pwa-register';
+import { registerAppUpdates } from './registerAppUpdates';
 import { authApi } from '../../api/auth';
 import { AUTHENTICATION_REQUIRED_EVENT } from '../../api/http/errors';
 import { applyAppTheme, readInitialThemeMode } from '../../util/appTheme';
@@ -44,11 +44,7 @@ export function startApplication(rootElement: HTMLElement) {
     if (recoverOutdatedPreload()) event.preventDefault();
   });
 
-  registerSW({
-    immediate: true,
-    onNeedReload: reloadApplication,
-    onRegisterError: (error) => console.warn('PWA 更新检查失败', error),
-  });
+  registerAppUpdates(reloadApplication);
 
   async function synchronizeServerState() {
     if (stateSyncRunning || document.visibilityState === 'hidden') return;
