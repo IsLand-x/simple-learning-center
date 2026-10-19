@@ -57,13 +57,46 @@ for (const width of [375, 768, 1024, 1440]) {
           204,
         );
       }
+      // Dark mode also covers historical COS messages: these used to lose the save button.
+      const displayUrl =
+        theme === 'dark'
+          ? `https://images-123456.cos.ap-singapore.myqcloud.com/learning-center/2026-10-19/${imageId}.png`
+          : imageUrl;
+      if (displayUrl !== imageUrl) {
+        const snapshot = await (await page.request.get('/api/state/conversations')).json();
+        const chat = snapshot.state.chats[0];
+        chat.content = `![信息图](${displayUrl})`;
+        chat.dialogueContent[0].content[0].text = chat.content;
+        expect(
+          (await page.request.put('/api/state/conversations', { data: snapshot })).status(),
+        ).toBe(204);
+      }
+      const older = {
+        imageId: '22222222-2222-4222-8222-222222222222',
+        title: '早期图片',
+        savedAt: 1,
+        url: imageUrl,
+      };
+      let resources = [older];
+      let failSave = true;
+      await page.route(`**/api/books/${book.id}/resources`, async (route) => {
+        if (route.request().method() === 'POST') {
+          expect(route.request().postDataJSON()).toEqual({ imageId, title: '信息图' });
+          if (failSave) {
+            failSave = false;
+            return route.fulfill({ status: 503, json: { error: '保存暂不可用' } });
+          }
+          resources = [...resources, { imageId, title: '信息图', savedAt: 2, url: imageUrl }];
+        }
+        return route.fulfill({ json: { resources } });
+      });
       let releaseImage!: () => void;
       const imageGate = new Promise<void>((resolve) => {
         releaseImage = resolve;
       });
       let requests = 0;
       let failNext = false;
-      await page.route(`**${imageUrl}`, async (route) => {
+      const serveImage = async (route: import('@playwright/test').Route) => {
         if (route.request().method() === 'HEAD')
           return route.fulfill({ headers: { 'X-Image-Width': '900', 'X-Image-Height': '1350' } });
         requests += 1;
@@ -73,7 +106,9 @@ for (const width of [375, 768, 1024, 1440]) {
         }
         if (requests === 1) await imageGate;
         return route.fulfill({ contentType: 'image/svg+xml', body: imageFixture });
-      });
+      };
+      await page.route(`**${imageUrl}`, serveImage);
+      if (displayUrl !== imageUrl) await page.route(displayUrl, serveImage);
       await page.route('**/api/ai/jobs**', (route) => route.fulfill({ json: { jobs: [] } }));
       const openHistory = async () => {
         if (width <= 800) await page.locator('.reader-toolbar--mobile button').last().click();
@@ -119,6 +154,31 @@ for (const width of [375, 768, 1024, 1440]) {
         await expect(page.getByLabel('全屏图片查看器')).toBeVisible();
         await page.goBack();
         await expect(page.getByLabel('全屏图片查看器')).toHaveCount(0);
+        const save = page.getByRole('button', { name: '保存到资源库', exact: true });
+        await save.click();
+        await expect(page.getByText('保存暂不可用', { exact: true })).toBeVisible();
+        await expect(save).toBeEnabled();
+        await save.click();
+        await expect(
+          page.getByRole('button', { name: '已保存到资源库', exact: true }),
+        ).toBeDisabled();
+        await page.getByRole('button', { name: '打开资源库', exact: true }).click();
+        const titles = page.locator('.book-resource-title__trigger');
+        await expect(titles).toHaveText(['信息图', '早期图片']);
+        const sort = page.getByRole('combobox', { name: '排序' });
+        await sort.click();
+        await page.getByRole('option', { name: '创建时间正序' }).click();
+        await expect(titles).toHaveText(['早期图片', '信息图']);
+        await sort.focus();
+        await page.keyboard.press('Enter');
+        await page.getByRole('option', { name: '创建时间倒序' }).click();
+        await expect(titles).toHaveText(['信息图', '早期图片']);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+          true,
+        );
+        await page.screenshot({
+          path: testInfo.outputPath(`resources-sort-${width}-${theme}.png`),
+        });
       } finally {
         releaseImage();
       }
