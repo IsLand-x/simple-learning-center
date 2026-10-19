@@ -19,14 +19,6 @@ export interface FoliateShowAnnotationDetail {
   range: Range;
 }
 
-export interface TrackpadState {
-  lastEventAt: number;
-  velocityX: number;
-  velocityY: number;
-  snapping: boolean;
-  snapTimer: number | null;
-}
-
 export interface SelectionBoundary {
   node: Node;
   offset: number;

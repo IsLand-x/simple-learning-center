@@ -1,5 +1,4 @@
 export const TRACKPAD_GESTURE_IDLE_MS = 260;
-export const TRACKPAD_SNAP_DELAY_MS = 72;
 
 export const MOBILE_CUSTOM_HIGHLIGHT_NAME = 'learning-center-mobile-selection';
 export const MOBILE_CUSTOM_SELECTION_CLASS = 'learning-center-custom-mobile-selection';
