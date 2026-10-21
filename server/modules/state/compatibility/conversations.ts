@@ -39,6 +39,9 @@ export function protectConversations(incoming: PersistedState, current: Persiste
   ]) {
     if (removedResources.has(session.bookId)) deleted.add(session.id);
   }
+  incoming.state.conversationDrafts = incoming.state.conversationDrafts?.filter(
+    (draft) => !deleted.has(draft.conversationId) && !removedResources.has(draft.resourceId),
+  );
   if (deleted.size) {
     incoming.deletedConversationIds = [...deleted];
     incoming.state.chatSessions = incoming.state.chatSessions?.filter(

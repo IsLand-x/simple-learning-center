@@ -129,3 +129,18 @@ it('evicts cached messages when another device deletes a known conversation', as
   expect(get().chatSessions).toEqual([]);
   expect(get().chats).toEqual([]);
 });
+
+it('keeps independent drafts and records clearing without creating chat history', () => {
+  const { get, actions } = store();
+  actions.setConversationDraft('book', 'one', '第一行\n第二行');
+  actions.setConversationDraft('book', 'two', '另一对话');
+  actions.setConversationDraft('rss:article', 'content', '文章问题');
+  expect(get().conversationDrafts).toHaveLength(3);
+  expect(get().chats).toEqual([]);
+  expect(get().chatSessions).toEqual([]);
+  actions.setConversationDraft('book', 'one', '');
+  expect(get().conversationDrafts.find((draft) => draft.conversationId === 'one')?.text).toBe('');
+  expect(get().conversationDrafts.find((draft) => draft.conversationId === 'two')?.text).toBe(
+    '另一对话',
+  );
+});

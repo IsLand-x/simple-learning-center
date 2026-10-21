@@ -18,7 +18,11 @@ export function useReaderConversations(
   const [panelQuote, setPanelQuote] = useState<NonNullable<ChatMessage['quote']> | null>(null);
   useEffect(() => {
     if (!bookId) return;
-    setConversationId(createUuid());
+    const draft = useLearningStore
+      .getState()
+      .conversationDrafts.filter((item) => item.resourceId === bookId && item.text.trim())
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    setConversationId(draft?.conversationId ?? createUuid());
     setPanelQuote(null);
   }, [bookId]);
   const startNewConversation = () => {

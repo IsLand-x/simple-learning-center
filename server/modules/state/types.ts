@@ -1,4 +1,5 @@
 import type {
+  ConversationDraft,
   AiPreferences,
   ChatMessage,
   ChatSession,
@@ -56,6 +57,7 @@ export interface StoredState {
   videoPanelWidth?: number;
   openAIConfigs?: OpenAICompatibleConfig[];
   webSearchConfig?: WebSearchConfig;
+  conversationDrafts?: ConversationDraft[];
   aiPreferences?: Partial<AiPreferences>;
   navCollapsed?: boolean;
   themeMode?: ThemeMode;

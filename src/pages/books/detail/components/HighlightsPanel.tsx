@@ -1,5 +1,5 @@
 import { IconDeleteStroked } from '@douyinfe/semi-icons';
-import { Dropdown, Empty, Typography } from '@douyinfe/semi-ui';
+import { Dropdown, Empty, Input, Typography } from '@douyinfe/semi-ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLearningStore } from '../../../../store/useLearningStore';
@@ -19,6 +19,8 @@ export function HighlightsPanel({
   sortOrder: AnnotationSortOrder;
   onJumpHighlight: (highlight: HighlightItem) => void;
 }) {
+  const [query, setQuery] = useState('');
+  const keyword = query.trim().toLocaleLowerCase();
   const allHighlights = useLearningStore((state) => state.highlights);
   const deleteHighlight = useLearningStore((state) => state.deleteHighlight);
   const highlights = useMemo(
@@ -33,6 +35,11 @@ export function HighlightsPanel({
         sortOrder,
       ),
     [allHighlights, bookId, sortOrder],
+  );
+  const filtered = highlights.filter((item) =>
+    [item.text, item.chapter, item.comment, item.definition].some((value) =>
+      value?.toLocaleLowerCase().includes(keyword),
+    ),
   );
   const focusedCardRef = useRef<HTMLElement>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -64,8 +71,16 @@ export function HighlightsPanel({
 
   return (
     <div className="right-panel__body min-h-0 highlights-panel">
-      {highlights.length ? (
-        highlights.map((highlight) => (
+      <Input
+        aria-label="搜索划线"
+        placeholder="搜索划线、评论或章节"
+        value={query}
+        onChange={setQuery}
+        showClear
+        className="shrink-0 [margin-bottom:8px] mobile:[&_input]:text-[16px]"
+      />
+      {filtered.length ? (
+        filtered.map((highlight) => (
           <article
             className={`highlight-card [background:var(--semi-color-bg-0)] [padding:9px_10px] [transition:background-color_160ms_ease,_border-color_160ms_ease] ${highlight.id === focusedHighlightId ? ' highlight-card--focused' : ''}`}
             key={highlight.id}
@@ -97,7 +112,10 @@ export function HighlightsPanel({
           </article>
         ))
       ) : (
-        <Empty title="还没有高亮" description="选中阅读器中的文字即可添加高亮" />
+        <Empty
+          title={keyword ? '没有匹配结果' : '还没有高亮'}
+          description={keyword ? '试试其他关键词，或清空搜索' : '选中阅读器中的文字即可添加高亮'}
+        />
       )}
       {contextMenu &&
         createPortal(

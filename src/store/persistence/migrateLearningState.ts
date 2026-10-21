@@ -440,5 +440,7 @@ export function migrateLearningState(persistedState: unknown, version: number) {
   }
   // Version 38 adds optional term metadata in the existing highlights partition.
   // Preserve every legacy mark; no eager conversion or second storage source.
+  if (version < 39)
+    migrated = { ...migrated, conversationDrafts: migrated.conversationDrafts ?? [] };
   return migrated;
 }

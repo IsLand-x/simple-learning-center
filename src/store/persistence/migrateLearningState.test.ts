@@ -197,7 +197,7 @@ it('preserves version 34 notes and highlights when splitting their transport dom
     ],
     deletedNoteTombstones: [],
   };
-  expect(migrateLearningState(previous, 34)).toEqual(previous);
+  expect(migrateLearningState(previous, 34)).toEqual({ ...previous, conversationDrafts: [] });
 });
 
 it('keeps legacy books active and preserves archive decisions in the existing books domain', () => {

@@ -100,6 +100,9 @@ export function deleteConversation(id: string) {
     snapshot.deletedConversationIds = [
       ...new Set([...(snapshot.deletedConversationIds ?? []), id]),
     ];
+    state.conversationDrafts = (state.conversationDrafts ?? []).filter(
+      (draft) => draft.conversationId !== id,
+    );
     state.chatSessions = (state.chatSessions ?? []).filter((session) => session.id !== id);
     state.chats = (state.chats ?? []).filter((message) => message.conversationId !== id);
   });

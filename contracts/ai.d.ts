@@ -69,3 +69,10 @@ export interface AiPreferences {
   autoHideReasoning: boolean;
   hiddenPromptTemplateIds: string[];
 }
+
+export interface ConversationDraft {
+  resourceId: string;
+  conversationId: string;
+  text: string;
+  updatedAt: number;
+}

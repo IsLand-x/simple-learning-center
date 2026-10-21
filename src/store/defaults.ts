@@ -63,6 +63,7 @@ export const initialLearningState: LearningStateData = {
   trashedBooks: [],
   deletedBookTombstones: [],
   deletedHighlightTombstones: [],
+  conversationDrafts: [],
   highlights: [],
   notes: [],
   deletedNoteTombstones: [],

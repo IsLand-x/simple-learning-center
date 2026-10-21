@@ -140,7 +140,23 @@ test('显式已读、模型修改和删除不会覆盖其他会话，旧快照�
     (await app.request('/api/conversations/one', jsonRequest('PATCH', { bookId: 'other' }))).status,
     400,
   );
+  const draft = {
+    resourceId: 'book',
+    conversationId: 'one',
+    text: '未发送',
+    updatedAt: Date.now(),
+  };
+  await app.request(
+    '/api/state/preferences',
+    jsonRequest('PUT', { version: 39, state: { conversationDrafts: [draft] } }),
+  );
   assert.equal((await app.request('/api/conversations/one', { method: 'DELETE' })).status, 204);
+  assert.deepEqual((await readPersistedState()).state.conversationDrafts, []);
+  await app.request(
+    '/api/state/preferences',
+    jsonRequest('PUT', { version: 39, state: { conversationDrafts: [draft] } }),
+  );
+  assert.deepEqual((await readPersistedState()).state.conversationDrafts, []);
   assert.equal(
     (await app.request('/api/state/conversations', jsonRequest('PUT', stale))).status,
     204,

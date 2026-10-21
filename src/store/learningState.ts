@@ -27,6 +27,7 @@ import type { ThemeMode, WebSearchConfig } from '../../contracts/settings';
 import type { VideoResource, VideoTimestampNote } from '../../contracts/videos';
 
 export interface LearningState extends LearningData {
+  setConversationDraft: (resourceId: string, conversationId: string, text: string) => void;
   conversationSummaries: ChatSessionSummary[];
   loadConversationSummaries: (bookId: string) => Promise<void>;
   loadConversationMessages: (

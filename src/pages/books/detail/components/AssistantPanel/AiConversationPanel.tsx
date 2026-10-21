@@ -1,4 +1,5 @@
 import { IconBookOpenStroked } from '@douyinfe/semi-icons';
+import { useConversationDraft } from '../../../../../components/ai/useConversationDraft';
 import { AIChatInput, Button, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { AiConversationDialogue } from '../../../../../components/ai/AiConversationDialogue';
 import { AiModelSelector } from '../../../../../components/ai/AiModelSelector';
@@ -55,6 +56,7 @@ export function AiConversationPanel({
     getCurrentText,
     onClearSelectedText,
   });
+  const draft = useConversationDraft(book.id, conversationId);
   return (
     <div className="right-panel__body min-h-0 ai-panel [gap:6px]">
       <ConversationMessageControls {...messageLoading} />
@@ -108,6 +110,9 @@ export function AiConversationPanel({
       </div>
 
       <AIChatInput
+        key={draft.key}
+        defaultContent={draft.defaultContent}
+        onContentChange={draft.onContentChange}
         ref={inputRef}
         references={
           quote

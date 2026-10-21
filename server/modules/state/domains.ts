@@ -23,6 +23,7 @@ const STATE_DOMAIN_FIELDS = Object.freeze({
     'openAIConfigs',
     'webSearchConfig',
     'aiPreferences',
+    'conversationDrafts',
     'navCollapsed',
     'themeMode',
     'readerPreferences',
@@ -74,6 +75,22 @@ export function mergeStateDomainSnapshot(
     if (Object.hasOwn(incomingSnapshot.state, field)) {
       nextState.state[field] = structuredClone(incomingSnapshot.state[field]);
     }
+  }
+  if (domain === 'preferences') {
+    const drafts = new Map<
+      string,
+      NonNullable<PersistedState['state']['conversationDrafts']>[number]
+    >();
+    for (const draft of [
+      ...(currentPersistedState?.state.conversationDrafts ?? []),
+      ...(incomingSnapshot.state.conversationDrafts ?? []),
+    ]) {
+      const key = JSON.stringify([draft.resourceId, draft.conversationId]);
+      if ((drafts.get(key)?.updatedAt ?? -1) <= draft.updatedAt) drafts.set(key, draft);
+    }
+    nextState.state.conversationDrafts = [...drafts.values()].filter(
+      (draft) => !currentPersistedState?.deletedConversationIds?.includes(draft.conversationId),
+    );
   }
   const incomingVersion = Number.isInteger(incomingSnapshot.version) ? incomingSnapshot.version : 0;
   const currentVersion = Number.isInteger(nextState.version) ? nextState.version : 0;

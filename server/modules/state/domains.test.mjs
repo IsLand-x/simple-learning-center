@@ -95,3 +95,22 @@ test('阅读记录与高亮接口不能读写笔记，笔记接口也不能覆�
     serializeStateDomainSnapshot(current, 'highlights').etag,
   );
 });
+
+test('AI 草稿属于偏好分区，旧快照不能恢复已发送草稿或覆盖其他对话', () => {
+  const draft = { resourceId: 'book', conversationId: 'one', text: '', updatedAt: 3 };
+  const current = { version: 39, state: { conversationDrafts: [draft] } };
+  const incoming = {
+    version: 39,
+    state: {
+      conversationDrafts: [
+        { ...draft, text: '旧问题', updatedAt: 1 },
+        { ...draft, conversationId: 'two', text: '另一问题' },
+      ],
+    },
+  };
+  const merged = mergeStateDomainSnapshot(current, incoming, 'preferences');
+  assert.deepEqual(merged.state.conversationDrafts, [draft, incoming.state.conversationDrafts[1]]);
+  assert.deepEqual(createStateDomainSnapshot(current, 'preferences').state.conversationDrafts, [
+    draft,
+  ]);
+});

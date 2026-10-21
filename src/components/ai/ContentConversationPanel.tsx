@@ -1,4 +1,5 @@
 import { useContentConversation } from './useContentConversation';
+import { useConversationDraft } from './useConversationDraft';
 import { AIChatInput, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { IconArticle, IconVideo } from '@douyinfe/semi-icons';
 import { useLearningStore } from '../../store/useLearningStore';
@@ -57,6 +58,10 @@ export function ContentConversationPanel({
     reasoningEffort,
     chooseReasoningEffort,
   } = useContentConversation({ resource, selectedText, onClearSelectedText });
+  const draft = useConversationDraft(
+    resource.type === 'rss' ? `rss:${resource.item.id}` : `video:${resource.video.id}`,
+    'content',
+  );
   return (
     <div className="right-panel__body min-h-0 ai-panel [gap:6px] rss-ai-panel min-w-0 min-h-0">
       <ConversationMessageControls {...messageLoading} />
@@ -73,6 +78,9 @@ export function ContentConversationPanel({
         />
       </div>
       <AIChatInput
+        key={draft.key}
+        defaultContent={draft.defaultContent}
+        onContentChange={draft.onContentChange}
         ref={inputRef}
         references={
           quote

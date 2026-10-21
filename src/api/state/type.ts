@@ -1,4 +1,5 @@
 import type {
+  ConversationDraft,
   AiPreferences,
   ChatMessage,
   ChatSession,
@@ -55,6 +56,7 @@ export interface LearningData {
   videoPanelWidth: number;
   openAIConfigs: OpenAICompatibleConfig[];
   webSearchConfig: WebSearchConfig;
+  conversationDrafts: ConversationDraft[];
   aiPreferences: AiPreferences;
   navCollapsed: boolean;
   themeMode: ThemeMode;
@@ -87,6 +89,7 @@ export interface StateDomainData {
     | 'openAIConfigs'
     | 'webSearchConfig'
     | 'aiPreferences'
+    | 'conversationDrafts'
     | 'navCollapsed'
     | 'themeMode'
     | 'readerPreferences'

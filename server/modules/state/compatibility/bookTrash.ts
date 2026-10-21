@@ -80,6 +80,9 @@ export function protectBookTrashStateFromClient(
   protectedState.state.trashedBooks = structuredClone(currentTrashedBooks);
   protectedState.state.deletedBookTombstones = structuredClone(currentTombstones);
 
+  protectedState.state.conversationDrafts = (protectedState.state.conversationDrafts ?? []).filter(
+    (draft) => !currentTombstones.some((entry) => entry.bookId === draft.resourceId),
+  );
   const trashedBookIds = new Set(currentTrashedBooks.map(entryBookId).filter(Boolean));
   const permanentlyDeletedBookIds = new Set(
     currentTombstones.map((entry) => entry?.bookId).filter(Boolean),
@@ -228,6 +231,9 @@ export function permanentlyDeleteBookInState(
       (item) => item?.bookId !== bookId,
     );
   }
+  state.conversationDrafts = (state.conversationDrafts ?? []).filter(
+    (draft) => draft.resourceId !== bookId,
+  );
   state.deletedBookTombstones = [
     { bookId, deletedAt },
     ...stateArray(state, 'deletedBookTombstones').filter((entry) => entry?.bookId !== bookId),

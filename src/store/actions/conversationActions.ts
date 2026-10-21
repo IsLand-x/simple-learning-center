@@ -4,6 +4,7 @@ import type { LearningState, LearningStoreSet } from '../learningState';
 
 type ConversationActions = Pick<
   LearningState,
+  | 'setConversationDraft'
   | 'markChatMessagesRead'
   | 'createChatSession'
   | 'updateChatSession'
@@ -35,6 +36,25 @@ export function createConversationActions(
   const localSessions = new Set<string>();
   let revision = 0;
   return {
+    setConversationDraft: (resourceId, conversationId, text) => {
+      const current = get().conversationDrafts.find(
+        (draft) => draft.resourceId === resourceId && draft.conversationId === conversationId,
+      );
+      if ((current?.text ?? '') === text) return;
+      set((state) => ({
+        conversationDrafts: [
+          ...state.conversationDrafts.filter(
+            (draft) => draft.resourceId !== resourceId || draft.conversationId !== conversationId,
+          ),
+          {
+            resourceId,
+            conversationId,
+            text,
+            updatedAt: Math.max(Date.now(), (current?.updatedAt ?? 0) + 1),
+          },
+        ],
+      }));
+    },
     loadConversationSummaries: (bookId) => {
       const pending = summaryRequests.get(bookId);
       if (pending) return pending;
@@ -163,6 +183,9 @@ export function createConversationActions(
       deleted.add(sessionId);
       revision++;
       set((state) => ({
+        conversationDrafts: state.conversationDrafts.filter(
+          (draft) => draft.conversationId !== sessionId,
+        ),
         chats: state.chats.filter((message) => message.conversationId !== sessionId),
         chatSessions: state.chatSessions.filter((session) => session.id !== sessionId),
         conversationSummaries: state.conversationSummaries.filter(

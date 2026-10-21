@@ -1,3 +1,4 @@
+import { mergeConversationDrafts } from './conversationDrafts';
 import {
   defaultAiPreferences,
   defaultReaderPreferences,
@@ -27,6 +28,10 @@ export function mergeLearningState(
   return {
     ...currentState,
     ...persisted,
+    conversationDrafts: mergeConversationDrafts(
+      currentState.conversationDrafts,
+      persisted.conversationDrafts ?? [],
+    ),
     ...mergeReadingNotes(persisted, currentState),
     chats: (persisted.chats ?? currentState.chats).map((message) => {
       const local = localChats.get(message.id);
