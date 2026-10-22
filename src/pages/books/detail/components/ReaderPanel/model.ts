@@ -14,6 +14,7 @@ import type { BookItem } from '../../../../../../contracts/books';
 import type { ChatMessage, ChatSession } from '../../../../../../contracts/ai';
 import type { HighlightItem, MindMapSource } from '../../../../../../contracts/reading';
 import type { RightPanel } from '../../../../../types/reader';
+import type { MindMapPanelSelection } from '../MindMapPanel/type';
 import type { GlossaryExplanationState } from '../GlossaryPanel/useGlossaryExplanation';
 
 export interface ReaderRightPanelProps {
@@ -23,6 +24,8 @@ export interface ReaderRightPanelProps {
   selectedQuote?: NonNullable<ChatMessage['quote']>;
   mobile?: boolean;
   activeHref?: string;
+  mindMapSelection?: MindMapPanelSelection;
+  onMindMapSelectionChange?: (selection: MindMapPanelSelection) => void;
   onLocateSource?: (source: MindMapSource) => Promise<void>;
   getCurrentText: () => string;
   onClearSelectedText: () => void;

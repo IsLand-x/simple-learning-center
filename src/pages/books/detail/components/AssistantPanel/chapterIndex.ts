@@ -17,14 +17,26 @@ export function sameBookFile(left: string, right: string) {
   return a === b || a.endsWith('/' + b) || b.endsWith('/' + a);
 }
 
-export function chapterEntries(
-  items: TocItem[],
-  ancestors: string[] = [],
-): Array<TocItem & { path: string[] }> {
-  return items.flatMap((item) => [
-    { ...item, path: [...ancestors, item.id] },
-    ...chapterEntries(item.subitems ?? [], [...ancestors, item.id]),
-  ]);
+export function chapterEntries(items: TocItem[]): Array<TocItem & { path: string[] }> {
+  const counts = new Map<string, number>();
+  const count = (entries: TocItem[]) =>
+    entries.forEach((entry) => {
+      counts.set(entry.id, (counts.get(entry.id) ?? 0) + 1);
+      count(entry.subitems ?? []);
+    });
+  count(items);
+  const walk = (
+    entries: TocItem[],
+    ancestors: string[],
+    indices: number[],
+  ): Array<TocItem & { path: string[] }> =>
+    entries.flatMap((item, index) => {
+      const position = [...indices, index];
+      const id = counts.get(item.id) === 1 ? item.id : `toc:${position.join('.')}:${item.href}`;
+      const path = [...ancestors, id];
+      return [{ ...item, id, path }, ...walk(item.subitems ?? [], path, position)];
+    });
+  return walk(items, [], []);
 }
 
 export function indexChapterDocument({

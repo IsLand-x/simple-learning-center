@@ -433,3 +433,39 @@ test('PiAgent 的订阅地图工具只执行一次，并将 COS 原图和分析�
     ),
   );
 });
+
+test('章节导图不提供其他书籍工具，异常工具调用也只请求一次模型', async () => {
+  const faux = fauxProvider({ tokensPerSecond: 0 });
+  let calls = 0;
+  faux.setResponses([
+    (context) => {
+      calls++;
+      assert.deepEqual(getCurrentTools(context.messages), []);
+      assert.match(getCurrentSystemPrompt(context.messages), /只返回 JSON/);
+      return fauxAssistantMessage([fauxToolCall('read_current_book', {})], {
+        stopReason: 'toolUse',
+      });
+    },
+    () => {
+      calls++;
+      return fauxAssistantMessage('不应发出第二次请求');
+    },
+  ]);
+  await runServerAiChat({
+    config: { baseUrl: 'https://example.invalid/v1', apiKey: 'test-key' },
+    model: 'mock',
+    purpose: 'mindmap',
+    resourceType: 'book',
+    conversationId: 'chapter-map',
+    book: { id: 'book', title: '测试书', toc: [] },
+    messages: [{ role: 'user', content: '所选章节正文' }],
+    currentText: '',
+    notes: [],
+    highlights: [],
+    readingSessions: [],
+    webSearchConfig: {},
+    assistantPrompt: '',
+    runtimeFactory: runtimeFactoryFor(faux),
+  });
+  assert.equal(calls, 1);
+});

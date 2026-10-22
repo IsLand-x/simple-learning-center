@@ -58,3 +58,18 @@ describe('章节正文索引', () => {
     expect(indexed.passages[0].chapterIds).toEqual([]);
   });
 });
+
+it('uses distinct stable keys when a legacy TOC repeats chapter IDs', () => {
+  const toc = [
+    {
+      id: 'toc-0',
+      href: 'one',
+      label: '同名章节',
+      subitems: [{ id: 'toc-0', href: 'child', label: '同名章节' }],
+    },
+  ];
+  const entries = chapterEntries(toc);
+  expect(entries.map((entry) => entry.id)).toEqual(['toc:0:one', 'toc:0.0:child']);
+  expect(entries[1].path).toEqual(['toc:0:one', 'toc:0.0:child']);
+  expect(chapterEntries(toc)).toEqual(entries);
+});

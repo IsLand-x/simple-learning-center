@@ -1,6 +1,7 @@
 import { IconColorPalette } from '@douyinfe/semi-icons';
 import { SideSheet, Typography } from '@douyinfe/semi-ui';
-import type { RefObject } from 'react';
+import { useState, type RefObject } from 'react';
+import type { MindMapPanelSelection } from './MindMapPanel/type';
 import { ReaderStylePanel } from '../../../../components/reading/ReaderStylePanel';
 import type { BookItem, TocItem } from '../../../../../contracts/books';
 import type { ChatMessage, ChatSession } from '../../../../../contracts/ai';
@@ -66,6 +67,7 @@ export function ReaderMobileChrome({
   onUpdatePreferences,
   glossaryAi,
 }: ReaderMobileChromeProps) {
+  const [mindMapSelection, setMindMapSelection] = useState<MindMapPanelSelection>();
   return (
     <div className="reader-mobile-chrome">
       <div
@@ -154,6 +156,8 @@ export function ReaderMobileChrome({
               <ReaderRightPanel
                 book={book}
                 activeHref={activeHref}
+                mindMapSelection={mindMapSelection}
+                onMindMapSelectionChange={setMindMapSelection}
                 onLocateSource={async (source) => {
                   if (!readerRef.current?.locateSource) throw new Error('阅读器尚未就绪');
                   await readerRef.current.locateSource(source);

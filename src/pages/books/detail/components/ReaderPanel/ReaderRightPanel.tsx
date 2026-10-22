@@ -25,6 +25,8 @@ export function ReaderRightPanel({
   selectedQuote,
   mobile = false,
   activeHref,
+  mindMapSelection,
+  onMindMapSelectionChange,
   onLocateSource,
   getCurrentText,
   onClearSelectedText,
@@ -188,6 +190,8 @@ export function ReaderRightPanel({
             key={book.id}
             book={book}
             activeHref={activeHref}
+            selection={mindMapSelection}
+            onSelectionChange={onMindMapSelectionChange}
             onLocateSource={onLocateSource}
           />
         )}

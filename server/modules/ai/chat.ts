@@ -243,6 +243,7 @@ export async function runServerAiChat({
     }
     return entry;
   };
+  const maxAgentTurns = purpose === 'mindmap' ? 1 : MAX_AGENT_TURNS;
   const agent = new Agent({
     initialState: {
       systemPrompt:
@@ -265,10 +266,11 @@ export async function runServerAiChat({
         maxRetries: 1,
       }),
     finishTurn: ({ newMessages }) =>
-      newMessages.filter((message) => message.role === 'assistant').length >= MAX_AGENT_TURNS
+      newMessages.filter((message) => message.role === 'assistant').length >= maxAgentTurns
         ? { action: 'end' }
         : undefined,
     prepareNextTurnWithContext: ({ context, newMessages }) => {
+      if (purpose === 'mindmap') return undefined;
       const completedTurns = newMessages.filter((message) => message.role === 'assistant').length;
       if (completedTurns !== MAX_AGENT_TURNS - 1) return undefined;
       return {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chapterPassages, validateMindMapOutline, mindMapId } from './model.js';
+import { chapterPassages, findMindMapChapter, validateMindMapOutline, mindMapId } from './model.js';
 
 const passages = [
   {
@@ -109,4 +109,19 @@ test('过时索引与无定位的 EPUB 段落不能静默生成无法跳转的�
       ),
     /定位索引/,
   );
+});
+
+test('旧 NCX 中重复的章节 ID 使用目录路径区分，不按同名标题覆盖', () => {
+  const toc = [
+    {
+      id: 'toc-0',
+      label: '同名章节',
+      href: 'one',
+      subitems: [{ id: 'toc-0', label: '同名章节', href: 'child' }],
+    },
+  ];
+  assert.equal(findMindMapChapter(toc, 'toc-0'), undefined);
+  assert.equal(findMindMapChapter(toc, 'toc:0:one').href, 'one');
+  assert.equal(findMindMapChapter(toc, 'toc:0.0:child').href, 'child');
+  assert.equal(findMindMapChapter(toc, 'toc:0.0:forged'), undefined);
 });

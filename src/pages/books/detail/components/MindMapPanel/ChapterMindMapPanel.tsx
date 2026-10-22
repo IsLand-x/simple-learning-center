@@ -8,6 +8,7 @@ import { AiModelSelector } from '../../../../../components/ai/AiModelSelector';
 import { confirmDialog } from '../../../../../util/confirmDialog';
 import { chapterEntries, normalizeBookHref, sameBookFile } from '../AssistantPanel/chapterIndex';
 import { MindMapCanvas } from './MindMapCanvas';
+import type { MindMapPanelSelection } from './type';
 import { useChapterMindMap } from './useChapterMindMap';
 
 const { Text } = Typography;
@@ -16,13 +17,19 @@ export function ChapterMindMapPanel({
   book,
   activeHref,
   onLocateSource,
+  selection,
+  onSelectionChange,
 }: {
   book: BookItem;
   activeHref?: string;
+  selection?: MindMapPanelSelection;
+  onSelectionChange?: (selection: MindMapPanelSelection) => void;
   onLocateSource?: (source: MindMapSource) => Promise<void>;
 }) {
   const chapters = useMemo(() => chapterEntries(book.toc), [book.toc]);
   const [chapterId, setChapterId] = useState(() => {
+    if (selection && chapters.some((chapter) => chapter.id === selection.chapterId))
+      return selection.chapterId;
     const current =
       chapters.find(
         (chapter) =>
@@ -32,7 +39,8 @@ export function ChapterMindMapPanel({
       chapters.find((chapter) => activeHref && sameBookFile(chapter.href, activeHref));
     return current?.path[0] ?? chapters[0]?.id ?? '';
   });
-  const [selectedId, setSelectedId] = useState<string>();
+  const [localSelectedId, setSelectedId] = useState<string>();
+  const selectedId = selection?.chapterId === chapterId ? selection.nodeId : localSelectedId;
   const [jumping, setJumping] = useState(false);
   const [jumpError, setJumpError] = useState('');
   const ai = useChapterMindMap(book, chapterId);
@@ -52,6 +60,7 @@ export function ChapterMindMapPanel({
   };
   const selectNode = (node: MindMapNode) => {
     setSelectedId(node.id);
+    onSelectionChange?.({ chapterId, nodeId: node.id });
     setJumpError('');
     if (node.sources[0]) void locate(node.sources[0]);
   };
@@ -86,6 +95,7 @@ export function ChapterMindMapPanel({
           onChange={(value) => {
             if (typeof value === 'string') {
               setChapterId(value);
+              onSelectionChange?.({ chapterId: value });
               setSelectedId(undefined);
               setJumpError('');
             }
@@ -156,14 +166,16 @@ export function ChapterMindMapPanel({
                   <p className="line-clamp-4 text-[13px] leading-[1.65] [color:var(--semi-color-text-1)]">
                     “{source.quote}”
                   </p>
-                  <Button
-                    size="small"
-                    theme="borderless"
-                    disabled={jumping}
-                    onClick={() => void locate(source)}
-                  >
-                    查看原文{selected.sources.length > 1 ? ` ${index + 1}` : ''}
-                  </Button>
+                  <div className="mindmap-actions flex items-center">
+                    <Button
+                      size="small"
+                      theme="borderless"
+                      disabled={jumping}
+                      onClick={() => void locate(source)}
+                    >
+                      查看原文{selected.sources.length > 1 ? ` ${index + 1}` : ''}
+                    </Button>
+                  </div>
                 </div>
               ))}
               {jumpError && (

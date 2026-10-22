@@ -26,22 +26,20 @@ test.beforeAll(async () => {
       sources?: Array<{ passageId: string; quote: string }>;
     }>;
     const entry = entries.at(-1)!;
-    const source = entry.sources?.[0] ?? {
-      passageId: entry.passageId!,
-      quote: entry.text!.trim().slice(0, 100),
-    };
+    const sources = entry.sources ?? [
+      { passageId: entry.passageId!, quote: entry.text!.trim().slice(0, 100) },
+      { passageId: entry.passageId!, quote: entry.text!.trim().slice(-100) },
+    ];
     const content = JSON.stringify({
       nodes: [
         {
           key: 'main',
           parent: null,
           title: '通过回顾与原文核对建立理解',
-          sources: [
-            {
-              ...source,
-              ...(invalidResponse ? { quote: '这是一段没有出现在测试书中的虚构内容。' } : {}),
-            },
-          ],
+          sources: sources.map((source) => ({
+            ...source,
+            ...(invalidResponse ? { quote: '这是一段没有出现在测试书中的虚构内容。' } : {}),
+          })),
         },
       ],
     });
@@ -141,6 +139,10 @@ for (const theme of ['light', 'dark']) {
       await expect(node).toBeVisible({ timeout: 30_000 });
       expect(requests).toBeGreaterThan(before);
       await expect(page.locator('body')).toHaveAttribute('theme-mode', theme);
+      await panel.getByRole('button', { name: /^收起“.*”的子节点$/ }).click();
+      await expect(node).toHaveCount(0);
+      await panel.getByRole('button', { name: /^展开“.*”的子节点$/ }).click();
+      await expect(node).toBeVisible();
       await panel.getByRole('button', { name: '放大导图' }).click();
       await panel.getByRole('button', { name: '导图适应面板' }).click();
       const overflow = await page.evaluate(
@@ -171,6 +173,12 @@ for (const theme of ['light', 'dark']) {
       const afterHighlights = await (await page.request.get('/api/state/highlights')).json();
       expect(afterHighlights.state.highlights).toEqual(highlights.state.highlights);
 
+      if (mobile) {
+        await openPanel(page, mobile);
+        await expect(panel.getByRole('button', { name: '查看原文 2', exact: true })).toBeVisible();
+        await panel.getByRole('button', { name: '查看原文 2', exact: true }).click();
+        await expect(panel).toBeHidden();
+      }
       const completedRequests = requests;
       const changedStyle = await (await page.request.get('/api/state/preferences')).json();
       changedStyle.state.readerPreferences = {

@@ -5,12 +5,25 @@ import type { MindMapNode, MindMapSource } from '../../../../contracts/reading.j
 import type { BookPassage } from '../../books/search.js';
 
 export function findMindMapChapter(items: TocItem[], id: string): TocItem | undefined {
-  for (const item of items) {
-    if (item.id === id) return item;
-    const nested = findMindMapChapter(item.subitems ?? [], id);
-    if (nested) return nested;
+  const matches: TocItem[] = [];
+  const visit = (entries: TocItem[]) =>
+    entries.forEach((item) => {
+      if (item.id === id) matches.push(item);
+      visit(item.subitems ?? []);
+    });
+  visit(items);
+  if (matches.length === 1) return matches[0];
+  // Old NCX imports can contain duplicate IDs. Resolve the stable TOC path instead.
+  const canonical = /^toc:([0-9.]+):(.*)$/s.exec(id);
+  if (!canonical) return undefined;
+  let entries = items;
+  let result: TocItem | undefined;
+  for (const part of canonical[1].split('.')) {
+    result = entries[Number(part)];
+    if (!result) return undefined;
+    entries = result.subitems ?? [];
   }
-  return undefined;
+  return result?.href === canonical[2] ? { ...result, id } : undefined;
 }
 
 export function mindMapId(bookId: string, chapterId: string) {
