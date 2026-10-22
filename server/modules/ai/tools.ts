@@ -35,6 +35,7 @@ type ToolContext = Pick<
     noteActions: typeof DEFAULT_NOTE_ACTIONS;
     knowledgeMapAction?: (signal?: AbortSignal) => Promise<unknown>;
     infographicTools?: Record<string, ToolDefinition>;
+    diagramTools?: Record<string, ToolDefinition>;
   };
 
 function flattenToc(items: TocItem[] = []): string[] {
@@ -67,6 +68,7 @@ export function createAgentTools({
   noteActions,
   knowledgeMapAction,
   infographicTools,
+  diagramTools,
 }: ToolContext): Record<string, ToolDefinition> {
   const webTools = {
     web_search: defineTool({
@@ -236,6 +238,7 @@ export function createAgentTools({
     };
   }
   return {
+    ...diagramTools,
     ...infographicTools,
     ...(knowledgeMapAction
       ? {

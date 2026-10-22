@@ -8,7 +8,7 @@ const directory = await mkdtemp(join(tmpdir(), 'book-resources-test-'));
 process.env.LEARNING_CENTER_DATA_DIR = directory;
 const { createApp } = await import('../../app.js');
 const { atomicWrite, knowledgeMapDirectoryPath } = await import('../../infrastructure/fs/files.js');
-const { saveBookResource, renameBookResource } = await import('./resources.js');
+const { saveBookResource, renameBookResource, saveBookDiagram } = await import('./resources.js');
 const app = createApp({ mode: 'local', serveFrontend: false });
 const id = '11111111-1111-4111-8111-111111111111';
 const secondId = '22222222-2222-4222-8222-222222222222';
@@ -21,6 +21,47 @@ const save = (payload = { imageId: id, title: '因果机制' }, path = base) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+
+test('脚本图与可运行源码私有保存，下载受认证并随书籍彻底删除', async () => {
+  const source = 'console.log("<svg></svg>");';
+  const url = await saveBookDiagram(
+    { id: 'book', fileSize: 42 },
+    Buffer.from('diagram-png'),
+    source,
+  );
+  const imageId = url.split('/').at(-1);
+  const scriptPath = join(knowledgeMapDirectoryPath('book'), `${imageId}.js`);
+  assert.equal((await stat(scriptPath)).mode & 0o777, 0o600);
+  const response = await app.request(`${url}/script`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('Content-Disposition'), /attachment/);
+  assert.match(response.headers.get('Content-Type'), /text\/plain/);
+  const downloaded = await response.text();
+  assert.ok(downloaded.includes(source));
+  assert.ok(downloaded.includes('console.log'));
+  const head = await app.request(`${url}/script`, { method: 'HEAD' });
+  assert.equal(head.status, 200);
+  assert.equal(await head.text(), '');
+  const remote = createApp({
+    mode: 'remote',
+    password: 'test-only-password',
+    serveFrontend: false,
+  });
+  assert.equal((await remote.request(`${url}/script`)).status, 401);
+  assert.equal((await app.request('/api/books/book/knowledge-maps/bad-id/script')).status, 400);
+  const aborted = new AbortController();
+  aborted.abort();
+  await assert.rejects(
+    saveBookDiagram({ id: 'book', fileSize: 42 }, Buffer.from('x'), source, aborted.signal),
+    { name: 'AbortError' },
+  );
+  await app.request('/api/books/book', { method: 'DELETE' });
+  await assert.rejects(stat(scriptPath), { code: 'ENOENT' });
+  await assert.rejects(
+    saveBookDiagram({ id: 'book', fileSize: 42 }, Buffer.from('x'), source),
+    /书籍已删除/,
+  );
+});
 after(() => rm(directory, { recursive: true, force: true }));
 beforeEach(async () => {
   await rm(knowledgeMapDirectoryPath('book'), { recursive: true, force: true });

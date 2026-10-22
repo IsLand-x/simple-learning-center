@@ -88,7 +88,7 @@ export async function renameBookResource(bookId: string, imageId: string, input:
   });
 }
 
-export async function saveKnowledgeMap(book: BookItem, png: Buffer, signal?: AbortSignal) {
+async function saveBookImage(book: BookItem, png: Buffer, signal?: AbortSignal, source?: string) {
   const id = randomUUID();
   // Serialize existence check and write with book deletion to prevent orphan files.
   await mutatePersistedState(async (snapshot) => {
@@ -100,6 +100,20 @@ export async function saveKnowledgeMap(book: BookItem, png: Buffer, signal?: Abo
     )
       throw new Error('书籍已删除或变更，地图未保存。');
     await atomicWrite(join(knowledgeMapDirectoryPath(book.id), `${id}.png`), png);
+    if (source) await atomicWrite(join(knowledgeMapDirectoryPath(book.id), `${id}.js`), source);
   });
   return `/api/books/${encodeURIComponent(book.id)}/knowledge-maps/${id}`;
+}
+
+export async function saveKnowledgeMap(book: BookItem, png: Buffer, signal?: AbortSignal) {
+  return saveBookImage(book, png, signal);
+}
+
+export async function saveBookDiagram(
+  book: BookItem,
+  png: Buffer,
+  source: string,
+  signal?: AbortSignal,
+) {
+  return saveBookImage(book, png, signal, source);
 }

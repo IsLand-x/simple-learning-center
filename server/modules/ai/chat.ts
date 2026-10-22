@@ -1,4 +1,5 @@
 import { imageHostingMarkdown } from './generation/imageHostingMarkdown.js';
+import { createDiagramTools, diagramMarkdown } from './diagrams/tools.js';
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { UserMessage } from '@earendil-works/pi-ai';
 import { generateBookKnowledgeMap } from './generation/knowledgeMap.js';
@@ -39,6 +40,8 @@ interface ChatOptions extends AiChatContext {
   knowledgeMapGenerator?: typeof generateBookKnowledgeMap;
   infographicImageGenerator?: typeof generateCodexImage;
   infographicImageSave?: typeof saveKnowledgeMap;
+  diagramRender?: Parameters<typeof createDiagramTools>[0]['render'];
+  diagramSave?: Parameters<typeof createDiagramTools>[0]['save'];
 }
 
 export async function runServerAiChat({
@@ -74,6 +77,8 @@ export async function runServerAiChat({
   knowledgeMapGenerator = generateBookKnowledgeMap,
   infographicImageGenerator,
   infographicImageSave,
+  diagramRender,
+  diagramSave,
 }: ChatOptions): Promise<AiResult> {
   const runtime = config.oauthProvider
     ? await oauth.runtime(config.oauthProvider, model, signal)
@@ -200,6 +205,21 @@ export async function runServerAiChat({
     noteActions: trackedNoteActions,
     knowledgeMapAction,
     infographicTools,
+    diagramTools:
+      resourceType === 'book' && purpose === 'chat'
+        ? createDiagramTools({
+            book: book!,
+            supportsImages: piModel.input.includes('image'),
+            render: diagramRender,
+            save: diagramSave,
+            onResult: (result) => {
+              const entry = ensureEntry('message', `diagram-result:${result.imageUrl}`);
+              entry.text = diagramMarkdown(result);
+              entry.status = 'completed';
+              publish();
+            },
+          })
+        : undefined,
   });
   const tools = Object.entries(toolMap).map(([name, definition]) => piTool(name, definition));
 

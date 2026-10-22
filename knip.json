@@ -5,6 +5,7 @@
     "scripts/start-e2e-server.mjs",
     "server/index.ts",
     "server/dev.ts",
+    "server/modules/ai/diagrams/worker.ts",
     "server/**/*.test.mjs",
     "tests/fixtures/generate-reader-regression.mjs",
     "tests/browser/run.mjs",

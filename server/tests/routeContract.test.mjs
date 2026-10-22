@@ -295,6 +295,14 @@ const expectedRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/books/:bookId/knowledge-maps/:imageId/script',
+  },
+  {
+    method: 'HEAD',
+    path: '/api/books/:bookId/knowledge-maps/:imageId/script',
+  },
+  {
+    method: 'GET',
     path: '/api/books/:bookId/knowledge-maps/:imageId',
   },
   {

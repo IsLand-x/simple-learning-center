@@ -31,7 +31,7 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/server-dist ./server-dist
 COPY --from=build --chown=node:node /app/dist ./dist
 
-RUN mkdir -p /data && chown node:node /data
+RUN apk add --no-cache font-noto-cjk && mkdir -p /data && chown node:node /data
 
 USER node
 EXPOSE 4174

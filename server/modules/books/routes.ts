@@ -64,6 +64,21 @@ export function createBookRoutes() {
   );
   app.all(`${BOOK_ROUTE}/resources`, methodNotAllowed);
   app.all(`${BOOK_ROUTE}/resources/:imageId`, methodNotAllowed);
+  app.on(['GET', 'HEAD'], `${BOOK_ROUTE}/knowledge-maps/:imageId/script`, async (c) => {
+    const id = c.req.param('imageId');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))
+      return c.json({ error: '图片标识不正确' }, 400);
+    const response = await storedFileResponse(
+      c,
+      join(knowledgeMapDirectoryPath(c.req.param('bookId')), `${id}.js`),
+      'private, max-age=31536000, immutable',
+    );
+    response.headers.set('Content-Type', 'text/plain; charset=utf-8');
+    response.headers.set('Content-Disposition', 'attachment; filename="diagram.js"');
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('Content-Security-Policy', "sandbox; default-src 'none'");
+    return response;
+  });
   app.on(['GET', 'HEAD'], `${BOOK_ROUTE}/knowledge-maps/:imageId`, async (c) => {
     const id = c.req.param('imageId');
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))
