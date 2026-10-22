@@ -1,7 +1,8 @@
+import { IconHandle } from '@douyinfe/semi-icons';
 import { Button, TextArea, Tooltip } from '@douyinfe/semi-ui';
 import type { HighlightItem } from '../../../contracts/reading';
 import type { ReaderSelection } from '../../types/reader';
-import { clamp } from '../../util/format';
+import { useCommentEditorDrag } from './useCommentEditorDrag';
 import type { VisualViewportBounds } from './useOverlayViewport';
 type SelectionAnnotation = Pick<HighlightItem, 'id' | 'kind' | 'text' | 'comment'>;
 export function HighlightCommentEditor({
@@ -23,31 +24,43 @@ export function HighlightCommentEditor({
   onCancelCommentEditing: () => void;
   onChangeCommentDraft: (value: string) => void;
 }) {
-  const keyboardVisible = visualViewport.height < window.innerHeight - 120;
+  const { formRef, position, dragging, handleProps } = useCommentEditorDrag(
+    visualViewport,
+    commentTargetRect,
+  );
 
   return (
     <form
-      className={`highlight-comment-editor fixed [z-index:31] [width:min(320px,_calc(100vw_-_24px))] [padding:10px] [background:var(--semi-color-bg-2)] [box-shadow:var(--semi-shadow-elevated)] [transform:translate(-50%,_-100%)] mobile:[width:min(360px,_calc(100vw_-_16px))] ${!keyboardVisible && commentTargetRect.top < 210 ? ' highlight-comment-editor--below' : ''}`}
+      ref={formRef}
+      className="highlight-comment-editor fixed overflow-auto [z-index:31] [width:min(320px,_calc(100vw_-_24px))] [padding:10px_10px_10px_28px] [background:var(--semi-color-bg-2)] [box-shadow:var(--semi-shadow-elevated)] mobile:[width:min(360px,_calc(100vw_-_16px))]"
       aria-label={`评论高亮：${pendingCommentSelection?.text ?? activeHighlight?.text ?? ''}`}
       style={{
-        left: keyboardVisible
-          ? visualViewport.offsetLeft + visualViewport.width / 2
-          : clamp(
-              commentTargetRect.left + commentTargetRect.width / 2,
-              166,
-              window.innerWidth - 166,
-            ),
-        top: keyboardVisible
-          ? visualViewport.offsetTop + visualViewport.height - 8
-          : commentTargetRect.top < 210
-            ? commentTargetRect.top + commentTargetRect.height + 8
-            : commentTargetRect.top - 8,
+        left: position?.left ?? 0,
+        top: position?.top ?? 0,
+        maxWidth: Math.max(0, visualViewport.width - 16),
+        maxHeight: Math.max(0, visualViewport.height - 16),
       }}
       onSubmit={(event) => {
         event.preventDefault();
         onSaveHighlightComment();
       }}
     >
+      <Tooltip
+        content="拖动调整位置；方向键移动，Enter 返回输入"
+        position="topLeft"
+        rePosKey={`${position?.left}:${position?.top}`}
+        condition={!dragging}
+      >
+        <span
+          {...handleProps}
+          role="button"
+          tabIndex={0}
+          aria-label="拖动评论输入框"
+          className={`highlight-comment-editor__handle absolute inline-flex items-center justify-center [width:16px] [height:16px] [left:6px] [top:14px] [color:var(--semi-color-text-2)] hover:[color:var(--semi-color-text-1)] touch-none select-none ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        >
+          <IconHandle />
+        </span>
+      </Tooltip>
       <TextArea
         autoFocus
         autosize={{ minRows: 3, maxRows: 6 }}
