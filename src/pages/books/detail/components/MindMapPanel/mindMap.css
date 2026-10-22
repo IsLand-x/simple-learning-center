@@ -1,6 +1,79 @@
+.chapter-mindmap-panel .mindmap-canvas {
+  --xy-background-color: var(--semi-color-bg-1);
+  --xy-edge-stroke: var(--semi-color-border);
+  --xy-attribution-background-color: var(--semi-color-bg-1);
+}
+
+.chapter-mindmap-panel .mindmap-canvas .react-flow__attribution a {
+  color: var(--semi-color-text-2);
+}
+
+.chapter-mindmap-panel .mindmap-node .react-flow__handle {
+  visibility: hidden;
+}
+
+.chapter-mindmap-panel .mindmap-node__content {
+  color: var(--semi-color-text-0);
+  border-color: var(--semi-color-border);
+  background: var(--semi-color-bg-0);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+  touch-action: manipulation;
+}
+
+.chapter-mindmap-panel .mindmap-node--root .mindmap-node__content {
+  color: var(--semi-color-primary);
+  border-color: var(--semi-color-primary-light-active);
+  background: var(--semi-color-primary-light-default);
+  font-weight: 600;
+}
+
+.chapter-mindmap-panel .mindmap-node--branch .mindmap-node__content {
+  font-weight: 600;
+}
+
+.chapter-mindmap-panel .mindmap-node--leaf .mindmap-node__content {
+  color: var(--semi-color-text-1);
+  border-color: transparent;
+  border-bottom-color: var(--semi-color-border);
+  background: transparent;
+}
+
+.chapter-mindmap-panel .mindmap-node__content:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.chapter-mindmap-panel .mindmap-node--active .mindmap-node__content {
+  color: var(--semi-color-primary);
+  border-color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+}
+
+.chapter-mindmap-panel .mindmap-node__toggle {
+  position: relative;
+}
+
+.chapter-mindmap-panel .mindmap-node__toggle::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 1.5px;
+  background: var(--semi-color-border);
+}
+
+.chapter-mindmap-panel .mindmap-node--root .mindmap-node__toggle::before {
+  background: var(--semi-color-primary-light-active);
+}
+
 .chapter-mindmap-panel .mindmap-node__toggle .semi-button {
   position: relative;
+  background: var(--semi-color-bg-1);
   touch-action: manipulation;
+}
+
+.chapter-mindmap-panel .mindmap-node__toggle .semi-button:hover {
+  background: var(--semi-color-fill-0);
 }
 
 .chapter-mindmap-panel .mindmap-node__toggle .semi-button::before {
@@ -8,8 +81,8 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: max(100%, 44px);
-  height: max(100%, 44px);
+  width: 52px;
+  height: 52px;
   transform: translate(-50%, -50%);
 }
 

@@ -1,53 +1,50 @@
 import { IconChevronDown, IconChevronRight } from '@douyinfe/semi-icons';
 import { Button } from '@douyinfe/semi-ui';
-import type { PositionedMindMapNode } from './layout';
+import { Handle, Position, useReactFlow, type NodeProps } from '@xyflow/react';
+import type { MindMapFlowNode } from './type';
 
-export function MindMapNodeCard({
-  item,
-  selected,
-  scale,
-  collapsed,
-  onSelect,
-  onToggle,
-}: {
-  item: PositionedMindMapNode;
-  selected: boolean;
-  scale: number;
-  collapsed: boolean;
-  onSelect: () => void;
-  onToggle: () => void;
-}) {
+export function MindMapNodeCard({ id, data }: NodeProps<MindMapFlowNode>) {
+  const { node, depth, childCount, collapsed, active, onSelect, onToggle } = data;
+  const flow = useReactFlow<MindMapFlowNode>();
   return (
     <div
-      className="mindmap-node absolute flex items-center gap-1"
-      style={{ left: item.x, top: item.y, width: 232, height: 76 }}
+      className={`mindmap-node pointer-events-auto flex items-center ${depth === 0 ? 'mindmap-node--root' : depth === 1 ? 'mindmap-node--branch' : 'mindmap-node--leaf'} ${active ? 'mindmap-node--active' : ''}`}
+      onFocusCapture={(event) => {
+        if (!event.target.matches(':focus-visible')) return;
+        const current = flow.getNode(id);
+        if (current)
+          void flow.setCenter(
+            current.position.x + (current.measured?.width ?? 0) / 2,
+            current.position.y + (current.measured?.height ?? 0) / 2,
+            { zoom: Math.max(0.85, flow.getZoom()) },
+          );
+      }}
     >
+      {node.parentId && <Handle type="target" position={Position.Left} isConnectable={false} />}
       <button
         type="button"
-        aria-pressed={selected}
-        title={item.node.title}
-        className={`mindmap-node__content h-full min-w-0 flex-1 rounded-[var(--semi-border-radius-medium)] border border-solid px-3 py-2 text-left text-[14px] leading-[1.5] [background:var(--semi-color-bg-0)] [color:var(--semi-color-text-0)] hover:[background:var(--semi-color-fill-0)] focus-visible:outline-2 focus-visible:[outline-color:var(--semi-color-focus-border)] ${selected ? '[border-color:var(--semi-color-primary)] [background:var(--semi-color-primary-light-default)]' : '[border-color:var(--semi-color-border)]'}`}
-        onClick={onSelect}
+        aria-pressed={active}
+        title={node.title}
+        className="mindmap-node__content nodrag nopan min-h-[52px] min-w-0 flex-1 rounded-[var(--semi-border-radius-small)] border border-solid px-3 py-2 text-left text-[14px] leading-[1.5] [overflow-wrap:anywhere] focus-visible:outline-2 focus-visible:[outline-color:var(--semi-color-focus-border)]"
+        onClick={() => onSelect(node)}
       >
-        <span className="line-clamp-3">{item.node.title}</span>
+        <span className="line-clamp-3">{node.title}</span>
       </button>
-      {item.hasChildren && (
-        <span
-          className="mindmap-node__toggle flex shrink-0 items-center justify-center"
-          style={{ width: 44 / Math.max(0.6, scale) }}
-        >
+      {childCount > 0 && (
+        <span className="mindmap-node__toggle nodrag nopan flex w-[52px] shrink-0 items-center justify-center">
           <Button
-            style={{ transform: `scale(${1 / Math.max(0.6, scale)})` }}
-            aria-label={`${collapsed ? '展开' : '收起'}“${item.node.title}”的子节点`}
+            aria-label={`${collapsed ? '展开' : '收起'}“${node.title}”的子节点`}
             aria-expanded={!collapsed}
+            title={`${childCount} 个分支`}
             icon={collapsed ? <IconChevronRight /> : <IconChevronDown />}
             theme="borderless"
             type="tertiary"
             size="small"
-            onClick={onToggle}
+            onClick={() => onToggle(node.id)}
           />
         </span>
       )}
+      {childCount > 0 && <Handle type="source" position={Position.Right} isConnectable={false} />}
     </div>
   );
 }
