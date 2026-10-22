@@ -85,3 +85,31 @@ export interface ReaderCustomStyle {
   fontSize: number;
   density: ReaderDensity;
 }
+
+export interface MindMapSource {
+  passageId: string;
+  chapter: string;
+  href: string;
+  cfi?: string;
+  quote: string;
+}
+
+export interface MindMapNode {
+  id: string;
+  parentId: string | null;
+  title: string;
+  sources: MindMapSource[];
+}
+
+export interface ChapterMindMap {
+  id: string;
+  version: 1;
+  revision: number;
+  bookId: string;
+  chapterId: string;
+  chapterTitle: string;
+  nodes: MindMapNode[];
+  model: string;
+  generatedAt: number;
+  updatedAt: number;
+}

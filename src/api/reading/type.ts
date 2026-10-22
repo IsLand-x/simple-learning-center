@@ -5,6 +5,8 @@ export interface BookPassage {
   sectionIndex: number;
   chunkIndex: number;
   text: string;
+  chapterIds?: string[];
+  cfi?: string;
 }
 
 export interface BookSearchIndex {

@@ -7,10 +7,11 @@ export interface AiJob {
   bookId: string;
   resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
   termId?: string;
+  chapterId?: string;
   rssItemId?: string;
   videoId?: string;
   digestDate?: string;
-  purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary';
+  purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap';
   conversationId: string;
   userMessageId: string;
   assistantMessageId: string;
@@ -35,11 +36,12 @@ export interface StartAiJobInput {
   bookId: string;
   resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
   termId?: string;
+  chapterId?: string;
   rssItemId?: string;
   videoId?: string;
   digestDate?: string;
   digestItemIds?: string[];
-  purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary';
+  purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap';
   conversationId: string;
   userMessage: {
     id: string;

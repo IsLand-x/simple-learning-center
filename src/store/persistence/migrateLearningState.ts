@@ -442,5 +442,6 @@ export function migrateLearningState(persistedState: unknown, version: number) {
   // Preserve every legacy mark; no eager conversion or second storage source.
   if (version < 39)
     migrated = { ...migrated, conversationDrafts: migrated.conversationDrafts ?? [] };
+  if (version < 40) migrated = { ...migrated, chapterMindMaps: migrated.chapterMindMaps ?? [] };
   return migrated;
 }

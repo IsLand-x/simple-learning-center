@@ -71,6 +71,7 @@ export const initialLearningState: LearningStateData = {
   chatSessions: [],
   conversationSummaries: [],
   readingSessions: [],
+  chapterMindMaps: [],
   rssFolders: [],
   rssFeeds: [],
   rssItems: [],

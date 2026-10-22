@@ -1,3 +1,4 @@
+import { clearMindMapSourceHint } from './mindMapNavigation';
 import type { View as FoliateView } from 'foliate-js/view.js';
 import { useCallback, type Dispatch, type SetStateAction } from 'react';
 
@@ -21,15 +22,21 @@ export function useFoliateNavigation({
   setErrorMessage,
 }: FoliateNavigationOptions) {
   const enqueueNavigation = useCallback(
-    (operation: (view: FoliateView) => Promise<void>, errorMessage: string) => {
+    (operation: (view: FoliateView) => Promise<void>, errorMessage: string, showError = true) => {
       const queuedView = viewRef.current;
       if (!queuedView) return;
       const queued = navigationQueueRef.current
         .catch(() => undefined)
         .then(async () => {
-          if (viewRef.current === queuedView) await operation(queuedView);
+          if (viewRef.current === queuedView) {
+            clearMindMapSourceHint(queuedView);
+            await operation(queuedView);
+          }
         });
-      navigationQueueRef.current = queued.catch(() => setErrorMessage(errorMessage));
+      navigationQueueRef.current = queued.catch(() => {
+        if (showError) setErrorMessage(errorMessage);
+      });
+      return queued;
     },
     [navigationQueueRef, setErrorMessage, viewRef],
   );

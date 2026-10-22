@@ -7,6 +7,8 @@ export interface BookPassage {
   href: string;
   text: string;
   sectionIndex: number;
+  chapterIds?: string[];
+  cfi?: string;
 }
 interface SearchIndex {
   version: number;
@@ -39,7 +41,7 @@ export async function loadBookPassages(book: BookItem): Promise<BookPassage[]> {
     throw new Error('书内搜索索引无法读取', { cause: error });
   }
   if (
-    stored?.version !== 2 ||
+    ![2, 3].includes(stored?.version) ||
     stored.bookId !== book.id ||
     stored.fileSize !== book.fileSize ||
     !Array.isArray(stored.passages) ||

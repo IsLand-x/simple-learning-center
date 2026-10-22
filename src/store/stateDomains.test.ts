@@ -26,6 +26,12 @@ describe('stateDomainsForPath', () => {
   it('keeps the public domain list aligned with the field map', () => {
     expect(ALL_STATE_DOMAINS).toEqual(Object.keys(STATE_DOMAIN_FIELDS));
     expect(new Set(ALL_STATE_DOMAINS).size).toBe(ALL_STATE_DOMAINS.length);
+    expect(
+      Object.values(STATE_DOMAIN_FIELDS).filter((fields) =>
+        (fields as readonly string[]).includes('chapterMindMaps'),
+      ),
+    ).toHaveLength(1);
+    expect(STATE_DOMAIN_FIELDS.reading).toContain('chapterMindMaps');
   });
 
   it('never blocks content routes on the complete conversation history', () => {

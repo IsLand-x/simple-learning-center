@@ -4,7 +4,7 @@ import { statusError } from '../../infrastructure/http/errors.js';
 
 const STATE_DOMAIN_FIELDS = Object.freeze({
   library: Object.freeze(['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones']),
-  reading: Object.freeze(['readingSessions']),
+  reading: Object.freeze(['readingSessions', 'chapterMindMaps']),
   notes: Object.freeze(['notes', 'deletedNoteTombstones']),
   highlights: Object.freeze(['highlights', 'deletedHighlightTombstones']),
   conversations: Object.freeze(['chats', 'chatSessions']),

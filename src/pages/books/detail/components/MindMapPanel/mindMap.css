@@ -1,0 +1,40 @@
+.chapter-mindmap-panel .mindmap-node__toggle .semi-button {
+  position: relative;
+  touch-action: manipulation;
+}
+
+.chapter-mindmap-panel .mindmap-node__toggle .semi-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+
+@media (max-width: 800px) {
+  .chapter-mindmap-panel .mindmap-actions,
+  .chapter-mindmap-panel .mindmap-controls {
+    min-height: 44px;
+    gap: 20px;
+    padding-inline: 10px;
+  }
+
+  .chapter-mindmap-panel .mindmap-actions .semi-button,
+  .chapter-mindmap-panel .mindmap-controls .semi-button {
+    position: relative;
+    touch-action: manipulation;
+  }
+
+  .chapter-mindmap-panel .mindmap-actions .semi-button::before,
+  .chapter-mindmap-panel .mindmap-controls .semi-button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}

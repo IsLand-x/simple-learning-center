@@ -1,5 +1,9 @@
 import type { BookItem } from '../../../../../../contracts/books';
-import type { HighlightItem, ReaderPreferences } from '../../../../../../contracts/reading';
+import type {
+  HighlightItem,
+  MindMapSource,
+  ReaderPreferences,
+} from '../../../../../../contracts/reading';
 import type { ReaderHighlightTarget, ReaderSelection } from '../../../../../types/reader';
 import type { ThemeMode } from '../../../../../../contracts/settings';
 
@@ -12,6 +16,7 @@ export interface ReaderLocationUpdate {
 }
 
 export interface ReaderSurfaceHandle {
+  locateSource?: (source: MindMapSource) => Promise<void>;
   next: () => void;
   prev: () => void;
   display: (target: string, label?: string) => void;

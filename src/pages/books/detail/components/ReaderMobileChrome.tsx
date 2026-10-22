@@ -153,6 +153,12 @@ export function ReaderMobileChrome({
             ) : (
               <ReaderRightPanel
                 book={book}
+                activeHref={activeHref}
+                onLocateSource={async (source) => {
+                  if (!readerRef.current?.locateSource) throw new Error('阅读器尚未就绪');
+                  await readerRef.current.locateSource(source);
+                  onChangePanel(null);
+                }}
                 activePanel={activePanel}
                 conversationId={conversationId}
                 selectedQuote={panelQuote ?? undefined}

@@ -5,53 +5,18 @@ import type {
   BookPassage,
   BookSearchIndex as StoredBookSearchIndex,
 } from '../../../../../api/reading/type';
-import type { BookItem, TocItem } from '../../../../../../contracts/books';
+import type { BookItem } from '../../../../../../contracts/books';
+import { chapterEntries, indexChapterDocument } from './chapterIndex';
 import { demoChapterContent } from '../../../../../util/fixtures/demo';
 
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 3;
 const CHUNK_LENGTH = 1_200;
 const CHUNK_OVERLAP = 180;
-
-interface TocEntry {
-  href: string;
-  label: string;
-}
 
 const indexCache = new Map<string, Promise<BookPassage[]>>();
 
 function normalizeText(value: string) {
-  return value
-    .replace(/\r/g, '')
-    .replace(/[\t\f\v ]+/g, ' ')
-    .replace(/\n[ \t]+/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-function normalizeHref(value: string) {
-  const href = value.split('#')[0].split('?')[0];
-  try {
-    return decodeURIComponent(href).replace(/^\.\//, '');
-  } catch {
-    return href.replace(/^\.\//, '');
-  }
-}
-
-function flattenToc(items: TocItem[]): TocEntry[] {
-  return items.flatMap((item) => [
-    { href: normalizeHref(item.href), label: item.label },
-    ...flattenToc(item.subitems ?? []),
-  ]);
-}
-
-function chapterForHref(entries: TocEntry[], href: string, fallback: string) {
-  const normalized = normalizeHref(href);
-  const exact = entries.find((entry) => entry.href === normalized);
-  if (exact) return exact.label;
-  const suffix = entries.find(
-    (entry) => entry.href.endsWith(normalized) || normalized.endsWith(entry.href),
-  );
-  return suffix?.label || fallback;
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 function splitLongSegment(segment: string) {
@@ -118,30 +83,16 @@ function passagesForSection({
   }));
 }
 
-function extractDocumentText(document: Document) {
-  const root = document.body ?? document.documentElement;
-  if (!root) return '';
-  const clone = root.cloneNode(true) as Element;
-  clone
-    .querySelectorAll('script, style, noscript, template')
-    .forEach((element) => element.remove());
-  clone.querySelectorAll('br').forEach((element) => element.replaceWith('\n'));
-  clone
-    .querySelectorAll('h1, h2, h3, h4, h5, h6, p, div, li, blockquote, pre, dt, dd, figcaption, tr')
-    .forEach((element) => element.append('\n'));
-  return clone.textContent ?? '';
-}
-
 function buildDemoPassages(book: BookItem) {
-  return flattenToc(book.toc).flatMap((entry, sectionIndex) => {
-    const content = demoChapterContent[normalizeHref(entry.href)];
+  return chapterEntries(book.toc).flatMap((entry, sectionIndex) => {
+    const content = demoChapterContent[entry.href.split('#')[0]];
     if (!content) return [];
     return passagesForSection({
       text: [content.heading, ...content.paragraphs].join('\n\n'),
       chapter: entry.label,
       href: entry.href,
       sectionIndex,
-    });
+    }).map((passage) => ({ ...passage, chapterIds: entry.path }));
   });
 }
 
@@ -152,25 +103,27 @@ async function buildEpubPassages(book: BookItem) {
     type: 'application/epub+zip',
   });
   const epub = await makeBook(file);
-  const tocEntries = flattenToc(book.toc);
+  const tocEntries = chapterEntries(book.toc);
   try {
     const passages: BookPassage[] = [];
+    let previousPath: string[] = [];
     for (let sectionIndex = 0; sectionIndex < epub.sections.length; sectionIndex += 1) {
       const section = epub.sections[sectionIndex];
       if (!section?.id || !section.createDocument) continue;
       try {
         const document = await section.createDocument();
-        const text = extractDocumentText(document);
-        if (!normalizeText(text)) continue;
-        passages.push(
-          ...passagesForSection({
-            text,
-            chapter: chapterForHref(tocEntries, section.id, `第 ${sectionIndex + 1} 节`),
-            href: section.id,
-            sectionIndex,
-          }),
-        );
+        const indexed = indexChapterDocument({
+          document,
+          href: section.id,
+          sectionIndex,
+          cfi: section.cfi,
+          entries: tocEntries,
+          previousPath,
+        });
+        passages.push(...indexed.passages);
+        previousPath = indexed.path;
       } catch {
+        previousPath = [];
         // Image-only or malformed spine items have no searchable text; keep indexing the remaining book.
       } finally {
         section.unload?.();
@@ -207,12 +160,12 @@ async function loadOrBuildIndex(book: BookItem) {
 }
 
 export function getBookPassages(book: BookItem) {
-  const existing = indexCache.get(book.id);
+  const existing = indexCache.get(`${book.id}:${book.fileSize}`);
   if (existing) return existing;
   const pending = loadOrBuildIndex(book).catch((error) => {
-    indexCache.delete(book.id);
+    indexCache.delete(`${book.id}:${book.fileSize}`);
     throw error;
   });
-  indexCache.set(book.id, pending);
+  indexCache.set(`${book.id}:${book.fileSize}`, pending);
   return pending;
 }

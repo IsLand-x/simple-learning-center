@@ -1,3 +1,4 @@
+import { MIND_MAP_PROMPT } from './mindmaps/generate.js';
 import { imageHostingMarkdown } from './generation/imageHostingMarkdown.js';
 import { createDiagramTools, diagramMarkdown } from './diagrams/tools.js';
 import { Agent } from '@earendil-works/pi-agent-core';
@@ -221,7 +222,9 @@ export async function runServerAiChat({
           })
         : undefined,
   });
-  const tools = Object.entries(toolMap).map(([name, definition]) => piTool(name, definition));
+  const tools = Object.entries(purpose === 'mindmap' ? {} : toolMap).map(([name, definition]) =>
+    piTool(name, definition),
+  );
 
   const entries: StreamEntry[] = [];
   const entryByKey = new Map<string, StreamEntry>();
@@ -242,7 +245,10 @@ export async function runServerAiChat({
   };
   const agent = new Agent({
     initialState: {
-      systemPrompt: agentSystemPrompt(resourceType, purpose, assistantPrompt),
+      systemPrompt:
+        purpose === 'mindmap'
+          ? MIND_MAP_PROMPT
+          : agentSystemPrompt(resourceType, purpose, assistantPrompt),
       model: piModel,
       thinkingLevel: reasoningEffort || 'off',
       tools,

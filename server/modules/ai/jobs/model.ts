@@ -45,6 +45,7 @@ export function publicJob(job: AiJob) {
     digestDate: job.digestDate,
     purpose: job.purpose,
     termId: job.termId,
+    chapterId: job.chapterId,
     conversationId: job.conversationId,
     userMessageId: job.userMessageId,
     assistantMessageId: job.assistantMessageId,

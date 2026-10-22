@@ -6,6 +6,21 @@ import { upsertDigestRun } from './model.js';
 export async function persistAssistant(job: AiJob, result: AiResult) {
   await mutatePersistedState((persistedState) => {
     const state = persistedState.state;
+    if (job.purpose === 'mindmap' && result.mindMap) {
+      if (job.controller.signal.aborted || !state.books?.some((book) => book.id === job.bookId))
+        return;
+      const maps = state.chapterMindMaps ?? [];
+      const previous = maps.find((map) => map.id === result.mindMap!.id);
+      const mindMap = {
+        ...result.mindMap,
+        revision: (previous?.revision ?? 0) + 1,
+        generatedAt: previous?.generatedAt ?? result.mindMap.generatedAt,
+        updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? 0) + 1),
+      };
+      state.chapterMindMaps = [...maps.filter((map) => map.id !== mindMap.id), mindMap];
+      persistedState.version = Math.max(persistedState.version, 40);
+      return;
+    }
     if (job.purpose === 'glossary' && job.termId && result.content.trim()) {
       state.highlights = (state.highlights ?? []).map((term) =>
         term.id === job.termId &&

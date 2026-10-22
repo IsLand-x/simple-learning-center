@@ -132,6 +132,11 @@ export function ReaderWorkspace({
                 {desktop && activePanel && (
                   <ReaderRightPanel
                     book={book}
+                    activeHref={activeHref}
+                    onLocateSource={(source) =>
+                      readerRef.current?.locateSource?.(source) ??
+                      Promise.reject(new Error('阅读器尚未就绪'))
+                    }
                     activePanel={activePanel}
                     conversationId={conversationId}
                     selectedQuote={panelQuote ?? undefined}

@@ -197,7 +197,11 @@ it('preserves version 34 notes and highlights when splitting their transport dom
     ],
     deletedNoteTombstones: [],
   };
-  expect(migrateLearningState(previous, 34)).toEqual({ ...previous, conversationDrafts: [] });
+  expect(migrateLearningState(previous, 34)).toEqual({
+    ...previous,
+    conversationDrafts: [],
+    chapterMindMaps: [],
+  });
 });
 
 it('keeps legacy books active and preserves archive decisions in the existing books domain', () => {
@@ -234,4 +238,13 @@ it('keeps existing highlights and optional term metadata when upgrading to versi
   const term = { ...original, id: 'term', kind: 'term', definition: '释义', updatedAt: 2 };
   const result = migrateLearningState({ highlights: [original, term] }, 37);
   expect(result.highlights).toEqual([original, term]);
+});
+
+it('adds chapter mind maps without discarding existing maps or reading records', () => {
+  const previous = { readingSessions: [{ id: 'session', bookId: 'book' }] };
+  expect(migrateLearningState(previous, 39)).toEqual({ ...previous, chapterMindMaps: [] });
+  const maps = [{ id: 'saved-map', revision: 2 }];
+  expect(migrateLearningState({ ...previous, chapterMindMaps: maps }, 39).chapterMindMaps).toBe(
+    maps,
+  );
 });

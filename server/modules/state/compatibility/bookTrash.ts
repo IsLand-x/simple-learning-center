@@ -95,6 +95,7 @@ export function protectBookTrashStateFromClient(
     'chats',
     'chatSessions',
     'readingSessions',
+    'chapterMindMaps',
   ] as const) {
     const currentTrashedItems = stateArray(currentPersistedState.state, key).filter((item) =>
       trashedBookIds.has(item?.bookId),
@@ -226,6 +227,7 @@ export function permanentlyDeleteBookInState(
     'chats',
     'chatSessions',
     'readingSessions',
+    'chapterMindMaps',
   ] as const) {
     (state as Record<string, unknown>)[key] = stateArray(state, key).filter(
       (item) => item?.bookId !== bookId,

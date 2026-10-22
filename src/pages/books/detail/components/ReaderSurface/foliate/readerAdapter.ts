@@ -95,6 +95,7 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
       --reader-letter-spacing: ${style.density.letterSpacing};
       --reader-paragraph-spacing: ${style.density.paragraphSpacing}em;
       --reader-muted-color: ${style.mutedTextColor};
+      --reader-highlight-color: ${style.highlightColor};
       color: ${style.textColor} !important;
       background-color: ${style.paperColor} !important;
       background-image: ${texture.backgroundImage} !important;

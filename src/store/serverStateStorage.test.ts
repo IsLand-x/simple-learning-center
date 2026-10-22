@@ -149,7 +149,10 @@ it('writes only the changed panel domain, keeping note/highlight/progress payloa
     JSON.stringify({ version: LEARNING_STORE_VERSION, state }),
   );
   expect(mocks.writeDomain.mock.calls.map((call) => call[0])).toEqual(['reading']);
-  expect(Object.keys(mocks.writeDomain.mock.calls[0][1].state)).toEqual(['readingSessions']);
+  expect(Object.keys(mocks.writeDomain.mock.calls[0][1].state)).toEqual([
+    'readingSessions',
+    'chapterMindMaps',
+  ]);
   mocks.writeDomain.mockClear();
   state.highlights = [
     {

@@ -5,6 +5,7 @@ import type {
   ChatSession,
   OpenAICompatibleConfig,
 } from '../../../../contracts/ai.js';
+import type { ChapterMindMap } from '../../../../contracts/reading.js';
 import type { BookItem } from '../../../../contracts/books.js';
 import type { HighlightItem, NoteItem, ReadingSession } from '../../../../contracts/reading.js';
 import type { RssDailyDigest, RssDigestRun, RssFeed, RssItem } from '../../../../contracts/rss.js';
@@ -14,13 +15,14 @@ import type { prepareRssTranslationSource } from '../../rss/translation.js';
 
 export type ReasoningEffort = Exclude<AiReasoningEffort, 'auto'>;
 export type ResourceType = 'book' | 'rss' | 'video' | 'rssDigest';
-export type JobPurpose = 'chat' | 'summary' | 'translation' | 'digest' | 'glossary';
+export type JobPurpose = 'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap';
 type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface AiResult {
   content: string;
   dialogueContent: AiDialogueContentItem[];
   translationHtml?: string;
+  mindMap?: ChapterMindMap;
 }
 
 export interface AiJob {
@@ -29,6 +31,7 @@ export interface AiJob {
   resourceType: ResourceType;
   purpose: JobPurpose;
   termId?: string;
+  chapterId?: string;
   termUpdatedAt?: number;
   rssItemId?: string;
   videoId?: string;
@@ -47,6 +50,7 @@ export interface AiJob {
   revision: number;
   content: string;
   translationHtml?: string;
+  mindMap?: ChapterMindMap;
   dialogueContent: AiDialogueContentItem[];
   notesRevision: number;
   createdAt: number;
@@ -99,6 +103,7 @@ export interface AiJobRequest {
   resourceType?: unknown;
   purpose?: unknown;
   termId?: unknown;
+  chapterId?: unknown;
   configId?: unknown;
   model?: unknown;
   reasoningEffort?: unknown;

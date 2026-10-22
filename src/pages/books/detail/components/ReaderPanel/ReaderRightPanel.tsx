@@ -1,3 +1,4 @@
+import { ChapterMindMapPanel } from '../MindMapPanel/ChapterMindMapPanel';
 import { IconPlus, IconSetting } from '@douyinfe/semi-icons';
 import { Button, Select, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -23,6 +24,8 @@ export function ReaderRightPanel({
   conversationId,
   selectedQuote,
   mobile = false,
+  activeHref,
+  onLocateSource,
   getCurrentText,
   onClearSelectedText,
   onStartNewConversation,
@@ -178,6 +181,14 @@ export function ReaderRightPanel({
             bookId={book.id}
             activeConversationId={conversationId}
             onResumeConversation={onResumeConversation}
+          />
+        )}
+        {activePanel === 'mindmap' && (
+          <ChapterMindMapPanel
+            key={book.id}
+            book={book}
+            activeHref={activeHref}
+            onLocateSource={onLocateSource}
           />
         )}
         {activePanel === 'resources' && <BookResourcesPanel />}

@@ -12,6 +12,7 @@ import type {
   TrashedBookItem,
 } from '../../../contracts/books.js';
 import type {
+  ChapterMindMap,
   DeletedHighlightTombstone,
   DeletedNoteTombstone,
   HighlightItem,
@@ -42,6 +43,7 @@ export interface StoredState {
   notes?: NoteItem[];
   deletedNoteTombstones?: DeletedNoteTombstone[];
   readingSessions?: ReadingSession[];
+  chapterMindMaps?: ChapterMindMap[];
   chats?: ChatMessage[];
   chatSessions?: ChatSession[];
   rssFolders?: RssFolder[];

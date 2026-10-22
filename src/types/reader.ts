@@ -2,6 +2,7 @@ export type RightPanel =
   | 'ai'
   | 'history'
   | 'resources'
+  | 'mindmap'
   | 'notes'
   | 'glossary'
   | 'highlights'

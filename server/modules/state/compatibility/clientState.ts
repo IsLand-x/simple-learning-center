@@ -12,5 +12,11 @@ export async function protectClientState(
     protectServerRssState(await protectAiState(incomingState), currentState),
     currentState,
   );
+  // Read-only generated maps are server-owned. Stale and older clients cannot erase them.
+  if (currentState) {
+    protectedState.state.chapterMindMaps = structuredClone(
+      currentState.state.chapterMindMaps ?? [],
+    );
+  }
   return protectConversations(protectedState, currentState);
 }

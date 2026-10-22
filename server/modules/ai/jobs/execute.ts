@@ -1,5 +1,6 @@
+import { generateChapterMindMap } from '../mindmaps/generate.js';
 import type { RssDigestRun } from '../../../../contracts/rss.js';
-import type { AiJob, AiChatContext, AiChatRunner } from './types.js';
+import type { AiJob, AiChatContext, AiChatRunner, AiResult } from './types.js';
 import { mutatePersistedState } from '../../state/stateStore.js';
 import { completeRssTranslation } from '../../rss/translation.js';
 import { persistAssistant } from './persistence.js';
@@ -33,24 +34,45 @@ export function createJobExecutor({
       if (job.resourceType === 'rssDigest') {
         await updateDigestRun(job.digestRunId, { status: 'running' });
       }
-      const rawResult = await runChat({
-        ...context,
-        signal: job.controller.signal,
-        onProgress(progress) {
-          if (isCancelled(job)) return;
-          job.content = progress.content;
-          job.dialogueContent = structuredClone(progress.dialogueContent);
-          job.updatedAt = Date.now();
-          job.revision += 1;
-          publishJob(job);
-        },
-        onNoteChange() {
-          job.notesRevision += 1;
-          job.updatedAt = Date.now();
-          job.revision += 1;
-          publishJob(job);
-        },
-      });
+      const reportProgress = (progress: AiResult) => {
+        if (isCancelled(job)) return;
+        job.content = progress.content;
+        job.dialogueContent = structuredClone(progress.dialogueContent);
+        job.updatedAt = Date.now();
+        job.revision += 1;
+        publishJob(job);
+      };
+      const rawResult: AiResult =
+        job.purpose === 'mindmap'
+          ? {
+              content: '章节思维导图已生成',
+              dialogueContent: [],
+              mindMap: await generateChapterMindMap(
+                context,
+                job.chapterId!,
+                runChat,
+                job.controller.signal,
+                reportProgress,
+              ),
+            }
+          : await runChat({
+              ...context,
+              signal: job.controller.signal,
+              onProgress(progress) {
+                if (isCancelled(job)) return;
+                job.content = progress.content;
+                job.dialogueContent = structuredClone(progress.dialogueContent);
+                job.updatedAt = Date.now();
+                job.revision += 1;
+                publishJob(job);
+              },
+              onNoteChange() {
+                job.notesRevision += 1;
+                job.updatedAt = Date.now();
+                job.revision += 1;
+                publishJob(job);
+              },
+            });
       if (job.controller.signal.aborted || isCancelled(job)) return;
       const result =
         job.resourceType === 'rss' && job.purpose === 'translation'

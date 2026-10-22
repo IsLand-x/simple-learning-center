@@ -137,6 +137,9 @@ declare module 'foliate-js/epubcfi.js' {
     start: Path;
     end: Path;
   }
+  export function fromRange(range: globalThis.Range): string;
+  export function joinIndir(base: string, path: string): string;
+  export const fake: { fromIndex: (index: number) => string };
   export function parse(cfi: string): Path | Range;
   export function collapse(cfi: Path | Range): Path;
   export function compare(left: Path | Range, right: Path | Range): number;

@@ -1,3 +1,4 @@
+import { findMindMapChapter } from '../mindmaps/model.js';
 import { randomUUID } from 'node:crypto';
 import type { ChatMessage, ChatSession } from '../../../../contracts/ai.js';
 import type { RssDigestRun } from '../../../../contracts/rss.js';
@@ -44,7 +45,9 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
           ? 'digest'
           : resourceType === 'book' && input?.purpose === 'glossary'
             ? 'glossary'
-            : 'chat';
+            : resourceType === 'book' && input?.purpose === 'mindmap'
+              ? 'mindmap'
+              : 'chat';
     const configId = requiredString(input?.configId, '模型配置', 200);
     const model = requiredString(input?.model, '模型名称', 300);
     const reasoningEffort = optionalReasoningEffort(input?.reasoningEffort);
@@ -102,6 +105,10 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
         ? (Array.isArray(state.books) ? state.books : []).find((item) => item.id === bookId)
         : undefined;
     if (resourceType === 'book' && !book) throw statusError(404, '找不到当前书籍');
+    const chapterId =
+      purpose === 'mindmap' ? requiredString(input?.chapterId, '章节', 500) : undefined;
+    if (chapterId && !findMindMapChapter(book!.toc, chapterId))
+      throw statusError(404, '章节不存在或不属于当前书籍');
     const termId = purpose === 'glossary' ? requiredString(input?.termId, '术语', 200) : undefined;
     const term = termId
       ? (state.highlights ?? []).find(
@@ -235,7 +242,17 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
       if (nextPersistedState.deletedConversationIds?.includes(conversationId))
         throw statusError(404, '对话已删除，请开启新对话');
       const next = nextPersistedState.state;
-      if (purpose !== 'glossary') {
+      if (
+        chapterId &&
+        [...jobs.values()].some(
+          (job) =>
+            job.bookId === bookId &&
+            job.chapterId === chapterId &&
+            ['queued', 'running'].includes(job.status),
+        )
+      )
+        throw statusError(409, '该章节正在生成思维导图');
+      if (purpose !== 'glossary' && purpose !== 'mindmap') {
         const sessions = Array.isArray(next.chatSessions) ? next.chatSessions : [];
         const existingSession = sessions.find((item) => item.id === conversationId);
         next.chatSessions = [
@@ -271,6 +288,7 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
       reasoningEffort,
       purpose,
       termId,
+      chapterId,
       termUpdatedAt: term?.updatedAt ?? term?.createdAt,
       conversationId,
       userMessageId,

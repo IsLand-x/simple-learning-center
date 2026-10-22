@@ -28,6 +28,9 @@ export function mergeLearningState(
   return {
     ...currentState,
     ...persisted,
+    chapterMindMaps: Array.isArray(persisted.chapterMindMaps)
+      ? persisted.chapterMindMaps
+      : currentState.chapterMindMaps,
     conversationDrafts: mergeConversationDrafts(
       currentState.conversationDrafts,
       persisted.conversationDrafts ?? [],

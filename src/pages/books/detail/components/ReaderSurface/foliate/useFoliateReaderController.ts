@@ -1,3 +1,5 @@
+import { locateMindMapSource } from './mindMapNavigation';
+import type { ReaderSurfaceHandle } from '../type';
 import type { View as FoliateView } from 'foliate-js/view.js';
 import { useImperativeHandle, type Dispatch, type Ref, type SetStateAction } from 'react';
 import { getFoliateContents } from './readerAdapter';
@@ -6,16 +8,8 @@ import { useFoliateNavigation } from './useFoliateNavigation';
 
 type MutableReaderRef<T> = { current: T };
 
-interface FoliateReaderControllerHandle {
-  next: () => void;
-  prev: () => void;
-  display: (target: string, label?: string) => void;
-  clearSelection: () => void;
-  getCurrentText: () => string;
-}
-
 interface FoliateReaderControllerOptions {
-  controllerRef: Ref<FoliateReaderControllerHandle>;
+  controllerRef: Ref<ReaderSurfaceHandle>;
   viewRef: MutableReaderRef<FoliateView | null>;
   navigationQueueRef: MutableReaderRef<Promise<void>>;
   clearMobileSelectionRef: MutableReaderRef<() => void>;
@@ -45,6 +39,17 @@ export function useFoliateReaderController({
   useImperativeHandle(
     controllerRef,
     () => ({
+      locateSource: (source) => {
+        clearMobileSelectionRef.current();
+        touchPagingSelectionLockedRef.current = false;
+        viewRef.current?.renderer.setTouchPagingBlocked?.(false);
+        viewRef.current?.deselect();
+        onSelectionRef.current(null);
+        return (
+          enqueueNavigation((view) => locateMindMapSource(view, source), '无法定位到原文', false) ??
+          Promise.reject(new Error('阅读器尚未就绪'))
+        );
+      },
       next: () => turnPage('next'),
       prev: () => turnPage('prev'),
       display: (target, label) => {

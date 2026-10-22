@@ -10,6 +10,8 @@ import {
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import type { MindMapSource } from '../../../../../../../contracts/reading';
+import { findQuoteRange } from '../../../../../../util/reading/textAnchors';
 import { getDemoContent } from '../../../../../../util/fixtures/demo';
 import { ensureReaderFontStylesheet } from '../../../../../../util/reading/readerFonts';
 import {
@@ -61,6 +63,11 @@ export function useDemoReader({
   );
   const readerStyle = resolveReaderStyle(preferences);
   const lastLocationCfiRef = useRef(book.currentCfi);
+  const pendingSourceRef = useRef<{
+    source: MindMapSource;
+    resolve: () => void;
+    reject: (error: Error) => void;
+  } | null>(null);
   const pendingDemoTargetRef = useRef<string | null>(null);
   const [demoNavigationRevision, setDemoNavigationRevision] = useState(0);
   const swipeStartRef = useRef<SwipeStart | null>(null);
@@ -157,6 +164,20 @@ export function useDemoReader({
   useImperativeHandle(
     controllerRef,
     () => ({
+      locateSource: (source) =>
+        new Promise<void>((resolve, reject) => {
+          const index = chapters.findIndex(
+            (item) => item.href.split('#')[0] === source.href.split('#')[0],
+          );
+          if (index < 0) {
+            reject(new Error('出处所在章节不存在'));
+            return;
+          }
+          pendingSourceRef.current?.reject(new Error('已切换到另一个出处'));
+          pendingSourceRef.current = { source, resolve, reject };
+          setChapterIndex(index);
+          setDemoNavigationRevision((revision) => revision + 1);
+        }),
       next: () => turnDemoPage('next'),
       prev: () => turnDemoPage('prev'),
       display: (target) => {
@@ -225,8 +246,28 @@ export function useDemoReader({
     readerRoot.scrollTop = maxScroll * savedRatio;
     currentRatio = maxScroll ? readerRoot.scrollTop / maxScroll : 0;
     restored = true;
+    const pendingSource = pendingSourceRef.current;
+    pendingSourceRef.current = null;
+    let sourceTimer = 0;
+    let sourceElement: HTMLElement | null = null;
+    if (pendingSource) {
+      const range = findQuoteRange(document, pendingSource.source.quote, undefined, readerRoot);
+      sourceElement =
+        range?.startContainer.parentElement?.closest<HTMLElement>('p,h1,h2,h3') ?? null;
+      if (sourceElement) {
+        readerRoot.scrollTop +=
+          sourceElement.getBoundingClientRect().top -
+          readerRoot.getBoundingClientRect().top -
+          readerRoot.clientHeight / 3;
+        sourceElement.style.outline = '2px solid var(--reader-accent-color)';
+        sourceTimer = window.setTimeout(() => sourceElement?.style.removeProperty('outline'), 2400);
+        pendingSource.resolve();
+      } else pendingSource.reject(new Error('未能在原文中核验这段引用'));
+    }
     reportLocation(currentRatio);
     return () => {
+      if (sourceTimer) window.clearTimeout(sourceTimer);
+      sourceElement?.style.removeProperty('outline');
       readerRoot.removeEventListener('scroll', scheduleSave);
       document.removeEventListener('visibilitychange', flushWhenHidden);
       window.removeEventListener('pagehide', handlePageHide);
