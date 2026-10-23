@@ -7,6 +7,7 @@ import { applyAppTheme, readInitialThemeMode } from '../../util/appTheme';
 import { measureAsync } from '../../util/browser/measureAsync';
 import { ApplicationRoot } from './ApplicationRoot';
 import { BootstrapMessage } from './BootstrapMessage';
+import { appMetadata } from '../../util/appMetadata';
 
 import { synchronizeLearningState } from '../../store/learningStateSync';
 
@@ -17,6 +18,7 @@ import { LoginPage } from '../login/index';
 const PRELOAD_RECOVERY_KEY = 'learning-center-preload-recovery';
 
 export function startApplication(rootElement: HTMLElement) {
+  document.title = appMetadata.title;
   applyAppTheme(readInitialThemeMode());
   const root = ReactDOM.createRoot(rootElement);
   let stateSyncRunning = false;

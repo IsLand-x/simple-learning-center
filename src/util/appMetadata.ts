@@ -1,7 +1,9 @@
 const shortRevision = __APP_REVISION__.slice(0, 7);
+const version = `v${__APP_VERSION__}+${shortRevision}`;
 
 export const appMetadata = Object.freeze({
-  version: `v${__APP_VERSION__}+${shortRevision}`,
+  version,
+  title: `学习中心 · ${version}`,
   updatedAt: __APP_UPDATED_AT__,
 });
 
