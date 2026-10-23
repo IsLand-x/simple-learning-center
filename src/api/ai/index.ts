@@ -34,8 +34,8 @@ export class AiApi {
     });
   }
 
-  getJob(jobId: string): Promise<AiJob> {
-    return this.transport.json(`/api/ai/jobs/${encodeURIComponent(jobId)}`);
+  getJob(jobId: string, signal?: AbortSignal): Promise<AiJob> {
+    return this.transport.json(`/api/ai/jobs/${encodeURIComponent(jobId)}`, { signal });
   }
 
   async watchJob(jobId: string, onJob: AiJobListener, signal: AbortSignal): Promise<void> {
@@ -84,10 +84,12 @@ export class AiApi {
     return Array.isArray(payload.jobs) ? payload.jobs : [];
   }
 
-  async listJobSummaries(input: ListAiJobsRequest): Promise<AiJobSummary[]> {
+  async listJobSummaries(input: ListAiJobsRequest, signal?: AbortSignal): Promise<AiJobSummary[]> {
     const search = new URLSearchParams({ bookId: input.bookId, view: 'summary' });
     if (input.conversationId) search.set('conversationId', input.conversationId);
-    const payload = await this.transport.json<{ jobs: AiJobSummary[] }>(`/api/ai/jobs?${search}`);
+    const payload = await this.transport.json<{ jobs: AiJobSummary[] }>(`/api/ai/jobs?${search}`, {
+      signal,
+    });
     return payload.jobs;
   }
 

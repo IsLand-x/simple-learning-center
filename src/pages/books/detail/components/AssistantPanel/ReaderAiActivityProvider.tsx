@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useReaderNoteSync } from './useReaderNoteSync';
 import { aiApi } from '../../../../../api/ai/index';
 import type { AiJobSummary } from '../../../../../api/ai/type';
@@ -7,6 +7,7 @@ import { useLearningStore } from '../../../../../store/useLearningStore';
 import { resolveReaderAiActivity } from './activity';
 import { ReaderAiActivityContext } from './useReaderAiActivity';
 import { useConversationSummaries } from '../../../../../components/ai/useConversationSummaries';
+import { useReaderJobPolling } from './useReaderJobPolling';
 
 export function ReaderAiActivityProvider({
   bookId,
@@ -49,32 +50,25 @@ export function ReaderAiActivityProvider({
     [bookId, loadSummaries, synchronizeJobNotes],
   );
 
-  useEffect(() => {
-    let disposed = false;
-    let timer = 0;
-    const poll = async () => {
+  const refreshJobs = useCallback(
+    async (signal: AbortSignal) => {
       const previousJobs = jobsRef.current;
-      try {
-        const next = await aiApi.listJobSummaries({ bookId });
-        if (!disposed) {
-          next.forEach(reportJob);
-          const ids = new Set(next.map((job) => job.id));
-          setJobs((previous) =>
-            previous.filter((job) => ids.has(job.id) || !previousJobs.includes(job)),
-          );
-        }
-      } catch {
-        // Keep the last known state through temporary network failures and retry.
-      } finally {
-        if (!disposed) timer = window.setTimeout(poll, 2_000);
-      }
-    };
-    void poll();
-    return () => {
-      disposed = true;
-      window.clearTimeout(timer);
-    };
-  }, [bookId, reportJob]);
+      const next = await aiApi.listJobSummaries({ bookId }, signal);
+      if (signal.aborted) return;
+      next.forEach(reportJob);
+      const ids = new Set(next.map((job) => job.id));
+      setJobs((previous) => {
+        const visible = previous.filter((job) => ids.has(job.id) || !previousJobs.includes(job));
+        return visible.length === previous.length ? previous : visible;
+      });
+    },
+    [bookId, reportJob],
+  );
+  useReaderJobPolling(
+    refreshJobs,
+    startingConversations.length > 0 ||
+      jobs.some((job) => job.status === 'queued' || job.status === 'running'),
+  );
 
   const value = useMemo(
     () => ({

@@ -4,6 +4,7 @@ import { useCallback, useEffect } from 'react';
 
 import { useLearningStore } from '../../store/useLearningStore';
 import type { ConversationJobControls } from '../../types/conversation';
+import { watchAiJob } from '../../util/ai/watchAiJob';
 
 export function useContentConversationJobs({
   resourceId,
@@ -95,47 +96,15 @@ export function useContentConversationJobs({
   }, [applyJob, conversationId, resourceId, setStatusMessage]);
   useEffect(() => {
     if (!activeJobId) return undefined;
-    let disposed = false;
-    let timer = 0;
-    let polling = false;
-    const controller = new AbortController();
-    const poll = async () => {
-      try {
-        const job = await aiApi.getJob(activeJobId);
-        if (disposed) return;
-        applyJob(job);
-        if (job.status === 'queued' || job.status === 'running')
-          timer = window.setTimeout(poll, 1_000);
-      } catch (error) {
-        if (disposed) return;
+    return watchAiJob({
+      jobId: activeJobId,
+      onJob: applyJob,
+      onError: (error) => {
         setActiveJobId(null);
         setStatus('error');
         setStatusMessage(error instanceof Error ? error.message : '无法读取服务端任务');
-      }
-    };
-    const startPolling = () => {
-      if (disposed || polling) return;
-      polling = true;
-      void poll();
-    };
-    timer = window.setTimeout(startPolling, 1_000);
-    void aiApi
-      .watchJob(
-        activeJobId,
-        (job) => {
-          if (!disposed) applyJob(job);
-        },
-        controller.signal,
-      )
-      .catch((error) => {
-        if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
-        startPolling();
-      });
-    return () => {
-      disposed = true;
-      controller.abort();
-      window.clearTimeout(timer);
-    };
+      },
+    });
   }, [activeJobId, applyJob, setActiveJobId, setStatus, setStatusMessage]);
   return applyJob;
 }

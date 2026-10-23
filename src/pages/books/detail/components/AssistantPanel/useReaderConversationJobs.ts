@@ -6,6 +6,7 @@ import type { MutableRefObject } from 'react';
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import type { ConversationJobControls } from '../../../../../types/conversation';
 import type { BookItem } from '../../../../../../contracts/books';
+import { watchAiJob } from '../../../../../util/ai/watchAiJob';
 
 export function useReaderConversationJobs({
   book,
@@ -148,61 +149,15 @@ export function useReaderConversationJobs({
   }, [applyJob, book.id, conversationId, setStatusMessage]);
   useEffect(() => {
     if (!activeJobId) return undefined;
-    let disposed = false;
-    let timer = 0;
-    let polling = false;
-    let animationFrame = 0;
-    let latestStreamedJob: AiJob | undefined;
-    const controller = new AbortController();
-    const poll = async () => {
-      try {
-        const job = await aiApi.getJob(activeJobId);
-        if (disposed) return;
-        applyJob(job);
-        if (job.status === 'queued' || job.status === 'running') {
-          timer = window.setTimeout(poll, 1_000);
-        }
-      } catch (error) {
-        if (disposed) return;
+    return watchAiJob({
+      jobId: activeJobId,
+      onJob: applyJob,
+      onError: (error) => {
         setActiveJobId(null);
         setStatus('error');
         setStatusMessage(error instanceof Error ? error.message : '无法读取服务端任务');
-      }
-    };
-    const startPolling = () => {
-      if (disposed || polling) return;
-      polling = true;
-      void poll();
-    };
-    const applyStreamedJob = (job: AiJob) => {
-      latestStreamedJob = job;
-      if (animationFrame) return;
-      animationFrame = window.requestAnimationFrame(() => {
-        animationFrame = 0;
-        const latestJob = latestStreamedJob;
-        latestStreamedJob = undefined;
-        if (!disposed && latestJob) applyJob(latestJob);
-      });
-    };
-    timer = window.setTimeout(startPolling, 1_000);
-    void aiApi
-      .watchJob(
-        activeJobId,
-        (job) => {
-          if (!disposed) applyStreamedJob(job);
-        },
-        controller.signal,
-      )
-      .catch((error) => {
-        if (disposed || (error instanceof Error && error.name === 'AbortError')) return;
-        startPolling();
-      });
-    return () => {
-      disposed = true;
-      controller.abort();
-      window.clearTimeout(timer);
-      window.cancelAnimationFrame(animationFrame);
-    };
+      },
+    });
   }, [activeJobId, applyJob, setActiveJobId, setStatus, setStatusMessage]);
   return applyJob;
 }

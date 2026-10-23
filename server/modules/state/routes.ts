@@ -97,6 +97,7 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
           mergeClientNoteDrafts(mergedState, currentState, snapshot.notesBase);
         return protectClientState(aiJobs.protectPersistedState, mergedState, currentState);
       },
+      { preserveResourceFiles: domain === 'preferences' },
     );
     if (domain === 'notes' && snapshot.notesBase !== undefined) {
       const serialized = serializeStateDomainSnapshot(await readPersistedState(), domain)!;

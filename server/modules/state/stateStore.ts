@@ -59,6 +59,7 @@ async function readPersistedStateFromDisk(
 async function persistState(
   persistedState: PersistedState,
   currentPersistedState: PersistedState | null,
+  preserveResourceFiles = false,
 ) {
   const protectedState = currentPersistedState
     ? protectBookTrashStateFromClient(
@@ -72,9 +73,8 @@ async function persistState(
         currentPersistedState,
       )
     : persistedState;
-  const stateForDisk = await prepareStateForDisk(
-    protectChatReadState(protectedState, currentPersistedState),
-  );
+  const nextState = protectChatReadState(protectedState, currentPersistedState);
+  const stateForDisk = preserveResourceFiles ? nextState : await prepareStateForDisk(nextState);
   await atomicWrite(
     STATE_FILE,
     `${JSON.stringify(
@@ -125,6 +125,7 @@ export function writePersistedState(
     incoming: PersistedState,
     current: PersistedState | null,
   ) => PersistedState | Promise<PersistedState>,
+  options: { preserveResourceFiles?: boolean } = {},
 ) {
   const operation = stateWriteQueue
     .catch(() => undefined)
@@ -132,11 +133,18 @@ export function writePersistedState(
       if (initializeOnly && (await exists(STATE_FILE))) {
         throw statusError(409, '服务端已经包含数据');
       }
-      const currentPersistedState = await readPersistedStateFromDisk();
+      // Preference updates cannot change books or notes. Keep their on-disk
+      // metadata untouched instead of resolving every cover and Markdown file.
+      const disk = options.preserveResourceFiles ? await readStateFile() : undefined;
+      const currentPersistedState = options.preserveResourceFiles
+        ? structuredClone(
+            disk?.formatVersion === 1 ? (disk.persistedState as PersistedState) : (disk ?? null),
+          )
+        : await readPersistedStateFromDisk();
       const nextState = transform
         ? await transform(structuredClone(persistedState), currentPersistedState)
         : persistedState;
-      await persistState(nextState, currentPersistedState);
+      await persistState(nextState, currentPersistedState, options.preserveResourceFiles);
     });
   stateWriteQueue = operation;
   return operation;

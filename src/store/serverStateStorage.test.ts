@@ -15,6 +15,60 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('../api/state', () => ({ stateApi: mocks }));
 
+it('coalesces preference drafts behind a slow request instead of queuing every keystroke', async () => {
+  vi.resetModules();
+  mocks.readDomain.mockReset();
+  mocks.writeDomain.mockReset();
+  window.history.replaceState(null, '', '/books/test');
+  const { initialLearningState } = await import('./defaults');
+  const storage = await import('./serverStateStorage');
+  const state = structuredClone(initialLearningState);
+  mocks.readDomain.mockResolvedValue({
+    status: 200,
+    etag: null,
+    snapshot: { version: LEARNING_STORE_VERSION, state },
+  });
+  await storage.prepareServerState();
+  let release!: () => void;
+  mocks.writeDomain.mockImplementationOnce(
+    () => new Promise<undefined>((resolve) => (release = () => resolve(undefined))),
+  );
+  mocks.writeDomain.mockResolvedValue(undefined);
+  const saves: Array<Promise<unknown>> = [];
+  for (let index = 1; index <= 50; index++) {
+    saves.push(
+      Promise.resolve(
+        storage.serverStateStorage.setItem(
+          'test',
+          JSON.stringify({
+            version: LEARNING_STORE_VERSION,
+            state: {
+              ...state,
+              conversationDrafts: [
+                {
+                  resourceId: 'book',
+                  conversationId: 'conversation',
+                  text: '字'.repeat(index),
+                  updatedAt: index,
+                },
+              ],
+            },
+          }),
+        ),
+      ),
+    );
+    if (index === 1) await vi.waitFor(() => expect(mocks.writeDomain).toHaveBeenCalledTimes(1));
+  }
+  expect(mocks.writeDomain).toHaveBeenCalledTimes(1);
+  release();
+  await Promise.all(saves);
+  expect(mocks.writeDomain).toHaveBeenCalledTimes(2);
+  expect(mocks.writeDomain.mock.calls[1][0]).toBe('preferences');
+  expect(mocks.writeDomain.mock.calls[1][1]).toMatchObject({
+    state: { conversationDrafts: [expect.objectContaining({ text: '字'.repeat(50) })] },
+  });
+});
+
 it('combines startup domains without reparsing an increasingly large prepared envelope', async () => {
   vi.resetModules();
   mocks.readDomain.mockReset();

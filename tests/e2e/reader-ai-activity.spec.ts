@@ -1,7 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect as baseExpect, test, type Page } from '@playwright/test';
 import { demoBooks } from '../../src/util/fixtures/demo';
 import type { AiJob } from '../../src/api/ai/type';
 
+// Background updates can arrive on the 5-second fallback; include transport time.
+const expect = baseExpect.configure({ timeout: 10_000 });
 const book = demoBooks[0];
 
 async function seed(page: Page, themeMode: 'light' | 'dark' = 'light') {

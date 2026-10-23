@@ -27,6 +27,17 @@ type PreferenceActions = Pick<
   | 'setReaderPreferences'
 >;
 
+function changedPreferenceKeys<Preferences extends object>(
+  current: Preferences,
+  changes: Partial<Preferences>,
+) {
+  return (Object.keys(changes) as Array<keyof Preferences>).filter(
+    (key) =>
+      !Object.is(current[key], changes[key]) &&
+      JSON.stringify(current[key]) !== JSON.stringify(changes[key]),
+  );
+}
+
 export function createPreferenceActions(set: LearningStoreSet): PreferenceActions {
   return {
     addOpenAIConfig: (config) =>
@@ -51,15 +62,24 @@ export function createPreferenceActions(set: LearningStoreSet): PreferenceAction
         };
       }),
     setWebSearchConfig: (changes) =>
-      set((state) => ({ webSearchConfig: { ...state.webSearchConfig, ...changes } })),
+      set((state) =>
+        changedPreferenceKeys(state.webSearchConfig, changes).length
+          ? { webSearchConfig: { ...state.webSearchConfig, ...changes } }
+          : state,
+      ),
     setAiPreferences: (changes) =>
-      set((state) => ({ aiPreferences: { ...state.aiPreferences, ...changes } })),
+      set((state) =>
+        changedPreferenceKeys(state.aiPreferences, changes).length
+          ? { aiPreferences: { ...state.aiPreferences, ...changes } }
+          : state,
+      ),
     setNavCollapsed: (navCollapsed) => set({ navCollapsed }),
     setThemeMode: (themeMode) => set({ themeMode }),
     setReaderPreferences: (changes) =>
       set((state) => {
+        const changedKeys = changedPreferenceKeys(state.readerPreferences, changes);
+        if (!changedKeys.length) return state;
         const updatedAt = Date.now();
-        const changedKeys = Object.keys(changes) as Array<keyof ReaderPreferences>;
         const styleChanged = changedKeys.some((key) => READER_STYLE_KEYS.has(key));
         const layoutChanged = changedKeys.some((key) => READER_LAYOUT_KEYS.has(key));
         return {
