@@ -151,6 +151,7 @@ export async function hydrateStateFromDisk(
   diskState: PersistedState & { formatVersion?: number; persistedState?: PersistedState },
   hydrateNote: (note: NoteItem) => boolean = () => true,
   fields?: readonly (keyof StoredState)[],
+  hydrateCovers = true,
 ) {
   const persistedState = diskState?.formatVersion === 1 ? diskState.persistedState : diskState;
   if (!persistedState || typeof persistedState !== 'object' || !persistedState.state) return null;
@@ -165,7 +166,7 @@ export async function hydrateStateFromDisk(
     }
   }
   const hydratedState = structuredClone({ ...persistedState, state: selectedState });
-  await externalizeStateCovers(hydratedState);
+  if (hydrateCovers) await externalizeStateCovers(hydratedState);
   if (fields && !fields.includes('notes')) return hydratedState;
   hydratedState.state.notes = await Promise.all(
     persistedStateNotes(hydratedState).map(async (note) => {

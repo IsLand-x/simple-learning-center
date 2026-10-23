@@ -47,6 +47,7 @@ interface DomainWrite {
 
 let pendingNoteWrite: DomainWrite | undefined;
 let pendingPreferenceWrite: DomainWrite | undefined;
+let activePreferenceWrite: DomainWrite | undefined;
 
 export function subscribeServerNoteSaves(listener: () => void) {
   noteSaveListeners.add(listener);
@@ -170,7 +171,24 @@ export async function refreshServerState(domains?: readonly StateDomain[]) {
   return loadStateDomains(domains ?? [...loadedDomains], true);
 }
 
-export async function waitForServerStateWrites() {
+export async function waitForServerStateWrites(options?: { ignoreConversationDrafts?: boolean }) {
+  if (options?.ignoreConversationDrafts) {
+    const withoutDrafts = (body: string | undefined) => {
+      if (!body) return undefined;
+      const snapshot = parseStateEnvelope(body);
+      if (snapshot.state) delete snapshot.state.conversationDrafts;
+      return JSON.stringify(snapshot);
+    };
+    // The task request durably saves the submitted message itself. A pending
+    // draft is not a prerequisite, but model settings and other edits still are.
+    const savedPreferences = withoutDrafts(domainPayloads.get('preferences'));
+    const relevantWrite = [...domainQueuedPayloads].some(
+      ([domain, body]) => domain !== 'preferences' || withoutDrafts(body) !== savedPreferences,
+    );
+    const relevantActiveWrite =
+      activePreferenceWrite && withoutDrafts(activePreferenceWrite.body) !== savedPreferences;
+    if (!relevantWrite && !relevantActiveWrite) return;
+  }
   await stateWriteQueue;
 }
 
@@ -234,6 +252,7 @@ function resetDomainCache() {
   preparedState = undefined;
   pendingNoteWrite = undefined;
   pendingPreferenceWrite = undefined;
+  activePreferenceWrite = undefined;
   loadedDomains.clear();
   activeDomains.clear();
   domainEtags.clear();
@@ -341,7 +360,10 @@ export const serverStateStorage: StateStorage = {
         try {
           for (const [domain, { body, snapshot, notesBase, revision }] of domainBodies) {
             if (domain === 'notes') pendingNoteWrite = undefined;
-            if (domain === 'preferences') pendingPreferenceWrite = undefined;
+            if (domain === 'preferences') {
+              pendingPreferenceWrite = undefined;
+              activePreferenceWrite = domainBodies.get(domain);
+            }
             const saved = await stateApi.writeDomain(domain, snapshot, notesBase);
             // Compare notes against the last submitted local draft until the
             // store has observed the canonical response, rather than treating
@@ -359,6 +381,8 @@ export const serverStateStorage: StateStorage = {
           if (pendingNoteWrite === domainBodies.get('notes')) pendingNoteWrite = undefined;
           if (pendingPreferenceWrite === domainBodies.get('preferences'))
             pendingPreferenceWrite = undefined;
+          if (activePreferenceWrite === domainBodies.get('preferences'))
+            activePreferenceWrite = undefined;
           for (const [domain, { body }] of domainBodies) {
             if (domainQueuedPayloads.get(domain) === body) domainQueuedPayloads.delete(domain);
           }

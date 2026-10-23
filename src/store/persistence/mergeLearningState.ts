@@ -1,4 +1,5 @@
 import { mergeConversationDrafts } from './conversationDrafts';
+import { upgradeReaderTypography } from '../../util/reading/readerThemes';
 import {
   defaultAiPreferences,
   defaultReaderPreferences,
@@ -88,13 +89,13 @@ export function mergeLearningState(
       typeof persisted.videoPanelWidth === 'number'
         ? persisted.videoPanelWidth
         : currentState.videoPanelWidth,
-    readerPreferences: {
+    readerPreferences: upgradeReaderTypography({
       ...defaultReaderPreferences,
       ...mergedPreferences.readerPreferences,
       theme: normalizeReaderTheme(mergedPreferences.readerPreferences.theme),
       fontFamily: normalizeReaderFont(mergedPreferences.readerPreferences.fontFamily),
       customStyle: normalizeStoredCustomStyle(mergedPreferences.readerPreferences.customStyle),
-    },
+    }),
     readerPreferencesUpdatedAt: mergedPreferences.readerPreferencesUpdatedAt,
     readerStyleUpdatedAt: mergedPreferences.readerStyleUpdatedAt,
     readerLayoutUpdatedAt: mergedPreferences.readerLayoutUpdatedAt,

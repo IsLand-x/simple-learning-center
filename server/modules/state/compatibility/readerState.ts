@@ -13,6 +13,7 @@ const READER_STYLE_KEYS: Array<keyof ReaderPreferences> = [
   'theme',
   'fontFamily',
   'customStyle',
+  'paragraphStyle',
 ];
 const READER_LAYOUT_KEYS: Array<keyof ReaderPreferences> = [
   'tocWidth',

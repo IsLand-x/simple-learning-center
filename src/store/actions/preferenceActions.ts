@@ -7,6 +7,7 @@ const READER_STYLE_KEYS = new Set<keyof ReaderPreferences>([
   'theme',
   'fontFamily',
   'customStyle',
+  'paragraphStyle',
 ]);
 
 const READER_LAYOUT_KEYS = new Set<keyof ReaderPreferences>([

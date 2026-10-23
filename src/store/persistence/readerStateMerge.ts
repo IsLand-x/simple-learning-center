@@ -89,6 +89,7 @@ export function mergeReaderPreferences(
       theme: styleSource.theme,
       fontFamily: styleSource.fontFamily,
       customStyle: styleSource.customStyle,
+      paragraphStyle: styleSource.paragraphStyle,
       tocWidth: layoutSource.tocWidth,
       panelWidth: layoutSource.panelWidth,
       tocCollapsed: layoutSource.tocCollapsed,

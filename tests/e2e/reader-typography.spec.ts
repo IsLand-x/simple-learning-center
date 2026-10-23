@@ -151,8 +151,8 @@ for (const theme of ['light', 'dark']) {
       });
       expect(metrics[0].alignment).toBe('center');
       await expect(frame.locator('h4 span')).toHaveCSS('font-weight', '700');
-      await expect(frame.locator('h4 span')).toHaveCSS('font-size', `${18 * 1.1}px`);
-      await expect(frame.locator('p').first()).toHaveCSS('text-indent', '36px');
+      await expect(frame.locator('h4 span')).toHaveCSS('font-size', `${20 * 1.1}px`);
+      await expect(frame.locator('p').first()).toHaveCSS('text-indent', '40px');
       await page.mouse.move(0, 0);
       await expect(page).toHaveScreenshot(`epub-headings-${theme}-${viewport.width}.png`, {
         animations: 'disabled',

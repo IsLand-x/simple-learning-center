@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, beforeEach, test } from 'node:test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -104,6 +104,80 @@ test('读取偏好分区不会处理无关封面或笔记，完整读取仍保�
   const full = await readPersistedState();
   assert.equal(full.state.notes[0].content, '原创笔记正文');
   assert.equal(full.state.books[0].coverDataUrl, '/api/books/book/cover');
+});
+
+test('对话元数据更新保留封面与 Markdown 引用，且不覆盖独立文件或队列中的笔记修改', async () => {
+  const noteFile = 'notes/book/note.md';
+  const coverFile = 'covers/book/cover.svg';
+  await writePersistedState({
+    version: 41,
+    state: {
+      books: [
+        {
+          id: 'book',
+          title: '测试书',
+          coverDataUrl: `data:image/svg+xml;base64,${Buffer.from('<svg/>').toString('base64')}`,
+        },
+      ],
+      notes: [{ id: 'note', bookId: 'book', content: '原始笔记', updatedAt: 1 }],
+    },
+  });
+  // An external Markdown edit must not be replaced by a hydrated empty value.
+  await atomicWrite(join(directory, noteFile), '独立文件里的最新正文');
+  const originalNote = await stat(join(directory, noteFile), { bigint: true });
+  const originalCover = await stat(join(directory, coverFile), { bigint: true });
+  const first = mutatePersistedState(
+    (snapshot) => {
+      snapshot.state.chats = [
+        {
+          id: 'user',
+          bookId: 'book',
+          conversationId: 'session',
+          role: 'user',
+          content: '提问',
+          createdAt: 1,
+        },
+      ];
+    },
+    { preserveResourceFiles: true },
+  );
+  const second = mutatePersistedState((snapshot) => {
+    assert.equal(snapshot.state.notes[0].content, '独立文件里的最新正文');
+    snapshot.state.notes[0].content += '\n用户与 AI 同时编辑后的内容';
+  });
+  await first;
+  assert.equal(
+    (await stat(join(directory, coverFile), { bigint: true })).mtimeNs,
+    originalCover.mtimeNs,
+  );
+  await second;
+  const beforeReply = await stat(join(directory, noteFile), { bigint: true });
+  assert.notEqual(beforeReply.mtimeNs, originalNote.mtimeNs);
+  await mutatePersistedState(
+    (snapshot) => {
+      snapshot.state.chats.push({
+        id: 'assistant',
+        bookId: 'book',
+        conversationId: 'session',
+        role: 'assistant',
+        content: '回复',
+        createdAt: 2,
+      });
+    },
+    { preserveResourceFiles: true },
+  );
+  assert.equal(
+    (await stat(join(directory, noteFile), { bigint: true })).mtimeNs,
+    beforeReply.mtimeNs,
+  );
+  const stored = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8')).persistedState;
+  assert.equal(stored.state.notes[0].contentFile, noteFile);
+  assert.equal(Object.hasOwn(stored.state.notes[0], 'content'), false);
+  assert.equal(stored.state.chats.length, 2);
+  assert.equal(
+    (await readPersistedState()).state.notes[0].content,
+    '独立文件里的最新正文\n用户与 AI 同时编辑后的内容',
+  );
 });
 
 test('并发分区读取相互隔离，并在提交后读取最新磁盘内容', async () => {

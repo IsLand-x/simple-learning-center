@@ -49,6 +49,7 @@ describe('reader state merge', () => {
         readerPreferences: {
           ...defaultReaderPreferences,
           fontSize: 24,
+          paragraphStyle: 'spaced',
           tocWidth: 220,
         },
         readerStyleUpdatedAt: 20,
@@ -66,6 +67,7 @@ describe('reader state merge', () => {
     );
 
     expect(result.readerPreferences.fontSize).toBe(24);
+    expect(result.readerPreferences.paragraphStyle).toBe('spaced');
     expect(result.readerPreferences.tocWidth).toBe(360);
     expect(result.readerPreferencesUpdatedAt).toBe(30);
   });

@@ -1,4 +1,4 @@
-import { normalizeReaderCustomStyle } from '../util/reading/readerThemes';
+import { normalizeReaderCustomStyle, READER_THEME_PRESETS } from '../util/reading/readerThemes';
 import type { ReaderCustomStyle, ReaderFont, ReaderTheme } from '../../contracts/reading';
 import type { RssFeed } from '../../contracts/rss';
 
@@ -19,23 +19,7 @@ export function normalizeStoredCustomStyle(style: Partial<ReaderCustomStyle> | u
 }
 
 export function normalizeReaderTheme(theme: unknown): ReaderTheme {
-  return theme === 'paper' ||
-    theme === 'ivory' ||
-    theme === 'mist' ||
-    theme === 'celadon' ||
-    theme === 'twilight' ||
-    theme === 'rice' ||
-    theme === 'azure' ||
-    theme === 'ink' ||
-    theme === 'parchment' ||
-    theme === 'blossom' ||
-    theme === 'lavender' ||
-    theme === 'forest' ||
-    theme === 'graphite' ||
-    theme === 'oled' ||
-    theme === 'custom'
-    ? theme
-    : 'custom';
+  return READER_THEME_PRESETS.find((preset) => preset.id === theme)?.id ?? 'custom';
 }
 
 export function normalizeRssFeedSource(feed: RssFeed): RssFeed {

@@ -144,6 +144,7 @@ test('新版设备只调整面板布局时不会把旧阅读样式写回服务�
       deletedHighlightTombstones: [],
       readerPreferences: {
         ...preferences('ink', 22),
+        paragraphStyle: 'book',
         tocWidth: 272,
         panelWidth: 380,
         tocCollapsed: false,
@@ -159,6 +160,7 @@ test('新版设备只调整面板布局时不会把旧阅读样式写回服务�
       deletedHighlightTombstones: [],
       readerPreferences: {
         ...preferences('paper', 16),
+        paragraphStyle: 'spaced',
         tocWidth: 320,
         panelWidth: 520,
         tocCollapsed: true,
@@ -172,6 +174,7 @@ test('新版设备只调整面板布局时不会把旧阅读样式写回服务�
 
   assert.equal(merged.state.readerPreferences.theme, 'ink');
   assert.equal(merged.state.readerPreferences.fontSize, 22);
+  assert.equal(merged.state.readerPreferences.paragraphStyle, 'book');
   assert.equal(merged.state.readerPreferences.tocWidth, 320);
   assert.equal(merged.state.readerPreferences.panelWidth, 520);
   assert.equal(merged.state.readerPreferences.tocCollapsed, true);

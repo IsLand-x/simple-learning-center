@@ -1,18 +1,13 @@
-import { Button, ColorPicker, InputNumber, Select } from '@douyinfe/semi-ui';
+import { Button, ColorPicker, Select } from '@douyinfe/semi-ui';
 import { useEffect, useState } from 'react';
-import { FontPreview } from './FontPreview';
+import { ReaderTypographyControls } from './ReaderTypographyControls';
 
-import {
-  ensureReaderFontStylesheet,
-  READER_FONT_OPTIONS,
-  READER_FONT_STACKS,
-} from '../../util/reading/readerFonts';
+import { ensureReaderFontStylesheet, READER_FONT_STACKS } from '../../util/reading/readerFonts';
 
-import type { ReaderCustomStyle, ReaderFont, ReaderPreferences } from '../../../contracts/reading';
+import type { ReaderCustomStyle, ReaderPreferences } from '../../../contracts/reading';
 import {
   DEFAULT_READER_CUSTOM_STYLE,
   getReaderTextureStyle,
-  READER_DENSITY_PRESETS,
   READER_TEXTURE_PRESETS,
   READER_THEME_PRESETS,
   resolveReaderStyle,
@@ -25,12 +20,11 @@ export interface ReaderStylePanelProps {
 
 export function ReaderStylePanel({ preferences, onChangePreferences }: ReaderStylePanelProps) {
   const [visibleColorPicker, setVisibleColorPicker] = useState<'paper' | 'text' | null>(null);
+  const fontFamily = resolveReaderStyle(preferences).fontFamily;
 
   useEffect(() => {
-    void Promise.all(
-      READER_FONT_OPTIONS.map((font) => ensureReaderFontStylesheet(document, font.value)),
-    );
-  }, []);
+    void ensureReaderFontStylesheet(document, fontFamily);
+  }, [fontFamily]);
 
   const customStyle = preferences.customStyle;
   const customPreview = resolveReaderStyle({ ...preferences, theme: 'custom' });
@@ -47,41 +41,56 @@ export function ReaderStylePanel({ preferences, onChangePreferences }: ReaderSty
       className="reader-style-panel [width:344px] [max-width:calc(100vw_-_24px)] [max-height:min(620px,_calc(100vh_-_72px))] [padding:12px] [color:var(--semi-color-text-0)] [@media(max-width:480px)]:[width:min(344px,_calc(100vw_-_16px))] [@media(max-width:480px)]:[padding:10px]"
       aria-label="阅读样式设置"
     >
+      <ReaderTypographyControls
+        preferences={preferences}
+        onChangePreferences={onChangePreferences}
+      />
       <div className="reader-style-panel__heading justify-between [margin-bottom:8px]">
-        <strong>阅读预设</strong>
+        <strong>纸张主题</strong>
         <span>选择后立即应用</span>
       </div>
-      <div className="reader-style-presets [grid-template-columns:repeat(2,_minmax(0,_1fr))] [gap:6px]">
-        {READER_THEME_PRESETS.map((preset) => (
-          <Button
-            aria-pressed={preferences.theme === preset.id}
-            className={`reader-style-preset${preferences.theme === preset.id ? ' reader-style-preset--active' : ''}`}
-            key={preset.id}
-            onClick={() => onChangePreferences({ theme: preset.id })}
-            theme="borderless"
-          >
-            <span
-              className="reader-style-preset__sample [width:34px] [height:40px] [flex:0_0_34px] [place-items:center]"
-              style={{
-                color: preset.textColor,
-                backgroundColor: preset.paperColor,
-                fontFamily: READER_FONT_STACKS[preset.fontFamily],
-                ...getReaderTextureStyle(preset.texture, preset.isDark),
-              }}
-            >
-              阅
-            </span>
-            <span className="reader-style-preset__meta min-w-0 items-start [line-height:1.25]">
-              <strong>{preset.name}</strong>
-              <small>{preset.description}</small>
-            </span>
-          </Button>
-        ))}
-      </div>
+      {[false, true].map((isDark) => (
+        <section
+          key={String(isDark)}
+          className="mb-3"
+          aria-label={isDark ? '深色夜读主题' : '浅色纸张主题'}
+        >
+          <div className="mb-1.5 text-xs [color:var(--semi-color-text-2)]">
+            {isDark ? '深色夜读' : '浅色纸张'}
+          </div>
+          <div className="reader-style-presets [grid-template-columns:repeat(2,_minmax(0,_1fr))] [gap:6px]">
+            {READER_THEME_PRESETS.filter((preset) => preset.isDark === isDark).map((preset) => (
+              <Button
+                aria-pressed={preferences.theme === preset.id}
+                className={`reader-style-preset${preferences.theme === preset.id ? ' reader-style-preset--active' : ''}`}
+                key={preset.id}
+                onClick={() => onChangePreferences({ theme: preset.id })}
+                theme="borderless"
+              >
+                <span
+                  className="reader-style-preset__sample [width:34px] [height:40px] [flex:0_0_34px] [place-items:center]"
+                  style={{
+                    color: preset.textColor,
+                    backgroundColor: preset.paperColor,
+                    fontFamily: READER_FONT_STACKS[fontFamily],
+                    ...getReaderTextureStyle(preset.texture, preset.isDark),
+                  }}
+                >
+                  阅
+                </span>
+                <span className="reader-style-preset__meta min-w-0 items-start [line-height:1.25]">
+                  <strong>{preset.name}</strong>
+                  <small>{preset.description}</small>
+                </span>
+              </Button>
+            ))}
+          </div>
+        </section>
+      ))}
 
       <div className="reader-style-custom-heading justify-between [margin-top:12px] [padding-top:10px] [border-top:1px_solid_var(--semi-color-border)]">
         <span>
-          <strong>我的自定义</strong>
+          <strong>自定义配色</strong>
           <small>修改后自动保存</small>
         </span>
         <Button
@@ -114,30 +123,6 @@ export function ReaderStylePanel({ preferences, onChangePreferences }: ReaderSty
       </Button>
 
       <div className="reader-style-controls [gap:7px] [margin-top:10px]">
-        <label className="reader-style-control [min-height:32px] [grid-template-columns:72px_minmax(0,_1fr)] [color:var(--semi-color-text-1)]">
-          <span>字体</span>
-          <Select
-            aria-label="自定义正文字体"
-            size="small"
-            value={customStyle.fontFamily}
-            onChange={(value) => updateCustomStyle({ fontFamily: value as ReaderFont })}
-            renderSelectedItem={(optionNode: Record<string, unknown>) => {
-              const font = READER_FONT_OPTIONS.find((option) => option.value === optionNode.value);
-              return font ? (
-                <FontPreview font={font.value} label={font.label} />
-              ) : (
-                String(optionNode.label ?? '')
-              );
-            }}
-          >
-            {READER_FONT_OPTIONS.map((font) => (
-              <Select.Option key={font.value} value={font.value}>
-                <FontPreview font={font.value} label={font.label} />
-              </Select.Option>
-            ))}
-          </Select>
-        </label>
-
         <div className="reader-style-control [min-height:32px] [grid-template-columns:72px_minmax(0,_1fr)] [color:var(--semi-color-text-1)]">
           <span>纸张颜色</span>
           <div className="reader-style-color-control min-w-0">
@@ -231,37 +216,6 @@ export function ReaderStylePanel({ preferences, onChangePreferences }: ReaderSty
             {READER_TEXTURE_PRESETS.map((texture) => (
               <Select.Option key={texture.id} value={texture.id}>
                 {texture.label}
-              </Select.Option>
-            ))}
-          </Select>
-        </label>
-
-        <label className="reader-style-control [min-height:32px] [grid-template-columns:72px_minmax(0,_1fr)] [color:var(--semi-color-text-1)]">
-          <span>文字大小</span>
-          <InputNumber
-            aria-label="自定义文字大小"
-            min={14}
-            max={28}
-            size="small"
-            suffix="px"
-            value={customStyle.fontSize}
-            onNumberChange={(fontSize) => updateCustomStyle({ fontSize })}
-          />
-        </label>
-
-        <label className="reader-style-control [min-height:32px] [grid-template-columns:72px_minmax(0,_1fr)] [color:var(--semi-color-text-1)]">
-          <span>松紧程度</span>
-          <Select
-            aria-label="自定义松紧程度"
-            size="small"
-            value={customStyle.density}
-            onChange={(value) =>
-              updateCustomStyle({ density: value as ReaderCustomStyle['density'] })
-            }
-          >
-            {READER_DENSITY_PRESETS.map((density) => (
-              <Select.Option key={density.id} value={density.id}>
-                {density.label}
               </Select.Option>
             ))}
           </Select>

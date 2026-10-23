@@ -161,6 +161,33 @@ it('waits for server acceptance before caching a sent message or clearing its dr
   expect(mocks.applyJob).toHaveBeenCalledWith(job);
 });
 
+it('prepares the index on opening and waits for required state and indexing concurrently', async () => {
+  expect(mocks.getBookPassages).toHaveBeenCalledWith(book);
+  let save!: () => void;
+  let index!: () => void;
+  mocks.waitForServerStateWrites.mockImplementationOnce(
+    () => new Promise<undefined>((resolve) => (save = () => resolve(undefined))),
+  );
+  mocks.getBookPassages.mockImplementationOnce(
+    () => new Promise<never[]>((resolve) => (index = () => resolve([]))),
+  );
+  let sending!: Promise<void>;
+  await act(async () => {
+    sending = conversation.send(question);
+  });
+  expect(mocks.waitForServerStateWrites).toHaveBeenCalledWith({ ignoreConversationDrafts: true });
+  expect(index).toBeTypeOf('function');
+  expect(mocks.startJob).not.toHaveBeenCalled();
+  await act(async () => save());
+  expect(mocks.startJob).not.toHaveBeenCalled();
+  await act(async () => {
+    index();
+    await sending;
+  });
+  expect(mocks.waitForServerStateWrites).toHaveBeenCalledTimes(1);
+  expect(mocks.startJob).toHaveBeenCalledTimes(1);
+});
+
 it.each(['index', 'state', 'request'] as const)(
   'retains the draft and quote when %s preparation or submission fails, and allows retry',
   async (stage) => {

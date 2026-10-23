@@ -92,8 +92,11 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
       color-scheme: ${style.isDark ? 'dark' : 'light'};
       --theme-bg-color: ${style.paperColor};
       --reader-line-height: ${style.density.lineHeight};
+      --reader-font-size: ${style.fontSize}px;
+      --reader-text-align: ${style.textAlign};
+      --reader-paragraph-indent: ${style.paragraphIndent};
       --reader-letter-spacing: ${style.density.letterSpacing};
-      --reader-paragraph-spacing: ${style.density.paragraphSpacing}em;
+      --reader-paragraph-spacing: ${style.paragraphSpacing}em;
       --reader-muted-color: ${style.mutedTextColor};
       --reader-highlight-color: ${style.highlightColor};
       color: ${style.textColor} !important;

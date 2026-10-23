@@ -25,6 +25,7 @@ export interface ReaderThemePreset extends ReaderPalette {
   id: PresetTheme;
   name: string;
   description: string;
+  // Kept for upgrading legacy preferences; palette changes no longer change typography.
   fontFamily: ReaderFont;
   texture: ReaderTexture;
   fontSize: number;
@@ -83,19 +84,19 @@ export const READER_TEXTURE_PRESETS: ReaderTexturePreset[] = [
 export const READER_THEME_PRESETS: ReaderThemePreset[] = [
   {
     id: 'paper',
-    name: '经典宣纸',
-    description: '温润舒展',
-    paperColor: '#F3EBDD',
-    textColor: '#2D2924',
+    name: '经典书纸',
+    description: '温润米白',
+    paperColor: '#F7F3E9',
+    textColor: '#302D28',
     mutedTextColor: '#70685D',
     accentColor: '#876A3D',
     highlightColor: '#E2C66A',
     calloutColor: '#EAE0CD',
     isDark: false,
-    fontFamily: 'kai',
-    texture: 'paper',
-    fontSize: 18,
-    density: 'relaxed',
+    fontFamily: 'source-serif',
+    texture: 'none',
+    fontSize: 20,
+    density: 'balanced',
   },
   {
     id: 'ivory',
@@ -140,8 +141,8 @@ export const READER_THEME_PRESETS: ReaderThemePreset[] = [
     highlightColor: '#BDD6BD',
     calloutColor: '#D7E3D8',
     isDark: false,
-    fontFamily: 'kai',
-    texture: 'grain',
+    fontFamily: 'source-serif',
+    texture: 'none',
     fontSize: 18,
     density: 'relaxed',
   },
@@ -156,8 +157,8 @@ export const READER_THEME_PRESETS: ReaderThemePreset[] = [
     highlightColor: '#526B45',
     calloutColor: '#2A3745',
     isDark: true,
-    fontFamily: 'kai',
-    texture: 'grain',
+    fontFamily: 'source-serif',
+    texture: 'none',
     fontSize: 18,
     density: 'relaxed',
   },
@@ -213,15 +214,15 @@ export const READER_THEME_PRESETS: ReaderThemePreset[] = [
     id: 'parchment',
     name: '羊皮暖卷',
     description: '醇厚复古',
-    paperColor: '#E8D5B7',
-    textColor: '#3B2C20',
+    paperColor: '#EEE2CC',
+    textColor: '#3B3026',
     mutedTextColor: '#6E5846',
     accentColor: '#8C5E37',
     highlightColor: '#D9B86C',
     calloutColor: '#DECAAA',
     isDark: false,
     fontFamily: 'source-serif',
-    texture: 'linen',
+    texture: 'paper',
     fontSize: 19,
     density: 'relaxed',
   },
@@ -268,8 +269,8 @@ export const READER_THEME_PRESETS: ReaderThemePreset[] = [
     highlightColor: '#4E623D',
     calloutColor: '#21342B',
     isDark: true,
-    fontFamily: 'kai',
-    texture: 'linen',
+    fontFamily: 'source-serif',
+    texture: 'none',
     fontSize: 18,
     density: 'relaxed',
   },
@@ -304,6 +305,102 @@ export const READER_THEME_PRESETS: ReaderThemePreset[] = [
     texture: 'none',
     fontSize: 18,
     density: 'relaxed',
+  },
+  {
+    id: 'snow',
+    name: '白瓷书页',
+    description: '明净白纸',
+    paperColor: '#FDFCF9',
+    textColor: '#292D30',
+    mutedTextColor: '#666B6D',
+    accentColor: '#536E7B',
+    highlightColor: '#E9D68E',
+    calloutColor: '#F0EFEB',
+    isDark: false,
+    fontFamily: 'source-serif',
+    texture: 'none',
+    fontSize: 20,
+    density: 'balanced',
+  },
+  {
+    id: 'oat',
+    name: '燕麦暖纸',
+    description: '柔和暖灰',
+    paperColor: '#EEE6D8',
+    textColor: '#38312A',
+    mutedTextColor: '#72665A',
+    accentColor: '#7B6145',
+    highlightColor: '#DCC689',
+    calloutColor: '#E4DAC9',
+    isDark: false,
+    fontFamily: 'source-serif',
+    texture: 'none',
+    fontSize: 20,
+    density: 'balanced',
+  },
+  {
+    id: 'sage',
+    name: '鼠尾草笺',
+    description: '素雅灰绿',
+    paperColor: '#E7ECE5',
+    textColor: '#28352C',
+    mutedTextColor: '#637168',
+    accentColor: '#526E5E',
+    highlightColor: '#C6D9AB',
+    calloutColor: '#DCE4D9',
+    isDark: false,
+    fontFamily: 'source-serif',
+    texture: 'none',
+    fontSize: 20,
+    density: 'balanced',
+  },
+  {
+    id: 'taupe',
+    name: '岩灰书页',
+    description: '中性灰纸',
+    paperColor: '#E5E3DD',
+    textColor: '#303331',
+    mutedTextColor: '#666B66',
+    accentColor: '#586B68',
+    highlightColor: '#D2CAA2',
+    calloutColor: '#DAD8D0',
+    isDark: false,
+    fontFamily: 'source-serif',
+    texture: 'none',
+    fontSize: 20,
+    density: 'balanced',
+  },
+  {
+    id: 'slate',
+    name: '青灰夜读',
+    description: '沉静青灰',
+    paperColor: '#23282A',
+    textColor: '#D7DBD8',
+    mutedTextColor: '#A3AEAA',
+    accentColor: '#A8C3BE',
+    highlightColor: '#5F6648',
+    calloutColor: '#2D3535',
+    isDark: true,
+    fontFamily: 'source-serif',
+    texture: 'none',
+    fontSize: 20,
+    density: 'balanced',
+  },
+  {
+    id: 'plum',
+    name: '暖墨夜读',
+    description: '温和暖墨',
+    paperColor: '#2C2528',
+    textColor: '#E0D5D7',
+    mutedTextColor: '#BAA6AD',
+    accentColor: '#D4AFBC',
+    highlightColor: '#6C5742',
+    calloutColor: '#382F33',
+    isDark: true,
+    fontFamily: 'source-serif',
+    texture: 'none',
+    fontSize: 20,
+    density: 'balanced',
   },
 ];
 
@@ -439,7 +536,25 @@ export function getReaderThemeName(theme: ReaderTheme) {
   return theme === 'custom' ? '我的自定义' : getReaderThemePreset(theme).name;
 }
 
+export function upgradeReaderTypography(preferences: ReaderPreferences): ReaderPreferences {
+  if (preferences.paragraphStyle === 'book' || preferences.paragraphStyle === 'spaced')
+    return preferences;
+  const legacyStyle =
+    preferences.theme === 'custom'
+      ? normalizeReaderCustomStyle(preferences.customStyle)
+      : getReaderThemePreset(preferences.theme);
+  return {
+    ...preferences,
+    fontFamily: legacyStyle.fontFamily,
+    fontSize: legacyStyle.fontSize,
+    lineHeight: getReaderDensity(legacyStyle.density).lineHeight,
+    paragraphStyle: preferences.theme === 'custom' ? 'spaced' : 'book',
+  };
+}
+
 export function resolveReaderStyle(preferences: ReaderPreferences) {
+  const typography = upgradeReaderTypography(preferences);
+  const density = getReaderDensity(readerDensityFromLineHeight(typography.lineHeight));
   const base =
     preferences.theme === 'custom'
       ? preferences.customStyle
@@ -451,7 +566,16 @@ export function resolveReaderStyle(preferences: ReaderPreferences) {
   return {
     ...base,
     ...palette,
-    density: getReaderDensity(base.density),
+    fontFamily: typography.fontFamily,
+    fontSize: Math.max(
+      14,
+      Math.min(28, Number.isFinite(typography.fontSize) ? typography.fontSize : 20),
+    ),
+    density,
+    paragraphStyle: typography.paragraphStyle,
+    paragraphSpacing: typography.paragraphStyle === 'book' ? 0 : density.paragraphSpacing,
+    paragraphIndent: typography.paragraphStyle === 'book' ? '2em' : '0',
+    textAlign: typography.paragraphStyle === 'book' ? 'justify' : 'start',
   };
 }
 

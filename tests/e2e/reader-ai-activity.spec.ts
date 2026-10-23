@@ -247,6 +247,59 @@ test('等待服务端受理时保留草稿，受理后再显示已发送消息',
   await expect(input).toHaveText('');
 });
 
+test('草稿保存响应阻塞时仍可提交消息，确认后刷新可见', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'mobile-chrome';
+  await seed(page);
+  const jobs = await mockJobs(page);
+  await page.goto(`/books/${book.id}`);
+  await entry(page, mobile).click();
+  const input = page.locator('.reader-ai-input [contenteditable="true"]');
+  await expect(input).toBeVisible();
+  // Let the initial schema/settings migration finish before delaying only the draft.
+  await expect
+    .poll(async () => (await (await page.request.get('/api/state/preferences')).json()).version)
+    .toBeGreaterThanOrEqual(41);
+  const gate = Promise.withResolvers<void>();
+  let draftBlocked = false;
+  let conversationId = '';
+  await page.route('**/api/state/preferences', async (route) => {
+    if (
+      route.request().method() === 'PUT' &&
+      route.request().postData()?.includes('慢保存测试问题')
+    ) {
+      draftBlocked = true;
+      await gate.promise;
+    }
+    await route.fallback();
+  });
+  try {
+    await input.fill('慢保存测试问题');
+    await expect.poll(() => draftBlocked).toBe(true);
+    await input.press('Enter');
+    // No timer releases the draft: submission must proceed while it is blocked.
+    await expect.poll(jobs.submitted).toBe(true);
+    await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('慢保存测试问题');
+    await expect(input).toHaveText('');
+    const saved = await (await page.request.get('/api/state/conversations')).json();
+    conversationId = saved.state.chats.find(
+      (message: { content: string }) => message.content === '慢保存测试问题',
+    ).conversationId;
+  } finally {
+    gate.resolve();
+  }
+  await expect
+    .poll(async () => {
+      const snapshot = await (await page.request.get('/api/state/preferences')).json();
+      return snapshot.state.conversationDrafts?.find(
+        (draft: { conversationId: string }) => draft.conversationId === conversationId,
+      )?.text;
+    })
+    .toBe('');
+  await page.reload();
+  if (!(await input.isVisible())) await entry(page, mobile).click();
+  await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('慢保存测试问题');
+});
+
 test('查看旧内容时保持未读，滚动到回复末尾才标记已读', async ({ page }, testInfo) => {
   const mobile = testInfo.project.name === 'mobile-chrome';
   await seed(page);

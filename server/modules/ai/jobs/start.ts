@@ -90,7 +90,10 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
       : undefined;
     const currentText = optionalString(input?.currentText, 30_000);
 
-    const persistedState = await readPersistedState();
+    const persistedState = await readPersistedState({
+      hydrateNote: (note) => note.bookId === bookId,
+      hydrateCovers: false,
+    });
     if (!persistedState?.state) throw statusError(409, '服务端尚未初始化');
     const state = persistedState.state;
     const config = (Array.isArray(state.openAIConfigs) ? state.openAIConfigs : []).find(
@@ -238,40 +241,43 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
           }
         : undefined;
 
-    await mutatePersistedState((nextPersistedState) => {
-      if (nextPersistedState.deletedConversationIds?.includes(conversationId))
-        throw statusError(404, '对话已删除，请开启新对话');
-      const next = nextPersistedState.state;
-      if (
-        chapterId &&
-        [...jobs.values()].some(
-          (job) =>
-            job.bookId === bookId &&
-            job.chapterId === chapterId &&
-            ['queued', 'running'].includes(job.status),
+    await mutatePersistedState(
+      (nextPersistedState) => {
+        if (nextPersistedState.deletedConversationIds?.includes(conversationId))
+          throw statusError(404, '对话已删除，请开启新对话');
+        const next = nextPersistedState.state;
+        if (
+          chapterId &&
+          [...jobs.values()].some(
+            (job) =>
+              job.bookId === bookId &&
+              job.chapterId === chapterId &&
+              ['queued', 'running'].includes(job.status),
+          )
         )
-      )
-        throw statusError(409, '该章节正在生成思维导图');
-      if (purpose !== 'glossary' && purpose !== 'mindmap') {
-        const sessions = Array.isArray(next.chatSessions) ? next.chatSessions : [];
-        const existingSession = sessions.find((item) => item.id === conversationId);
-        next.chatSessions = [
-          existingSession
-            ? {
-                ...existingSession,
-                provider,
-                model,
-                reasoningEffort: reasoningEffort || 'auto',
-                updatedAt: Math.max(existingSession.updatedAt, createdAt),
-              }
-            : session,
-          ...sessions.filter((item) => item.id !== conversationId),
-        ];
-        const chats = Array.isArray(next.chats) ? next.chats : [];
-        next.chats = [...chats.filter((item) => item.id !== userMessageId), userMessage];
-      }
-      if (digestRun) upsertDigestRun(next, structuredClone(digestRun));
-    });
+          throw statusError(409, '该章节正在生成思维导图');
+        if (purpose !== 'glossary' && purpose !== 'mindmap') {
+          const sessions = Array.isArray(next.chatSessions) ? next.chatSessions : [];
+          const existingSession = sessions.find((item) => item.id === conversationId);
+          next.chatSessions = [
+            existingSession
+              ? {
+                  ...existingSession,
+                  provider,
+                  model,
+                  reasoningEffort: reasoningEffort || 'auto',
+                  updatedAt: Math.max(existingSession.updatedAt, createdAt),
+                }
+              : session,
+            ...sessions.filter((item) => item.id !== conversationId),
+          ];
+          const chats = Array.isArray(next.chats) ? next.chats : [];
+          next.chats = [...chats.filter((item) => item.id !== userMessageId), userMessage];
+        }
+        if (digestRun) upsertDigestRun(next, structuredClone(digestRun));
+      },
+      { preserveResourceFiles: true },
+    );
 
     const job: AiJob = {
       id: randomUUID(),

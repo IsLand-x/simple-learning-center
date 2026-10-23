@@ -35,6 +35,8 @@ LEARNING_CENTER_E2E_PRODUCTION=1 LEARNING_CENTER_E2E_BROWSER=chromium npm run te
 
 2026-10-05 的阅读排版优化在同一固定容器中更新了 8 张演示阅读器截图，并通过 `reader-typography.spec.ts` 新增 8 张真实 EPUB 排版截图（浅色象牙纸与深色墨夜纸，各覆盖四种宽度）。原创样张由 `node tests/fixtures/generate-reader-regression.mjs --typography` 生成，包含标题、嵌套列表、引用、代码、表格及作者指定的居中与缩进；语义断言同时检查标题层级、留白、等宽代码与原有排版保留。同日针对 Kindle/Calibre 标准 `h3/h4` 小标题补充明确粗体和递进字号，新增 8 张小标题截图；原创样张通过 `--headings` 生成，不包含个人书籍正文，并检查 `h3–h6` 字重、嵌套 span、标题居中和正文缩进。其余页面基线保持不变。
 
+2026-10-23 新增宋体/黑体纸书排版及 6 种纸色，在同一固定容器中审查并更新上述 24 张阅读器截图；其余页面基线保持不变。`reader-book-layout.spec.ts` 另外验证真实 EPUB 字体与字号、两字缩进、段落模式、作者居中、配色独立和服务端刷新恢复，并覆盖四种宽度与亮暗界面的设置交互、键盘操作及溢出。`reader-ai-activity.spec.ts` 使用可控请求闸门验证草稿保存阻塞时仍可提交消息，服务器确认后刷新可见，不调用真实模型。
+
 基线来自重构前提交 `8f9ed13c288538868cdaf143cc53805d307b1349` 的不可变生产构建。首次宿主机截图在 CI 暴露了 OpenCloudOS/Ubuntu 的字体 fallback 差异，及书架旧截图混入先前用例进度的问题；修正后在固定测试容器内，用同一旧构建重新采集。新构建只参与比较，不用于生成重构基线。
 
 2026-09-26 重新采集时，旧版与新版使用完全相同的 `workspace-fixtures.ts`，没有修改原应用源码或构建文件。原构建 `dist/index.html` 的 SHA-256 为 `d959a0d5080d8a4211edbfa2bc2593e497c680e07017d2c8cbac5c05816b76a2`；43 个 `dist/assets/` 文件按相对路径排序，逐行拼接 `SHA-256 + 两个空格 + 相对路径 + 换行` 后的 SHA-256 为 `3669c911c75b84cc48ddc4de137b50ac64ed0ecfb9b4c1d618f5cba606466343`。这些摘要用于追踪基线来源，构建产物本身不提交。

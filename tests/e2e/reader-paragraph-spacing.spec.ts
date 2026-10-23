@@ -42,6 +42,8 @@ test('converted div paragraphs follow reading density without spacing structural
     await page.getByRole('button', { name: /^打开更多功能/ }).click();
   }
   await page.getByRole('button', { name: '打开阅读样式设置', exact: true }).click();
+  await page.getByRole('combobox', { name: '段落样式', exact: true }).click();
+  await page.getByRole('option').filter({ hasText: '段落留白' }).click();
   for (const density of [
     { name: '紧凑', lineHeight: 1.6, paragraphSpacing: 1 },
     { name: '适中', lineHeight: 1.8, paragraphSpacing: 1.25 },

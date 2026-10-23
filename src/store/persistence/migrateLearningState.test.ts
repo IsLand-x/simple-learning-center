@@ -1,8 +1,49 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../../util/ai/readerAiPrompts';
 import { migrateLearningState } from './migrateLearningState';
+import { defaultReaderPreferences } from '../defaults';
 
 describe('learning state migrations', () => {
+  it('upgrades typography while preserving custom colors, layout and book positions', () => {
+    const books = [{ id: 'book', currentCfi: 'epubcfi(/6/4!/4/2:30)', progress: 37 }];
+    const readerPreferences = {
+      ...defaultReaderPreferences,
+      theme: 'custom',
+      paragraphStyle: undefined,
+      tocWidth: 330,
+      panelWidth: 500,
+      customStyle: {
+        ...defaultReaderPreferences.customStyle,
+        fontFamily: 'sans',
+        fontSize: 25,
+        density: 'compact',
+        paperColor: '#FFF8ED',
+      },
+    };
+    const migrated = migrateLearningState({ books, readerPreferences }, 40);
+    expect(migrated.readerPreferences).toMatchObject({
+      fontFamily: 'sans',
+      fontSize: 25,
+      lineHeight: 1.6,
+      paragraphStyle: 'spaced',
+      tocWidth: 330,
+      panelWidth: 500,
+      customStyle: readerPreferences.customStyle,
+    });
+    expect(migrated.books).toBe(books);
+  });
+
+  it('does not overwrite already independent typography on a repeated upgrade', () => {
+    const readerPreferences = {
+      ...defaultReaderPreferences,
+      fontFamily: 'sans',
+      fontSize: 26,
+      paragraphStyle: 'book',
+    };
+    expect(migrateLearningState({ readerPreferences }, 40).readerPreferences).toEqual(
+      readerPreferences,
+    );
+  });
   it('adds the default reader assistant prompt to version 28 preferences', () => {
     const migrated = migrateLearningState(
       { aiPreferences: { provider: null, model: 'test-model' } },

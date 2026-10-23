@@ -46,6 +46,8 @@ contracts/
 
 状态交给最小的稳定所有者。把状态移入组件时，同时核对隐藏、重新打开、跨断点、切换选中资源与离开页面时的保留/重置行为，不能只根据 import 数量迁移 Hook。
 
+阅读器从 version 41 起将排版与纸张配色解耦：`readerPreferences.fontFamily/fontSize/lineHeight/paragraphStyle` 是排版的唯一生效来源，预设主题及 `customStyle` 负责配色与纹理。历史 `customStyle` 中的字体等字段仅用于兼容迁移；迁移按旧预设实际显示值初始化，旧自定义样式保留段落留白。`paragraphStyle` 仍归属 preferences 分区内的阅读样式版本组，客户端与服务端按同一时间戳保护。`resolveReaderStyle` 统一生成排版变量，演示正文与 Foliate iframe 共用 `reader-prose.css`，纸书模式的段间距为零、首行缩进为两字，段落留白模式继续复用原有三档密度。
+
 - RSS 的 `source/feed/item/digest/range/view/panel` 继续由 URL 驱动，保留默认项、失效参数回退、push/replace、刷新直达和返回行为，不创建双向同步的第二份选中状态。
 - RSS 页面只建立一个状态作用域，Context 以 navigation / sources / article / tasks 的明确接口连接区域；各 Hook 通过参数连接，不互相读取 Context。页面直接组合桌面/移动工作区和常驻弹窗，Dialog 内拥有自己的草稿。任务恢复、订阅、结果回写在页面生命周期中执行，不随可见面板切换重复启动。
 - 阅读器只随 `book.id` 建立生命周期，其余最新参数通过稳定 ref 输入。`ReaderPageContent.tsx` 负责页面编排，页面共享的标注、导航、布局、会话 Hook 放在本页 store；标注状态与动作由同一个 Hook 管理。Foliate 和演示正文归入 ReaderSurface 的私有目录，阅读页其它区域不依赖它们的实现。
@@ -57,7 +59,7 @@ contracts/
 
 对话读取从页面启动分区中移出：`/api/conversations?bookId=…` 按资源分页返回会话摘要（消息数与未读数由服务端计算），`/:id/messages?bookId=…&before=…` 使用消息 ID 游标按时间及 ID 稳定排序，每页默认 50 条。选择与计数发生在状态克隆前，摘要缓存与当前解析的状态对象绑定；客户端只保存已打开的消息页，使用有界 ETag 响应缓存，并仅刷新当前挂载的资源与会话。摘要延迟或失败不阻塞阅读，历史列表与消息区域各自展示加载、错误及重试。聊天缓存与摘要不进入常规 Zustand persist 快照；首次旧版迁移仍完整读取，对话格式发生变化时显式合并保存规范化结果，并保留读取后其他设备新增的会话与消息；随后清除迁移快照中的对话字段。模型修改、已读和删除使用独立接口，消息与首次会话由既有 AI 任务 API 原子保存，全部写入继续共享状态写队列。服务端 envelope 的 `deletedConversationIds` 是仅服务端维护的删除记录，旧客户端快照不能复活这些会话，新任务也不能复用已删除的 ID。原 `/api/state/conversations` 保留兼容，在同一文件版本内复用 JSON 与 ETag，避免 304 前重复克隆和序列化。磁盘实体仍保留于原 `state.json`，本轮不改变备份方式或引入数据库。阅读页的周期任务列表使用 `view=summary`，只有打开的会话读取任务正文及 SSE，隐藏面板时仍同步任务状态与 AI 笔记。
 
-根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 40，library / reading / notes / highlights / conversations / rss / videos / preferences 八个分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护；当前客户端另外传输非持久化的 notesBase 编辑基准，服务端在单实例写队列内进行正文合并并返回规范快照，持久化核心订阅保存结果以更新当前编辑区。独立文本修改自动合并，重叠修改保留完整草稿。AI 新增笔记使用同一写队列原子追加，替换仍要求读取版本。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。存档同样使用 library 分区内的书籍可选元数据：`archivedAt` 表示当前存档，`archiveUpdatedAt` 独立记录存档与取消存档的修改版本；旧书籍缺省保持普通书架状态。服务端按该版本单独合并存档决定，旧客户端或较晚保存的阅读进度不会撤销存档；书籍和学习记录仍保存在原有位置。书架底部默认折叠存档区，搜索与筛选时展开匹配结果。
+根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 41，library / reading / notes / highlights / conversations / rss / videos / preferences 八个分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护；当前客户端另外传输非持久化的 notesBase 编辑基准，服务端在单实例写队列内进行正文合并并返回规范快照，持久化核心订阅保存结果以更新当前编辑区。独立文本修改自动合并，重叠修改保留完整草稿。AI 新增笔记使用同一写队列原子追加，替换仍要求读取版本。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。存档同样使用 library 分区内的书籍可选元数据：`archivedAt` 表示当前存档，`archiveUpdatedAt` 独立记录存档与取消存档的修改版本；旧书籍缺省保持普通书架状态。服务端按该版本单独合并存档决定，旧客户端或较晚保存的阅读进度不会撤销存档；书籍和学习记录仍保存在原有位置。书架底部默认折叠存档区，搜索与筛选时展开匹配结果。
 
 ## API 与类型
 
@@ -197,6 +199,10 @@ AI generation 在 books 保存本地原图后调用 `books/imageHosting.ts`，�
 上传成功后在原图旁保存无密钥的 `.cos.json` 对象记录，落盘前复用单实例状态队列核对书籍仍存在，避免上传期间删除书籍后遗留正常成功结果。网络上传不占用状态写队列。取消、上传结果不明或保存记录失败时尝试清理云端对象；明确的 4xx（包括对象冲突）不删除已有对象。彻底删除与回收站清理先删除有记录的 COS 对象，成功后再删除本地图片目录；失败保留记录，允许重试。若请求与清理都遇到网络故障，提示用户云端清理未完成，由运维核对 COS 对象。该副本不参与 Zustand 分区同步，凭据仅保存在服务器数据目录。
 
 AI 输入草稿使用根 store 的 `conversationDrafts` 字段，归属 `preferences` 分区，随现有服务端状态写队列保存；按资源与对话键隔离，以 `updatedAt` 合并，空文本记录防止旧快照恢复已发送草稿。
+
+阅读器发送前使用写队列的 `ignoreConversationDrafts` 模式：仅当待保存偏好与已确认快照的差异全部来自草稿时跳过等待；模型配置、笔记及其他分区修改仍须先完成。打开助手即预热索引，发送时与必要状态保存并行准备，不在索引保存后重复等待全局队列。任务 POST 原子保存用户消息和会话后才返回 202；UI 据此添加消息并清空对应草稿。浏览器 Performance 中的 `learning-center:ai:prepare-state`、`ai:prepare-index`、`ai:accept` 记录各阶段耗时，不包含正文或凭据。
+
+AI 任务只读取当前资源的笔记正文，跳过无关封面解析；受理与回复保存使用 `mutatePersistedState` 的 `preserveResourceFiles` 模式，直接保留磁盘中的封面和 Markdown 引用。该模式仅用于不修改 books、trashedBooks、notes 的元数据更新，与普通文件更新共享原子写队列，不能用于笔记工具或书籍资源变更。
 
 
 ## 章节思维导图

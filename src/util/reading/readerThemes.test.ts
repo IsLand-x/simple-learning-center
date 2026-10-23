@@ -7,6 +7,8 @@ import {
   normalizeReaderCustomStyle,
   readerDensityFromLineHeight,
   resolveReaderStyle,
+  upgradeReaderTypography,
+  READER_THEME_PRESETS,
 } from './readerThemes';
 
 const preferences: ReaderPreferences = {
@@ -66,6 +68,92 @@ describe('resolveReaderStyle', () => {
         pagePadding: '10%',
       },
     });
+  });
+
+  it('keeps typography independent of the selected paper palette', () => {
+    const customized: ReaderPreferences = {
+      ...preferences,
+      paragraphStyle: 'book',
+      fontFamily: 'sans',
+      fontSize: 23,
+      lineHeight: 1.6,
+    };
+    for (const preset of READER_THEME_PRESETS) {
+      expect(resolveReaderStyle({ ...customized, theme: preset.id })).toMatchObject({
+        fontFamily: 'sans',
+        fontSize: 23,
+        density: { id: 'compact', lineHeight: 1.6 },
+        paragraphSpacing: 0,
+        paragraphIndent: '2em',
+        textAlign: 'justify',
+        paperColor: preset.paperColor,
+      });
+    }
+    expect(new Set(READER_THEME_PRESETS.map((preset) => preset.id)).size).toBe(20);
+  });
+
+  it('supports spaced paragraphs with the same font and line-height controls', () => {
+    expect(
+      resolveReaderStyle({
+        ...preferences,
+        paragraphStyle: 'spaced',
+        fontFamily: 'source-serif',
+        fontSize: 22,
+        lineHeight: 1.8,
+      }),
+    ).toMatchObject({
+      fontFamily: 'source-serif',
+      fontSize: 22,
+      paragraphSpacing: 1.25,
+      paragraphIndent: '0',
+      textAlign: 'start',
+    });
+  });
+
+  it('preserves the actual legacy custom typography rather than its unused top-level values', () => {
+    const legacy = {
+      ...preferences,
+      customStyle: {
+        ...DEFAULT_READER_CUSTOM_STYLE,
+        fontFamily: 'bright' as const,
+        fontSize: 24,
+        density: 'compact' as const,
+      },
+    };
+    const upgraded = upgradeReaderTypography(legacy);
+    expect(upgraded).toMatchObject({
+      fontFamily: 'bright',
+      fontSize: 24,
+      lineHeight: 1.6,
+      paragraphStyle: 'spaced',
+      customStyle: legacy.customStyle,
+    });
+    expect(upgradeReaderTypography(upgraded)).toBe(upgraded);
+  });
+
+  it('initializes a legacy preset from its visible settings', () => {
+    expect(upgradeReaderTypography({ ...preferences, theme: 'ivory' })).toMatchObject({
+      fontFamily: 'system-serif',
+      fontSize: 18,
+      lineHeight: 1.8,
+      paragraphStyle: 'book',
+    });
+  });
+
+  it('keeps body text contrast above 7:1 for every built-in paper palette', () => {
+    const luminance = (color: string) => {
+      const channels = [1, 3, 5].map((start) => {
+        const value = Number.parseInt(color.slice(start, start + 2), 16) / 255;
+        return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+      });
+      return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+    };
+    for (const preset of READER_THEME_PRESETS) {
+      const values = [luminance(preset.paperColor), luminance(preset.textColor)].sort(
+        (a, b) => b - a,
+      );
+      expect((values[0] + 0.05) / (values[1] + 0.05), preset.id).toBeGreaterThanOrEqual(7);
+    }
   });
 });
 

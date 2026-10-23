@@ -15,6 +15,87 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('../api/state', () => ({ stateApi: mocks }));
 
+it('AI submission skips draft-only writes but still waits for model configuration changes', async () => {
+  vi.resetModules();
+  mocks.readDomain.mockReset();
+  mocks.writeDomain.mockReset();
+  window.history.replaceState(null, '', '/books/test');
+  const { initialLearningState } = await import('./defaults');
+  const storage = await import('./serverStateStorage');
+  const state = structuredClone(initialLearningState);
+  mocks.readDomain.mockResolvedValue({
+    status: 200,
+    etag: null,
+    snapshot: { version: LEARNING_STORE_VERSION, state },
+  });
+  await storage.prepareServerState();
+  const withDraft = {
+    ...state,
+    conversationDrafts: [
+      { resourceId: 'book', conversationId: 'conversation', text: '问题', updatedAt: 1 },
+    ],
+  };
+  let release!: () => void;
+  mocks.writeDomain.mockImplementationOnce(
+    () => new Promise<undefined>((resolve) => (release = () => resolve(undefined))),
+  );
+  const draftSave = storage.serverStateStorage.setItem(
+    'test',
+    JSON.stringify({ version: LEARNING_STORE_VERSION, state: withDraft }),
+  );
+  await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+  await storage.waitForServerStateWrites({ ignoreConversationDrafts: true });
+  // The ordinary barrier must still wait for the same pending draft.
+  let ordinaryFinished = false;
+  const ordinary = storage.waitForServerStateWrites().then(() => (ordinaryFinished = true));
+  await Promise.resolve();
+  expect(ordinaryFinished).toBe(false);
+  release();
+  await Promise.all([draftSave, ordinary]);
+
+  mocks.writeDomain.mockImplementationOnce(
+    () => new Promise<undefined>((resolve) => (release = () => resolve(undefined))),
+  );
+  const configSave = storage.serverStateStorage.setItem(
+    'test',
+    JSON.stringify({
+      version: LEARNING_STORE_VERSION,
+      state: {
+        ...withDraft,
+        openAIConfigs: [
+          {
+            id: 'new-config',
+            name: '新配置',
+            baseUrl: 'https://example.invalid',
+            apiKey: '',
+            models: ['test'],
+            createdAt: 1,
+            updatedAt: 1,
+          },
+        ],
+      },
+    }),
+  );
+  await vi.waitFor(() => expect(mocks.writeDomain).toHaveBeenCalledTimes(2));
+  // Even if a later edit restores the acknowledged settings, the active
+  // intermediate configuration must finish before AI reads the server state.
+  mocks.writeDomain.mockResolvedValue(undefined);
+  const reverted = storage.serverStateStorage.setItem(
+    'test',
+    JSON.stringify({ version: LEARNING_STORE_VERSION, state: withDraft }),
+  );
+  let ready = false;
+  const required = storage
+    .waitForServerStateWrites({ ignoreConversationDrafts: true })
+    .then(() => (ready = true));
+  await Promise.resolve();
+  expect(ready).toBe(false);
+  release();
+  await Promise.all([configSave, reverted, required]);
+  expect(ready).toBe(true);
+  expect(mocks.writeDomain).toHaveBeenCalledTimes(3);
+});
+
 it('coalesces preference drafts behind a slow request instead of queuing every keystroke', async () => {
   vi.resetModules();
   mocks.readDomain.mockReset();

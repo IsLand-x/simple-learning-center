@@ -431,7 +431,6 @@
   }
 }
 
-.demo-reader article,
 .demo-reader article * {
   color: inherit !important;
   font-family: inherit !important;

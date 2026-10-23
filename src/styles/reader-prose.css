@@ -1,12 +1,15 @@
 /* Shared by the demo article and Foliate's chapter stylesheet (scoped to body there).
    Keep the reading rhythm independent from the application UI and its theme. */
 .reader-prose {
-  text-align: start;
+  text-align: var(--reader-text-align, start);
+  text-align-last: auto;
   overflow-wrap: break-word;
   word-break: normal;
   line-break: strict;
   hyphens: auto;
   font-kerning: normal;
+  font-weight: 400;
+  font-variant-numeric: lining-nums;
 }
 
 /* Leaf divs are paragraphs in converted EPUBs; structural, media, table and code
@@ -51,7 +54,9 @@
       )
   ):not(:where(pre *, table *, svg *, h1 *, h2 *, h3 *, h4 *, h5 *, h6 *, aside *)) {
   margin-block: 0 var(--reader-paragraph-spacing) !important;
+  font-size: var(--reader-font-size, 1em) !important;
   line-height: var(--reader-line-height) !important;
+  text-indent: var(--reader-paragraph-indent, 0);
   hanging-punctuation: allow-end last;
   widows: 2;
   orphans: 2;
@@ -59,13 +64,19 @@
 
 .reader-prose
   :is(div, span):not(
-    :where(pre, pre *, table *, svg *, h1 *, h2 *, h3 *, h4 *, h5 *, h6 *)
+    :where(pre, pre *, table *, svg *, h1 *, h2 *, h3 *, h4 *, h5 *, h6 *, small *, sup *, sub *, rt, rt *)
   ) {
   line-height: var(--reader-line-height) !important;
   letter-spacing: var(--reader-letter-spacing) !important;
+  font-size: inherit !important;
+}
+
+.reader-prose :where(li, li p, li div, dd, blockquote p, blockquote div, figcaption, aside p) {
+  text-indent: 0;
 }
 
 .reader-prose :is(h1, h2, h3, h4, h5, h6) {
+  text-align: start;
   margin-block: 1.8em 0.65em !important;
   line-height: 1.35 !important;
   font-weight: 700 !important;
@@ -114,6 +125,7 @@
 
 .reader-prose li {
   margin-block: 0 0.4em !important;
+  font-size: var(--reader-font-size, 1em) !important;
   line-height: var(--reader-line-height) !important;
 }
 

@@ -4,119 +4,122 @@ import { mutatePersistedState } from '../../state/stateStore.js';
 import { upsertDigestRun } from './model.js';
 
 export async function persistAssistant(job: AiJob, result: AiResult) {
-  await mutatePersistedState((persistedState) => {
-    const state = persistedState.state;
-    if (job.purpose === 'mindmap' && result.mindMap) {
-      if (job.controller.signal.aborted || !state.books?.some((book) => book.id === job.bookId))
+  await mutatePersistedState(
+    (persistedState) => {
+      const state = persistedState.state;
+      if (job.purpose === 'mindmap' && result.mindMap) {
+        if (job.controller.signal.aborted || !state.books?.some((book) => book.id === job.bookId))
+          return;
+        const maps = state.chapterMindMaps ?? [];
+        const previous = maps.find((map) => map.id === result.mindMap!.id);
+        const mindMap = {
+          ...result.mindMap,
+          revision: (previous?.revision ?? 0) + 1,
+          generatedAt: previous?.generatedAt ?? result.mindMap.generatedAt,
+          updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? 0) + 1),
+        };
+        state.chapterMindMaps = [...maps.filter((map) => map.id !== mindMap.id), mindMap];
+        persistedState.version = Math.max(persistedState.version, 40);
         return;
-      const maps = state.chapterMindMaps ?? [];
-      const previous = maps.find((map) => map.id === result.mindMap!.id);
-      const mindMap = {
-        ...result.mindMap,
-        revision: (previous?.revision ?? 0) + 1,
-        generatedAt: previous?.generatedAt ?? result.mindMap.generatedAt,
-        updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? 0) + 1),
-      };
-      state.chapterMindMaps = [...maps.filter((map) => map.id !== mindMap.id), mindMap];
-      persistedState.version = Math.max(persistedState.version, 40);
-      return;
-    }
-    if (job.purpose === 'glossary' && job.termId && result.content.trim()) {
-      state.highlights = (state.highlights ?? []).map((term) =>
-        term.id === job.termId &&
-        term.bookId === job.bookId &&
-        term.kind === 'term' &&
-        (term.updatedAt ?? term.createdAt) === job.termUpdatedAt
-          ? {
-              ...term,
-              definition: result.content.trim(),
-              updatedAt: Math.max(Date.now(), (term.updatedAt ?? term.createdAt) + 1),
-            }
-          : term,
-      );
-    }
-    const sessions = Array.isArray(state.chatSessions) ? state.chatSessions : [];
-    if (!sessions.some((session) => session.id === job.conversationId)) return;
-    const message: ChatMessage = {
-      id: job.assistantMessageId,
-      bookId: job.bookId,
-      conversationId: job.conversationId,
-      role: 'assistant',
-      content: result.content,
-      dialogueContent: result.dialogueContent,
-      createdAt: job.assistantCreatedAt,
-    };
-    const chats = Array.isArray(state.chats) ? state.chats : [];
-    state.chats = [...chats.filter((item) => item.id !== message.id), message];
-    state.chatSessions = sessions.map((session) =>
-      session.id === job.conversationId
-        ? { ...session, updatedAt: Math.max(session.updatedAt, message.createdAt) }
-        : session,
-    );
-    if (job.resourceType === 'rss' && job.purpose === 'summary') {
-      const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-      state.rssItems = rssItems.map((item) =>
-        item.id === job.rssItemId
-          ? {
-              ...item,
-              aiSummary: result.content,
-              aiSummaryUpdatedAt: job.assistantCreatedAt,
-              aiSummaryVersion: 2,
-            }
-          : item,
-      );
-    }
-    if (job.resourceType === 'rss' && job.purpose === 'translation') {
-      const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-      state.rssItems = rssItems.map((item) =>
-        item.id === job.rssItemId
-          ? {
-              ...item,
-              aiTranslation: result.content,
-              aiTranslationHtml: result.translationHtml,
-              aiTranslationUpdatedAt: job.assistantCreatedAt,
-              aiTranslationSourceFetchedAt: Number(
-                item.fullContentFetchedAt || item.fetchedAt || 0,
-              ),
-            }
-          : item,
-      );
-    }
-    if (job.resourceType === 'rssDigest' && job.purpose === 'digest') {
-      const completedAt = Date.now();
-      const digests = Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [];
-      const feedIds = [...new Set(job.digestItems.map((item) => item.feedId))];
-      const previous = digests.find((digest) => digest.date === job.digestDate!);
-      const digest = {
-        id: `rss-digest:${job.digestDate}`,
-        date: job.digestDate!,
-        content: result.content,
-        sourceItemIds: job.digestItems.map((item) => item.id),
-        sourceFeedIds: feedIds,
-        itemCount: job.digestItems.length,
-        model: job.model,
-        generatedAt: previous?.generatedAt || job.assistantCreatedAt,
-        updatedAt: job.assistantCreatedAt,
-      };
-      state.rssDailyDigests = [digest, ...digests.filter((item) => item.id !== digest.id)].sort(
-        (left, right) => right.date.localeCompare(left.date),
-      );
-      state.rssDigestSettings = {
-        ...(state.rssDigestSettings || {}),
-        lastCompletedAt: completedAt,
-        lastError: undefined,
-      };
-      const runs = Array.isArray(state.rssDigestRuns) ? state.rssDigestRuns : [];
-      const digestRun = runs.find((run) => run.id === job.digestRunId);
-      if (digestRun) {
-        upsertDigestRun(state, {
-          ...digestRun,
-          status: 'completed',
-          completedAt,
-          updatedAt: completedAt,
-          message: undefined,
-        });
       }
-    }
-  });
+      if (job.purpose === 'glossary' && job.termId && result.content.trim()) {
+        state.highlights = (state.highlights ?? []).map((term) =>
+          term.id === job.termId &&
+          term.bookId === job.bookId &&
+          term.kind === 'term' &&
+          (term.updatedAt ?? term.createdAt) === job.termUpdatedAt
+            ? {
+                ...term,
+                definition: result.content.trim(),
+                updatedAt: Math.max(Date.now(), (term.updatedAt ?? term.createdAt) + 1),
+              }
+            : term,
+        );
+      }
+      const sessions = Array.isArray(state.chatSessions) ? state.chatSessions : [];
+      if (!sessions.some((session) => session.id === job.conversationId)) return;
+      const message: ChatMessage = {
+        id: job.assistantMessageId,
+        bookId: job.bookId,
+        conversationId: job.conversationId,
+        role: 'assistant',
+        content: result.content,
+        dialogueContent: result.dialogueContent,
+        createdAt: job.assistantCreatedAt,
+      };
+      const chats = Array.isArray(state.chats) ? state.chats : [];
+      state.chats = [...chats.filter((item) => item.id !== message.id), message];
+      state.chatSessions = sessions.map((session) =>
+        session.id === job.conversationId
+          ? { ...session, updatedAt: Math.max(session.updatedAt, message.createdAt) }
+          : session,
+      );
+      if (job.resourceType === 'rss' && job.purpose === 'summary') {
+        const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
+        state.rssItems = rssItems.map((item) =>
+          item.id === job.rssItemId
+            ? {
+                ...item,
+                aiSummary: result.content,
+                aiSummaryUpdatedAt: job.assistantCreatedAt,
+                aiSummaryVersion: 2,
+              }
+            : item,
+        );
+      }
+      if (job.resourceType === 'rss' && job.purpose === 'translation') {
+        const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
+        state.rssItems = rssItems.map((item) =>
+          item.id === job.rssItemId
+            ? {
+                ...item,
+                aiTranslation: result.content,
+                aiTranslationHtml: result.translationHtml,
+                aiTranslationUpdatedAt: job.assistantCreatedAt,
+                aiTranslationSourceFetchedAt: Number(
+                  item.fullContentFetchedAt || item.fetchedAt || 0,
+                ),
+              }
+            : item,
+        );
+      }
+      if (job.resourceType === 'rssDigest' && job.purpose === 'digest') {
+        const completedAt = Date.now();
+        const digests = Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [];
+        const feedIds = [...new Set(job.digestItems.map((item) => item.feedId))];
+        const previous = digests.find((digest) => digest.date === job.digestDate!);
+        const digest = {
+          id: `rss-digest:${job.digestDate}`,
+          date: job.digestDate!,
+          content: result.content,
+          sourceItemIds: job.digestItems.map((item) => item.id),
+          sourceFeedIds: feedIds,
+          itemCount: job.digestItems.length,
+          model: job.model,
+          generatedAt: previous?.generatedAt || job.assistantCreatedAt,
+          updatedAt: job.assistantCreatedAt,
+        };
+        state.rssDailyDigests = [digest, ...digests.filter((item) => item.id !== digest.id)].sort(
+          (left, right) => right.date.localeCompare(left.date),
+        );
+        state.rssDigestSettings = {
+          ...(state.rssDigestSettings || {}),
+          lastCompletedAt: completedAt,
+          lastError: undefined,
+        };
+        const runs = Array.isArray(state.rssDigestRuns) ? state.rssDigestRuns : [];
+        const digestRun = runs.find((run) => run.id === job.digestRunId);
+        if (digestRun) {
+          upsertDigestRun(state, {
+            ...digestRun,
+            status: 'completed',
+            completedAt,
+            updatedAt: completedAt,
+            message: undefined,
+          });
+        }
+      }
+    },
+    { preserveResourceFiles: true },
+  );
 }

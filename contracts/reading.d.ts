@@ -13,6 +13,12 @@ export type ReaderTheme =
   | 'forest'
   | 'graphite'
   | 'oled'
+  | 'snow'
+  | 'oat'
+  | 'sage'
+  | 'taupe'
+  | 'slate'
+  | 'plum'
   | 'custom';
 
 export type ReaderFont = 'system-serif' | 'source-serif' | 'sans' | 'kai' | 'bright' | 'pingfang';
@@ -72,6 +78,8 @@ export interface ReaderPreferences {
   theme: ReaderTheme;
   fontFamily: ReaderFont;
   customStyle: ReaderCustomStyle;
+  /** Missing only in pre-v41 snapshots, where typography was part of the color preset. */
+  paragraphStyle?: 'book' | 'spaced';
   tocWidth: number;
   panelWidth: number;
   tocCollapsed: boolean;

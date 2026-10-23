@@ -50,10 +50,20 @@ async function readPersistedStateFromDisk(
   options: {
     hydrateNote?: (note: NoteItem) => boolean;
     fields?: readonly (keyof StoredState)[];
+    hydrateCovers?: boolean;
   } = {},
 ) {
   const diskState = await readStateFile();
-  return diskState ? hydrateStateFromDisk(diskState, options.hydrateNote, options.fields) : null;
+  return diskState
+    ? hydrateStateFromDisk(diskState, options.hydrateNote, options.fields, options.hydrateCovers)
+    : null;
+}
+
+async function readResourceMetadata() {
+  const disk = await readStateFile();
+  return structuredClone(
+    disk?.formatVersion === 1 ? (disk.persistedState as PersistedState) : (disk ?? null),
+  );
 }
 
 async function persistState(
@@ -92,6 +102,7 @@ async function persistState(
 export async function readPersistedState(options?: {
   hydrateNote?: (note: NoteItem) => boolean;
   fields?: readonly (keyof StoredState)[];
+  hydrateCovers?: boolean;
 }): Promise<PersistedState | null> {
   await stateWriteQueue.catch(() => undefined);
   return readPersistedStateFromDisk(options);
@@ -135,11 +146,8 @@ export function writePersistedState(
       }
       // Preference updates cannot change books or notes. Keep their on-disk
       // metadata untouched instead of resolving every cover and Markdown file.
-      const disk = options.preserveResourceFiles ? await readStateFile() : undefined;
       const currentPersistedState = options.preserveResourceFiles
-        ? structuredClone(
-            disk?.formatVersion === 1 ? (disk.persistedState as PersistedState) : (disk ?? null),
-          )
+        ? await readResourceMetadata()
         : await readPersistedStateFromDisk();
       const nextState = transform
         ? await transform(structuredClone(persistedState), currentPersistedState)
@@ -152,17 +160,22 @@ export function writePersistedState(
 
 export function mutatePersistedState<T>(
   mutator: (state: PersistedState) => T | Promise<T>,
+  options: { preserveResourceFiles?: boolean } = {},
 ): Promise<T> {
   const operation = stateWriteQueue
     .catch(() => undefined)
     .then(async () => {
-      const persistedState = await readPersistedStateFromDisk();
+      // Metadata-only mutations keep the same atomic queue and on-disk book/note
+      // references. Callers must not edit books, trashed books or notes in this mode.
+      const persistedState = options.preserveResourceFiles
+        ? await readResourceMetadata()
+        : await readPersistedStateFromDisk();
       if (!persistedState) {
         throw statusError(409, '服务端尚未初始化，无法修改数据');
       }
       const nextState = structuredClone(persistedState);
       const result = await mutator(nextState);
-      await persistState(nextState, null);
+      await persistState(nextState, null, options.preserveResourceFiles);
       return result;
     });
   stateWriteQueue = operation.then(

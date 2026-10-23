@@ -4,6 +4,7 @@ import { normalizeHiddenReaderAiPromptTemplateIds } from '../../util/ai/readerAi
 import {
   legacyReaderPaperColor,
   readerDensityFromLineHeight,
+  upgradeReaderTypography,
 } from '../../util/reading/readerThemes';
 import type { AiPreferences, ChatMessage, ChatSession } from '../../../contracts/ai';
 import type { HighlightItem, NoteItem } from '../../../contracts/reading';
@@ -443,5 +444,15 @@ export function migrateLearningState(persistedState: unknown, version: number) {
   if (version < 39)
     migrated = { ...migrated, conversationDrafts: migrated.conversationDrafts ?? [] };
   if (version < 40) migrated = { ...migrated, chapterMindMaps: migrated.chapterMindMaps ?? [] };
+  if (version < 41 && migrated.readerPreferences) {
+    migrated = {
+      ...migrated,
+      readerPreferences: upgradeReaderTypography({
+        ...defaultReaderPreferences,
+        ...migrated.readerPreferences,
+        paragraphStyle: migrated.readerPreferences.paragraphStyle,
+      }),
+    };
+  }
   return migrated;
 }

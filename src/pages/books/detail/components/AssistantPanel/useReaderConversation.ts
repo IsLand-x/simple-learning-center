@@ -18,6 +18,7 @@ import {
 } from '../../../../../util/ai/aiReasoning';
 import { visibleReaderAiPromptTemplates } from '../../../../../util/ai/readerAiPrompts';
 import { createUuid } from '../../../../../util/uuid';
+import { measureAsync } from '../../../../../util/browser/measureAsync';
 import { getBookPassages } from './bookSearch';
 import { makeConversationTitle, type AiStatus } from './model';
 import { useReaderConversationJobs } from './useReaderConversationJobs';
@@ -106,6 +107,13 @@ export function useReaderConversation({
       input?.setContent('');
   }, [chats, draftText]);
   const pendingRequests = useRef(new Set<string>());
+  const latestBook = useRef(book);
+  latestBook.current = book;
+  useEffect(() => {
+    // Prepare the local search index while the reader is composing a question.
+    // Sending retries a failed preparation and reports its error with the draft intact.
+    void getBookPassages(latestBook.current).catch(() => undefined);
+  }, [book.id, book.fileSize]);
   const currentConversation = useRef(conversationId);
   currentConversation.current = conversationId;
   const chatAreaRef = useRef<HTMLDivElement>(null);
@@ -292,27 +300,32 @@ export function useReaderConversation({
     setStarting(conversationId, true);
     try {
       const currentText = getCurrentText();
-      await waitForServerStateWrites();
-      await getBookPassages(book);
-      await waitForServerStateWrites();
-      const job = await aiApi.startJob({
-        configId: selectedConfig.id,
-        model,
-        reasoningEffort: requestReasoningEffort(reasoningEffort),
-        bookId: book.id,
-        conversationId,
-        userMessage: {
-          id: userMessageId,
-          content: question,
-          ...(quoteForMessage ? { quote: quoteForMessage } : {}),
-          createdAt,
-        },
-        session: {
-          title: currentSession?.title || makeConversationTitle(question),
-          createdAt: currentSession?.createdAt ?? createdAt,
-        },
-        currentText,
-      });
+      await Promise.all([
+        measureAsync('ai:prepare-state', () =>
+          waitForServerStateWrites({ ignoreConversationDrafts: true }),
+        ),
+        measureAsync('ai:prepare-index', () => getBookPassages(book)),
+      ]);
+      const job = await measureAsync('ai:accept', () =>
+        aiApi.startJob({
+          configId: selectedConfig.id,
+          model,
+          reasoningEffort: requestReasoningEffort(reasoningEffort),
+          bookId: book.id,
+          conversationId,
+          userMessage: {
+            id: userMessageId,
+            content: question,
+            ...(quoteForMessage ? { quote: quoteForMessage } : {}),
+            createdAt,
+          },
+          session: {
+            title: currentSession?.title || makeConversationTitle(question),
+            createdAt: currentSession?.createdAt ?? createdAt,
+          },
+          currentText,
+        }),
+      );
       // chats/chatSessions are read caches, excluded from Zustand persistence.
       // A successful task response confirms that both have been saved on the server.
       ensureSession(question, createdAt);

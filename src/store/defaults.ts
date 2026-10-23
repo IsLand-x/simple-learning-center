@@ -8,10 +8,11 @@ import type { WebSearchConfig } from '../../contracts/settings';
 import type { LearningState } from './learningState';
 
 export const defaultReaderPreferences: ReaderPreferences = {
-  fontSize: 18,
-  lineHeight: 2,
+  fontSize: 20,
+  lineHeight: 1.8,
   theme: 'paper',
-  fontFamily: 'kai',
+  fontFamily: 'source-serif',
+  paragraphStyle: 'book',
   customStyle: DEFAULT_READER_CUSTOM_STYLE,
   tocWidth: 272,
   panelWidth: 380,
