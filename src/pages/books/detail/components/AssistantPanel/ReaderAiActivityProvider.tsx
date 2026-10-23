@@ -5,7 +5,7 @@ import type { AiJobSummary } from '../../../../../api/ai/type';
 
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import { resolveReaderAiActivity } from './activity';
-import { ReaderAiActivityContext } from './useReaderAiActivity';
+import { ReaderAiActivityContext, ReaderAiJobsContext } from './useReaderAiActivity';
 import { useConversationSummaries } from '../../../../../components/ai/useConversationSummaries';
 import { useReaderJobPolling } from './useReaderJobPolling';
 
@@ -70,25 +70,27 @@ export function ReaderAiActivityProvider({
       jobs.some((job) => job.status === 'queued' || job.status === 'running'),
   );
 
-  const value = useMemo(
+  const activity = resolveReaderAiActivity(
+    bookId,
+    jobs.filter((job) => sessions.some((session) => session.id === job.conversationId)),
+    chats,
+    summaries,
+  );
+  const status = startingConversations.length ? 'running' : activity.status;
+  const conversationId = startingConversations[0] ?? activity.conversationId;
+  const activityValue = useMemo(() => ({ status, conversationId }), [status, conversationId]);
+  const jobsValue = useMemo(
     () => ({
       jobs,
       startingConversations,
       setStarting,
-      ...resolveReaderAiActivity(
-        bookId,
-        jobs.filter((job) => sessions.some((session) => session.id === job.conversationId)),
-        chats,
-        summaries,
-      ),
-      ...(startingConversations[0]
-        ? { status: 'running' as const, conversationId: startingConversations[0] }
-        : {}),
       reportJob,
     }),
-    [bookId, chats, jobs, reportJob, sessions, setStarting, startingConversations, summaries],
+    [jobs, reportJob, setStarting, startingConversations],
   );
   return (
-    <ReaderAiActivityContext.Provider value={value}>{children}</ReaderAiActivityContext.Provider>
+    <ReaderAiActivityContext.Provider value={activityValue}>
+      <ReaderAiJobsContext.Provider value={jobsValue}>{children}</ReaderAiJobsContext.Provider>
+    </ReaderAiActivityContext.Provider>
   );
 }

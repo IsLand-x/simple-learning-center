@@ -9,7 +9,7 @@ import {
 import { coerceAiReasoningEffort } from '../../../../../util/ai/aiReasoning';
 import { createUuid } from '../../../../../util/uuid';
 import { getBookPassages } from '../AssistantPanel/bookSearch';
-import { useReaderAiActivity } from '../AssistantPanel/useReaderAiActivity';
+import { useReaderAiJobs } from '../AssistantPanel/useReaderAiActivity';
 
 export function useChapterMindMap(book: BookItem, chapterId: string) {
   const configs = useLearningStore((state) => state.openAIConfigs);
@@ -18,7 +18,7 @@ export function useChapterMindMap(book: BookItem, chapterId: string) {
   const mindMap = useLearningStore((state) =>
     state.chapterMindMaps.find((map) => map.bookId === book.id && map.chapterId === chapterId),
   );
-  const { jobs, reportJob } = useReaderAiActivity();
+  const { jobs, reportJob } = useReaderAiJobs();
   const job = jobs
     .filter(
       (item) =>

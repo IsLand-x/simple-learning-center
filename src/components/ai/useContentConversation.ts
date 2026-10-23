@@ -239,22 +239,25 @@ export function useContentConversation({
       setStatusMessage(error instanceof Error ? error.message : '请求失败');
     }
   };
-  const dialogueMessages = [
-    ...chats.map((message) => ({
-      id: message.id,
-      role: message.role,
-      content: message.dialogueContent?.length ? message.dialogueContent : message.content,
-      ...(message.quote ? { quote: message.quote } : {}),
-      createdAt: message.createdAt,
-      status: 'completed',
-    })),
-    ...(optimisticUserMessage && !chats.some((message) => message.id === optimisticUserMessage.id)
-      ? [optimisticUserMessage]
-      : []),
-    ...(streamingAssistant && !chats.some((message) => message.id === streamingAssistant.id)
-      ? [streamingAssistant]
-      : []),
-  ];
+  const dialogueMessages = useMemo(
+    () => [
+      ...chats.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.dialogueContent?.length ? message.dialogueContent : message.content,
+        ...(message.quote ? { quote: message.quote } : {}),
+        createdAt: message.createdAt,
+        status: 'completed',
+      })),
+      ...(optimisticUserMessage && !chats.some((message) => message.id === optimisticUserMessage.id)
+        ? [optimisticUserMessage]
+        : []),
+      ...(streamingAssistant && !chats.some((message) => message.id === streamingAssistant.id)
+        ? [streamingAssistant]
+        : []),
+    ],
+    [chats, optimisticUserMessage, streamingAssistant],
+  );
   const canSend =
     !messageLoading.loading && !messageLoading.error && (status === 'ready' || status === 'error');
   const stop = () => {

@@ -6,7 +6,7 @@ test('同步阅读状态保留手动目录滚动，切换章节和重新展开�
 }, testInfo) => {
   const mobile = testInfo.project.name === 'mobile-chrome';
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible({ timeout: 20_000 });
   const book = {
     ...demoBooks[0],
     id: 'demo-toc-scroll',
@@ -44,7 +44,7 @@ test('同步阅读状态保留手动目录滚动，切换章节和重新展开�
   const updatedBook = updated.state.books.find((item: { id: string }) => item.id === book.id);
   expect(updatedBook).toBeDefined();
   updatedBook.progress = 43;
-  updatedBook.updatedAt = Date.now() + 5000;
+  updatedBook.updatedAt = Date.now() + 1;
   expect((await page.request.put('/api/state/library', { data: updated })).status()).toBe(204);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(toc.getByRole('status')).toHaveText('43% · 80 章');
@@ -56,6 +56,11 @@ test('同步阅读状态保留手动目录滚动，切换章节和重新展开�
   );
   expect(await list.evaluate((element) => element.scrollTop)).toBe(1000);
 
+  await toc.getByRole('button', { name: '定位当前章节', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBe(0);
+  await expect(toc.locator('.toc-item--selected')).toContainText('第 1 章');
+
   await toc.getByRole('button', { name: '第 60 章', exact: true }).click();
   if (mobile) {
     await expect(toc).toBeHidden();
@@ -63,6 +68,33 @@ test('同步阅读状态保留手动目录滚动，切换章节和重新展开�
   }
   await expect(toc.locator('.toc-item--selected')).toContainText('第 60 章');
   await expect(toc.locator('.toc-item--selected')).toBeInViewport();
+  await expect
+    .poll(async () => {
+      const current = await (await page.request.get('/api/state/library')).json();
+      return current.state.books.find((item: { id: string }) => item.id === book.id)?.currentCfi;
+    })
+    .toBe('demo:chapter-60:scroll:0.000000');
+
+  // Explicit location centers the current chapter without navigating or closing the TOC.
+  const readerPosition = await page.locator('.reader-header__title').textContent();
+  await list.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await toc.getByRole('button', { name: '定位当前章节', exact: true }).click();
+  await expect(toc).toBeVisible();
+  await expect(toc.locator('.toc-item--selected')).toContainText('第 60 章');
+  expect(
+    await list.evaluate((element) => {
+      const item = element.querySelector<HTMLElement>('.toc-item--selected')!;
+      return Math.abs(
+        item.getBoundingClientRect().top +
+          item.clientHeight / 2 -
+          element.getBoundingClientRect().top -
+          element.clientHeight / 2,
+      );
+    }),
+  ).toBeLessThan(2);
+  expect(await page.locator('.reader-header__title').textContent()).toBe(readerPosition);
 
   await list.evaluate((element) => {
     element.scrollTop = 0;

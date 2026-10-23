@@ -1,6 +1,6 @@
-import { IconBookOpenStroked } from '@douyinfe/semi-icons';
-import { Button, Typography } from '@douyinfe/semi-ui';
-import { useEffect, useRef } from 'react';
+import { IconBookOpenStroked, IconMapPinStroked } from '@douyinfe/semi-icons';
+import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { useCallback, useEffect, useRef } from 'react';
 import type { TocItem } from '../../../../../../contracts/books';
 
 import { findActiveItem } from './navigation';
@@ -38,30 +38,32 @@ export function TableOfContents({
       ? Math.max(1, Math.round(currentPage))
       : undefined;
 
+  const scrollToActiveItem = useCallback((alignment: 'center' | 'nearest') => {
+    const list = listRef.current;
+    const activeItem = list?.querySelector<HTMLElement>('.toc-item--selected');
+    if (!list || !activeItem) return;
+    if (alignment === 'nearest') {
+      activeItem.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    const listRect = list.getBoundingClientRect();
+    const activeItemRect = activeItem.getBoundingClientRect();
+    const centeredScrollTop =
+      list.scrollTop +
+      activeItemRect.top -
+      listRect.top -
+      (list.clientHeight - activeItemRect.height) / 2;
+    list.scrollTop = Math.max(
+      0,
+      Math.min(list.scrollHeight - list.clientHeight, centeredScrollTop),
+    );
+  }, []);
+
   useEffect(() => {
     if (!activeItemVisible || !activeItemHref) return undefined;
-    const frame = window.requestAnimationFrame(() => {
-      const list = listRef.current;
-      const activeItem = list?.querySelector<HTMLElement>('.toc-item--selected');
-      if (!list || !activeItem) return;
-      if (activeItemAlignment === 'nearest') {
-        activeItem.scrollIntoView({ block: 'nearest' });
-        return;
-      }
-      const listRect = list.getBoundingClientRect();
-      const activeItemRect = activeItem.getBoundingClientRect();
-      const centeredScrollTop =
-        list.scrollTop +
-        activeItemRect.top -
-        listRect.top -
-        (list.clientHeight - activeItemRect.height) / 2;
-      list.scrollTop = Math.max(
-        0,
-        Math.min(list.scrollHeight - list.clientHeight, centeredScrollTop),
-      );
-    });
+    const frame = window.requestAnimationFrame(() => scrollToActiveItem(activeItemAlignment));
     return () => window.cancelAnimationFrame(frame);
-  }, [activeItemHref, activeItemAlignment, activeItemVisible]);
+  }, [activeItemHref, activeItemAlignment, activeItemVisible, scrollToActiveItem]);
 
   return (
     <aside className="toc-panel w-full min-h-0 overflow-hidden [background:var(--semi-color-bg-1)]">
@@ -70,15 +72,28 @@ export function TableOfContents({
           <IconBookOpenStroked />
           <Text strong>目录</Text>
         </div>
-        <Text
-          size="small"
-          type="tertiary"
-          className="toc-progress-label"
-          role="status"
-          aria-label={`阅读进度 ${Math.round(safeProgress)}%`}
-        >
-          {Math.round(safeProgress)}% · {items.length} 章
-        </Text>
+        <div className="panel-titlebar__actions gap-2">
+          <Text
+            size="small"
+            type="tertiary"
+            className="toc-progress-label"
+            role="status"
+            aria-label={`阅读进度 ${Math.round(safeProgress)}%`}
+          >
+            {Math.round(safeProgress)}% · {items.length} 章
+          </Text>
+          <Tooltip content="定位当前章节">
+            <Button
+              aria-label="定位当前章节"
+              className="toc-locate-button relative after:absolute after:-inset-1.5 after:content-['']"
+              icon={<IconMapPinStroked />}
+              theme="borderless"
+              type="tertiary"
+              disabled={!activeItemHref}
+              onClick={() => scrollToActiveItem('center')}
+            />
+          </Tooltip>
+        </div>
       </div>
       <nav ref={listRef} className="toc-list min-h-0 [padding:6px]" aria-label="书籍目录">
         {items.map((item) => (

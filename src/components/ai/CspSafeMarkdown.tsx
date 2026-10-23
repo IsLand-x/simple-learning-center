@@ -1,11 +1,11 @@
-import type { ComponentType } from 'react';
+import { memo, type ComponentType } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ExpandableImage } from '../ExpandableImage';
 import { MarkdownLink } from './MarkdownLink';
 import { remarkReadableStrong } from './remarkReadableStrong';
 
-export function CspSafeMarkdown({
+export const CspSafeMarkdown = memo(function CspSafeMarkdown({
   content,
   className = '',
   ImageComponent = ExpandableImage,
@@ -25,4 +25,4 @@ export function CspSafeMarkdown({
       </ReactMarkdown>
     </div>
   );
-}
+});

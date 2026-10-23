@@ -23,7 +23,7 @@ vi.mock('./useReaderConversationJobs', () => ({
 vi.mock('./useReaderAiActivity', async () => {
   const { useState, useCallback } = await import('react');
   return {
-    useReaderAiActivity: () => {
+    useReaderAiJobs: () => {
       const [startingConversations, setStartingConversations] = useState<string[]>([]);
       const setStarting = useCallback((id: string, starting: boolean) => {
         mocks.setStarting(id, starting);
@@ -110,6 +110,30 @@ beforeEach(async () => {
 afterEach(async () => {
   await act(async () => root.unmount());
   vi.unstubAllGlobals();
+});
+
+it('keeps the dialogue stable while editing a draft or quote', async () => {
+  await act(async () =>
+    useLearningStore.setState({
+      chats: [
+        {
+          id: 'history',
+          bookId: book.id,
+          conversationId: 'conversation',
+          role: 'user',
+          content: '历史问题',
+          createdAt: 1,
+        },
+      ],
+    }),
+  );
+  const messages = conversation.dialogueMessages;
+  await act(async () =>
+    useLearningStore.getState().setConversationDraft(book.id, 'conversation', '新的问题'),
+  );
+  expect(conversation.dialogueMessages).toBe(messages);
+  await act(async () => conversation.setQuote(null));
+  expect(conversation.dialogueMessages).toBe(messages);
 });
 
 it('waits for server acceptance before caching a sent message or clearing its draft and quote', async () => {

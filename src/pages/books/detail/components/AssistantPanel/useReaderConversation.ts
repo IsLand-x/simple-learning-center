@@ -2,7 +2,7 @@ import { AIChatInput, Toast } from '@douyinfe/semi-ui';
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { aiApi } from '../../../../../api/ai/index';
 import type { AiJob } from '../../../../../api/ai/type';
-import { useReaderAiActivity } from './useReaderAiActivity';
+import { useReaderAiJobs } from './useReaderAiActivity';
 
 import { waitForServerStateWrites } from '../../../../../store/serverStateStorage';
 import { useLearningStore } from '../../../../../store/useLearningStore';
@@ -37,12 +37,7 @@ export function useReaderConversation({
   onClearSelectedText: () => void;
 }) {
   const messageLoading = useConversationMessages(book.id, conversationId);
-  const {
-    reportJob,
-    jobs: trackedJobs,
-    startingConversations,
-    setStarting,
-  } = useReaderAiActivity();
+  const { reportJob, jobs: trackedJobs, startingConversations, setStarting } = useReaderAiJobs();
   const starting = startingConversations.includes(conversationId);
   const allChats = useLearningStore((state) => state.chats);
   const allSessions = useLearningStore((state) => state.chatSessions);
@@ -354,19 +349,22 @@ export function useReaderConversation({
         setStatusMessage(error instanceof Error ? error.message : '停止任务失败');
       });
   };
-  const dialogueMessages = [
-    ...chats.map((message) => ({
-      id: message.id,
-      role: message.role,
-      content: message.dialogueContent?.length ? message.dialogueContent : message.content,
-      ...(message.quote ? { quote: message.quote } : {}),
-      createdAt: message.createdAt,
-      status: 'completed',
-    })),
-    ...(streamingAssistant && !chats.some((message) => message.id === streamingAssistant.id)
-      ? [streamingAssistant]
-      : []),
-  ];
+  const dialogueMessages = useMemo(
+    () => [
+      ...chats.map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.dialogueContent?.length ? message.dialogueContent : message.content,
+        ...(message.quote ? { quote: message.quote } : {}),
+        createdAt: message.createdAt,
+        status: 'completed',
+      })),
+      ...(streamingAssistant && !chats.some((message) => message.id === streamingAssistant.id)
+        ? [streamingAssistant]
+        : []),
+    ],
+    [chats, streamingAssistant],
+  );
   const userTurns = dialogueMessages
     .map((message, messageIndex) => ({ message, messageIndex }))
     .filter(({ message }) => message.role === 'user');

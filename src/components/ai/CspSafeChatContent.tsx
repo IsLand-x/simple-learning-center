@@ -1,28 +1,24 @@
 import { IconAlertCircle } from '@douyinfe/semi-icons';
-import type { ComponentType } from 'react';
+import { memo, type ComponentType } from 'react';
 import { ChatContentItem } from './ChatContentItem';
 import { parseChatItem, type ChatContentBlock } from './chatContent';
-interface ChatRenderMessage {
-  role?: string;
-  content?: unknown;
-  output_text?: string;
-  status?: string;
-}
-
-export function CspSafeChatContent({
-  message,
+export const CspSafeChatContent = memo(function CspSafeChatContent({
+  content,
+  outputText,
+  status,
   bubbleClassName = '',
   quote,
   autoHideReasoning = false,
   ImageComponent,
 }: {
-  message?: ChatRenderMessage;
+  content?: unknown;
+  outputText?: string;
+  status?: string;
   bubbleClassName?: string;
   quote?: { text: string; chapter: string };
   autoHideReasoning?: boolean;
   ImageComponent?: ComponentType<{ src?: string; alt?: string }>;
 }) {
-  const content = message?.content;
   const blocks =
     typeof content === 'string'
       ? content
@@ -30,15 +26,15 @@ export function CspSafeChatContent({
         : []
       : Array.isArray(content)
         ? content.map(parseChatItem).filter((block): block is ChatContentBlock => Boolean(block))
-        : message?.output_text
-          ? [{ kind: 'markdown' as const, text: message.output_text, key: 'output' }]
+        : outputText
+          ? [{ kind: 'markdown' as const, text: outputText, key: 'output' }]
           : [];
   const hasContent = blocks.length > 0;
-  const loading = ['queued', 'in_progress'].includes(message?.status ?? '') && !hasContent;
+  const loading = ['queued', 'in_progress'].includes(status ?? '') && !hasContent;
   return (
     <div className="semi-ai-chat-dialogue-content">
       <div className="semi-ai-chat-dialogue-content-wrapper">
-        {message?.status === 'failed' && (
+        {status === 'failed' && (
           <div className="semi-ai-chat-dialogue-content-failed">
             <IconAlertCircle />
           </div>
@@ -72,4 +68,4 @@ export function CspSafeChatContent({
       )}
     </div>
   );
-}
+});

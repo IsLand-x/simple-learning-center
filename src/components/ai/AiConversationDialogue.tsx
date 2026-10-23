@@ -1,12 +1,19 @@
 import { AIChatDialogue, Empty } from '@douyinfe/semi-ui';
-import { useEffect, useLayoutEffect, useRef, type ComponentProps, type ComponentType } from 'react';
+import {
+  memo,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type ComponentProps,
+  type ComponentType,
+} from 'react';
 import { CspSafeChatContent } from './CspSafeChatContent';
 
 type DialogueChats = NonNullable<ComponentProps<typeof AIChatDialogue>['chats']>;
 type DialogueQuote = { text: string; chapter: string };
 type DialogueChat = DialogueChats[number] & { quote?: DialogueQuote };
 
-export function AiConversationDialogue({
+export const AiConversationDialogue = memo(function AiConversationDialogue({
   chats,
   assistantName,
   emptyTitle,
@@ -69,9 +76,9 @@ export function AiConversationDialogue({
           renderDialogueAction: () => null,
           renderDialogueContent: ({ message, className }) => (
             <CspSafeChatContent
-              message={
-                message ? { ...message, status: statusByMessageId.get(message.id) } : message
-              }
+              content={message?.content}
+              outputText={message?.output_text}
+              status={message ? statusByMessageId.get(message.id) : undefined}
               bubbleClassName={`${className} ai-message--${message?.role ?? 'assistant'}`}
               quote={message ? quoteByMessageId.get(String(message.id)) : undefined}
               autoHideReasoning={autoHideReasoning}
@@ -82,4 +89,4 @@ export function AiConversationDialogue({
       />
     </div>
   );
-}
+});
