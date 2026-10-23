@@ -46,6 +46,12 @@ export function useReaderConversation({
   const starting = startingConversations.includes(conversationId);
   const allChats = useLearningStore((state) => state.chats);
   const allSessions = useLearningStore((state) => state.chatSessions);
+  const draftText = useLearningStore(
+    (state) =>
+      state.conversationDrafts.find(
+        (draft) => draft.resourceId === book.id && draft.conversationId === conversationId,
+      )?.text ?? '',
+  );
   const configs = useLearningStore((state) => state.openAIConfigs);
   const aiPreferences = useLearningStore((state) => state.aiPreferences);
   const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
@@ -81,14 +87,6 @@ export function useReaderConversation({
   );
   const [statusMessage, setStatusMessage] = useState('');
   const [quote, setQuote] = useState<{ text: string; chapter: string } | null>(null);
-  const [optimisticUserMessage, setOptimisticUserMessage] = useState<{
-    id: string;
-    role: 'user';
-    content: string;
-    quote?: { text: string; chapter: string };
-    status: 'completed';
-    createdAt: number;
-  } | null>(null);
   const [streamingAssistant, setStreamingAssistant] = useState<{
     id: string;
     role: 'assistant';
@@ -98,6 +96,23 @@ export function useReaderConversation({
   } | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const inputRef = useRef<ComponentRef<typeof AIChatInput>>(null);
+  // Acceptance can arrive after the panel remounts; follow the acknowledged draft
+  // instead of clearing only the editor instance that originally sent it.
+  useEffect(() => {
+    if (draftText.trim()) return;
+    const message = chats.filter((item) => item.role === 'user').at(-1);
+    const input = inputRef.current;
+    const editor = input?.getEditor();
+    if (
+      message &&
+      editor &&
+      editor.getText().replace(/\s+/g, ' ').trim() === message.content.replace(/\s+/g, ' ').trim()
+    )
+      input?.setContent('');
+  }, [chats, draftText]);
+  const pendingRequests = useRef(new Set<string>());
+  const currentConversation = useRef(conversationId);
+  currentConversation.current = conversationId;
   const chatAreaRef = useRef<HTMLDivElement>(null);
   const markRead = useLearningStore((state) => state.markChatMessagesRead);
   useEffect(() => {
@@ -129,13 +144,16 @@ export function useReaderConversation({
   }, [chatAreaRef, chats, markRead]);
   const lastAppliedJobRef = useRef<AiJob>();
   useEffect(() => {
-    setStatusMessage('');
     if (!provider && configs[0]) {
       setAiPreferences({ provider: `api:${configs[0].id}`, model: configs[0].models[0] ?? '' });
       return;
     }
     if (!activeJobId)
-      setStatus(starting ? 'generating' : selectedConfig && model ? 'ready' : 'unavailable');
+      setStatus((current) => {
+        if (starting || pendingRequests.current.has(conversationId)) return 'generating';
+        if (!selectedConfig || !model) return 'unavailable';
+        return current === 'error' ? 'error' : 'ready';
+      });
     if (
       selectedConfig &&
       (model !== aiPreferences.model || reasoningEffort !== aiPreferences.reasoningEffort)
@@ -148,6 +166,7 @@ export function useReaderConversation({
     aiPreferences.model,
     aiPreferences.reasoningEffort,
     configs,
+    conversationId,
     model,
     provider,
     reasoningEffort,
@@ -157,9 +176,10 @@ export function useReaderConversation({
   useEffect(() => {
     lastAppliedJobRef.current = undefined;
     setQuote(null);
-    setOptimisticUserMessage(null);
     setStreamingAssistant(null);
     setActiveJobId(null);
+    setStatusMessage('');
+    setStatus((current) => (current === 'error' ? 'ready' : current));
   }, [conversationId]);
   const applyJob = useReaderConversationJobs({
     book,
@@ -225,9 +245,9 @@ export function useReaderConversation({
       );
     }
   };
-  const ensureSession = (question: string) => {
-    if (currentSession) return;
-    const timestamp = Date.now();
+  const ensureSession = (question: string, timestamp: number) => {
+    if (useLearningStore.getState().chatSessions.some((session) => session.id === conversationId))
+      return;
     createChatSession({
       id: conversationId,
       bookId: book.id,
@@ -242,13 +262,14 @@ export function useReaderConversation({
   const send = async (content: string) => {
     const question = content.trim();
     if (!question) return;
+    if (pendingRequests.current.has(conversationId) || starting) return;
+    if (messageLoading.loading || messageLoading.error) return;
     const canRequest = status === 'ready' || status === 'error';
-    if (!canRequest) {
+    if (!canRequest || !selectedConfig || !model) {
       Toast.warning('请先在设置中添加模型并完成接口配置');
       return;
     }
     const quoteForMessage = quote;
-    ensureSession(question);
     const createdAt = Date.now();
     const userMessageId = createUuid();
     const userMessage = {
@@ -260,31 +281,23 @@ export function useReaderConversation({
       ...(quoteForMessage ? { quote: quoteForMessage } : {}),
       createdAt,
     };
-    setOptimisticUserMessage({
-      id: userMessage.id,
-      role: userMessage.role,
-      content: userMessage.content,
-      ...(userMessage.quote ? { quote: userMessage.quote } : {}),
-      status: 'completed',
-      createdAt: userMessage.createdAt,
-    });
-    addChatMessage(userMessage);
-    setQuote(null);
-
-    if (!selectedConfig || !model) return;
-    const temporaryAssistantId = `pending:${userMessageId}`;
-    setStreamingAssistant({
-      id: temporaryAssistantId,
-      role: 'assistant',
-      content: [],
-      status: 'queued',
-      createdAt,
-    });
+    pendingRequests.current.add(conversationId);
+    // Keep the input (including shortcuts) recoverable until the task API has saved it.
+    const store = useLearningStore.getState();
+    const draftText = store.conversationDrafts.find(
+      (draft) => draft.resourceId === book.id && draft.conversationId === conversationId,
+    )?.text;
+    if (!draftText?.trim()) {
+      store.setConversationDraft(book.id, conversationId, question);
+      inputRef.current?.setContent(question);
+    }
+    setStreamingAssistant(null);
     setStatus('generating');
-    setStatusMessage('');
+    setStatusMessage('正在发送消息，等待服务端保存…');
     setStarting(conversationId, true);
-    const currentText = getCurrentText();
     try {
+      const currentText = getCurrentText();
+      await waitForServerStateWrites();
       await getBookPassages(book);
       await waitForServerStateWrites();
       const job = await aiApi.startJob({
@@ -305,13 +318,29 @@ export function useReaderConversation({
         },
         currentText,
       });
+      // chats/chatSessions are read caches, excluded from Zustand persistence.
+      // A successful task response confirms that both have been saved on the server.
+      ensureSession(question, createdAt);
+      addChatMessage(userMessage);
+      const latestStore = useLearningStore.getState();
+      const latestDraft = latestStore.conversationDrafts.find(
+        (draft) => draft.resourceId === book.id && draft.conversationId === conversationId,
+      );
+      if (latestDraft?.text.trim() === question) {
+        latestStore.setConversationDraft(book.id, conversationId, '');
+      }
+      if (currentConversation.current === conversationId)
+        setQuote((current) => (current === quoteForMessage ? null : current));
       applyJob(job);
     } catch (error) {
-      setStreamingAssistant((message) => (message ? { ...message, status: 'failed' } : null));
-      setStatus('error');
-      setStatusMessage(error instanceof Error ? error.message : '请求失败');
-      Toast.error(error instanceof Error ? error.message : '请求失败');
+      if (currentConversation.current === conversationId) {
+        const message = `发送未确认，输入内容已保留。${error instanceof Error ? error.message : '请求失败'}`;
+        setStatus('error');
+        setStatusMessage(message);
+        Toast.error(message);
+      }
     } finally {
+      pendingRequests.current.delete(conversationId);
       setStarting(conversationId, false);
     }
   };
@@ -334,9 +363,6 @@ export function useReaderConversation({
       createdAt: message.createdAt,
       status: 'completed',
     })),
-    ...(optimisticUserMessage && !chats.some((message) => message.id === optimisticUserMessage.id)
-      ? [optimisticUserMessage]
-      : []),
     ...(streamingAssistant && !chats.some((message) => message.id === streamingAssistant.id)
       ? [streamingAssistant]
       : []),

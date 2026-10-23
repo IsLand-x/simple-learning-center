@@ -131,6 +131,7 @@ export function AiConversationPanel({
         placeholder={canSend ? '输入关于本书的问题…' : '添加并选择模型后开始提问'}
         canSend={canSend}
         generating={status === 'generating'}
+        clearContentOnGenerating={false}
         onMessageSend={({ inputContents }) =>
           void send(extractInputText(inputContents as Array<Record<string, unknown>>))
         }

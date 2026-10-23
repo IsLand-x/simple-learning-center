@@ -196,6 +196,55 @@ async function send(page: Page) {
   await input.press('Enter');
 }
 
+test('发送未确认时保留输入，刷新仍可重试，确认后消息保存在服务端', async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  const mobile = testInfo.project.name === 'mobile-chrome';
+  await seed(page);
+  await mockJobs(page);
+  await page.route('**/api/ai/jobs', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({ status: 503, json: { error: '测试暂时不可用' } })
+      : route.fallback(),
+  );
+  await page.goto(`/books/${book.id}`);
+  await entry(page, mobile).click();
+  const input = page.locator('.reader-ai-input [contenteditable="true"]');
+  await send(page);
+  await expect(page.locator('.ai-composer-message')).toContainText('发送未确认');
+  await expect(input).toHaveText('请解释这一章');
+  await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveCount(0);
+  const unsent = await (await page.request.get('/api/state/conversations')).json();
+  expect(unsent.state.chats).toEqual([]);
+  await page.reload();
+  if (!(await input.isVisible())) await entry(page, mobile).click();
+  await expect(input).toHaveText('请解释这一章');
+  await page.unroute('**/api/ai/jobs');
+  await input.press('Enter');
+  await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('请解释这一章');
+  await expect(input).toHaveText('');
+  await page.reload();
+  await expect(entry(page, mobile).locator('[data-ai-activity="running"]')).toBeVisible();
+  if (!(await input.isVisible())) await entry(page, mobile).click();
+  await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('请解释这一章');
+});
+
+test('等待服务端受理时保留草稿，受理后再显示已发送消息', async ({ page }, testInfo) => {
+  const mobile = testInfo.project.name === 'mobile-chrome';
+  await seed(page);
+  const jobs = await mockJobs(page, true);
+  await page.goto(`/books/${book.id}`);
+  await entry(page, mobile).click();
+  await send(page);
+  const input = page.locator('.reader-ai-input [contenteditable="true"]');
+  await expect.poll(jobs.submitted).toBe(true);
+  await expect(input).toHaveText('请解释这一章');
+  await expect(page.locator('.ai-composer-message')).toContainText('正在发送');
+  await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveCount(0);
+  jobs.releaseStart();
+  await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('请解释这一章');
+  await expect(input).toHaveText('');
+});
+
 test('查看旧内容时保持未读，滚动到回复末尾才标记已读', async ({ page }, testInfo) => {
   const mobile = testInfo.project.name === 'mobile-chrome';
   await seed(page);
@@ -257,6 +306,7 @@ test('发送后立即收起再打开，尚未创建的任务仍能恢复进度�
   await button.click();
   jobs.releaseStart();
   await expect(page.getByText('正在后台继续生成', { exact: true })).toBeVisible();
+  await expect(page.locator('.reader-ai-input [contenteditable="true"]')).toHaveText('');
   if (mobile) await page.evaluate(() => history.back());
   else await button.click();
   jobs.complete();

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -64,6 +64,19 @@ test('关闭任务事件流不取消生成，完成与已读状态保存在服�
     });
     assert.equal(started.status, 202);
     const job = await started.json();
+    // The response is an acknowledgement of durable storage, before generation finishes.
+    const { persistedState: accepted } = JSON.parse(
+      await readFile(join(directory, 'state.json'), 'utf8'),
+    );
+    assert.deepEqual(
+      accepted.state.chats.map((message) => message.id),
+      ['question'],
+    );
+    assert.equal(accepted.state.chatSessions[0].id, 'session');
+    const messages = await (
+      await app.request('/api/conversations/session/messages?bookId=book')
+    ).json();
+    assert.equal(messages.messages[0].content, '提问');
     const summary = await (await app.request('/api/ai/jobs?bookId=book&view=summary')).json();
     assert.equal(summary.jobs[0].id, job.id);
     assert.equal(Object.hasOwn(summary.jobs[0], 'content'), false);
