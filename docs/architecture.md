@@ -204,6 +204,8 @@ AI 输入草稿使用根 store 的 `conversationDrafts` 字段，归属 `prefere
 
 AI 任务只读取当前资源的笔记正文，跳过无关封面解析；受理与回复保存使用 `mutatePersistedState` 的 `preserveResourceFiles` 模式，直接保留磁盘中的封面和 Markdown 引用。该模式仅用于不修改 books、trashedBooks、notes 的元数据更新，与普通文件更新共享原子写队列，不能用于笔记工具或书籍资源变更。
 
+`CspSafeMarkdown` 通过 remark-math 与 rehype-katex 在浏览器中排版公式，KaTeX CSS 和字体作为版本资源随应用构建，不访问公式渲染服务。`normalizeMathMarkdown` 在 Markdown 消耗转义之前兼容模型常见的圆括号/方括号 TeX 分隔符，并跳过代码区域；KaTeX 保留 MathML 辅助内容，禁用可信扩展，限制宏展开次数与尺寸。样式只作用于 `.csp-chat-markdown`，长公式在消息内部滚动，解析错误保留源码并使用当前主题文字色。
+
 
 ## 章节思维导图
 

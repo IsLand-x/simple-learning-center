@@ -894,6 +894,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Cache bundled math fonts alongside their CSS for offline conversations.
+        globPatterns: ['**/*.{js,wasm,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
         // Precache the same URLs that the HTML and generated imports actually request.
         modifyURLPrefix: assetOrigin ? { 'assets/': `${assetOrigin}/assets/` } : {},

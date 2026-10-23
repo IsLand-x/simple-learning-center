@@ -1227,6 +1227,26 @@
   font-family: var(--semi-font-family-code);
 }
 
+.csp-chat-markdown .katex-display {
+  max-width: 100%;
+  margin: 10px 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  color: inherit;
+  overscroll-behavior-x: contain;
+}
+
+.csp-chat-markdown .katex-display > .katex {
+  min-width: min-content;
+}
+
+.csp-chat-markdown .katex-error {
+  color: var(--semi-color-text-1) !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .csp-chat-markdown table {
   width: 100%;
   border-collapse: collapse;
