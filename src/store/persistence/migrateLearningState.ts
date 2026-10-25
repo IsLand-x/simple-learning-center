@@ -454,5 +454,6 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       }),
     };
   }
+  if (version < 42) migrated = { ...migrated, chapterVideos: migrated.chapterVideos ?? [] };
   return migrated;
 }

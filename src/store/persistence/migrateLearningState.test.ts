@@ -242,6 +242,7 @@ it('preserves version 34 notes and highlights when splitting their transport dom
     ...previous,
     conversationDrafts: [],
     chapterMindMaps: [],
+    chapterVideos: [],
   });
 });
 
@@ -283,9 +284,25 @@ it('keeps existing highlights and optional term metadata when upgrading to versi
 
 it('adds chapter mind maps without discarding existing maps or reading records', () => {
   const previous = { readingSessions: [{ id: 'session', bookId: 'book' }] };
-  expect(migrateLearningState(previous, 39)).toEqual({ ...previous, chapterMindMaps: [] });
+  expect(migrateLearningState(previous, 39)).toEqual({
+    ...previous,
+    chapterMindMaps: [],
+    chapterVideos: [],
+  });
   const maps = [{ id: 'saved-map', revision: 2 }];
   expect(migrateLearningState({ ...previous, chapterMindMaps: maps }, 39).chapterMindMaps).toBe(
     maps,
+  );
+});
+
+it('adds chapter videos in version 42 and preserves existing server results and reading data', () => {
+  const previous = {
+    readingSessions: [{ id: 'read', bookId: 'book' }],
+    chapterMindMaps: [{ id: 'map' }],
+  };
+  expect(migrateLearningState(previous, 41)).toEqual({ ...previous, chapterVideos: [] });
+  const videos = [{ id: 'video', bookId: 'book' }];
+  expect(migrateLearningState({ ...previous, chapterVideos: videos }, 41).chapterVideos).toBe(
+    videos,
   );
 });

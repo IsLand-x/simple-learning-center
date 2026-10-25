@@ -2,11 +2,31 @@ import type { ChatMessage } from '../../../../contracts/ai.js';
 import type { AiJob, AiResult } from './types.js';
 import { mutatePersistedState } from '../../state/stateStore.js';
 import { upsertDigestRun } from './model.js';
+import { removeChapterVideoFiles } from '../../books/chapterVideos.js';
+import type { ChapterVideo } from '../../../../contracts/reading.js';
 
 export async function persistAssistant(job: AiJob, result: AiResult) {
+  let replacedVideo: ChapterVideo | undefined;
   await mutatePersistedState(
     (persistedState) => {
       const state = persistedState.state;
+      if (job.purpose === 'chapter-video' && result.chapterVideo) {
+        job.controller.signal.throwIfAborted();
+        if (!state.books?.some((book) => book.id === job.bookId))
+          throw new Error('书籍已移入回收站或删除，视频未保存');
+        const videos = state.chapterVideos ?? [];
+        replacedVideo = videos.find(
+          (video) => video.bookId === job.bookId && video.chapterId === job.chapterId,
+        );
+        state.chapterVideos = [
+          result.chapterVideo,
+          ...videos.filter(
+            (video) => video.bookId !== job.bookId || video.chapterId !== job.chapterId,
+          ),
+        ];
+        persistedState.version = Math.max(persistedState.version, 42);
+        return;
+      }
       if (job.purpose === 'mindmap' && result.mindMap) {
         if (job.controller.signal.aborted || !state.books?.some((book) => book.id === job.bookId))
           return;
@@ -122,4 +142,6 @@ export async function persistAssistant(job: AiJob, result: AiResult) {
     },
     { preserveResourceFiles: true },
   );
+  if (replacedVideo)
+    await removeChapterVideoFiles(replacedVideo.bookId, replacedVideo.id).catch(() => undefined);
 }

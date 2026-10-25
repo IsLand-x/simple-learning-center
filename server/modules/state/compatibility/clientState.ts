@@ -17,6 +17,7 @@ export async function protectClientState(
     protectedState.state.chapterMindMaps = structuredClone(
       currentState.state.chapterMindMaps ?? [],
     );
+    protectedState.state.chapterVideos = structuredClone(currentState.state.chapterVideos ?? []);
   }
   return protectConversations(protectedState, currentState);
 }

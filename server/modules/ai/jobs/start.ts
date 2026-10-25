@@ -1,4 +1,7 @@
 import { findMindMapChapter } from '../mindmaps/model.js';
+import { videoNarrationSchema } from '../chapterVideos/model.js';
+import { speechUrl } from '../chapterVideos/media.js';
+import type { VideoNarrationContext } from '../chapterVideos/media.js';
 import { randomUUID } from 'node:crypto';
 import type { ChatMessage, ChatSession } from '../../../../contracts/ai.js';
 import type { RssDigestRun } from '../../../../contracts/rss.js';
@@ -47,7 +50,9 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
             ? 'glossary'
             : resourceType === 'book' && input?.purpose === 'mindmap'
               ? 'mindmap'
-              : 'chat';
+              : resourceType === 'book' && input?.purpose === 'chapter-video'
+                ? 'chapter-video'
+                : 'chat';
     const configId = requiredString(input?.configId, '模型配置', 200);
     const model = requiredString(input?.model, '模型名称', 300);
     const reasoningEffort = optionalReasoningEffort(input?.reasoningEffort);
@@ -107,9 +112,25 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
         : undefined;
     if (resourceType === 'book' && !book) throw statusError(404, '找不到当前书籍');
     const chapterId =
-      purpose === 'mindmap' ? requiredString(input?.chapterId, '章节', 500) : undefined;
+      purpose === 'mindmap' || (purpose === 'chapter-video' && input?.chapterId !== undefined)
+        ? requiredString(input?.chapterId, '章节', 500)
+        : undefined;
     if (chapterId && !findMindMapChapter(book!.toc, chapterId))
       throw statusError(404, '章节不存在或不属于当前书籍');
+    let videoNarration: VideoNarrationContext | undefined;
+    if (purpose === 'chapter-video' && input?.videoNarration !== undefined) {
+      const parsed = videoNarrationSchema.safeParse(input.videoNarration);
+      if (!parsed.success) throw statusError(400, '配音配置不正确');
+      const speechConfig = state.openAIConfigs?.find((item) => item.id === parsed.data.configId);
+      if (!speechConfig || speechConfig.oauthProvider || !speechConfig.apiKey?.trim())
+        throw statusError(400, '请选择有 API Key 的配音供应商，登录授权不能用于语音接口');
+      speechUrl(speechConfig.baseUrl);
+      videoNarration = {
+        config: structuredClone(speechConfig),
+        model: parsed.data.model,
+        voice: parsed.data.voice,
+      };
+    }
     const termId = purpose === 'glossary' ? requiredString(input?.termId, '术语', 200) : undefined;
     const term = termId
       ? (state.highlights ?? []).find(
@@ -245,16 +266,27 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
           throw statusError(404, '对话已删除，请开启新对话');
         const next = nextPersistedState.state;
         if (
-          chapterId &&
+          (chapterId || purpose === 'chapter-video') &&
           [...jobs.values()].some(
             (job) =>
               job.bookId === bookId &&
               job.chapterId === chapterId &&
+              job.purpose === purpose &&
               ['queued', 'running'].includes(job.status),
           )
         )
-          throw statusError(409, '该章节正在生成思维导图');
-        if (purpose !== 'glossary' && purpose !== 'mindmap') {
+          throw statusError(
+            409,
+            purpose === 'chapter-video' ? '所选范围正在生成视频' : '该章节正在生成思维导图',
+          );
+        if (
+          purpose === 'chapter-video' &&
+          [...jobs.values()].filter(
+            (job) => job.purpose === 'chapter-video' && ['queued', 'running'].includes(job.status),
+          ).length >= 2
+        )
+          throw statusError(409, '已有两个视频任务，请等待完成后再生成');
+        if (purpose !== 'glossary' && purpose !== 'mindmap' && purpose !== 'chapter-video') {
           // Assign message order inside the write queue, using one clock for both roles.
           // Client clocks may be ahead, behind, or change between consecutive turns.
           const chats = Array.isArray(next.chats) ? next.chats : [];
@@ -381,6 +413,7 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
         resourceType === 'book'
           ? optionalString(state.aiPreferences?.assistantPrompt, 4_000).trim()
           : '',
+      ...(videoNarration ? { videoNarration } : {}),
     };
     queueMicrotask(() => void executeJob(job, context));
     return publicJob(job);

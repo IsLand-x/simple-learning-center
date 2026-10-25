@@ -23,6 +23,11 @@ export function ReaderActivityBar({ activePanel, onChangePanel }: ReaderActivity
         onClick={() => toggle('glossary')}
       />
       <ActivityButton panel="mindmap" activePanel={activePanel} onClick={() => toggle('mindmap')} />
+      <ActivityButton
+        panel="chapter-video"
+        activePanel={activePanel}
+        onClick={() => toggle('chapter-video')}
+      />
       <ActivityButton panel="notes" activePanel={activePanel} onClick={() => toggle('notes')} />
       <ActivityButton
         panel="comments"

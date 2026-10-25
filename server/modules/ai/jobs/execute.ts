@@ -1,4 +1,6 @@
 import { generateChapterMindMap } from '../mindmaps/generate.js';
+import { generateChapterVideo } from '../chapterVideos/generate.js';
+import { removeChapterVideoFiles } from '../../books/chapterVideos.js';
 import type { RssDigestRun } from '../../../../contracts/rss.js';
 import type { AiJob, AiChatContext, AiChatRunner, AiResult } from './types.js';
 import { mutatePersistedState } from '../../state/stateStore.js';
@@ -30,6 +32,7 @@ export function createJobExecutor({
     job.updatedAt = Date.now();
     job.revision += 1;
     publishJob(job);
+    let generatedVideo: AiResult['chapterVideo'];
     try {
       if (job.resourceType === 'rssDigest') {
         await updateDigestRun(job.digestRunId, { status: 'running' });
@@ -55,24 +58,37 @@ export function createJobExecutor({
                 reportProgress,
               ),
             }
-          : await runChat({
-              ...context,
-              signal: job.controller.signal,
-              onProgress(progress) {
-                if (isCancelled(job)) return;
-                job.content = progress.content;
-                job.dialogueContent = structuredClone(progress.dialogueContent);
-                job.updatedAt = Date.now();
-                job.revision += 1;
-                publishJob(job);
-              },
-              onNoteChange() {
-                job.notesRevision += 1;
-                job.updatedAt = Date.now();
-                job.revision += 1;
-                publishJob(job);
-              },
-            });
+          : job.purpose === 'chapter-video'
+            ? {
+                content: '章节视频已生成',
+                dialogueContent: [],
+                chapterVideo: await generateChapterVideo(
+                  context,
+                  job.chapterId,
+                  runChat,
+                  job.controller.signal,
+                  reportProgress,
+                ),
+              }
+            : await runChat({
+                ...context,
+                signal: job.controller.signal,
+                onProgress(progress) {
+                  if (isCancelled(job)) return;
+                  job.content = progress.content;
+                  job.dialogueContent = structuredClone(progress.dialogueContent);
+                  job.updatedAt = Date.now();
+                  job.revision += 1;
+                  publishJob(job);
+                },
+                onNoteChange() {
+                  job.notesRevision += 1;
+                  job.updatedAt = Date.now();
+                  job.revision += 1;
+                  publishJob(job);
+                },
+              });
+      generatedVideo = rawResult.chapterVideo;
       if (job.controller.signal.aborted || isCancelled(job)) return;
       const result =
         job.resourceType === 'rss' && job.purpose === 'translation'
@@ -93,6 +109,7 @@ export function createJobExecutor({
             })()
           : rawResult;
       job.finalResult = structuredClone(result);
+      if (job.purpose === 'chapter-video') job.committing = true;
       await persistAssistant(job, result);
       job.content = result.content;
       job.translationHtml = result.translationHtml;
@@ -115,6 +132,7 @@ export function createJobExecutor({
         job.error = safeErrorMessage(error, [
           context.config.apiKey,
           context.webSearchConfig.apiKey,
+          context.videoNarration?.config.apiKey,
         ]);
         console.error(`AI task ${job.id} failed`);
       }
@@ -146,6 +164,10 @@ export function createJobExecutor({
       job.revision += 1;
       publishJob(job);
     } finally {
+      if (generatedVideo && job.status !== 'completed')
+        await removeChapterVideoFiles(generatedVideo.bookId, generatedVideo.id).catch(
+          () => undefined,
+        );
       pruneJobs();
     }
   }

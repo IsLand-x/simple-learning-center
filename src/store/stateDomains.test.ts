@@ -32,6 +32,12 @@ describe('stateDomainsForPath', () => {
       ),
     ).toHaveLength(1);
     expect(STATE_DOMAIN_FIELDS.reading).toContain('chapterMindMaps');
+    expect(
+      Object.values(STATE_DOMAIN_FIELDS).filter((fields) =>
+        (fields as readonly string[]).includes('chapterVideos'),
+      ),
+    ).toHaveLength(1);
+    expect(STATE_DOMAIN_FIELDS.reading).toContain('chapterVideos');
   });
 
   it('never blocks content routes on the complete conversation history', () => {

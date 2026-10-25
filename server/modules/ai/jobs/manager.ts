@@ -89,7 +89,7 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
   function cancel(id: string) {
     const job = jobs.get(id);
     if (!job) throw statusError(404, 'AI 任务不存在或已过期');
-    if (job.status === 'queued' || job.status === 'running') {
+    if (!job.committing && (job.status === 'queued' || job.status === 'running')) {
       job.controller.abort();
       job.status = 'cancelled';
       job.completedAt = Date.now();
@@ -115,7 +115,12 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
     let rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
     let rssDailyDigests = Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [];
     for (const job of jobs.values()) {
-      if (job.purpose === 'glossary' || job.purpose === 'mindmap') continue;
+      if (
+        job.purpose === 'glossary' ||
+        job.purpose === 'mindmap' ||
+        job.purpose === 'chapter-video'
+      )
+        continue;
       const hasSession = sessions.some((session) => session.id === job.conversationId);
       const resumableRssTask =
         job.resourceType === 'rss' &&

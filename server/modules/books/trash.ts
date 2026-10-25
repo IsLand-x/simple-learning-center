@@ -11,6 +11,7 @@ import { statusError } from '../../infrastructure/http/errors.js';
 import {
   bookPath,
   knowledgeMapDirectoryPath,
+  chapterVideoDirectoryPath,
   coverDirectoryPath,
   noteDirectoryPath,
   searchIndexPath,
@@ -22,6 +23,7 @@ async function removeBookFiles(bookId: string) {
   await Promise.all([
     rm(bookPath(bookId), { force: true }),
     rm(knowledgeMapDirectoryPath(bookId), { force: true, recursive: true }),
+    rm(chapterVideoDirectoryPath(bookId), { force: true, recursive: true }),
     rm(coverDirectoryPath(bookId), { force: true, recursive: true }),
     rm(searchIndexPath(bookId), { force: true }),
     rm(noteDirectoryPath(bookId), { force: true, recursive: true }),

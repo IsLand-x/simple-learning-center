@@ -14,6 +14,14 @@ import { apiTransport } from '../http/transport';
 export class BooksApi {
   constructor(private readonly transport = apiTransport) {}
 
+  chapterVideoUrl(bookId: string, videoId: string, poster = false): string {
+    return `/api/books/${encodeURIComponent(bookId)}/chapter-videos/${encodeURIComponent(videoId)}${poster ? '/poster' : ''}`;
+  }
+
+  async deleteChapterVideo(bookId: string, videoId: string): Promise<void> {
+    await this.transport.request(this.chapterVideoUrl(bookId, videoId), { method: 'DELETE' });
+  }
+
   async saveEpubFile(bookId: string, data: EpubFile): Promise<void> {
     await this.transport.request(`/api/books/${encodeURIComponent(bookId)}`, {
       method: 'PUT',

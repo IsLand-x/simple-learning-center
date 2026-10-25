@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   ChatSession,
 } from '../../../contracts/ai';
+import type { ChapterVideoNarration } from '../../../contracts/reading';
 
 type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
@@ -16,7 +17,8 @@ export interface AiJob {
   rssItemId?: string;
   videoId?: string;
   digestDate?: string;
-  purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap';
+  purpose?:
+    'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap' | 'chapter-video';
   conversationId: string;
   userMessageId: string;
   userMessage?: ChatMessage;
@@ -51,7 +53,9 @@ export interface StartAiJobInput {
   videoId?: string;
   digestDate?: string;
   digestItemIds?: string[];
-  purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap';
+  purpose?:
+    'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap' | 'chapter-video';
+  videoNarration?: ChapterVideoNarration;
   conversationId: string;
   userMessage: {
     id: string;

@@ -1,4 +1,5 @@
 import { ChapterMindMapPanel } from '../MindMapPanel/ChapterMindMapPanel';
+import { ChapterVideoPanel } from '../ChapterVideoPanel/ChapterVideoPanel';
 import { IconPlus, IconSetting } from '@douyinfe/semi-icons';
 import { Button, Select, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { useEffect, useId, useRef, useState } from 'react';
@@ -196,6 +197,9 @@ export function ReaderRightPanel({
           />
         )}
         {activePanel === 'resources' && <BookResourcesPanel />}
+        {activePanel === 'chapter-video' && (
+          <ChapterVideoPanel key={book.id} book={book} onLocateSource={onLocateSource} />
+        )}
         {activePanel === 'notes' && <BookNotePanel book={book} />}
         {activePanel === 'glossary' && (
           <GlossaryPanel

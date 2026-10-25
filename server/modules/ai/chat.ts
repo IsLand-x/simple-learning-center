@@ -1,4 +1,5 @@
 import { MIND_MAP_PROMPT } from './mindmaps/generate.js';
+import { VIDEO_PROMPT } from './chapterVideos/model.js';
 import { imageHostingMarkdown } from './generation/imageHostingMarkdown.js';
 import { createDiagramTools, diagramMarkdown } from './diagrams/tools.js';
 import { Agent } from '@earendil-works/pi-agent-core';
@@ -222,7 +223,8 @@ export async function runServerAiChat({
           })
         : undefined,
   });
-  const tools = Object.entries(purpose === 'mindmap' ? {} : toolMap).map(([name, definition]) =>
+  const structuredGeneration = purpose === 'mindmap' || purpose === 'chapter-video';
+  const tools = Object.entries(structuredGeneration ? {} : toolMap).map(([name, definition]) =>
     piTool(name, definition),
   );
 
@@ -243,13 +245,15 @@ export async function runServerAiChat({
     }
     return entry;
   };
-  const maxAgentTurns = purpose === 'mindmap' ? 1 : MAX_AGENT_TURNS;
+  const maxAgentTurns = structuredGeneration ? 1 : MAX_AGENT_TURNS;
   const agent = new Agent({
     initialState: {
       systemPrompt:
         purpose === 'mindmap'
           ? MIND_MAP_PROMPT
-          : agentSystemPrompt(resourceType, purpose, assistantPrompt),
+          : purpose === 'chapter-video'
+            ? VIDEO_PROMPT
+            : agentSystemPrompt(resourceType, purpose, assistantPrompt),
       model: piModel,
       thinkingLevel: reasoningEffort || 'off',
       tools,
@@ -270,7 +274,7 @@ export async function runServerAiChat({
         ? { action: 'end' }
         : undefined,
     prepareNextTurnWithContext: ({ context, newMessages }) => {
-      if (purpose === 'mindmap') return undefined;
+      if (structuredGeneration) return undefined;
       const completedTurns = newMessages.filter((message) => message.role === 'assistant').length;
       if (completedTurns !== MAX_AGENT_TURNS - 1) return undefined;
       return {

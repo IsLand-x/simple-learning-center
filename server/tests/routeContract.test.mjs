@@ -359,6 +359,16 @@ const expectedRoutes = [
   },
   {
     method: 'GET',
+    path: '/api/books/:bookId/chapter-videos/:videoId',
+  },
+  { method: 'HEAD', path: '/api/books/:bookId/chapter-videos/:videoId' },
+  { method: 'GET', path: '/api/books/:bookId/chapter-videos/:videoId/poster' },
+  { method: 'HEAD', path: '/api/books/:bookId/chapter-videos/:videoId/poster' },
+  { method: 'DELETE', path: '/api/books/:bookId/chapter-videos/:videoId' },
+  { method: 'ALL', path: '/api/books/:bookId/chapter-videos/:videoId' },
+  { method: 'ALL', path: '/api/books/:bookId/chapter-videos/:videoId/poster' },
+  {
+    method: 'GET',
     path: '/api/search-indexes/:bookId',
   },
   {

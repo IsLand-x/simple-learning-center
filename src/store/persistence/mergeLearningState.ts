@@ -29,6 +29,9 @@ export function mergeLearningState(
   return {
     ...currentState,
     ...persisted,
+    chapterVideos: Array.isArray(persisted.chapterVideos)
+      ? persisted.chapterVideos
+      : currentState.chapterVideos,
     chapterMindMaps: Array.isArray(persisted.chapterMindMaps)
       ? persisted.chapterMindMaps
       : currentState.chapterMindMaps,

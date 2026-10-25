@@ -11,6 +11,7 @@ import { createConversationRoutes } from './modules/ai/conversationRoutes.js';
 import { createAuthRoutes } from './modules/auth/routes.js';
 import { registerAuthenticationMiddleware } from './modules/auth/middleware.js';
 import { createBookRoutes } from './modules/books/routes.js';
+import { createChapterVideoRoutes } from './modules/books/chapterVideoRoutes.js';
 import { createBookImportRoutes } from './modules/books/importRoutes.js';
 import { createHealthRoutes } from './http/healthRoutes.js';
 import { createMcpRoutes } from './modules/books/mcpRoutes.js';
@@ -53,6 +54,7 @@ export function createApp({ serveFrontend = true, ...options }: AppOptions = {})
   app.route('/api/videos', createVideoRoutes(dependencies));
   app.route('/api/ai/jobs', createAiRoutes(dependencies));
   app.route('/api/books', createBookRoutes());
+  app.route('/api/books', createChapterVideoRoutes());
   app.route('/api/search-indexes', createSearchIndexRoutes());
   app.all('/api/*', (c) => c.json({ error: '接口不存在' }, 404));
   if (serveFrontend) app.route('/', createStaticRoutes());

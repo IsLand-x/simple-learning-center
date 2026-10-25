@@ -52,6 +52,14 @@ export function knowledgeMapDirectoryPath(bookId: string) {
   return join(DATA_DIRECTORY, 'knowledge-maps', encodedId(bookId));
 }
 
+export function chapterVideoDirectoryPath(bookId: string) {
+  return join(DATA_DIRECTORY, 'chapter-videos', encodedId(bookId));
+}
+
+export function chapterVideoPath(bookId: string, videoId: string, extension: 'mp4' | 'png') {
+  return join(chapterVideoDirectoryPath(bookId), `${encodedId(videoId)}.${extension}`);
+}
+
 export function noteDirectoryPath(bookId: string) {
   return join(NOTE_DIRECTORY, encodedId(bookId));
 }

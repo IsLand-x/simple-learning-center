@@ -1,0 +1,47 @@
+/* Keep Semi controls at their native size; reserve space for transparent touch areas. */
+.chapter-video-panel .chapter-video-actions .semi-button {
+  position: relative;
+  touch-action: manipulation;
+}
+
+.chapter-video-panel video:focus-visible {
+  outline: 2px solid var(--semi-color-focus-border);
+  outline-offset: 2px;
+}
+
+@media (max-width: 800px) {
+  .chapter-video-panel .chapter-video-actions {
+    min-height: 44px;
+    padding-inline: 8px;
+  }
+
+  .chapter-video-panel .chapter-video-actions .semi-button::before {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+
+  .chapter-video-panel .chapter-video-select {
+    position: relative;
+  }
+
+  .chapter-video-panel .chapter-video-select::before {
+    content: '';
+    position: absolute;
+    inset: 50% 0 auto;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+
+  .chapter-video-panel .chapter-video-actions .semi-checkbox {
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .chapter-video-panel .semi-input {
+    font-size: 16px;
+  }
+}

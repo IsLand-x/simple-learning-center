@@ -13,6 +13,7 @@ import type {
 } from '../../../contracts/books.js';
 import type {
   ChapterMindMap,
+  ChapterVideo,
   DeletedHighlightTombstone,
   DeletedNoteTombstone,
   HighlightItem,
@@ -44,6 +45,7 @@ export interface StoredState {
   deletedNoteTombstones?: DeletedNoteTombstone[];
   readingSessions?: ReadingSession[];
   chapterMindMaps?: ChapterMindMap[];
+  chapterVideos?: ChapterVideo[];
   chats?: ChatMessage[];
   chatSessions?: ChatSession[];
   rssFolders?: RssFolder[];

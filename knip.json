@@ -12,5 +12,6 @@
     "scripts/test-server.mjs",
     "scripts/component-file-rules.test.mjs"
   ],
-  "ignore": ["server-dist/**"]
+  "ignore": ["server-dist/**"],
+  "ignoreBinaries": ["ffmpeg"]
 }

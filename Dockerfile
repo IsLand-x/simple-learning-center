@@ -33,7 +33,7 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-RUN apk add --no-cache font-noto-cjk && mkdir -p /data && chown node:node /data
+RUN apk add --no-cache font-noto-cjk ffmpeg && mkdir -p /data && chown node:node /data
 
 USER node
 EXPOSE 4174

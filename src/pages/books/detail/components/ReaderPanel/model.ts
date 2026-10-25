@@ -9,6 +9,7 @@ import {
   IconHistory,
   IconImage,
   IconBranch,
+  IconVideo,
 } from '@douyinfe/semi-icons';
 import type { BookItem } from '../../../../../../contracts/books';
 import type { ChatMessage, ChatSession } from '../../../../../../contracts/ai';
@@ -46,6 +47,7 @@ export const panelMeta = {
   history: { label: '对话历史', Icon: IconHistory },
   resources: { label: '资源库', Icon: IconImage },
   mindmap: { label: '思维导图', Icon: IconBranch },
+  'chapter-video': { label: '章节视频', Icon: IconVideo },
   notes: { label: '笔记', Icon: IconEditStroked },
   glossary: { label: '术语表', Icon: IconBook },
   highlights: { label: '高亮', Icon: IconBookmark },
@@ -65,6 +67,7 @@ export const mobilePanelItems: Array<{
   { panel: 'history', label: '历史', ariaLabel: '打开对话历史', Icon: IconHistory },
   { panel: 'resources', label: '资源库', ariaLabel: '打开资源库', Icon: IconImage },
   { panel: 'mindmap', label: '导图', ariaLabel: '打开思维导图', Icon: IconBranch },
+  { panel: 'chapter-video', label: '视频', ariaLabel: '打开章节视频', Icon: IconVideo },
   { panel: 'notes', label: '笔记', ariaLabel: '打开笔记', Icon: IconEditStroked },
   { panel: 'glossary', label: '术语表', ariaLabel: '打开术语表', Icon: IconBook },
   { panel: 'highlights', label: '高亮', ariaLabel: '打开高亮', Icon: IconBookmark },

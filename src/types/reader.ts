@@ -3,6 +3,7 @@ export type RightPanel =
   | 'history'
   | 'resources'
   | 'mindmap'
+  | 'chapter-video'
   | 'notes'
   | 'glossary'
   | 'highlights'

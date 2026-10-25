@@ -148,6 +148,7 @@ export function createLibraryActions(set: LearningStoreSet): LibraryActions {
         ),
         readingSessions: state.readingSessions.filter((session) => session.bookId !== bookId),
         chapterMindMaps: state.chapterMindMaps.filter((map) => map.bookId !== bookId),
+        chapterVideos: state.chapterVideos.filter((video) => video.bookId !== bookId),
       })),
     createBookList: (bookList) =>
       set((state) => ({

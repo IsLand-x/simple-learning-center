@@ -73,6 +73,7 @@ export const initialLearningState: LearningStateData = {
   conversationSummaries: [],
   readingSessions: [],
   chapterMindMaps: [],
+  chapterVideos: [],
   rssFolders: [],
   rssFeeds: [],
   rssItems: [],

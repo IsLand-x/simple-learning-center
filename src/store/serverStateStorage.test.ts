@@ -287,6 +287,7 @@ it('writes only the changed panel domain, keeping note/highlight/progress payloa
   expect(Object.keys(mocks.writeDomain.mock.calls[0][1].state)).toEqual([
     'readingSessions',
     'chapterMindMaps',
+    'chapterVideos',
   ]);
   mocks.writeDomain.mockClear();
   state.highlights = [

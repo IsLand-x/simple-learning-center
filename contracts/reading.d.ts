@@ -121,3 +121,35 @@ export interface ChapterMindMap {
   generatedAt: number;
   updatedAt: number;
 }
+
+export interface ChapterVideoNarration {
+  configId: string;
+  model: string;
+  voice: string;
+}
+
+export interface ChapterVideoScene {
+  title: string;
+  narration: string;
+  layout: 'concept' | 'steps' | 'compare' | 'summary';
+  points: Array<{ title: string; detail: string }>;
+  sources: MindMapSource[];
+  startSeconds: number;
+  durationSeconds: number;
+}
+
+export interface ChapterVideo {
+  id: string;
+  version: 1;
+  bookId: string;
+  /** Absent for a whole-book introduction. */
+  chapterId?: string;
+  chapterTitle: string;
+  title: string;
+  summary: string;
+  scenes: ChapterVideoScene[];
+  durationSeconds: number;
+  hasAudio: boolean;
+  model: string;
+  generatedAt: number;
+}
