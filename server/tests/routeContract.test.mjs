@@ -108,6 +108,12 @@ const expectedRoutes = [
     method: 'ALL',
     path: '/api/settings/system-info',
   },
+  { method: 'GET', path: '/api/settings/tts' },
+  { method: 'PUT', path: '/api/settings/tts' },
+  { method: 'DELETE', path: '/api/settings/tts' },
+  { method: 'POST', path: '/api/settings/tts/test' },
+  { method: 'ALL', path: '/api/settings/tts' },
+  { method: 'ALL', path: '/api/settings/tts/test' },
   { method: 'ALL', path: '/api/state/*' },
   {
     method: 'GET',

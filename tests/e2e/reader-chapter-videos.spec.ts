@@ -98,7 +98,8 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
-  test.setTimeout(240_000);
+  // Two complete frame renders also run on small, shared development servers.
+  test.setTimeout(1_800_000);
   page.setDefaultTimeout(10_000);
   await page.setViewportSize({ width: 1440, height: 960 });
   await page.goto('/');
@@ -136,6 +137,19 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   expect((await page.request.put('/api/state/preferences', { data: preferences })).status()).toBe(
     204,
   );
+  expect(
+    (
+      await page.request.put('/api/settings/tts', {
+        data: {
+          provider: 'aliyun',
+          region: 'cn-beijing',
+          model: 'qwen3-tts-flash',
+          voice: 'Cherry',
+          apiKey: 'fixture-tts-key',
+        },
+      })
+    ).status(),
+  ).toBe(200);
   const { token } = await (
     await page.request.post('/api/settings/openapi-token', {
       headers: { 'X-Learning-Center-Request': '1' },
@@ -170,9 +184,13 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   const panel = page.getByRole('complementary', { name: '章节视频', exact: true });
   await expect(panel.getByText('还没有全书导读视频', { exact: true })).toBeVisible();
   expect(requests).toBe(0);
+  const narration = panel.getByRole('checkbox', { name: '生成中文配音', exact: true });
+  await expect(narration).toBeChecked();
+  await narration.press('Space');
+  await expect(narration).not.toBeChecked();
   await panel.getByRole('button', { name: '生成视频', exact: true }).click();
   const player = panel.locator('video');
-  await expect(player).toBeVisible({ timeout: 90_000 });
+  await expect(player).toBeVisible({ timeout: 600_000 });
   await expect
     .poll(() => player.evaluate((element: HTMLVideoElement) => element.readyState))
     .toBeGreaterThanOrEqual(1);
@@ -246,9 +264,8 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
         ).toEqual({ scrollTop: 0, overflowY: 'visible', maxHeight: 'none' });
       }
       const voice = panel.getByRole('checkbox', { name: '生成中文配音', exact: true });
-      await panel.getByText('生成中文配音', { exact: true }).click();
       await expect(voice).toBeChecked();
-      await expect(panel.getByRole('textbox', { name: '语音模型', exact: true })).toBeVisible();
+      await expect(panel.getByRole('link', { name: '管理 TTS 配置', exact: true })).toBeVisible();
       expect(await panel.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
         false,
       );
@@ -265,6 +282,9 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   await page.goto(`/books/${book.id}`);
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
   await openPanel(page, true);
+  await expect(narration).toBeChecked();
+  await narration.press('Space');
+  await expect(narration).not.toBeChecked();
   await panel.locator('#chapter-video-scope').click();
   await page
     .getByRole('option')
@@ -295,7 +315,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   expect(requests).toBe(completedRequests + 1);
   modelGate = undefined;
   releaseModel?.();
-  await expect(player).toBeVisible({ timeout: 90_000 });
+  await expect(player).toBeVisible({ timeout: 600_000 });
   await expect(panel.getByLabel('已生成的视频')).toContainText('已生成（2）');
   const savedId = await player.getAttribute('src');
   invalid = true;

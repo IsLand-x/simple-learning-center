@@ -40,7 +40,7 @@ export default tseslint.config(
   {
     files: [
       'src/**/*.{ts,tsx}',
-      'server/**/*.ts',
+      'server/**/*.{ts,tsx}',
       'contracts/**/*.ts',
       'tests/**/*.{ts,tsx}',
       'vite.config.ts',

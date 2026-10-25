@@ -137,13 +137,19 @@ export interface ChapterMindMap {
   updatedAt: number;
 }
 
-export interface ChapterVideoNarration {
-  configId: string;
-  model: string;
-  voice: string;
-}
+export type ChapterVideoNarration =
+  | { source: 'settings' }
+  | {
+      configId: string;
+      model: string;
+      voice: string;
+    };
 
 export interface ChapterVideoScene {
+  visual?: {
+    kind: 'trade' | 'balance' | 'flow';
+    mode?: 'closed' | 'export' | 'import' | 'tariff' | 'quota';
+  };
   title: string;
   narration: string;
   layout: 'concept' | 'steps' | 'compare' | 'summary';

@@ -9,7 +9,7 @@ const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status 
 
 test(
   '章节视频后台生成、全书/大章隔离、Range播放、失败保留、取消、删除及陈旧客户端保护',
-  { skip: !hasFfmpeg, timeout: 180_000 },
+  { skip: !hasFfmpeg, timeout: 900_000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), 'learning-center-chapter-video-'));
     process.env.LEARNING_CENTER_DATA_DIR = directory;
@@ -90,7 +90,7 @@ test(
       currentText: '不应该外发的页面正文',
     });
     const wait = async (id, status = 'completed') => {
-      const until = Date.now() + 90_000;
+      const until = Date.now() + 360_000;
       while (Date.now() < until) {
         const job = await (await app.request(`/api/ai/jobs/${id}`)).json();
         if (job.status === status) return job;

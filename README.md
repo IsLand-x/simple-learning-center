@@ -143,10 +143,10 @@ npm run verify:full  # 再在固定 Docker 环境执行真实浏览器与视觉�
 ### 章节视频
 
 - 阅读器右侧“章节视频”（手机在“更多功能”中）默认展示全书导读。可以选择全书或某个大章（含下属小节），点击“生成视频”后才发送所选正文给当前 AI 模型；打开书籍和面板不会自动生成或播放。
-- 以老师上课的方式编排问题引入、核心知识点、例子与小结，用概念关系、流程、对比和逐步揭示的板书制作 720p MP4，并嵌入中文字幕。通常面向 2–4 分钟的简明讲解，实际长度由内容与语速决定；支持全屏播放、知识点时间戳跳转和查看原文。每个范围保存最近一次成功视频，已有其他章节视频可直接切换观看。
-- 默认生成无需额外服务的字幕版。勾选“生成中文配音”后，选择已配置 API Key 的供应商并填写它支持的语音模型和音色；讲稿仅发送给所选供应商的兼容 `/audio/speech` 接口，使用 [OpenAI 语音接口协议](https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create)。登录授权的聊天模型不等于语音权限，配音调用失败会明确提示，不会静默改用其他服务。音轨为 AI 合成语音。
-- 中文配音可直接使用[硅基流动 CosyVoice](https://docs.siliconflow.cn/docs/userguide/capabilities/text-to-speech)：本人登录[密钥控制台](https://cloud.siliconflow.cn/account/ak)创建 API Key，在设置中添加供应商，Base URL 填 `https://api.siliconflow.cn/v1`。在视频面板选择该供应商会自动填入模型 `FunAudioLLM/CosyVoice2-0.5B` 与音色 `FunAudioLLM/CosyVoice2-0.5B:alex`；仍可修改为厂商支持的其他模型与音色。未知端点需手动填写，不把聊天模型当作语音模型。服务权限与用量费用以厂商控制台为准。
-- 参考 [Remotion Agent Skills](https://www.remotion.dev/docs/ai/skills) 的分镜与时间线思路，当前使用本地 SVG/resvg 图解与 FFmpeg 合成，不执行模型生成的代码，也不依赖 Codex/Claude CLI 或外部视频托管。生产容器内置 FFmpeg 与 Noto CJK 字体；原生运行需要自行安装 `ffmpeg`、`ffprobe` 和中文字体。
+- 以老师上课的方式编排问题引入、核心知识点、例子与小结，使用 Remotion 逐帧生成 720p、30fps 的动态图解 MP4，并嵌入中文字幕。支持流程关系、对比，以及供需曲线、进出口、关税与配额的价格、数量和福利区域变化；曲线与非统计柱形图明确标注为定性示意。通常面向 2–4 分钟的简明讲解，实际长度由内容与语速决定；支持全屏播放、知识点时间戳跳转和查看原文。每个范围保存最近一次成功视频，已有其他章节视频可直接切换观看。
+- 设置页新增独立的 **TTS** 标签，支持阿里云百炼的北京/新加坡地域、Qwen3 TTS Flash 模型、音色、密钥保存与固定文字试听；API Key 留空会保留已有密钥，读取时不返回密钥。配置保存在服务器私有的 `data/tts.json`，不写入浏览器持久化或聊天模型配置。地域、模型权限及费用以[百炼官方文档](https://help.aliyun.com/zh/model-studio/qwen-tts-api)和账户控制台为准。
+- 已配置 TTS 时，视频面板默认勾选“生成中文配音”，点击“生成视频”后才将讲稿发送给已保存的百炼 TTS；取消勾选或未配置时生成字幕版。中文语音使用百炼原生协议，登录授权的聊天模型不等于语音权限。配音失败明确提示，不静默切换服务。音轨为 AI 合成语音，字幕按讲稿与音轨时长分段估算，不宣称逐字对齐。旧客户端的兼容语音请求仍可处理。
+- 实现参考 [Remotion 官方 Skills](https://github.com/remotion-dev/skills) 与 [Agent Plugin](https://github.com/remotion-dev/agent-plugin) 的帧驱动动画、分镜和字幕实践。模型只输出经校验的数据，动画使用项目内固定 React/SVG 模板，不执行模型生成的代码，也不依赖 Codex/Claude CLI 或外部视频托管。生产容器内置 Chromium、FFmpeg 与 Noto CJK 字体；原生运行需要自行安装浏览器、`ffmpeg`、`ffprobe` 和中文字体，可用 `LEARNING_CENTER_CHROMIUM` 指定 Chromium 路径。开发时先运行 `npm run build:server`，再运行 `npm run video:studio` 预览模板。
 - 长章与全书会分段提炼后合并，每个分镜保留可核验的原文出处；最多处理 64 批、每批约 1.2 万字，过长时会要求选择较小章节，不会静默截断正文。每个视频最长 8 分钟，同一范围禁止重复任务，同时最多两个任务，本地渲染串行执行。
 - 生成任务的范围、当前阶段、状态、时间与错误独立保存于 `data/chapter-videos/<bookId>/jobs.json`，保留所有进行中任务和最近 100 条结束记录。面板显示所有进行中任务及最近 5 条结束记录，关闭弹层、切换功能、刷新或离开书籍后重新进入可恢复进度，并优先回到正在生成的章节；可以查看范围和取消任务。服务或容器重启会中断未完成任务，记录保留并明确提示手动重试。失败或取消保留旧视频，成功后替换；可单独删除视频，书籍移入回收站时保留，彻底删除时同步清理媒体与任务记录。
 - 章节下拉按稳定 TOC 标识选取，同名章节可独立选择；移动端选择框保持原生尺寸与触控范围，控件内部不产生滚动条。

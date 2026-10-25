@@ -8,11 +8,14 @@ import { McpSettings } from './components/Mcp/McpSettings';
 import { ModelSettings } from './components/Models/ModelSettings';
 import { OpenApiSettings } from './components/OpenApiSettings';
 import { WebSearchSettings } from './components/WebSearchSettings';
+import { TtsSettings } from './components/TtsSettings';
+import { useSearchParams } from 'react-router-dom';
 
 const { Title, Text } = Typography;
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('models');
+  const [params, setParams] = useSearchParams();
+  const activeTab = params.get('tab') ?? 'models';
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
 
   return (
@@ -28,7 +31,7 @@ export function SettingsPage() {
         activeKey={activeTab}
         className="settings-tabs [margin-right:auto] [margin-left:auto]"
         keepDOM={false}
-        onChange={setActiveTab}
+        onChange={(tab) => setParams({ tab }, { replace: true })}
         type="line"
       >
         <TabPane itemKey="account" tab="账户">
@@ -42,6 +45,9 @@ export function SettingsPage() {
         </TabPane>
         <TabPane itemKey="ai-assistant" tab="AI 助手">
           <ReaderAiSettingsForm />
+        </TabPane>
+        <TabPane itemKey="tts" tab="TTS">
+          <TtsSettings />
         </TabPane>
         <TabPane itemKey="content-sources" tab="内容源">
           <section

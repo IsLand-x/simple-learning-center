@@ -1,4 +1,9 @@
 import type { OpenAICompatibleConfig } from '../../../contracts/ai';
+import type { TtsPreferences } from '../../../contracts/ai';
+
+export interface SaveTtsRequest extends TtsPreferences {
+  apiKey?: string;
+}
 
 export interface SystemInfo {
   hostname: string;

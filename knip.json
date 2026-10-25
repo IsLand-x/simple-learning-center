@@ -6,6 +6,7 @@
     "server/index.ts",
     "server/dev.ts",
     "server/modules/ai/diagrams/worker.ts",
+    "server/modules/ai/chapterVideos/composition/index.ts",
     "server/**/*.test.mjs",
     "tests/fixtures/generate-reader-regression.mjs",
     "tests/browser/run.mjs",

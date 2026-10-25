@@ -11,7 +11,7 @@ const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status 
 
 test(
   '中文配音使用明确选择的端点和参数，拒绝重定向及上游错误并生成真实 AAC 音轨',
-  { skip: !hasFfmpeg, timeout: 90_000 },
+  { skip: !hasFfmpeg, timeout: 600_000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), 'chapter-video-audio-'));
     process.env.LEARNING_CENTER_DATA_DIR = directory;

@@ -23,11 +23,10 @@ export function ChapterVideoPanel({
 }) {
   const [chapterId, setChapterId] = useState<string>();
   const [narration, setNarration] = useState<ChapterVideoNarration>();
+  const [narrationReady, setNarrationReady] = useState(false);
   const chapters = useMemo(() => chapterEntries(book.toc), [book.toc]);
   const ai = useChapterVideo(book, chapterId, setChapterId);
   const video = ai.videos.find((item) => item.chapterId === chapterId);
-  const narrationReady =
-    !narration || Boolean(narration.configId && narration.model.trim() && narration.voice.trim());
   const generate = () => {
     if (!video) {
       void ai.generate(narration);
@@ -76,10 +75,10 @@ export function ChapterVideoPanel({
           用图解、例子和小结，像老师上课一样讲清重点。仅在点击生成后处理正文。
         </p>
         <ChapterVideoNarrationForm
-          configs={ai.configs}
           value={narration}
           disabled={ai.busy}
           onChange={setNarration}
+          onReady={setNarrationReady}
         />
         <div className="chapter-video-actions flex min-w-0 flex-wrap items-center justify-between gap-4">
           <AiModelSelector
@@ -93,7 +92,7 @@ export function ChapterVideoPanel({
             size="small"
             theme="solid"
             loading={ai.busy}
-            disabled={ai.loading || !ai.configured || !narrationReady || ai.deleting}
+            disabled={ai.loading || !ai.configured || ai.deleting || !narrationReady}
             onClick={generate}
           >
             {video ? '重新生成' : '生成视频'}

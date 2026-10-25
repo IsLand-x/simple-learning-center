@@ -1,6 +1,7 @@
 import { findMindMapChapter } from '../mindmaps/model.js';
 import { videoNarrationSchema } from '../chapterVideos/model.js';
 import { speechUrl } from '../chapterVideos/media.js';
+import { ttsSettings } from '../speech/settings.js';
 import type { VideoNarrationContext } from '../chapterVideos/media.js';
 import { randomUUID } from 'node:crypto';
 import type { ChatMessage, ChatSession } from '../../../../contracts/ai.js';
@@ -122,15 +123,35 @@ export function createJobStarter({ jobs, pruneJobs, executeJob, persistJob }: St
     if (purpose === 'chapter-video' && input?.videoNarration !== undefined) {
       const parsed = videoNarrationSchema.safeParse(input.videoNarration);
       if (!parsed.success) throw statusError(400, '配音配置不正确');
-      const speechConfig = state.openAIConfigs?.find((item) => item.id === parsed.data.configId);
-      if (!speechConfig || speechConfig.oauthProvider || !speechConfig.apiKey?.trim())
-        throw statusError(400, '请选择有 API Key 的配音供应商，登录授权不能用于语音接口');
-      speechUrl(speechConfig.baseUrl);
-      videoNarration = {
-        config: structuredClone(speechConfig),
-        model: parsed.data.model,
-        voice: parsed.data.voice,
-      };
+      if ('source' in parsed.data) {
+        const speech = await ttsSettings.read();
+        if (!speech) throw statusError(400, '请先在设置的 TTS 标签中保存语音配置');
+        videoNarration = {
+          tts: speech,
+          model: speech.model,
+          voice: speech.voice,
+          config: {
+            id: 'tts-settings',
+            name: '阿里云百炼',
+            baseUrl: '',
+            apiKey: speech.apiKey,
+            models: [],
+            createdAt: 0,
+            updatedAt: speech.updatedAt,
+          },
+        };
+      } else {
+        const { configId, model: speechModel, voice } = parsed.data;
+        const speechConfig = state.openAIConfigs?.find((item) => item.id === configId);
+        if (!speechConfig || speechConfig.oauthProvider || !speechConfig.apiKey?.trim())
+          throw statusError(400, '请选择有 API Key 的配音供应商，登录授权不能用于语音接口');
+        speechUrl(speechConfig.baseUrl);
+        videoNarration = {
+          config: structuredClone(speechConfig),
+          model: speechModel,
+          voice,
+        };
+      }
     }
     const termId = purpose === 'glossary' ? requiredString(input?.termId, '术语', 200) : undefined;
     const term = termId

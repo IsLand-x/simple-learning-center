@@ -29,7 +29,8 @@
     "preview": "node server-dist/index.js",
     "start": "npm run build && node server-dist/index.js",
     "build:server": "node scripts/build-server.mjs",
-    "check:components": "node --test scripts/component-file-rules.test.mjs && node scripts/check-component-files.mjs"
+    "check:components": "node --test scripts/component-file-rules.test.mjs && node scripts/check-component-files.mjs",
+    "video:studio": "remotion studio server-dist/modules/ai/chapterVideos/composition/index.js"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.1",
@@ -41,6 +42,8 @@
     "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@mozilla/readability": "^0.6.0",
+    "@remotion/captions": "4.0.538",
+    "@remotion/renderer": "4.0.538",
     "@resvg/resvg-js": "2.6.2",
     "@tiptap/extension-placeholder": "^3.30.5",
     "@tiptap/markdown": "^3.30.5",
@@ -63,6 +66,7 @@
     "rehype-katex": "7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "6.0.0",
+    "remotion": "4.0.538",
     "undici": "^7.29.0",
     "yauzl": "^3.4.0",
     "youtubei.js": "^18.0.0",
@@ -79,6 +83,8 @@
     "@eslint/js": "^10.0.1",
     "@openai/sites-vite-plugin": "0.2.0",
     "@playwright/test": "^1.63.0",
+    "@remotion/bundler": "4.0.538",
+    "@remotion/cli": "4.0.538",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@types/node": "^22.20.4",

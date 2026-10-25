@@ -1,10 +1,13 @@
 import { spawn } from 'node:child_process';
 import type { OpenAICompatibleConfig } from '../../../../contracts/ai.js';
+import { synthesizeAliyunSpeech } from '../speech/synthesize.js';
+import type { StoredTtsConfig } from '../speech/settings.js';
 
 export interface VideoNarrationContext {
   config: OpenAICompatibleConfig;
   model: string;
   voice: string;
+  tts?: StoredTtsConfig;
 }
 
 export function speechUrl(baseUrl: string) {
@@ -33,6 +36,7 @@ export async function synthesizeNarration(
   text: string,
   signal: AbortSignal,
 ): Promise<Buffer> {
+  if (narration.tts) return synthesizeAliyunSpeech(narration.tts, text, signal);
   const timeout = AbortSignal.timeout(120_000);
   let response: Response;
   try {

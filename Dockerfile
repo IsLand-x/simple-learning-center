@@ -1,11 +1,13 @@
-FROM node:22-alpine AS production-dependencies
+FROM node:22-bookworm-slim AS production-dependencies
 
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --no-audit --no-fund
+# Bundle the matching Headless Shell at build time; runtime never downloads a browser.
+RUN node --input-type=module -e "import { ensureBrowser } from '@remotion/renderer'; await ensureBrowser({ logLevel: 'error' });"
 
-FROM node:22-alpine AS build
+FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -21,7 +23,7 @@ ENV APP_BUILD_REVISION=$APP_BUILD_REVISION \
     LEARNING_CENTER_ASSET_ORIGIN=$LEARNING_CENTER_ASSET_ORIGIN
 RUN npm run verify
 
-FROM node:22-alpine AS runtime-base
+FROM node:22-bookworm-slim AS runtime-base
 
 LABEL org.opencontainers.image.source="https://github.com/IsLand-x/simple-learning-center" \
     org.opencontainers.image.description="Local-first EPUB reader and AI learning center"
@@ -33,7 +35,14 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-RUN apk add --no-cache font-noto-cjk ffmpeg && mkdir -p /data && chown node:node /data
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      ca-certificates ffmpeg fonts-noto-cjk util-linux \
+      libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2 libxrandr2 \
+      libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 libatk-bridge2.0-0 \
+      libpango-1.0-0 libcairo2 libcups2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /data && chown node:node /data
 
 USER node
 EXPOSE 4174

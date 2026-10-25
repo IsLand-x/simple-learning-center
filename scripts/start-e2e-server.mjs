@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { chromium } from '@playwright/test';
 
 const dataDirectory = await mkdtemp(join(tmpdir(), 'learning-center-e2e-'));
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -10,6 +11,7 @@ const environment = {
   ...process.env,
   LEARNING_CENTER_API_PROXY: 'http://127.0.0.1:18787',
   LEARNING_CENTER_DATA_DIR: dataDirectory,
+  LEARNING_CENTER_CHROMIUM: chromium.executablePath(),
   LEARNING_CENTER_MODE: 'local',
   LEARNING_CENTER_PORT: useBuild ? '15173' : '18787',
   LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS: '1800000',

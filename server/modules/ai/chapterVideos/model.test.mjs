@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { validateStoryboard, subtitleChunks } from './model.js';
-import { videoSlideSvg } from './slide.js';
+import { validateStoryboard } from './model.js';
+import { createSceneCaptions } from './composition/captions.js';
 import { videoByteRange } from '../../books/chapterVideos.js';
 import { speechUrl } from './media.js';
 
@@ -53,34 +53,20 @@ test('视频分镜核验原文并保留可信位置，拒绝虚构出处、非�
   );
 });
 
-test('讲稿字幕完整分段且图解中的用户文字转义为文本', () => {
+test('讲稿字幕完整分段，时序连续覆盖整个分镜，不伪造语音识别置信度', () => {
   const text = '这是一个包含中文、英文和表情的例子。A useful example，继续讲解这个知识点。'.repeat(
     4,
   );
-  const chunks = subtitleChunks(text);
+  const captions = createSceneCaptions(text, 10000);
+  const chunks = captions.map((caption) => caption.text);
   assert.equal(chunks.join(''), text);
   assert.ok(chunks.every((chunk) => Array.from(chunk).length <= 32));
-  const scene = {
-    ...storyboard().scenes[0],
-    title: '<script>bad</script>',
-    startSeconds: 0,
-    durationSeconds: 10,
-  };
-  for (const layout of ['concept', 'steps', 'compare', 'summary']) {
-    const svg = videoSlideSvg(
-      { ...scene, layout },
-      '书籍<script>',
-      '章节',
-      0,
-      3,
-      2,
-      '字幕<image href="https://unselected.example"/>',
-    );
-    assert.equal(svg.includes('<script>'), false);
-    assert.equal(svg.includes('<image'), false);
-    assert.ok(svg.includes('&lt;script&gt;'));
-    assert.ok(svg.includes('viewBox="0 0 1280 720"'));
-  }
+  assert.equal(captions[0].startMs, 0);
+  assert.equal(captions.at(-1).endMs, 10000);
+  captions.forEach((caption, index) => {
+    assert.equal(caption.confidence, null);
+    if (index) assert.equal(caption.startMs, captions[index - 1].endMs);
+  });
 });
 
 test('视频支持普通、开放结尾、后缀 Range，拒绝越界或多段请求', () => {

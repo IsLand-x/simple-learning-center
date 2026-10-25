@@ -26,6 +26,10 @@ const screens = [
   { name: 'videos', path: `/videos?video=${fixtureVideo.id}`, ready: '.video-transcript-panel' },
   { name: 'settings', path: '/settings', ready: '.settings-page' },
 ];
+// Scope intentional baseline updates while normal regressions still cover every screen.
+const requestedScreen = process.env.LEARNING_CENTER_E2E_SCREEN;
+if (requestedScreen && !screens.some((screen) => screen.name === requestedScreen))
+  throw new Error(`未知的视觉验收页面：${requestedScreen}`);
 
 for (const theme of ['light', 'dark']) {
   for (const viewport of viewports) {
@@ -35,7 +39,9 @@ for (const theme of ['light', 'dark']) {
       await page.setViewportSize(viewport);
       await prepareWorkspace(page, { visualOnly: true, theme });
 
-      for (const screen of screens) {
+      for (const screen of screens.filter(
+        (screen) => !requestedScreen || screen.name === requestedScreen,
+      )) {
         await page.goto(screen.path);
         await expect(page.locator(screen.ready)).toBeVisible({ timeout: 15_000 });
         await expect(page.locator('body')).toHaveAttribute('theme-mode', theme);

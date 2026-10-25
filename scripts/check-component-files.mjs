@@ -16,7 +16,9 @@ async function collect(directory) {
 }
 
 const violations = [];
-const files = await collect(resolve(root, 'src'));
+const files = (
+  await Promise.all(['src', 'server'].map((directory) => collect(resolve(root, directory))))
+).flat();
 for (const file of files) {
   const components = componentNames(await readFile(file, 'utf8'), file);
   if (components.length > 1 || (!file.endsWith('.test.tsx') && components.length !== 1))

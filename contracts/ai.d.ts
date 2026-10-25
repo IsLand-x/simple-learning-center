@@ -1,5 +1,17 @@
 export type AiProvider = `api:${string}`;
 
+export interface TtsPreferences {
+  provider: 'aliyun';
+  region: 'cn-beijing' | 'ap-southeast-1';
+  model: string;
+  voice: string;
+}
+
+export interface TtsStatus extends TtsPreferences {
+  configured: boolean;
+  updatedAt: number;
+}
+
 export interface ChatMessage {
   id: string;
   bookId: string;

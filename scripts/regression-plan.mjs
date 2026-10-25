@@ -24,11 +24,15 @@ const domains = [
       'mobile-reader-overlays',
       'note-concurrency',
       'book-knowledge-map',
+      'reader-chapter-videos',
     ],
   ],
   [/^src\/pages\/rss\//, ['rss-video-workflows']],
   [/^src\/pages\/videos\//, ['rss-video-workflows', 'video-dialog-state']],
-  [/^src\/pages\/settings\//, ['settings-model-controls', 'oauth-settings', 'about-settings']],
+  [
+    /^src\/pages\/settings\//,
+    ['settings-model-controls', 'settings-tts', 'oauth-settings', 'about-settings'],
+  ],
 ];
 
 export function regressionPlan(changes, forceFull = false) {

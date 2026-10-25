@@ -26,6 +26,7 @@ import { createSourceCredentialRoutes } from './modules/settings/sourceCredentia
 import { createStateRoutes } from './modules/state/routes.js';
 import { createStaticRoutes } from './http/staticRoutes.js';
 import { createSystemInfoRoutes } from './modules/settings/systemInfoRoutes.js';
+import { createTtsRoutes } from './modules/ai/speech/routes.js';
 import { createVideoRoutes } from './modules/videos/routes.js';
 
 export function createApp({ serveFrontend = true, ...options }: AppOptions = {}) {
@@ -43,6 +44,7 @@ export function createApp({ serveFrontend = true, ...options }: AppOptions = {})
   app.route('/api/auth', createAuthRoutes(dependencies));
   app.route('/api/health', createHealthRoutes(dependencies));
   app.route('/api/settings/system-info', createSystemInfoRoutes());
+  app.route('/api/settings/tts', createTtsRoutes());
   app.route('/api/state', createStateRoutes(dependencies));
   app.route('/api/conversations', createConversationRoutes());
   app.route('/api/ai/oauth', createAiOAuthRoutes(dependencies));
