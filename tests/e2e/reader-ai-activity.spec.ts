@@ -87,14 +87,16 @@ async function mockJobs(page: Page, delayedStart = false, background = false) {
           (message: { id: string }) => message.id === current.userMessageId,
         )
       )
-        snapshot.state.chats.push({
-          id: current.userMessageId,
-          bookId: current.bookId,
-          conversationId: current.conversationId,
-          role: 'user',
-          content: question,
-          createdAt: current.createdAt,
-        });
+        snapshot.state.chats.push(
+          current.userMessage ?? {
+            id: current.userMessageId,
+            bookId: current.bookId,
+            conversationId: current.conversationId,
+            role: 'user',
+            content: question,
+            createdAt: current.createdAt,
+          },
+        );
       if (current.status === 'completed') {
         const existing = snapshot.state.chats.find(
           (message: { id: string }) => message.id === current.assistantMessageId,
@@ -111,7 +113,7 @@ async function mockJobs(page: Page, delayedStart = false, background = false) {
             role: 'assistant',
             content: current.content,
             dialogueContent: current.dialogueContent,
-            createdAt: current.createdAt,
+            createdAt: current.assistantCreatedAt ?? current.createdAt,
           },
         ];
       }
@@ -136,7 +138,15 @@ async function mockJobs(page: Page, delayedStart = false, background = false) {
         bookId: book.id,
         conversationId: input.conversationId,
         userMessageId: input.userMessage.id,
+        userMessage: {
+          ...input.userMessage,
+          bookId: book.id,
+          conversationId: input.conversationId,
+          role: 'user',
+          createdAt: Date.now(),
+        },
         assistantMessageId: 'activity-answer',
+        assistantCreatedAt: Date.now() + 1,
         status: 'running',
         revision: 1,
         content: '正在后台继续生成',
@@ -166,6 +176,7 @@ async function mockJobs(page: Page, delayedStart = false, background = false) {
   });
   return {
     submitted: () => submitted,
+    conversationId: () => job?.conversationId,
     servedRevision: () => servedRevision,
     noteChanged: () => {
       if (job)
@@ -230,21 +241,38 @@ test('发送未确认时保留输入，刷新仍可重试，确认后消息保�
   await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('请解释这一章');
 });
 
-test('等待服务端受理时保留草稿，受理后再显示已发送消息', async ({ page }, testInfo) => {
+test('等待服务端受理时立即显示待发送消息并清空编辑器，后台保留草稿', async ({ page }, testInfo) => {
   const mobile = testInfo.project.name === 'mobile-chrome';
   await seed(page);
   const jobs = await mockJobs(page, true);
   await page.goto(`/books/${book.id}`);
   await entry(page, mobile).click();
+  // The device clock is ahead of the task server; completion must keep question before answer.
+  await page.clock.setFixedTime(new Date(Date.now() + 3_600_000));
   await send(page);
   const input = page.locator('.reader-ai-input [contenteditable="true"]');
   await expect.poll(jobs.submitted).toBe(true);
-  await expect(input).toHaveText('请解释这一章');
+  await expect(input).toHaveText('');
   await expect(page.locator('.ai-composer-message')).toContainText('正在发送');
-  await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveCount(0);
+  await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('请解释这一章');
   jobs.releaseStart();
+  await expect(page.locator('.semi-chat-area .ai-message--assistant')).toContainText(
+    '正在后台继续生成',
+  );
   await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('请解释这一章');
   await expect(input).toHaveText('');
+  jobs.complete();
+  const bubbles = page.locator(
+    '.semi-chat-area .ai-message--user, .semi-chat-area .ai-message--assistant',
+  );
+  await expect(bubbles).toHaveText(['请解释这一章', '后台生成的最终回复']);
+  const saved = await (
+    await page.request.get(`/api/conversations/${jobs.conversationId()}/messages?bookId=${book.id}`)
+  ).json();
+  expect(saved.messages.map((message: { role: string }) => message.role)).toEqual([
+    'user',
+    'assistant',
+  ]);
 });
 
 test('草稿保存响应阻塞时仍可提交消息，确认后刷新可见', async ({ page }, testInfo) => {

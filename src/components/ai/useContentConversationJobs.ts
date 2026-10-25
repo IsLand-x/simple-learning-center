@@ -17,6 +17,15 @@ export function useContentConversationJobs({
 }: ConversationJobControls & { resourceId: string; conversationId: string }) {
   const applyJob = useCallback(
     (job: AiJob) => {
+      const store = useLearningStore.getState();
+      if (
+        job.userMessage &&
+        !store.chats.some(
+          (message) =>
+            message.id === job.userMessageId && message.createdAt === job.userMessage!.createdAt,
+        )
+      )
+        store.addChatMessage(job.userMessage);
       if (job.status === 'queued' || job.status === 'running') {
         setActiveJobId(job.id);
         setStreamingAssistant({
@@ -24,7 +33,7 @@ export function useContentConversationJobs({
           role: 'assistant',
           content: job.dialogueContent?.length ? job.dialogueContent : job.content,
           status: job.status === 'queued' ? 'queued' : 'in_progress',
-          createdAt: job.createdAt,
+          createdAt: job.assistantCreatedAt ?? job.createdAt,
         });
         setStatus('generating');
         setStatusMessage('');
@@ -32,7 +41,6 @@ export function useContentConversationJobs({
       }
       setActiveJobId(null);
       if (job.status === 'completed') {
-        const store = useLearningStore.getState();
         if (!store.chats.some((message) => message.id === job.assistantMessageId)) {
           store.addChatMessage({
             id: job.assistantMessageId,
@@ -41,7 +49,7 @@ export function useContentConversationJobs({
             role: 'assistant',
             content: job.content,
             dialogueContent: job.dialogueContent,
-            createdAt: job.createdAt,
+            createdAt: job.assistantCreatedAt ?? job.createdAt,
           });
         }
         setStreamingAssistant(null);
@@ -60,7 +68,7 @@ export function useContentConversationJobs({
         role: 'assistant',
         content: job.dialogueContent?.length ? job.dialogueContent : job.content,
         status: 'failed',
-        createdAt: message?.createdAt ?? job.createdAt,
+        createdAt: job.assistantCreatedAt ?? message?.createdAt ?? job.createdAt,
       }));
       setStatus('error');
       setStatusMessage(job.error || '模型请求失败');

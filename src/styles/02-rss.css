@@ -727,8 +727,21 @@
 }
 
 .rss-article__body {
+  cursor: text;
   font: inherit;
   overflow-wrap: anywhere;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .rss-article :is(.rss-article__title, .rss-article__body, .rss-translation__content, .rss-digest-markdown) {
+    cursor: var(--reader-text-selection-cursor, text);
+  }
+}
+
+@media (forced-colors: active) {
+  .rss-article :is(.rss-article__title, .rss-article__body, .rss-translation__content, .rss-digest-markdown) {
+    cursor: text;
+  }
 }
 
 .rss-article__body p {

@@ -26,6 +26,7 @@ export function createAiRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
             content: _content,
             dialogueContent: _dialogue,
             translationHtml: _html,
+            userMessage: _userMessage,
             ...summary
           } = job;
           return summary;

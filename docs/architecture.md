@@ -200,7 +200,7 @@ AI generation 在 books 保存本地原图后调用 `books/imageHosting.ts`，�
 
 AI 输入草稿使用根 store 的 `conversationDrafts` 字段，归属 `preferences` 分区，随现有服务端状态写队列保存；按资源与对话键隔离，以 `updatedAt` 合并，空文本记录防止旧快照恢复已发送草稿。
 
-阅读器发送前使用写队列的 `ignoreConversationDrafts` 模式：仅当待保存偏好与已确认快照的差异全部来自草稿时跳过等待；模型配置、笔记及其他分区修改仍须先完成。打开助手即预热索引，发送时与必要状态保存并行准备，不在索引保存后重复等待全局队列。任务 POST 原子保存用户消息和会话后才返回 202；UI 据此添加消息并清空对应草稿。浏览器 Performance 中的 `learning-center:ai:prepare-state`、`ai:prepare-index`、`ai:accept` 记录各阶段耗时，不包含正文或凭据。
+阅读器发送前使用写队列的 `ignoreConversationDrafts` 模式：仅当待保存偏好与已确认快照的差异全部来自草稿时跳过等待；模型配置、笔记及其他分区修改仍须先完成。打开助手即预热索引，发送时与必要状态保存并行准备，不在索引保存后重复等待全局队列。发送动作立即展示组件内的待发送消息，并静默清空编辑器，保留持久草稿；准备或受理失败时撤回临时消息并恢复未被新输入替换的内容。任务 POST 原子保存用户消息和会话后才返回 202；UI 据此将临时消息替换为服务端消息并清空对应草稿。提问和回复的时间由服务端写队列递增分配，任务响应返回规范化用户消息与回复时间，客户端缓存和流式展示均采用同一顺序。浏览器 Performance 中的 `learning-center:ai:prepare-state`、`ai:prepare-index`、`ai:accept` 记录各阶段耗时，不包含正文或凭据。
 
 AI 任务只读取当前资源的笔记正文，跳过无关封面解析；受理与回复保存使用 `mutatePersistedState` 的 `preserveResourceFiles` 模式，直接保留磁盘中的封面和 Markdown 引用。该模式仅用于不修改 books、trashedBooks、notes 的元数据更新，与普通文件更新共享原子写队列，不能用于笔记工具或书籍资源变更。
 
@@ -218,3 +218,5 @@ EPUB 正文索引升级至 version 3，增加每个段落所属的目录节点�
 服务端 `ai/mindmaps` 使用既有 AI job manager 的 `mindmap` purpose：按 12000 字符分批，最多 32 批，分组收束为观点树。每次调用仍使用 PiAgent / Pi AI 和所选供应商，但不提供工具或其他章节上下文。输出经过 schema、树层级及逐字引用校验，只采用索引中的可信 CFI。最终结果在既有单实例状态写队列中原子替换，不写入聊天历史。失败和取消不修改旧导图。
 
 节点跳转先在原 CFI 范围内核验引用，再生成细化 CFI，并进入现有 Foliate 导航队列。定位使用临时 Overlayer 提示，下一次导航或短暂展示后清除；不改变持久高亮。调整字体、纸张或分栏不会改变来源锚点。
+
+正文划词光标由 `src/util/reading/textCursor.ts` 统一生成，复用于 EPUB iframe、演示书籍和 RSS 正文；采用阅读主题的正文、纸张和强调色，以加粗 I 形、双层描边和圆环提高定位对比。光标使用原生 CSS cursor，不监听鼠标移动或创建跟随浮层；链接、图片与表单保留各自光标，高对比模式回退系统 text 光标。

@@ -83,6 +83,7 @@ export function useReaderConversation({
   );
   const [statusMessage, setStatusMessage] = useState('');
   const [quote, setQuote] = useState<{ text: string; chapter: string } | null>(null);
+  const [optimisticUserMessage, setOptimisticUserMessage] = useState<ChatMessage | null>(null);
   const [streamingAssistant, setStreamingAssistant] = useState<{
     id: string;
     role: 'assistant';
@@ -179,6 +180,7 @@ export function useReaderConversation({
   useEffect(() => {
     lastAppliedJobRef.current = undefined;
     setQuote(null);
+    setOptimisticUserMessage(null);
     setStreamingAssistant(null);
     setActiveJobId(null);
     setStatusMessage('');
@@ -292,8 +294,12 @@ export function useReaderConversation({
     )?.text;
     if (!draftText?.trim()) {
       store.setConversationDraft(book.id, conversationId, question);
-      inputRef.current?.setContent(question);
     }
+    setOptimisticUserMessage(userMessage);
+    const editor = inputRef.current?.getEditor();
+    const clearedInput = editor?.getText().trim() === question;
+    // Clear the editor immediately without overwriting the recoverable server draft.
+    if (clearedInput) editor.commands.setContent('', { emitUpdate: false });
     setStreamingAssistant(null);
     setStatus('generating');
     setStatusMessage('正在发送消息，等待服务端保存…');
@@ -328,8 +334,8 @@ export function useReaderConversation({
       );
       // chats/chatSessions are read caches, excluded from Zustand persistence.
       // A successful task response confirms that both have been saved on the server.
-      ensureSession(question, createdAt);
-      addChatMessage(userMessage);
+      ensureSession(question, job.userMessage?.createdAt ?? createdAt);
+      addChatMessage(job.userMessage ?? userMessage);
       const latestStore = useLearningStore.getState();
       const latestDraft = latestStore.conversationDrafts.find(
         (draft) => draft.resourceId === book.id && draft.conversationId === conversationId,
@@ -337,11 +343,26 @@ export function useReaderConversation({
       if (latestDraft?.text.trim() === question) {
         latestStore.setConversationDraft(book.id, conversationId, '');
       }
-      if (currentConversation.current === conversationId)
+      if (currentConversation.current === conversationId) {
+        setOptimisticUserMessage(null);
         setQuote((current) => (current === quoteForMessage ? null : current));
+      }
       applyJob(job);
     } catch (error) {
       if (currentConversation.current === conversationId) {
+        setOptimisticUserMessage(null);
+        const currentEditor = inputRef.current?.getEditor();
+        const retainedDraft = useLearningStore
+          .getState()
+          .conversationDrafts.find(
+            (draft) => draft.resourceId === book.id && draft.conversationId === conversationId,
+          );
+        if (
+          retainedDraft?.text.trim() === question &&
+          currentEditor &&
+          !currentEditor.getText().trim()
+        )
+          currentEditor.commands.setContent(question, { emitUpdate: false });
         const message = `发送未确认，输入内容已保留。${error instanceof Error ? error.message : '请求失败'}`;
         setStatus('error');
         setStatusMessage(message);
@@ -372,11 +393,14 @@ export function useReaderConversation({
         createdAt: message.createdAt,
         status: 'completed',
       })),
+      ...(optimisticUserMessage && !chats.some((message) => message.id === optimisticUserMessage.id)
+        ? [{ ...optimisticUserMessage, status: 'queued' }]
+        : []),
       ...(streamingAssistant && !chats.some((message) => message.id === streamingAssistant.id)
         ? [streamingAssistant]
         : []),
     ],
-    [chats, streamingAssistant],
+    [chats, optimisticUserMessage, streamingAssistant],
   );
   const userTurns = dialogueMessages
     .map((message, messageIndex) => ({ message, messageIndex }))

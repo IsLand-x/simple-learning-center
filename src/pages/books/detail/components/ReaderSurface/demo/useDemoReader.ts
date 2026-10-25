@@ -19,7 +19,7 @@ import {
   READER_PAGE_MAX_INLINE_SIZE,
   resolveReaderStyle,
 } from '../../../../../../util/reading/readerThemes';
-import { createReaderTextSelectionCursor } from '../textCursor';
+import { createReaderTextSelectionCursor } from '../../../../../../util/reading/textCursor';
 import { flattenToc } from '../model';
 import type { ReaderSurfaceHandle, ReaderSurfaceProps } from '../type';
 import type { WheelSwipeState } from './model';

@@ -46,6 +46,13 @@ test('真实 EPUB 支持宋体与黑体纸书排版，配色独立，刷新后�
   const { book } = await upload.json();
   await page.goto(`/books/${book.id}`);
   let frame = await frameForBook(page);
+  const cursor = await frame
+    .locator('p.authored')
+    .evaluate((element) => getComputedStyle(element).cursor);
+  if (testInfo.project.name === 'desktop-chrome') {
+    expect(cursor).toContain('data:image/svg+xml');
+    expect(cursor).toContain('16 16');
+  }
   // Published EPUBs often use fixed sizes on paragraphs and nested spans.
   await frame
     .locator('p')

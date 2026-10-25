@@ -397,10 +397,44 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
       return;
     }
     submittedJob = route.request().postDataJSON() as SubmittedAiJob;
+    const timestamp = Date.now();
+    const userMessage = {
+      ...submittedJob.userMessage,
+      bookId: submittedJob.bookId,
+      conversationId: submittedJob.conversationId,
+      role: 'user',
+      createdAt: timestamp,
+    };
+    const snapshot = await (await page.request.get('/api/state/conversations')).json();
+    snapshot.state.chatSessions.push({
+      id: submittedJob.conversationId,
+      bookId: submittedJob.bookId,
+      title: '多段落问题',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    snapshot.state.chats.push(userMessage);
+    expect((await page.request.put('/api/state/conversations', { data: snapshot })).status()).toBe(
+      204,
+    );
     await route.fulfill({
-      status: 500,
-      contentType: 'application/json',
-      json: { error: '测试已拦截模型请求' },
+      status: 202,
+      json: {
+        id: 'paragraph-test-job',
+        bookId: submittedJob.bookId,
+        conversationId: submittedJob.conversationId,
+        userMessageId: userMessage.id,
+        userMessage,
+        assistantMessageId: 'paragraph-test-answer',
+        assistantCreatedAt: timestamp + 1,
+        status: 'failed',
+        revision: 1,
+        content: '',
+        dialogueContent: [],
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        error: '测试已拦截模型请求',
+      },
     });
   });
 
@@ -410,7 +444,7 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
     (element) => getComputedStyle(element).cursor,
   );
   expect(desktopReaderCursor).toContain('data:image/svg+xml');
-  expect(desktopReaderCursor).toContain('14 14');
+  expect(desktopReaderCursor).toContain('16 16');
   await page.getByRole('button', { name: /打开 AI 助手/ }).click();
   const reasoningSelector = page.getByRole('combobox', { name: '选择 AI 强度' });
   await expect(reasoningSelector).toBeVisible();
@@ -454,9 +488,17 @@ test('reader AI composer preserves authored paragraphs on desktop and mobile', a
   await expect(userBubble).toBeVisible();
   await expectParagraphStack();
   await expect(readerArticle).toHaveCSS('cursor', 'text');
-  expect(Math.round((await reasoningSelector.boundingBox())?.height ?? 0)).toBeGreaterThanOrEqual(
-    44,
-  );
+  const nativeSelectHeight = await reasoningSelector.evaluate((element) => {
+    const reference = document.createElement('div');
+    reference.className = Array.from(element.classList)
+      .filter((name) => name.startsWith('semi-select'))
+      .join(' ');
+    document.body.append(reference);
+    const height = getComputedStyle(reference).height;
+    reference.remove();
+    return height;
+  });
+  await expect(reasoningSelector).toHaveCSS('height', nativeSelectHeight);
 });
 
 test('reader AI highlight questions and in-panel settings persist across desktop and mobile', async ({

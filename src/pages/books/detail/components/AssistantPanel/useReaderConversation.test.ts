@@ -136,7 +136,7 @@ it('keeps the dialogue stable while editing a draft or quote', async () => {
   expect(conversation.dialogueMessages).toBe(messages);
 });
 
-it('waits for server acceptance before caching a sent message or clearing its draft and quote', async () => {
+it('shows the pending message immediately, retaining its draft and quote until server acceptance', async () => {
   let accept!: (value: AiJob) => void;
   mocks.startJob.mockReturnValueOnce(new Promise<AiJob>((resolve) => (accept = resolve)));
   let sending!: Promise<void>;
@@ -145,7 +145,9 @@ it('waits for server acceptance before caching a sent message or clearing its dr
   });
   expect(useLearningStore.getState().chats).toEqual([]);
   expect(useLearningStore.getState().chatSessions).toEqual([]);
-  expect(conversation.dialogueMessages).toEqual([]);
+  expect(conversation.dialogueMessages).toEqual([
+    expect.objectContaining({ role: 'user', content: question, quote, status: 'queued' }),
+  ]);
   expect(conversation.statusMessage).toContain('正在发送');
   expect(draft()).toBe(question);
   expect(conversation.quote).toEqual(quote);
@@ -159,6 +161,81 @@ it('waits for server acceptance before caching a sent message or clearing its dr
   expect(draft()).toBe('');
   expect(conversation.quote).toBeNull();
   expect(mocks.applyJob).toHaveBeenCalledWith(job);
+});
+
+it('shows the user message before slow state and index preparation finish', async () => {
+  let prepared!: () => void;
+  mocks.getBookPassages.mockImplementationOnce(
+    () => new Promise<never[]>((resolve) => (prepared = () => resolve([]))),
+  );
+  let sending!: Promise<void>;
+  await act(async () => {
+    sending = conversation.send(question);
+  });
+  expect(mocks.startJob).not.toHaveBeenCalled();
+  expect(conversation.dialogueMessages[0]).toMatchObject({ content: question, status: 'queued' });
+  await act(async () => {
+    prepared();
+    await sending;
+  });
+  expect(conversation.dialogueMessages).toHaveLength(1);
+});
+
+it.each([false, true])(
+  'clears input immediately and restores only an untouched editor on failure (new input: %s)',
+  async (newInput) => {
+    let text = question;
+    const setContent = vi.fn((value: string) => {
+      text = value;
+    });
+    Object.defineProperty(conversation.inputRef, 'current', {
+      configurable: true,
+      value: { getEditor: () => ({ getText: () => text, commands: { setContent } }) },
+    });
+    let reject!: (reason: Error) => void;
+    mocks.startJob.mockReturnValueOnce(new Promise<AiJob>((_, fail) => (reject = fail)));
+    let sending!: Promise<void>;
+    await act(async () => {
+      sending = conversation.send(question);
+    });
+    expect(text).toBe('');
+    expect(setContent).toHaveBeenCalledWith('', { emitUpdate: false });
+    expect(draft()).toBe(question);
+    if (newInput) {
+      text = '新的问题';
+      await act(async () =>
+        useLearningStore.getState().setConversationDraft(book.id, 'conversation', text),
+      );
+    }
+    await act(async () => {
+      reject(new Error('网络中断'));
+      await sending;
+    });
+    expect(text).toBe(newInput ? '新的问题' : question);
+    expect(draft()).toBe(newInput ? '新的问题' : question);
+    expect(conversation.dialogueMessages).toEqual([]);
+  },
+);
+
+it('uses the acknowledged server timestamp instead of the client timestamp', async () => {
+  const userMessage = {
+    id: 'canonical-user',
+    bookId: book.id,
+    conversationId: 'conversation',
+    role: 'user' as const,
+    content: question,
+    createdAt: 100,
+  };
+  mocks.startJob.mockImplementationOnce(async (input) => ({
+    ...job,
+    userMessageId: input.userMessage.id,
+    userMessage: { ...userMessage, id: input.userMessage.id },
+    assistantCreatedAt: 101,
+  }));
+  await act(async () => conversation.send(question));
+  expect(conversation.dialogueMessages).toEqual([
+    expect.objectContaining({ role: 'user', content: question, createdAt: 100 }),
+  ]);
 });
 
 it('prepares the index on opening and waits for required state and indexing concurrently', async () => {

@@ -15,7 +15,7 @@ import {
   READER_PAGE_MAX_INLINE_SIZE,
   resolveReaderStyle,
 } from '../../../../../../util/reading/readerThemes';
-import { createReaderTextSelectionCursor } from '../textCursor';
+import { createReaderTextSelectionCursor } from '../../../../../../util/reading/textCursor';
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 const COMMENT_BADGE_SIZE = 20;

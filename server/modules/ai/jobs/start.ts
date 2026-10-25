@@ -78,9 +78,7 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
     const messageInput = input?.userMessage;
     const userMessageId = requiredString(messageInput?.id, '消息', 200);
     const content = requiredString(messageInput?.content, '问题内容', 50_000);
-    const createdAt = Number.isFinite(messageInput?.createdAt)
-      ? messageInput!.createdAt!
-      : Date.now();
+    let createdAt = Date.now();
     const quoteText = optionalString(messageInput?.quote?.text, 20_000).trim();
     const quote = quoteText
       ? {
@@ -257,6 +255,19 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
         )
           throw statusError(409, '该章节正在生成思维导图');
         if (purpose !== 'glossary' && purpose !== 'mindmap') {
+          // Assign message order inside the write queue, using one clock for both roles.
+          // Client clocks may be ahead, behind, or change between consecutive turns.
+          const chats = Array.isArray(next.chats) ? next.chats : [];
+          createdAt = chats.reduce(
+            (latest, message) =>
+              message.bookId === bookId && message.conversationId === conversationId
+                ? Math.max(latest, message.createdAt + 1)
+                : latest,
+            Date.now(),
+          );
+          userMessage.createdAt = createdAt;
+          session.createdAt = createdAt;
+          session.updatedAt = createdAt;
           const sessions = Array.isArray(next.chatSessions) ? next.chatSessions : [];
           const existingSession = sessions.find((item) => item.id === conversationId);
           next.chatSessions = [
@@ -271,7 +282,6 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
               : session,
             ...sessions.filter((item) => item.id !== conversationId),
           ];
-          const chats = Array.isArray(next.chats) ? next.chats : [];
           next.chats = [...chats.filter((item) => item.id !== userMessageId), userMessage];
         }
         if (digestRun) upsertDigestRun(next, structuredClone(digestRun));
@@ -299,7 +309,7 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
       conversationId,
       userMessageId,
       assistantMessageId: randomUUID(),
-      assistantCreatedAt: timestamp,
+      assistantCreatedAt: Math.max(timestamp, createdAt + 1),
       status: 'queued',
       revision: 0,
       content: '',

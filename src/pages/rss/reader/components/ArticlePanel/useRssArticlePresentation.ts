@@ -2,6 +2,7 @@ import { useMemo, type CSSProperties } from 'react';
 import type { ReaderPreferences } from '../../../../../../contracts/reading';
 import type { RssAnnotation, RssFeed, RssItem } from '../../../../../../contracts/rss';
 import { READER_FONT_STACKS } from '../../../../../util/reading/readerFonts';
+import { createReaderTextSelectionCursor } from '../../../../../util/reading/textCursor';
 import {
   getReaderTextureStyle,
   resolveReaderStyle,
@@ -50,6 +51,7 @@ export function useRssArticlePresentation({
         '--rss-reader-muted-color': readerStyle.mutedTextColor,
         '--rss-reader-paragraph-spacing': `${readerStyle.density.paragraphSpacing}em`,
         '--rss-reader-text-color': readerStyle.textColor,
+        '--reader-text-selection-cursor': createReaderTextSelectionCursor(readerStyle),
       }) as CssVariables,
     [readerStyle],
   );

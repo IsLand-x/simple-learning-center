@@ -40,6 +40,15 @@ export function useReaderConversationJobs({
       )
         return;
       lastAppliedJobRef.current = job;
+      const store = useLearningStore.getState();
+      if (
+        job.userMessage &&
+        !store.chats.some(
+          (message) =>
+            message.id === job.userMessageId && message.createdAt === job.userMessage!.createdAt,
+        )
+      )
+        store.addChatMessage(job.userMessage);
       if (job.status === 'queued' || job.status === 'running') {
         setActiveJobId(job.id);
         setStreamingAssistant({
@@ -47,7 +56,7 @@ export function useReaderConversationJobs({
           role: 'assistant',
           content: job.dialogueContent?.length ? job.dialogueContent : job.content,
           status: job.status === 'queued' ? 'queued' : 'in_progress',
-          createdAt: job.createdAt,
+          createdAt: job.assistantCreatedAt ?? job.createdAt,
         });
         setStatus('generating');
         setStatusMessage('');
@@ -55,7 +64,6 @@ export function useReaderConversationJobs({
       }
       setActiveJobId(null);
       if (job.status === 'completed') {
-        const store = useLearningStore.getState();
         if (!store.chats.some((message) => message.id === job.assistantMessageId)) {
           store.addChatMessage({
             id: job.assistantMessageId,
@@ -64,7 +72,7 @@ export function useReaderConversationJobs({
             role: 'assistant',
             content: job.content,
             dialogueContent: job.dialogueContent,
-            createdAt: job.createdAt,
+            createdAt: job.assistantCreatedAt ?? job.createdAt,
           });
         }
         setStreamingAssistant(null);
@@ -83,7 +91,7 @@ export function useReaderConversationJobs({
         role: 'assistant',
         content: job.dialogueContent?.length ? job.dialogueContent : job.content,
         status: 'failed',
-        createdAt: job.createdAt,
+        createdAt: job.assistantCreatedAt ?? job.createdAt,
       });
       setStatus('error');
       setStatusMessage(job.error || '模型请求失败');

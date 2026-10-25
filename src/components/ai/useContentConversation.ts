@@ -194,7 +194,6 @@ export function useContentConversation({
       status: 'completed',
       createdAt: userMessage.createdAt,
     });
-    addChatMessage(userMessage);
     setQuote(null);
     if (!selectedConfig || !model) return;
     setStreamingAssistant({
@@ -207,32 +206,33 @@ export function useContentConversation({
     setStatus('generating');
     setStatusMessage('');
     try {
-      await waitForServerStateWrites();
-      applyJob(
-        await aiApi.startJob({
-          configId: selectedConfig.id,
-          model,
-          reasoningEffort: requestReasoningEffort(reasoningEffort),
-          bookId: resourceId,
-          resourceType: resource.type,
-          ...(resource.type === 'rss'
-            ? { rssItemId: resource.item.id }
-            : { videoId: resource.video.id }),
-          purpose: 'chat',
-          conversationId,
-          userMessage: {
-            id: userMessageId,
-            content: question,
-            ...(quoteForMessage ? { quote: quoteForMessage } : {}),
-            createdAt,
-          },
-          session: {
-            title: currentSession?.title || makeConversationTitle(question),
-            createdAt: currentSession?.createdAt ?? createdAt,
-          },
-          currentText: '',
-        }),
-      );
+      await waitForServerStateWrites({ ignoreConversationDrafts: true });
+      const job = await aiApi.startJob({
+        configId: selectedConfig.id,
+        model,
+        reasoningEffort: requestReasoningEffort(reasoningEffort),
+        bookId: resourceId,
+        resourceType: resource.type,
+        ...(resource.type === 'rss'
+          ? { rssItemId: resource.item.id }
+          : { videoId: resource.video.id }),
+        purpose: 'chat',
+        conversationId,
+        userMessage: {
+          id: userMessageId,
+          content: question,
+          ...(quoteForMessage ? { quote: quoteForMessage } : {}),
+          createdAt,
+        },
+        session: {
+          title: currentSession?.title || makeConversationTitle(question),
+          createdAt: currentSession?.createdAt ?? createdAt,
+        },
+        currentText: '',
+      });
+      addChatMessage(job.userMessage ?? userMessage);
+      setOptimisticUserMessage(null);
+      applyJob(job);
     } catch (error) {
       setStreamingAssistant((message) => (message ? { ...message, status: 'failed' } : null));
       setStatus('error');

@@ -1,4 +1,9 @@
-import type { AiDialogueContentItem, AiReasoningEffort, ChatSession } from '../../../contracts/ai';
+import type {
+  AiDialogueContentItem,
+  AiReasoningEffort,
+  ChatMessage,
+  ChatSession,
+} from '../../../contracts/ai';
 
 type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
@@ -14,7 +19,9 @@ export interface AiJob {
   purpose?: 'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap';
   conversationId: string;
   userMessageId: string;
+  userMessage?: ChatMessage;
   assistantMessageId: string;
+  assistantCreatedAt?: number;
   status: AiJobStatus;
   revision: number;
   content: string;
@@ -27,7 +34,10 @@ export interface AiJob {
   completedAt?: number;
 }
 
-export type AiJobSummary = Omit<AiJob, 'content' | 'dialogueContent' | 'translationHtml'>;
+export type AiJobSummary = Omit<
+  AiJob,
+  'content' | 'dialogueContent' | 'translationHtml' | 'userMessage'
+>;
 
 export interface StartAiJobInput {
   configId: string;
