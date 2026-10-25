@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useLearningStore } from '../../../../store/useLearningStore';
 import type { BookItem, TocItem } from '../../../../../contracts/books';
+import type { MindMapSource } from '../../../../../contracts/reading';
 import { findChapterLabel, isReaderKeyboardEditingTarget } from '../components/ReaderSurface/model';
 import type { ReaderLocationUpdate, ReaderSurfaceHandle } from '../components/ReaderSurface/type';
 import { useDeferredBookLocation } from './useDeferredBookLocation';
@@ -22,10 +23,10 @@ export function useReaderNavigation(
   const bookId = book?.id;
   useEffect(() => {
     const current = latestBookRef.current;
+    setReturnCfi(null);
     if (!current) return;
     const chapter = current.toc.find((item) => item.label === current.currentChapter);
     setActiveHref(chapter?.href ?? current.toc[0]?.href);
-    setReturnCfi(null);
   }, [bookId, latestBookRef]);
   useReadingSession(book?.id, upsertReadingSession, recordPageChangeRef);
 
@@ -74,11 +75,30 @@ export function useReaderNavigation(
     [latestBookRef, queueLocationSave],
   );
   const selectToc = (item: TocItem, closeOverlay = true) => {
-    const cfi = latestBookRef.current?.currentCfi;
-    if (cfi) setReturnCfi((original) => original ?? cfi);
+    rememberProgress();
     setActiveHref(item.href);
     readerRef.current?.display(item.href, item.label);
     if (closeOverlay) closeToc();
+  };
+  // Capture the live location before a reference jump, even while its delayed
+  // persistence is pending. Keep the first location across several references.
+  const rememberProgress = () => {
+    if (!readerRef.current) return;
+    const cfi = latestBookRef.current?.currentCfi;
+    if (cfi) setReturnCfi((original) => original ?? cfi);
+  };
+  const jumpToCfi = (cfi: string) => {
+    rememberProgress();
+    readerRef.current?.display(cfi);
+  };
+  const locateSource = async (source: MindMapSource) => {
+    const reader = readerRef.current;
+    if (!reader?.locateSource) throw new Error('阅读器尚未就绪');
+    const cfi = latestBookRef.current?.currentCfi;
+    // A failed lookup must not create a return entry. Capture before awaiting,
+    // since the successful navigation changes the current CFI.
+    await reader.locateSource(source);
+    if (latestBookRef.current?.id === bookId && cfi) setReturnCfi((original) => original ?? cfi);
   };
   const returnToProgress = returnCfi
     ? () => {
@@ -91,5 +111,13 @@ export function useReaderNavigation(
     () => (book ? (findChapterLabel(book.toc, activeHref) ?? book.currentChapter) : ''),
     [activeHref, book],
   );
-  return { activeHref, currentChapter, handleLocationChange, selectToc, returnToProgress };
+  return {
+    activeHref,
+    currentChapter,
+    handleLocationChange,
+    selectToc,
+    jumpToCfi,
+    locateSource,
+    returnToProgress,
+  };
 }

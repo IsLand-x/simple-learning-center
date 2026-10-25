@@ -35,6 +35,7 @@ export function ReaderPageContent() {
     book,
     readerRef,
     currentChapter: navigation.currentChapter,
+    onJumpToCfi: navigation.jumpToCfi,
     onShowHighlights: layout.revealHighlights,
     onShowGlossary: () => layout.changePanel('glossary'),
     onOpenAssistant: () => changeActivePanel('ai'),
@@ -97,6 +98,7 @@ export function ReaderPageContent() {
         onChangePanel={conversations.openActivityPanel}
         onClearSelectedText={() => conversations.setPanelQuote(null)}
         onJumpHighlight={annotations.jumpToHighlight}
+        onLocateSource={navigation.locateSource}
         onResumeConversation={conversations.resumeConversation}
         onSelectToc={navigation.selectToc}
         onReturnToProgress={navigation.returnToProgress}
@@ -160,6 +162,7 @@ export function ReaderPageContent() {
           onClearSelectedText={() => conversations.setPanelQuote(null)}
           onCloseToc={() => layout.setCompactTocOpen(false)}
           onJumpHighlight={annotations.jumpToHighlight}
+          onLocateSource={navigation.locateSource}
           onNext={() => readerRef.current?.next()}
           onPrev={() => readerRef.current?.prev()}
           onResumeConversation={conversations.resumeConversation}

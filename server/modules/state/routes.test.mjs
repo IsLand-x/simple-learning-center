@@ -105,3 +105,98 @@ test('状态分区压缩保持内容、鉴权与重验证语义，更新后不�
   });
   assert.equal((await remote.request(url, { headers: { 'Accept-Encoding': 'gzip' } })).status, 401);
 });
+
+test('书架及进度分区保存不访问其他正文资源，也不会丢失未知状态或服务器删除记录', async () => {
+  const note = {
+    id: 'isolated-note',
+    bookId: 'isolated-book',
+    updatedAt: 1,
+    contentFile: 'notes/isolated-book/note.md',
+  };
+  const untouched = {
+    notes: [note],
+    rssItems: [{ id: 'large-item', fullContentText: '无关正文'.repeat(10000) }],
+    extension: { nested: ['保留'] },
+  };
+  await atomicWrite(join(directory, note.contentFile), '用户直接编辑的 Markdown');
+  await atomicWrite(
+    join(directory, 'state.json'),
+    JSON.stringify({
+      formatVersion: 1,
+      persistedState: {
+        version: 40,
+        deletedConversationIds: ['removed-session'],
+        state: { ...untouched, books: [{ id: 'isolated-book', title: '原书名', updatedAt: 1 }] },
+      },
+    }),
+  );
+  const app = createApp({ mode: 'local', serveFrontend: false });
+  for (const [domain, state] of [
+    ['library', { books: [{ id: 'isolated-book', title: '新书名', updatedAt: 2 }], notes: [] }],
+    ['reading', { readingSessions: [{ id: 'reading', bookId: 'isolated-book' }], notes: [] }],
+    [
+      'highlights',
+      {
+        highlights: [{ id: 'highlight', bookId: 'isolated-book', createdAt: 2, updatedAt: 2 }],
+        notes: [],
+      },
+    ],
+  ]) {
+    assert.equal(
+      (
+        await app.request(`/api/state/${domain}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version: 40, state }),
+        })
+      ).status,
+      204,
+    );
+    const saved = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8')).persistedState;
+    for (const [key, value] of Object.entries(untouched)) assert.deepEqual(saved.state[key], value);
+    assert.deepEqual(saved.deletedConversationIds, ['removed-session']);
+    assert.equal(
+      await readFile(join(directory, note.contentFile), 'utf8'),
+      '用户直接编辑的 Markdown',
+    );
+  }
+  const saved = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8')).persistedState;
+  assert.equal(saved.state.books[0].title, '新书名');
+  assert.equal(saved.state.readingSessions[0].id, 'reading');
+  assert.equal(saved.state.highlights[0].id, 'highlight');
+});
+
+test('书架读取不被未完成的后台写入阻塞，写入提交后立即读取新版本', async () => {
+  await writePersistedState({
+    version: 40,
+    state: { books: [{ id: 'read-committed', title: '已提交', updatedAt: 1 }], notes: [] },
+  });
+  const app = createApp({ mode: 'local', serveFrontend: false });
+  const ready = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  const writing = mutatePersistedState(
+    async (snapshot) => {
+      snapshot.state.books[0].title = '新提交';
+      ready.resolve();
+      await release.promise;
+    },
+    { preserveResourceFiles: true },
+  );
+  await ready.promise;
+  try {
+    const response = await Promise.race([
+      app.request('/api/state/library'),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('读取被写队列阻塞')), 1000).unref(),
+      ),
+    ]);
+    assert.equal((await response.json()).state.books[0].title, '已提交');
+  } finally {
+    release.resolve();
+    await writing;
+  }
+  assert.equal(
+    (await (await app.request('/api/state/library')).json()).state.books[0].title,
+    '新提交',
+  );
+});

@@ -130,12 +130,9 @@ export function MindMapCanvas({
           panOnScroll
           disableKeyboardA11y
           aria-label="章节观点关系"
-          attributionPosition="bottom-right"
+          proOptions={{ hideAttribution: true }}
         />
       </div>
-      <p className="shrink-0 px-3 pt-2 text-[12px] [color:var(--semi-color-text-2)]">
-        点击观点查看原文 · 拖动或双指缩放
-      </p>
     </div>
   );
 }

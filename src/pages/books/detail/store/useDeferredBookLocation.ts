@@ -13,7 +13,9 @@ export function useDeferredBookLocation(book: BookItem | undefined, updateBook: 
   const locationSaveIdleRef = useRef<number | null>(null);
 
   useEffect(() => {
-    latestBookRef.current = book;
+    const pending = pendingLocationSaveRef.current;
+    latestBookRef.current =
+      book && pending?.bookId === book.id ? { ...book, ...pending.changes } : book;
   }, [book]);
 
   const commitPendingLocation = useCallback(() => {

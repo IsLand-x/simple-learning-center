@@ -156,6 +156,10 @@ for (const theme of ['light', 'dark']) {
       const node = panel.getByRole('button', { name: '通过回顾与原文核对建立理解', exact: true });
       await expect(node).toBeVisible({ timeout: 30_000 });
       expect(requests).toBeGreaterThan(before);
+      await expect(panel.locator('.react-flow__attribution')).toHaveCount(0);
+      await expect(
+        panel.getByText('点击观点查看原文 · 拖动或双指缩放', { exact: true }),
+      ).toHaveCount(0);
       await expect(page.locator('body')).toHaveAttribute('theme-mode', theme);
       await panel
         .getByRole('button', { name: /^收起“.*”的子节点$/ })
@@ -259,6 +263,9 @@ for (const theme of ['light', 'dark']) {
         (map) => map.bookId === book.id,
       )!;
       expect(saved.nodes[1].sources[0].cfi).toMatch(/^epubcfi\(/);
+      const originalCfi = await page
+        .locator('foliate-view')
+        .evaluate((element) => (element as View).lastLocation!.cfi);
       await node.click();
       if (mobile) await expect(panel).toBeHidden();
       else await expect(panel.getByRole('alert')).toHaveCount(0);
@@ -282,6 +289,37 @@ for (const theme of ['light', 'dark']) {
         await panel.getByRole('button', { name: '查看原文 2', exact: true }).click();
         await expect(panel).toBeHidden();
       }
+      // Opening the TOC may change the desktop page width. Return must still
+      // target the exact location captured before the first source jump.
+      if (!mobile) await page.getByRole('button', { name: '收起思维导图', exact: true }).click();
+      await page
+        .getByRole('button', { name: mobile ? '打开书籍目录' : '展开书籍目录', exact: true })
+        .click();
+      const toc = page.locator('.toc-panel').filter({ visible: true });
+      await toc.getByRole('button', { name: '回到原进度', exact: true }).click();
+      await expect
+        .poll(() =>
+          page.locator('foliate-view').evaluate((element, cfi) => {
+            const view = element as View;
+            const target = view.resolveNavigation(cfi);
+            const content = view.renderer
+              .getContents()
+              .find((item) => item.index === target?.index);
+            if (!content || typeof target?.anchor !== 'function') return false;
+            const anchor = target.anchor(content.doc);
+            if (!anchor || typeof anchor === 'number' || !('startContainer' in anchor))
+              return false;
+            // Pagination can change the visible range end after a panel resizes.
+            // The captured reading anchor must be inside the restored page.
+            return (
+              view.lastLocation?.range?.comparePoint(anchor.startContainer, anchor.startOffset) ===
+              0
+            );
+          }, originalCfi),
+        )
+        .toBe(true);
+      const collapseToc = page.getByRole('button', { name: '收起书籍目录', exact: true });
+      if (!mobile && (await collapseToc.isVisible())) await collapseToc.click();
       const completedRequests = requests;
       const changedStyle = await (await page.request.get('/api/state/preferences')).json();
       changedStyle.state.readerPreferences = {

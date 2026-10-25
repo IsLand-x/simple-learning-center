@@ -1,9 +1,11 @@
+import { collectServerTiming } from '../infrastructure/http/timing.js';
 import type { ServerApp } from './router.js';
 import { isVersionedAssetPath } from './staticAsset.js';
 
 export function registerApiHeaders(app: ServerApp) {
   app.use('/api/*', async (c, next) => {
-    await next();
+    const timing = await collectServerTiming(next);
+    c.header('Server-Timing', timing);
     if (!c.res.headers.has('Cache-Control')) c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
   });

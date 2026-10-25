@@ -18,6 +18,7 @@ type ReaderAnnotationsOptions = {
   onOpenAssistant: () => void;
   setPanelQuote: (quote: NonNullable<ChatMessage['quote']>) => void;
   onTermAdded?: (term: HighlightItem) => void;
+  onJumpToCfi: (cfi: string) => void;
 };
 
 // Kept at the reader content lifetime so switching side panels preserves a draft.
@@ -30,6 +31,7 @@ export function useReaderAnnotations({
   onOpenAssistant,
   setPanelQuote,
   onTermAdded,
+  onJumpToCfi,
 }: ReaderAnnotationsOptions) {
   const bookId = book?.id;
   const allHighlights = useLearningStore((state) => state.highlights);
@@ -268,7 +270,7 @@ export function useReaderAnnotations({
   };
 
   const jumpToHighlight = (highlight: HighlightItem) => {
-    readerRef.current?.display(highlight.cfi);
+    onJumpToCfi(highlight.cfi);
   };
   function dismissActions() {
     setActiveHighlightTarget(null);

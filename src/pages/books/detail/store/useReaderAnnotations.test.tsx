@@ -64,6 +64,7 @@ describe('reader annotation state ownership', () => {
       onOpenAssistant,
       setPanelQuote,
       onTermAdded,
+      onJumpToCfi: readerRef.current.display,
     });
     return null;
   }

@@ -5,7 +5,11 @@ import type { MindMapPanelSelection } from './MindMapPanel/type';
 import { ReaderStylePanel } from '../../../../components/reading/ReaderStylePanel';
 import type { BookItem, TocItem } from '../../../../../contracts/books';
 import type { ChatMessage, ChatSession } from '../../../../../contracts/ai';
-import type { HighlightItem, ReaderPreferences } from '../../../../../contracts/reading';
+import type {
+  HighlightItem,
+  MindMapSource,
+  ReaderPreferences,
+} from '../../../../../contracts/reading';
 import type { GlossaryExplanationState } from './GlossaryPanel/useGlossaryExplanation';
 import { ReaderRightPanel } from './ReaderPanel/ReaderRightPanel';
 import type { MobileReaderPanel } from './ReaderPanel/model';
@@ -31,6 +35,7 @@ interface ReaderMobileChromeProps {
   onClearSelectedText: () => void;
   onCloseToc: () => void;
   onJumpHighlight: (highlight: HighlightItem) => void;
+  onLocateSource: (source: MindMapSource) => Promise<void>;
   onNext: () => void;
   onPrev: () => void;
   onResumeConversation: (session: ChatSession) => void;
@@ -57,6 +62,7 @@ export function ReaderMobileChrome({
   onClearSelectedText,
   onCloseToc,
   onJumpHighlight,
+  onLocateSource,
   onNext,
   onPrev,
   onResumeConversation,
@@ -159,8 +165,7 @@ export function ReaderMobileChrome({
                 mindMapSelection={mindMapSelection}
                 onMindMapSelectionChange={setMindMapSelection}
                 onLocateSource={async (source) => {
-                  if (!readerRef.current?.locateSource) throw new Error('阅读器尚未就绪');
-                  await readerRef.current.locateSource(source);
+                  await onLocateSource(source);
                   onChangePanel(null);
                 }}
                 activePanel={activePanel}
@@ -173,7 +178,7 @@ export function ReaderMobileChrome({
                 onResumeConversation={onResumeConversation}
                 onJumpHighlight={(highlight) => {
                   onJumpHighlight(highlight);
-                  if (activePanel === 'glossary') onChangePanel(null);
+                  onChangePanel(null);
                 }}
                 focusedHighlightId={focusedHighlightId}
                 glossaryAi={glossaryAi}

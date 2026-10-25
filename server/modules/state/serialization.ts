@@ -103,13 +103,19 @@ async function listMarkdownFiles(directory: string): Promise<string[]> {
   return nested.flat();
 }
 
-export async function prepareStateForDisk(persistedState: PersistedState) {
+export async function prepareStateForDisk(
+  persistedState: PersistedState,
+  fields?: readonly (keyof StoredState)[],
+) {
   if (!persistedState || typeof persistedState !== 'object' || !persistedState.state) {
     throw statusError(400, '状态数据格式不正确');
   }
   const diskState = structuredClone(persistedState);
   await externalizeStateCovers(diskState);
   stripStoredCoverUrls(diskState);
+  // Only a complete notes partition may reconcile Markdown files. A library or
+  // progress update must never scan, rewrite or delete unrelated note bodies.
+  if (fields && !fields.includes('notes')) return diskState;
   const notes = persistedStateNotes(diskState);
   const expectedNoteFiles = new Set();
   const storedNotes = [];

@@ -64,6 +64,9 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
         : await readPersistedState({
             fields: stateDomainFields(domain),
             hydrateNote: () => domain === 'notes',
+            // Notes use separate mutable Markdown files; keep their reads behind
+            // the writer. Metadata partitions can read the last atomic commit.
+            waitForWrites: domain === 'notes',
           });
     const serialized =
       domain === 'conversations'
@@ -97,10 +100,18 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
           mergeClientNoteDrafts(mergedState, currentState, snapshot.notesBase);
         return protectClientState(aiJobs.protectPersistedState, mergedState, currentState);
       },
-      { preserveResourceFiles: domain === 'preferences' },
+      domain === 'rss' || domain === 'videos'
+        ? {} // Resource deletion also cleans conversations in these domains.
+        : {
+            fields: stateDomainFields(domain),
+            readFields: [...stateDomainFields(domain), ...stateDomainFields('library')],
+          },
     );
     if (domain === 'notes' && snapshot.notesBase !== undefined) {
-      const serialized = serializeStateDomainSnapshot(await readPersistedState(), domain)!;
+      const serialized = serializeStateDomainSnapshot(
+        await readPersistedState({ fields: stateDomainFields('notes') }),
+        domain,
+      )!;
       c.header('ETag', serialized.etag);
       return c.body(serialized.body, 200, { 'Content-Type': 'application/json; charset=utf-8' });
     }

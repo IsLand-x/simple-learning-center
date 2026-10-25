@@ -9,15 +9,18 @@ type Serialized = Pick<
 const snapshots = new WeakMap<StoredState, { version: number; serialized: Serialized }>();
 
 export function readSerializedConversations() {
-  return readStateProjection((state, version) => {
-    const cached = snapshots.get(state);
-    if (cached?.version === version) return cached.serialized;
-    const snapshot =
-      !version && !Object.keys(state).length
-        ? null
-        : serializeStateDomainSnapshot({ state, version }, 'conversations');
-    const serialized = snapshot ? { body: snapshot.body, etag: snapshot.etag } : null;
-    snapshots.set(state, { version, serialized });
-    return serialized;
-  });
+  return readStateProjection(
+    (state, version) => {
+      const cached = snapshots.get(state);
+      if (cached?.version === version) return cached.serialized;
+      const snapshot =
+        !version && !Object.keys(state).length
+          ? null
+          : serializeStateDomainSnapshot({ state, version }, 'conversations');
+      const serialized = snapshot ? { body: snapshot.body, etag: snapshot.etag } : null;
+      snapshots.set(state, { version, serialized });
+      return serialized;
+    },
+    { waitForWrites: false },
+  );
 }

@@ -2,7 +2,11 @@ import { Allotment } from 'allotment';
 import type { ReactNode, RefObject } from 'react';
 import type { BookItem, TocItem } from '../../../../../contracts/books';
 import type { ChatMessage, ChatSession } from '../../../../../contracts/ai';
-import type { HighlightItem, ReaderPreferences } from '../../../../../contracts/reading';
+import type {
+  HighlightItem,
+  MindMapSource,
+  ReaderPreferences,
+} from '../../../../../contracts/reading';
 import type { RightPanel } from '../../../../types/reader';
 import { clamp } from '../../../../util/format';
 import type { GlossaryExplanationState } from './GlossaryPanel/useGlossaryExplanation';
@@ -28,6 +32,7 @@ interface ReaderWorkspaceProps {
   onChangePanel: (panel: RightPanel) => void;
   onClearSelectedText: () => void;
   onJumpHighlight: (highlight: HighlightItem) => void;
+  onLocateSource: (source: MindMapSource) => Promise<void>;
   onResumeConversation: (session: ChatSession) => void;
   onSelectToc: (item: TocItem, closeOverlay: boolean) => void;
   onReturnToProgress?: () => void;
@@ -53,6 +58,7 @@ export function ReaderWorkspace({
   onChangePanel,
   onClearSelectedText,
   onJumpHighlight,
+  onLocateSource,
   onResumeConversation,
   onSelectToc,
   onReturnToProgress,
@@ -133,10 +139,7 @@ export function ReaderWorkspace({
                   <ReaderRightPanel
                     book={book}
                     activeHref={activeHref}
-                    onLocateSource={(source) =>
-                      readerRef.current?.locateSource?.(source) ??
-                      Promise.reject(new Error('阅读器尚未就绪'))
-                    }
+                    onLocateSource={onLocateSource}
                     activePanel={activePanel}
                     conversationId={conversationId}
                     selectedQuote={panelQuote ?? undefined}
