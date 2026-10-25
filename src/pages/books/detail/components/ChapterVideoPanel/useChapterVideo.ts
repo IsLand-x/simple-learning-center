@@ -12,23 +12,26 @@ import { coerceAiReasoningEffort } from '../../../../../util/ai/aiReasoning';
 import { createUuid } from '../../../../../util/uuid';
 import { getBookPassages } from '../AssistantPanel/bookSearch';
 import { useReaderAiJobs } from '../AssistantPanel/useReaderAiActivity';
+import { useChapterVideoJobs } from './useChapterVideoJobs';
 
 async function syncVideos() {
   await refreshServerState(['reading']);
   await useLearningStore.persist.rehydrate();
 }
 
-export function useChapterVideo(book: BookItem, chapterId: string | undefined) {
+export function useChapterVideo(
+  book: BookItem,
+  chapterId: string | undefined,
+  restoreScope: (chapterId: string | undefined) => void,
+) {
   const configs = useLearningStore((state) => state.openAIConfigs);
   const preferences = useLearningStore((state) => state.aiPreferences);
   const setPreferences = useLearningStore((state) => state.setAiPreferences);
   const videos = useLearningStore((state) => state.chapterVideos);
-  const { jobs, reportJob } = useReaderAiJobs();
+  const { reportJob } = useReaderAiJobs();
+  const { jobs, loading, error: jobsError, refresh: refreshJobs } = useChapterVideoJobs(book.id);
   const job = jobs
-    .filter(
-      (item) =>
-        item.purpose === 'chapter-video' && item.bookId === book.id && item.chapterId === chapterId,
-    )
+    .filter((item) => item.bookId === book.id && item.chapterId === chapterId)
     .sort((left, right) => right.createdAt - left.createdAt)[0];
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -38,6 +41,7 @@ export function useChapterVideo(book: BookItem, chapterId: string | undefined) {
   const preparation = useRef<AbortController>();
   const starting = useRef(false);
   const synced = useRef(new Set<string>());
+  const restoredScope = useRef(false);
   const latestBook = useRef(book);
   latestBook.current = book;
   const config = configs.find((item) => preferences.provider === `api:${item.id}`);
@@ -45,17 +49,16 @@ export function useChapterVideo(book: BookItem, chapterId: string | undefined) {
   const busy = pending || job?.status === 'queued' || job?.status === 'running';
 
   useEffect(() => {
+    if (loading || restoredScope.current) return;
+    restoredScope.current = true;
+    const running = jobs.find((task) => task.status === 'queued' || task.status === 'running');
+    if (running) restoreScope(running.chapterId);
+  }, [jobs, loading, restoreScope]);
+
+  useEffect(() => {
     let disposed = false;
     setStage('');
     if (!job) return;
-    if (job.status === 'queued' || job.status === 'running') {
-      void aiApi
-        .getJob(job.id)
-        .then((snapshot) => {
-          if (!disposed) setStage(snapshot.content);
-        })
-        .catch(() => undefined);
-    }
     if (job.status === 'completed' && !synced.current.has(job.id)) {
       void syncVideos()
         .then(() => {
@@ -75,10 +78,11 @@ export function useChapterVideo(book: BookItem, chapterId: string | undefined) {
 
   useEffect(() => {
     setError('');
+    setCancelled(false);
   }, [chapterId]);
 
   const generate = async (videoNarration?: ChapterVideoNarration) => {
-    if (starting.current || busy || deleting || !config || !model) return;
+    if (starting.current || loading || busy || deleting || !config || !model) return;
     starting.current = true;
     setPending(true);
     setError('');
@@ -110,6 +114,7 @@ export function useChapterVideo(book: BookItem, chapterId: string | undefined) {
         currentText: '',
       });
       reportJob(controller.signal.aborted ? await aiApi.cancelJob(started.id) : started);
+      await refreshJobs();
     } catch (cause) {
       if (!controller.signal.aborted)
         setError(cause instanceof Error ? cause.message : '无法生成章节视频');
@@ -119,15 +124,17 @@ export function useChapterVideo(book: BookItem, chapterId: string | undefined) {
       preparation.current = undefined;
     }
   };
-  const cancel = async () => {
-    if (pending) {
+  const cancel = async (jobId?: string) => {
+    if (pending && !jobId) {
       preparation.current?.abort();
       setCancelled(true);
       return;
     }
-    if (!job) return;
+    const targetId = jobId ?? job?.id;
+    if (!targetId) return;
     try {
-      reportJob(await aiApi.cancelJob(job.id));
+      reportJob(await aiApi.cancelJob(targetId));
+      await refreshJobs();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '取消失败，请重试');
     }
@@ -150,14 +157,17 @@ export function useChapterVideo(book: BookItem, chapterId: string | undefined) {
     preferences,
     model,
     busy,
+    loading,
+    pending,
+    jobs,
     deleting,
     stage,
     configured: Boolean(config && model),
     videos: videos
       .filter((video) => video.bookId === book.id)
       .sort((left, right) => right.generatedAt - left.generatedAt),
-    error: error || (job?.status === 'failed' ? job.error || '视频生成失败，请重试' : ''),
-    cancelled: cancelled || job?.status === 'cancelled',
+    error: error || jobsError,
+    cancelled,
     generate,
     cancel,
     remove,

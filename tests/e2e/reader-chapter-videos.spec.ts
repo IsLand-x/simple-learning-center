@@ -8,6 +8,8 @@ let modelServer: Server;
 let baseUrl: string;
 let requests = 0;
 let invalid = false;
+let modelGate: Promise<void> | undefined;
+let releaseModel: (() => void) | undefined;
 const quotes = new Map<string, string>();
 
 test.beforeAll(async () => {
@@ -20,6 +22,7 @@ test.beforeAll(async () => {
     };
     expect(body.tools ?? []).toHaveLength(0);
     requests++;
+    if (modelGate) await modelGate;
     const prompt = body.messages.filter((message) => message.role === 'user').at(-1)!.content;
     const entries = JSON.parse(prompt.slice(prompt.indexOf('['))) as Array<{
       passageId?: string;
@@ -75,6 +78,8 @@ test.beforeAll(async () => {
   baseUrl = `http://127.0.0.1:${address.port}/v1`;
 });
 test.afterAll(async () => {
+  modelGate = undefined;
+  releaseModel?.();
   await new Promise<void>((resolve) => modelServer.close(() => resolve()));
 });
 
@@ -142,6 +147,22 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   });
   expect(uploaded.status()).toBe(201);
   const { book } = (await uploaded.json()) as { book: BookItem };
+  // Some EPUBs repeat both chapter titles and publisher-supplied IDs.
+  // Preserve real navigation targets while exercising repeated titles here.
+  expect(book.toc.length).toBeGreaterThanOrEqual(2);
+  book.toc[0].label = '本章小结';
+  book.toc[1].label = '本章小结';
+  const library = await (await page.request.get('/api/state/library')).json();
+  library.state.books = library.state.books.map((entry: BookItem) =>
+    entry.id === book.id
+      ? {
+          ...entry,
+          toc: book.toc,
+          updatedAt: Date.now(),
+        }
+      : entry,
+  );
+  expect((await page.request.put('/api/state/library', { data: library })).status()).toBe(204);
   await page.goto(`/books/${book.id}`);
   await expect(page.locator('foliate-view')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
@@ -204,6 +225,26 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       await page.screenshot({ path: testInfo.outputPath(`chapter-video-${theme}-${width}.png`) });
       await panel.locator('#chapter-video-scope').click();
       await page.getByRole('option').filter({ hasText: '全书导读' }).click({ timeout: 5000 });
+      await panel.locator('#chapter-video-scope').click();
+      const summaries = page.getByRole('option').filter({ hasText: '本章小结（含小节）' });
+      await expect(summaries).toHaveCount(2);
+      await summaries.nth(1).click();
+      await panel.locator('#chapter-video-scope').click();
+      await expect(summaries.nth(1)).toHaveAttribute('aria-selected', 'true');
+      await expect(summaries.nth(0)).toHaveAttribute('aria-selected', 'false');
+      await page.getByRole('option').filter({ hasText: '全书导读' }).click();
+      if (width <= 800) {
+        expect(
+          await panel.locator('#chapter-video-scope').evaluate((element) => {
+            element.scrollTop = 12;
+            return {
+              scrollTop: element.scrollTop,
+              overflowY: getComputedStyle(element).overflowY,
+              maxHeight: getComputedStyle(element).maxHeight,
+            };
+          }),
+        ).toEqual({ scrollTop: 0, overflowY: 'visible', maxHeight: 'none' });
+      }
       const voice = panel.getByRole('checkbox', { name: '生成中文配音', exact: true });
       await panel.getByText('生成中文配音', { exact: true }).click();
       await expect(voice).toBeChecked();
@@ -220,16 +261,40 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       }
     }
   await page.goto('about:blank');
-  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.setViewportSize({ width: 375, height: 900 });
   await page.goto(`/books/${book.id}`);
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
-  await openPanel(page, false);
+  await openPanel(page, true);
   await panel.locator('#chapter-video-scope').click();
   await page
     .getByRole('option')
     .filter({ hasText: `${book.toc[0].label}（含小节）` })
+    .first()
     .click({ timeout: 5000 });
+  modelGate = new Promise<void>((resolve) => {
+    releaseModel = resolve;
+  });
   await panel.getByRole('button', { name: '生成视频', exact: true }).click();
+  const tasks = panel.getByRole('region', { name: '视频生成任务', exact: true });
+  await expect(tasks).toContainText('正在提炼知识点', { timeout: 30_000 });
+  const progress = await (
+    await page.request.get(`/api/ai/jobs/chapter-videos?bookId=${book.id}`)
+  ).json();
+  const running = progress.jobs.find((job: { status: string }) => job.status === 'running');
+  expect(running.chapterId).toBe(book.toc[0].id);
+  await page.goBack();
+  await expect(panel).toBeHidden();
+  await openPanel(page, true);
+  await expect(tasks).toContainText('正在提炼知识点');
+  await expect(panel.locator('#chapter-video-scope')).toContainText('本章小结');
+  await page.reload();
+  await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
+  await openPanel(page, true);
+  await expect(tasks).toContainText('正在提炼知识点');
+  await expect(panel.locator('#chapter-video-scope')).toContainText('本章小结');
+  expect(requests).toBe(completedRequests + 1);
+  modelGate = undefined;
+  releaseModel?.();
   await expect(player).toBeVisible({ timeout: 90_000 });
   await expect(panel.getByLabel('已生成的视频')).toContainText('已生成（2）');
   const savedId = await player.getAttribute('src');

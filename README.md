@@ -145,9 +145,11 @@ npm run verify:full  # 再在固定 Docker 环境执行真实浏览器与视觉�
 - 阅读器右侧“章节视频”（手机在“更多功能”中）默认展示全书导读。可以选择全书或某个大章（含下属小节），点击“生成视频”后才发送所选正文给当前 AI 模型；打开书籍和面板不会自动生成或播放。
 - 以老师上课的方式编排问题引入、核心知识点、例子与小结，用概念关系、流程、对比和逐步揭示的板书制作 720p MP4，并嵌入中文字幕。通常面向 2–4 分钟的简明讲解，实际长度由内容与语速决定；支持全屏播放、知识点时间戳跳转和查看原文。每个范围保存最近一次成功视频，已有其他章节视频可直接切换观看。
 - 默认生成无需额外服务的字幕版。勾选“生成中文配音”后，选择已配置 API Key 的供应商并填写它支持的语音模型和音色；讲稿仅发送给所选供应商的兼容 `/audio/speech` 接口，使用 [OpenAI 语音接口协议](https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create)。登录授权的聊天模型不等于语音权限，配音调用失败会明确提示，不会静默改用其他服务。音轨为 AI 合成语音。
+- 中文配音可直接使用[硅基流动 CosyVoice](https://docs.siliconflow.cn/docs/userguide/capabilities/text-to-speech)：本人登录[密钥控制台](https://cloud.siliconflow.cn/account/ak)创建 API Key，在设置中添加供应商，Base URL 填 `https://api.siliconflow.cn/v1`。在视频面板选择该供应商会自动填入模型 `FunAudioLLM/CosyVoice2-0.5B` 与音色 `FunAudioLLM/CosyVoice2-0.5B:alex`；仍可修改为厂商支持的其他模型与音色。未知端点需手动填写，不把聊天模型当作语音模型。服务权限与用量费用以厂商控制台为准。
 - 参考 [Remotion Agent Skills](https://www.remotion.dev/docs/ai/skills) 的分镜与时间线思路，当前使用本地 SVG/resvg 图解与 FFmpeg 合成，不执行模型生成的代码，也不依赖 Codex/Claude CLI 或外部视频托管。生产容器内置 FFmpeg 与 Noto CJK 字体；原生运行需要自行安装 `ffmpeg`、`ffprobe` 和中文字体。
 - 长章与全书会分段提炼后合并，每个分镜保留可核验的原文出处；最多处理 64 批、每批约 1.2 万字，过长时会要求选择较小章节，不会静默截断正文。每个视频最长 8 分钟，同一范围禁止重复任务，同时最多两个任务，本地渲染串行执行。
-- 生成在服务端继续运行，关闭网页后可回到面板查看进度；服务或容器重启会中断未完成任务，需要手动重试。失败或取消保留旧视频，成功后替换；可单独删除视频，书籍移入回收站时保留，彻底删除时同步清理。
+- 生成任务的范围、当前阶段、状态、时间与错误独立保存于 `data/chapter-videos/<bookId>/jobs.json`，保留所有进行中任务和最近 100 条结束记录。面板显示所有进行中任务及最近 5 条结束记录，关闭弹层、切换功能、刷新或离开书籍后重新进入可恢复进度，并优先回到正在生成的章节；可以查看范围和取消任务。服务或容器重启会中断未完成任务，记录保留并明确提示手动重试。失败或取消保留旧视频，成功后替换；可单独删除视频，书籍移入回收站时保留，彻底删除时同步清理媒体与任务记录。
+- 章节下拉按稳定 TOC 标识选取，同名章节可独立选择；移动端选择框保持原生尺寸与触控范围，控件内部不产生滚动条。
 
 ### 阅读轨迹与 PWA
 
@@ -176,7 +178,7 @@ data/
 ├── books/                      # EPUB 原文件
 ├── covers/<bookId>/            # 从 EPUB 提取、由书架按需加载的封面图片
 ├── notes/<bookId>/<noteId>.md  # Markdown 笔记正文
-├── chapter-videos/<bookId>/    # 私有讲解 MP4 与封面；分镜元数据保存在 state.json 的 reading 分区
+├── chapter-videos/<bookId>/    # 私有 MP4、封面及 jobs.json 任务记录；分镜元数据在 reading 分区
 └── search-indexes/             # 按需生成的书内搜索索引
 ```
 

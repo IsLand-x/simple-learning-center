@@ -1,5 +1,5 @@
 import './chapterVideo.css';
-import { Button, Empty, Select, Spin, Typography } from '@douyinfe/semi-ui';
+import { Button, Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { BookItem } from '../../../../../../contracts/books';
@@ -7,8 +7,10 @@ import type { ChapterVideoNarration, MindMapSource } from '../../../../../../con
 import { AiModelSelector } from '../../../../../components/ai/AiModelSelector';
 import { confirmDialog } from '../../../../../util/confirmDialog';
 import { chapterEntries } from '../AssistantPanel/chapterIndex';
+import { ChapterSelect } from '../ChapterSelect';
 import { ChapterVideoNarrationForm } from './ChapterVideoNarrationForm';
 import { ChapterVideoPlayer } from './ChapterVideoPlayer';
+import { ChapterVideoTasks } from './ChapterVideoTasks';
 import { videoTime } from './model';
 import { useChapterVideo } from './useChapterVideo';
 
@@ -22,7 +24,7 @@ export function ChapterVideoPanel({
   const [chapterId, setChapterId] = useState<string>();
   const [narration, setNarration] = useState<ChapterVideoNarration>();
   const chapters = useMemo(() => chapterEntries(book.toc), [book.toc]);
-  const ai = useChapterVideo(book, chapterId);
+  const ai = useChapterVideo(book, chapterId, setChapterId);
   const video = ai.videos.find((item) => item.chapterId === chapterId);
   const narrationReady =
     !narration || Boolean(narration.configId && narration.model.trim() && narration.voice.trim());
@@ -59,24 +61,16 @@ export function ChapterVideoPanel({
         >
           讲解范围
         </label>
-        <Select
+        <ChapterSelect
           id="chapter-video-scope"
-          aria-label="选择视频讲解范围"
-          aria-labelledby="chapter-video-scope-label"
+          label="选择视频讲解范围"
+          labelledBy="chapter-video-scope-label"
           className="chapter-video-select w-full min-w-0"
-          value={chapterId === undefined ? 'book' : `chapter:${chapterId}`}
-          disabled={ai.busy || ai.deleting}
-          optionList={[
-            { value: 'book', label: '全书导读' },
-            ...chapters.map((chapter) => ({
-              value: `chapter:${chapter.id}`,
-              label: `${'　'.repeat(chapter.path.length - 1)}${chapter.label}（含小节）`,
-            })),
-          ]}
-          onChange={(value) => {
-            if (typeof value === 'string')
-              setChapterId(value === 'book' ? undefined : value.slice('chapter:'.length));
-          }}
+          chapters={chapters}
+          includeBook
+          value={chapterId}
+          disabled={ai.loading || ai.pending || ai.deleting}
+          onChange={setChapterId}
         />
         <p className="text-[12px] leading-normal [color:var(--semi-color-text-2)]">
           用图解、例子和小结，像老师上课一样讲清重点。仅在点击生成后处理正文。
@@ -99,7 +93,7 @@ export function ChapterVideoPanel({
             size="small"
             theme="solid"
             loading={ai.busy}
-            disabled={!ai.configured || !narrationReady || ai.deleting}
+            disabled={ai.loading || !ai.configured || !narrationReady || ai.deleting}
             onClick={generate}
           >
             {video ? '重新生成' : '生成视频'}
@@ -116,7 +110,8 @@ export function ChapterVideoPanel({
           {ai.error}
         </p>
       )}
-      {ai.busy && (
+      <ChapterVideoTasks jobs={ai.jobs} onSelect={setChapterId} onCancel={ai.cancel} />
+      {ai.pending && (
         <div role="status" className="p-3 text-[12px] [color:var(--semi-color-text-1)]">
           <div className="chapter-video-actions flex items-center justify-between gap-4">
             <span className="flex min-w-0 items-center gap-2">
@@ -132,9 +127,6 @@ export function ChapterVideoPanel({
               取消生成
             </Button>
           </div>
-          <p className="mt-2 leading-normal [color:var(--semi-color-text-2)]">
-            关闭页面后继续生成；应用服务重启可能中断任务。长章节或全书需要多次模型请求。
-          </p>
         </div>
       )}
       {ai.cancelled && !ai.busy && (

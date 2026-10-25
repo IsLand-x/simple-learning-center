@@ -4,11 +4,17 @@ import { streamSSE } from 'hono/streaming';
 import { MAX_AI_JOB_REQUEST_BYTES } from '../../config.js';
 import { readJsonRequest } from '../../http/body.js';
 import { methodNotAllowed } from '../../http/responses.js';
+import { requiredString } from './jobs/model.js';
 
 const AI_STREAM_UPDATE_INTERVAL_MS = 32;
 
 export function createAiRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
   const app = createRouter();
+  app.get('/chapter-videos', async (c) =>
+    c.json({
+      jobs: await aiJobs.listVideoJobs(requiredString(c.req.query('bookId'), '书籍', 200)),
+    }),
+  );
   app.post('/', async (c) => {
     const payload = await readJsonRequest(c.req.raw, MAX_AI_JOB_REQUEST_BYTES);
     return c.json(await aiJobs.start(payload), 202);

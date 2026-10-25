@@ -35,6 +35,7 @@ export interface AiJob {
   purpose: JobPurpose;
   termId?: string;
   chapterId?: string;
+  chapterTitle?: string;
   termUpdatedAt?: number;
   rssItemId?: string;
   videoId?: string;

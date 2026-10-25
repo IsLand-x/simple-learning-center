@@ -21,6 +21,21 @@ export type ReaderTheme =
   | 'plum'
   | 'custom';
 
+export interface ChapterVideoJob {
+  id: string;
+  bookId: string;
+  chapterId?: string;
+  chapterTitle: string;
+  model: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  revision: number;
+  content: string;
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}
+
 export type ReaderFont = 'system-serif' | 'source-serif' | 'sans' | 'kai' | 'bright' | 'pingfang';
 
 export type ReaderDensity = 'compact' | 'balanced' | 'relaxed';

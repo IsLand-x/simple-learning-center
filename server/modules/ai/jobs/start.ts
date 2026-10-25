@@ -23,9 +23,10 @@ interface StartDependencies {
   jobs: Map<string, AiJob>;
   pruneJobs: () => void;
   executeJob: (job: AiJob, context: AiChatContext) => Promise<void>;
+  persistJob: (job: AiJob) => Promise<void>;
 }
 
-export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependencies) {
+export function createJobStarter({ jobs, pruneJobs, executeJob, persistJob }: StartDependencies) {
   async function start(rawInput: unknown) {
     const input = rawInput as AiJobRequest | undefined;
     pruneJobs();
@@ -337,6 +338,12 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
       purpose,
       termId,
       chapterId,
+      chapterTitle:
+        purpose === 'chapter-video'
+          ? chapterId
+            ? findMindMapChapter(book!.toc, chapterId)?.label
+            : '全书导读'
+          : undefined,
       termUpdatedAt: term?.updatedAt ?? term?.createdAt,
       conversationId,
       userMessageId,
@@ -357,6 +364,12 @@ export function createJobStarter({ jobs, pruneJobs, executeJob }: StartDependenc
       finalResult: undefined,
     };
     jobs.set(job.id, job);
+    try {
+      await persistJob(job);
+    } catch (error) {
+      jobs.delete(job.id);
+      throw error;
+    }
     const context: AiChatContext = {
       config: structuredClone(config),
       model,

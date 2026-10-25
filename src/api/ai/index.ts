@@ -1,4 +1,5 @@
 import type {
+  ChapterVideoJobsResponse,
   DiscoverModelsRequest,
   DiscoverModelsResponse,
   AiJob,
@@ -13,6 +14,12 @@ import { apiTransport } from '../http/transport';
 
 export class AiApi {
   constructor(private readonly transport = apiTransport) {}
+
+  listChapterVideoJobs(bookId: string, signal?: AbortSignal): Promise<ChapterVideoJobsResponse> {
+    return this.transport.json(`/api/ai/jobs/chapter-videos?bookId=${encodeURIComponent(bookId)}`, {
+      signal,
+    });
+  }
 
   discoverModels(
     input: DiscoverModelsRequest,

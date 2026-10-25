@@ -4,7 +4,11 @@ import type {
   ChatMessage,
   ChatSession,
 } from '../../../contracts/ai';
-import type { ChapterVideoNarration } from '../../../contracts/reading';
+import type { ChapterVideoJob, ChapterVideoNarration } from '../../../contracts/reading';
+
+export interface ChapterVideoJobsResponse {
+  jobs: ChapterVideoJob[];
+}
 
 type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 

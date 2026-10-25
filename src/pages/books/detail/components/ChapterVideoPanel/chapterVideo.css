@@ -26,6 +26,8 @@
 
   .chapter-video-panel .chapter-video-select {
     position: relative;
+    max-height: none;
+    overflow: visible;
   }
 
   .chapter-video-panel .chapter-video-select::before {

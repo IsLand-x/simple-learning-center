@@ -8,12 +8,14 @@ import { createDigestStarter } from '../digest.js';
 import { createJobExecutor } from './execute.js';
 import { createJobStarter } from './start.js';
 import { publicJob, upsertDigestRun } from './model.js';
+import { createChapterVideoJobJournal } from '../chapterVideos/jobJournal.js';
 
 const JOB_RETENTION_MS = 24 * 60 * 60 * 1_000;
 const MAX_RETAINED_JOBS = 100;
 
 export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: AiChatRunner } = {}) {
   const jobs = new Map<string, AiJob>();
+  const videoJournal = createChapterVideoJobJournal();
   const subscribers = new Map<string, Set<(job: ReturnType<typeof publicJob>) => void>>();
 
   async function updateDigestRun(runId: string | undefined, changes: Partial<RssDigestRun>) {
@@ -34,7 +36,26 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
     });
   }
 
+  async function persistJob(job: AiJob) {
+    if (job.purpose !== 'chapter-video') return;
+    await videoJournal.record({
+      id: job.id,
+      bookId: job.bookId,
+      chapterId: job.chapterId,
+      chapterTitle: job.chapterTitle ?? '全书导读',
+      model: job.model,
+      status: job.status,
+      revision: job.revision,
+      content: job.content,
+      error: job.error?.slice(0, 4000),
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+      completedAt: job.completedAt,
+    });
+  }
+
   function publishJob(job: AiJob) {
+    void persistJob(job).catch(() => console.error('无法保存视频任务进度'));
     const listeners = subscribers.get(job.id);
     if (!listeners?.size) return;
     const snapshot = publicJob(job);
@@ -196,7 +217,16 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
   }
 
   const executeJob = createJobExecutor({ runChat, publishJob, pruneJobs, updateDigestRun });
-  const start = createJobStarter({ jobs, pruneJobs, executeJob });
+  const start = createJobStarter({ jobs, pruneJobs, executeJob, persistJob });
   const startDigest = createDigestStarter({ jobs, start });
-  return { start, startDigest, get, list, cancel, subscribe, protectPersistedState };
+  return {
+    start,
+    startDigest,
+    get,
+    list,
+    cancel,
+    subscribe,
+    protectPersistedState,
+    listVideoJobs: (bookId: string) => videoJournal.list(bookId),
+  };
 }

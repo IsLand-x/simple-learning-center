@@ -1,6 +1,7 @@
 import { Checkbox, Input, Select } from '@douyinfe/semi-ui';
 import type { OpenAICompatibleConfig } from '../../../../../../contracts/ai';
 import type { ChapterVideoNarration } from '../../../../../../contracts/reading';
+import { narrationDefaults } from './model';
 
 export function ChapterVideoNarrationForm({
   configs,
@@ -23,7 +24,7 @@ export function ChapterVideoNarrationForm({
           onChange={(event) =>
             onChange(
               event.target.checked
-                ? { configId: available[0].id, model: 'tts-1', voice: 'alloy' }
+                ? { configId: available[0].id, ...narrationDefaults(available[0].baseUrl) }
                 : undefined,
             )
           }
@@ -40,9 +41,14 @@ export function ChapterVideoNarrationForm({
               className="chapter-video-select w-full"
               value={value.configId}
               disabled={disabled}
-              optionList={available.map((config) => ({ value: config.id, label: config.name }))}
+              optionList={available.map((config) => ({
+                key: config.id,
+                value: config.id,
+                label: <span>{config.name}</span>,
+              }))}
               onChange={(configId) => {
-                if (typeof configId === 'string') onChange({ ...value, configId });
+                const config = available.find((entry) => entry.id === configId);
+                if (config) onChange({ configId: config.id, ...narrationDefaults(config.baseUrl) });
               }}
             />
           </label>
@@ -53,7 +59,7 @@ export function ChapterVideoNarrationForm({
               value={value.model}
               disabled={disabled}
               maxLength={200}
-              placeholder="tts-1"
+              placeholder="厂商提供的 TTS 模型名称"
               onChange={(model) => onChange({ ...value, model })}
             />
           </label>
@@ -64,7 +70,7 @@ export function ChapterVideoNarrationForm({
               value={value.voice}
               disabled={disabled}
               maxLength={100}
-              placeholder="alloy"
+              placeholder="与语音模型匹配的音色 ID"
               onChange={(voice) => onChange({ ...value, voice })}
             />
           </label>
@@ -77,6 +83,18 @@ export function ChapterVideoNarrationForm({
           当前生成字幕版视频。{!available.length && '配音需先在设置中添加支持语音的 API 供应商。'}
         </p>
       )}
+      <p className="text-[12px] leading-normal [color:var(--semi-color-text-2)]">
+        中文配音可使用硅基流动 CosyVoice。
+        <a
+          href="https://cloud.siliconflow.cn/account/ak"
+          target="_blank"
+          rel="noreferrer"
+          className="[color:var(--semi-color-primary)]"
+        >
+          申请 API Key
+        </a>
+        后在设置中添加供应商；选择该供应商会自动填入模型和音色。
+      </p>
     </div>
   );
 }

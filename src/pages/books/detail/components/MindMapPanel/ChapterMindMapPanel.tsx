@@ -1,5 +1,5 @@
 import './mindMap.css';
-import { Button, Empty, Select, Spin, Typography } from '@douyinfe/semi-ui';
+import { Button, Empty, Spin, Typography } from '@douyinfe/semi-ui';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { BookItem } from '../../../../../../contracts/books';
@@ -7,6 +7,7 @@ import type { MindMapNode, MindMapSource } from '../../../../../../contracts/rea
 import { AiModelSelector } from '../../../../../components/ai/AiModelSelector';
 import { confirmDialog } from '../../../../../util/confirmDialog';
 import { chapterEntries, normalizeBookHref, sameBookFile } from '../AssistantPanel/chapterIndex';
+import { ChapterSelect } from '../ChapterSelect';
 import { MindMapCanvas } from './MindMapCanvas';
 import type { MindMapPanelSelection } from './type';
 import { useChapterMindMap } from './useChapterMindMap';
@@ -83,17 +84,14 @@ export function ChapterMindMapPanel({
         <label htmlFor="mindmap-chapter" className="text-[12px] [color:var(--semi-color-text-1)]">
           章节（包含下属小节）
         </label>
-        <Select
+        <ChapterSelect
           id="mindmap-chapter"
-          aria-label="选择思维导图章节"
+          label="选择思维导图章节"
+          chapters={chapters}
           value={chapterId}
           disabled={!chapters.length}
-          optionList={chapters.map((chapter) => ({
-            value: chapter.id,
-            label: `${'　'.repeat(chapter.path.length - 1)}${chapter.label}`,
-          }))}
           onChange={(value) => {
-            if (typeof value === 'string') {
+            if (value !== undefined) {
               setChapterId(value);
               onSelectionChange?.({ chapterId: value });
               setSelectedId(undefined);
