@@ -3,6 +3,9 @@
 .reader-prose {
   text-align: var(--reader-text-align, start);
   text-align-last: auto;
+  text-justify: auto;
+  text-autospace: normal;
+  text-spacing-trim: normal;
   overflow-wrap: break-word;
   word-break: normal;
   line-break: strict;
@@ -56,6 +59,7 @@
   margin-block: 0 var(--reader-paragraph-spacing) !important;
   font-size: var(--reader-font-size, 1em) !important;
   line-height: var(--reader-line-height) !important;
+  letter-spacing: var(--reader-letter-spacing) !important;
   text-indent: var(--reader-paragraph-indent, 0);
   hanging-punctuation: allow-end last;
   widows: 2;
@@ -156,6 +160,8 @@
 .reader-prose :is(pre, code, kbd, samp) * {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
   letter-spacing: 0 !important;
+  text-autospace: no-autospace;
+  text-spacing-trim: space-all;
   hyphens: none;
 }
 

@@ -1,6 +1,9 @@
 import { demoBooks } from '../util/fixtures/demo';
 import { DEFAULT_READER_AI_ASSISTANT_PROMPT } from '../util/ai/readerAiPrompts';
-import { DEFAULT_READER_CUSTOM_STYLE } from '../util/reading/readerThemes';
+import {
+  DEFAULT_READER_CUSTOM_STYLE,
+  READER_TYPOGRAPHY_PRESETS,
+} from '../util/reading/readerThemes';
 import type { AiPreferences } from '../../contracts/ai';
 import type { ReaderPreferences } from '../../contracts/reading';
 import type { RssDigestSettings } from '../../contracts/rss';
@@ -8,11 +11,8 @@ import type { WebSearchConfig } from '../../contracts/settings';
 import type { LearningState } from './learningState';
 
 export const defaultReaderPreferences: ReaderPreferences = {
-  fontSize: 20,
-  lineHeight: 1.8,
+  ...READER_TYPOGRAPHY_PRESETS[0].preferences,
   theme: 'paper',
-  fontFamily: 'source-serif',
-  paragraphStyle: 'book',
   customStyle: DEFAULT_READER_CUSTOM_STYLE,
   tocWidth: 272,
   panelWidth: 380,

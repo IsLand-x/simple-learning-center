@@ -85,6 +85,7 @@ describe('resolveReaderStyle', () => {
         density: { id: 'compact', lineHeight: 1.6 },
         paragraphSpacing: 0,
         paragraphIndent: '2em',
+        letterSpacing: 'normal',
         textAlign: 'justify',
         paperColor: preset.paperColor,
       });
@@ -106,6 +107,7 @@ describe('resolveReaderStyle', () => {
       fontSize: 22,
       paragraphSpacing: 1.25,
       paragraphIndent: '0',
+      letterSpacing: '0.005em',
       textAlign: 'start',
     });
   });

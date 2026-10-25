@@ -2,7 +2,11 @@ import { Button, InputNumber, Select } from '@douyinfe/semi-ui';
 import { useId } from 'react';
 import type { ReaderFont, ReaderPreferences } from '../../../contracts/reading';
 import { READER_FONT_OPTIONS } from '../../util/reading/readerFonts';
-import { READER_DENSITY_PRESETS, resolveReaderStyle } from '../../util/reading/readerThemes';
+import {
+  READER_DENSITY_PRESETS,
+  READER_TYPOGRAPHY_PRESETS,
+  resolveReaderStyle,
+} from '../../util/reading/readerThemes';
 import { FontPreview } from './FontPreview';
 
 export function ReaderTypographyControls({
@@ -14,39 +18,47 @@ export function ReaderTypographyControls({
 }) {
   const style = resolveReaderStyle(preferences);
   const labelId = useId();
+  const activePreset = READER_TYPOGRAPHY_PRESETS.find(
+    ({ preferences: preset }) =>
+      style.fontFamily === preset.fontFamily &&
+      style.fontSize === preset.fontSize &&
+      style.density.lineHeight === preset.lineHeight &&
+      style.paragraphStyle === preset.paragraphStyle,
+  );
   return (
     <section aria-label="正文排版" className="mb-4">
       <div className="reader-style-panel__heading justify-between mb-2">
         <strong>正文排版</strong>
         <span>切换纸张时保持不变</span>
       </div>
-      <div role="group" aria-label="正文排版预设" className="flex gap-3 py-1.5">
-        {[
-          { fontFamily: 'source-serif' as const, label: '纸书宋体' },
-          { fontFamily: 'sans' as const, label: '清晰黑体' },
-        ].map((preset) => {
-          const active = style.fontFamily === preset.fontFamily && style.paragraphStyle === 'book';
+      <div
+        role="group"
+        aria-label="正文排版预设"
+        aria-describedby={`${labelId}-preset-description`}
+        className="flex gap-3 py-1.5"
+      >
+        {READER_TYPOGRAPHY_PRESETS.map((preset) => {
+          const active = preset === activePreset;
           return (
             <Button
-              key={preset.fontFamily}
+              key={preset.id}
               aria-pressed={active}
               className="relative flex-1 after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-['']"
               theme={active ? 'solid' : 'light'}
               type={active ? 'primary' : 'tertiary'}
-              onClick={() =>
-                onChangePreferences({
-                  fontFamily: preset.fontFamily,
-                  fontSize: 20,
-                  lineHeight: 1.8,
-                  paragraphStyle: 'book',
-                })
-              }
+              onClick={() => onChangePreferences(preset.preferences)}
             >
               {preset.label}
             </Button>
           );
         })}
       </div>
+      <p
+        id={`${labelId}-preset-description`}
+        className="m-0 pt-1 text-xs [color:var(--semi-color-text-2)]"
+      >
+        {activePreset?.description ?? '可单独调整字体、字号和松紧程度，切换纸张时保留。'}
+      </p>
       <div className="reader-style-controls gap-2 mt-2">
         <label className="reader-style-control min-h-8 [grid-template-columns:72px_minmax(0,_1fr)] [color:var(--semi-color-text-1)]">
           <span id={`${labelId}-font`}>字体</span>

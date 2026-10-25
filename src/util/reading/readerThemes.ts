@@ -74,6 +74,47 @@ export const READER_DENSITY_PRESETS: ReaderDensityPreset[] = [
   },
 ];
 
+export const READER_TYPOGRAPHY_PRESETS = [
+  {
+    id: 'classic',
+    label: '经典出版',
+    description: '宋体自然字距、紧凑行距，接近纸质书的连续阅读节奏。',
+    preferences: {
+      fontFamily: 'source-serif',
+      fontSize: 20,
+      lineHeight: READER_DENSITY_PRESETS[0].lineHeight,
+      paragraphStyle: 'book',
+    },
+  },
+  {
+    id: 'literary',
+    label: '舒朗文学',
+    description: '宋体自然字距、适中行距，适合小说与散文。',
+    preferences: {
+      fontFamily: 'source-serif',
+      fontSize: 20,
+      lineHeight: READER_DENSITY_PRESETS[1].lineHeight,
+      paragraphStyle: 'book',
+    },
+  },
+  {
+    id: 'modern',
+    label: '现代社科',
+    description: '黑体自然字距、适中行距，适合知识与技术类内容。',
+    preferences: {
+      fontFamily: 'sans',
+      fontSize: 20,
+      lineHeight: READER_DENSITY_PRESETS[1].lineHeight,
+      paragraphStyle: 'book',
+    },
+  },
+] satisfies Array<{
+  id: string;
+  label: string;
+  description: string;
+  preferences: Pick<ReaderPreferences, 'fontFamily' | 'fontSize' | 'lineHeight' | 'paragraphStyle'>;
+}>;
+
 export const READER_TEXTURE_PRESETS: ReaderTexturePreset[] = [
   { id: 'none', label: '无纹理', description: '保持纯净纸面' },
   { id: 'paper', label: '细腻纸纹', description: '轻微纤维层次' },
@@ -573,6 +614,7 @@ export function resolveReaderStyle(preferences: ReaderPreferences) {
     ),
     density,
     paragraphStyle: typography.paragraphStyle,
+    letterSpacing: typography.paragraphStyle === 'book' ? 'normal' : density.letterSpacing,
     paragraphSpacing: typography.paragraphStyle === 'book' ? 0 : density.paragraphSpacing,
     paragraphIndent: typography.paragraphStyle === 'book' ? '2em' : '0',
     textAlign: typography.paragraphStyle === 'book' ? 'justify' : 'start',
