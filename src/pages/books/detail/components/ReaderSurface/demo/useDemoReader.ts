@@ -358,7 +358,7 @@ export function useDemoReader({
     '--reader-paragraph-spacing': `${readerStyle.paragraphSpacing}em`,
     '--reader-page-max-inline-size': READER_PAGE_MAX_INLINE_SIZE,
     '--reader-line-height': readerStyle.density.lineHeight,
-    '--reader-letter-spacing': readerStyle.density.letterSpacing,
+    '--reader-letter-spacing': readerStyle.letterSpacing,
   } as CSSProperties;
   const readerTextureStyle = getReaderTextureStyle(readerStyle.texture, readerStyle.isDark);
   return {

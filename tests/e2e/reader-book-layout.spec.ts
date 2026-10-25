@@ -59,20 +59,36 @@ test('真实 EPUB 支持宋体与黑体纸书排版，配色独立，刷新后�
     .first()
     .evaluate((element) => {
       element.style.fontSize = '12px';
+      element.style.letterSpacing = '4px';
       const span = element.ownerDocument.createElement('span');
       span.style.fontSize = '10px';
+      span.style.letterSpacing = '3px';
       span.textContent = '内嵌字号也应遵循正文设置。';
       element.appendChild(span);
     });
   await openSettings(page, testInfo.project.name === 'mobile-chrome');
-  await page.getByRole('button', { name: '纸书宋体', exact: true }).click();
+  await page.getByRole('button', { name: '经典出版', exact: true }).click();
   await expect(frame.locator('body')).toHaveCSS('font-size', '20px');
+  await expect(frame.locator('p').first()).toHaveCSS('line-height', '32px');
+  await expect(frame.locator('p').first()).toHaveCSS('letter-spacing', 'normal');
+  await expect(frame.locator('p').first().locator('span')).toHaveCSS('letter-spacing', 'normal');
   await expect(frame.locator('p').first()).toHaveCSS('text-indent', '40px');
   await expect(frame.locator('p').first()).toHaveCSS('margin-bottom', '0px');
   await expect(frame.locator('p').first()).toHaveCSS('text-align', 'justify');
   await expect(frame.locator('p').first().locator('span')).toHaveCSS('font-size', '20px');
   await expect(frame.locator('p.authored')).toHaveCSS('text-align', 'center');
   await expect(frame.locator('p.authored')).toHaveCSS('text-align-last', 'auto');
+  await page.getByRole('button', { name: '舒朗文学', exact: true }).click();
+  await expect(frame.locator('p').first()).toHaveCSS('line-height', '36px');
+  await expect(frame.locator('p').first()).toHaveCSS('letter-spacing', 'normal');
+  await expect(page.getByRole('button', { name: '经典出版', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await expect(page.getByRole('button', { name: '舒朗文学', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   const input = page.getByRole('spinbutton', { name: '正文字号', exact: true });
   await input.fill('22');
   await input.press('Tab');
@@ -81,7 +97,7 @@ test('真实 EPUB 支持宋体与黑体纸书排版，配色独立，刷新后�
   await expect(frame.locator('body')).toHaveCSS('font-size', '22px');
   await expect(frame.locator('body')).toHaveCSS('font-family', /Noto Serif/);
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgb(238, 230, 216)');
-  await page.getByRole('button', { name: '清晰黑体', exact: true }).click();
+  await page.getByRole('button', { name: '现代社科', exact: true }).click();
   await expect(frame.locator('body')).toHaveCSS('font-family', /Noto Sans/);
   await expect(frame.locator('body')).toHaveCSS('font-size', '20px');
   await expect(frame.locator('html')).toHaveCSS('background-color', 'rgb(238, 230, 216)');
@@ -112,13 +128,13 @@ for (const width of [375, 768, 1024, 1440]) {
       await expect(page.locator('.demo-reader article')).toBeVisible();
       await openSettings(page, width <= 800);
       const panel = page.locator('.reader-style-panel:visible');
-      await page.getByRole('button', { name: '纸书宋体', exact: true }).click();
+      await page.getByRole('button', { name: '经典出版', exact: true }).click();
       await expect(page.locator('.demo-reader article')).toHaveCSS('font-size', '20px');
-      await page.getByRole('button', { name: '清晰黑体', exact: true }).click();
+      await page.getByRole('button', { name: '现代社科', exact: true }).click();
       await expect(page.locator('.demo-reader article')).toHaveCSS('font-family', /Noto Sans/);
-      await page.getByRole('button', { name: '纸书宋体', exact: true }).focus();
+      await page.getByRole('button', { name: '经典出版', exact: true }).focus();
       await page.keyboard.press('Enter');
-      await expect(page.getByRole('button', { name: '纸书宋体', exact: true })).toHaveAttribute(
+      await expect(page.getByRole('button', { name: '经典出版', exact: true })).toHaveAttribute(
         'aria-pressed',
         'true',
       );

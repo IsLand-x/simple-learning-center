@@ -50,7 +50,7 @@ export function DemoReader(
         style={{
           fontSize: readerStyle.fontSize,
           lineHeight: readerStyle.density.lineHeight,
-          letterSpacing: readerStyle.density.letterSpacing,
+          letterSpacing: readerStyle.letterSpacing,
           fontFamily: READER_FONT_STACKS[readerStyle.fontFamily],
           paddingLeft: compactLayout ? 'clamp(14px, 4vw, 20px)' : readerStyle.density.pagePadding,
           paddingRight: compactLayout ? 'clamp(14px, 4vw, 20px)' : readerStyle.density.pagePadding,

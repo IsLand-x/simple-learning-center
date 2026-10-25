@@ -95,7 +95,7 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
       --reader-font-size: ${style.fontSize}px;
       --reader-text-align: ${style.textAlign};
       --reader-paragraph-indent: ${style.paragraphIndent};
-      --reader-letter-spacing: ${style.density.letterSpacing};
+      --reader-letter-spacing: ${style.letterSpacing};
       --reader-paragraph-spacing: ${style.paragraphSpacing}em;
       --reader-muted-color: ${style.mutedTextColor};
       --reader-highlight-color: ${style.highlightColor};
@@ -132,7 +132,7 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
       font-family: ${fontFamily} !important;
       font-size: ${style.fontSize}px !important;
       line-height: ${style.density.lineHeight} !important;
-      letter-spacing: ${style.density.letterSpacing} !important;
+      letter-spacing: ${style.letterSpacing} !important;
     }
     body, body :where(p, div, span, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6) {
       color: ${style.textColor} !important;
