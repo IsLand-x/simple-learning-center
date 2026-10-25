@@ -238,6 +238,10 @@ const expectedRoutes = [
     path: '/api/videos/import',
   },
   {
+    method: 'GET',
+    path: '/api/ai/jobs/chapter-videos',
+  },
+  {
     method: 'POST',
     path: '/api/ai/jobs',
   },
