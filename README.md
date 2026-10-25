@@ -304,7 +304,7 @@ Linux 上如果挂载目录不可写，把 `.env` 中的 `LEARNING_CENTER_UID` �
 
 默认构建仍使用同源资源。生产构建可设置 `LEARNING_CENTER_ASSET_ORIGIN=https://static.island-x.autos`，仅将 Vite 生成的 `assets/` 资源切换到独立 HTTPS 源，并在 CDN 文件名中加入发布标识，避免复用旧发布缺少 CORS 头的浏览器缓存；必须是不带路径、查询或认证信息的 HTTPS 源地址。应用页面、`/api/`、公共图标、manifest 和 Service Worker 仍使用应用原域名。构建同时仅向 CSP 的脚本、样式和字体来源增加所配置的 CDN 源；Workbox 同步预缓存 CDN 资源，避免更新后引用的 URL 与离线缓存不一致。
 
-生产工作流通过同名 GitHub Repository Variable 将地址传入 Docker build arg；未设置时继续同源构建。关闭 CDN 时清空变量并重新发布即可，不能在旧 CDN 构建仍使用中时直接停用域名。
+生产工作流通过同名 GitHub Repository Variable 将地址传入 CI 验证与构建环境，产物随后原样打包进入镜像；手动 Docker 源码构建仍使用同名 build arg。未设置时继续同源构建。关闭 CDN 时清空变量并重新发布即可，不能在旧 CDN 构建仍使用中时直接停用域名。
 
 腾讯 CDN 使用 `static.island-x.autos`、境外区域和网页小文件类型，以现有应用域名 HTTPS 回源，并设置回源 Host 与 SNI 为应用域名。所有回源请求必须覆盖请求头 `X-Learning-Center-Static-Only: 1`：服务端在认证与公共 API 路由之前限制为带哈希的 `/assets/` GET/HEAD 请求，其他请求返回不可缓存的 404。成功的版本资源提供公开 CORS 和一年 immutable 缓存；缺失资源返回不可缓存的 404，不回退为 HTML。CDN 默认不缓存，`/assets` 遵循源站缓存头，404/5xx 不缓存。CDN 边缘必须对 `/assets` 显式设置 `Access-Control-Allow-Origin: *`，保证已有缓存和各节点响应一致；首次接入或修复跨域配置时刷新该目录缓存。
 
@@ -314,7 +314,11 @@ Linux 上如果挂载目录不可写，把 `.env` 中的 `LEARNING_CENTER_UID` �
 
 ### 自动部署到 Docker 服务器
 
-`.github/workflows/deploy.yml` 在 `main` 分支更新后构建并验证镜像，将带有 Git commit digest 的不可变镜像发布到 GHCR，再通过专用 SSH 账号调用服务器上的受限部署脚本。工作流会把提交标识和提交时间写入前端版本信息；服务器只在部署期间使用当前任务的短期 `GITHUB_TOKEN` 拉取镜像，不保存长期镜像仓库凭据。
+`main` 更新后，`.github/workflows/ci.yml` 先完成核心检查与一次前后端构建，将 `dist/` 和 `server-dist/` 作为同次运行、同一提交的 artifact 传给 `.github/workflows/deploy.yml`。发布使用 Docker 的 `verified-runtime` 目标直接打包已验证产物，避免再次安装开发依赖、完整验证和重新构建；生产依赖仍在 Alpine 中安装，保证原生模块兼容。依赖与中文字体位于独立缓存层，普通应用改动仅传输变化的应用层。artifact 只保留一天，缺失时发布失败，不回退到其他提交的构建。
+
+默认 `docker build`、Compose 和明确触发的预览源码构建仍使用完整验证目标。工作流会在首次构建时把提交标识、提交时间及 CDN 配置写入前端版本信息，将不可变镜像发布到 GHCR，再通过专用 SSH 账号调用服务器上的受限部署脚本。服务器只在部署期间使用当前任务的短期 `GITHUB_TOKEN` 拉取镜像，不保存长期镜像仓库凭据。日常小改在本地只运行相关检查；CI 统一执行全量工程门禁，浏览器矩阵由定时任务或按需执行。
+
+PR、定时任务和手动完整浏览器回归使用同源静态资源，不依赖尚未发布的 CDN 文件；仅当手动完整回归同时要求发布且配置了 CDN 时，回归通过后额外生成一次 CDN 前端产物。普通 `main` 推送不走这条额外构建路径。
 
 生产服务器使用 `deploy/compose.production.yaml`，部署目录固定为 `/opt/learning-center`，持久化数据默认保存在 `/srv/learning-center-data`。`deploy/deploy.sh` 会等待容器健康检查；新镜像启动失败时自动恢复上一个 digest。`deploy/learning-center-deploy.sudoers` 只允许部署账号执行受控脚本。HTTPS 签发前使用 `deploy/nginx.bootstrap.conf`，它只开放 ACME 验证路径；证书就绪后再启用 `deploy/nginx.conf` 的 HTTPS 反向代理。生产环境的 `.env` 只保存在服务器，不提交到 Git。默认凭据 `admin` / `password` 仅用于首次启动，公网部署必须在 `.env` 中设置强密码或登录后立即修改。
 

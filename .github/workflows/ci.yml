@@ -65,7 +65,16 @@ jobs:
       - name: 安装依赖
         run: npm ci
 
+      - name: 生成构建信息
+        id: metadata
+        run: echo "updated_at=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+
       - name: 测试与构建
+        env:
+          APP_BUILD_REVISION: ${{ github.sha }}
+          APP_UPDATED_AT: ${{ steps.metadata.outputs.updated_at }}
+          # Browser regressions serve local assets; ordinary production pushes build the CDN variant once.
+          LEARNING_CENTER_ASSET_ORIGIN: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.full_regression)) && vars.LEARNING_CENTER_ASSET_ORIGIN || '' }}
         run: |
           node --test scripts/regression-plan.test.mjs
           npm run verify
@@ -76,6 +85,29 @@ jobs:
           REGRESSION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
           REGRESSION_FULL: ${{ (github.event_name == 'workflow_dispatch' && inputs.full_regression) || github.event_name == 'schedule' }}
         run: node scripts/regression-plan.mjs --run-browser
+
+      - name: 完整回归后生成 CDN 发布产物
+        if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.full_regression && vars.LEARNING_CENTER_ASSET_ORIGIN != ''
+        env:
+          APP_BUILD_REVISION: ${{ github.sha }}
+          APP_UPDATED_AT: ${{ steps.metadata.outputs.updated_at }}
+          LEARNING_CENTER_ASSET_ORIGIN: ${{ vars.LEARNING_CENTER_ASSET_ORIGIN }}
+        run: npm run build:web
+
+      - name: 打包已验证的生产产物
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: tar -cf release-bundle.tar dist server-dist
+
+      - name: 传递生产产物
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build-${{ github.sha }}
+          path: release-bundle.tar
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 1
+          overwrite: true
 
       - name: 保留浏览器验证产物
         if: failure()

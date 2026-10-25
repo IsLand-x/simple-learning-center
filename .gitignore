@@ -46,3 +46,4 @@ vite.config.js
 vite.config.d.ts
 
 /server-dist/
+/release-bundle.tar
