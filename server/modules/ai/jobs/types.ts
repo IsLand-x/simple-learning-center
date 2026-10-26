@@ -18,6 +18,7 @@ export type ReasoningEffort = Exclude<AiReasoningEffort, 'auto'>;
 export type ResourceType = 'book' | 'rss' | 'video' | 'rssDigest';
 export type JobPurpose =
   'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap' | 'chapter-video';
+export type VideoGenerationPhase = 'evidence' | 'plan' | 'script' | 'review';
 type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface AiResult {
@@ -95,6 +96,7 @@ export interface AiChatContext {
   webSearchConfig: WebSearchConfig;
   assistantPrompt: string;
   videoNarration?: VideoNarrationContext;
+  videoPhase?: VideoGenerationPhase;
 }
 
 export type AiChatRunner = (

@@ -22,7 +22,7 @@ async function syncVideos() {
 export function useChapterVideo(
   book: BookItem,
   chapterId: string | undefined,
-  restoreScope: (chapterId: string | undefined) => void,
+  restoreScope?: (chapterId: string | undefined) => void,
 ) {
   const configs = useLearningStore((state) => state.openAIConfigs);
   const preferences = useLearningStore((state) => state.aiPreferences);
@@ -52,7 +52,7 @@ export function useChapterVideo(
     if (loading || restoredScope.current) return;
     restoredScope.current = true;
     const running = jobs.find((task) => task.status === 'queued' || task.status === 'running');
-    if (running) restoreScope(running.chapterId);
+    if (running) restoreScope?.(running.chapterId);
   }, [jobs, loading, restoreScope]);
 
   useEffect(() => {

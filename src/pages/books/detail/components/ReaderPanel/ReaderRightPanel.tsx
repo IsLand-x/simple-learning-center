@@ -198,7 +198,13 @@ export function ReaderRightPanel({
         )}
         {activePanel === 'resources' && <BookResourcesPanel />}
         {activePanel === 'chapter-video' && (
-          <ChapterVideoPanel key={book.id} book={book} onLocateSource={onLocateSource} />
+          <ChapterVideoPanel
+            key={book.id}
+            book={book}
+            activeHref={activeHref}
+            mobile={mobile}
+            onLocateSource={onLocateSource}
+          />
         )}
         {activePanel === 'notes' && <BookNotePanel book={book} />}
         {activePanel === 'glossary' && (

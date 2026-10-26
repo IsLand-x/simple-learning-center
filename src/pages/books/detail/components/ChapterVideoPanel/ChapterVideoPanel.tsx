@@ -1,6 +1,6 @@
 import './chapterVideo.css';
 import { Button, Empty, Spin, Typography } from '@douyinfe/semi-ui';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { BookItem } from '../../../../../../contracts/books';
 import type { ChapterVideoNarration, MindMapSource } from '../../../../../../contracts/reading';
@@ -11,23 +11,34 @@ import { ChapterSelect } from '../ChapterSelect';
 import { ChapterVideoNarrationForm } from './ChapterVideoNarrationForm';
 import { ChapterVideoPlayer } from './ChapterVideoPlayer';
 import { ChapterVideoTasks } from './ChapterVideoTasks';
-import { videoTime } from './model';
+import { currentVideoChapter, videoTime } from './model';
 import { useChapterVideo } from './useChapterVideo';
 
 export function ChapterVideoPanel({
   book,
+  activeHref,
+  mobile = false,
   onLocateSource,
 }: {
   book: BookItem;
+  activeHref?: string;
+  mobile?: boolean;
   onLocateSource?: (source: MindMapSource) => Promise<void>;
 }) {
-  const [chapterId, setChapterId] = useState<string>();
+  const [scope, setScope] = useState<{ chapterId: string | undefined }>();
+  const setChapterId = useCallback((chapterId: string | undefined) => setScope({ chapterId }), []);
   const [narration, setNarration] = useState<ChapterVideoNarration>();
   const [narrationReady, setNarrationReady] = useState(false);
   const chapters = useMemo(() => chapterEntries(book.toc), [book.toc]);
-  const ai = useChapterVideo(book, chapterId, setChapterId);
+  const chapterId = scope
+    ? scope.chapterId
+    : mobile
+      ? currentVideoChapter(chapters, activeHref, book.currentChapter)
+      : undefined;
+  const ai = useChapterVideo(book, chapterId, mobile ? undefined : setChapterId);
   const video = ai.videos.find((item) => item.chapterId === chapterId);
   const generate = () => {
+    setChapterId(chapterId);
     if (!video) {
       void ai.generate(narration);
       return;
@@ -72,7 +83,7 @@ export function ChapterVideoPanel({
           onChange={setChapterId}
         />
         <p className="text-[12px] leading-normal [color:var(--semi-color-text-2)]">
-          用图解、例子和小结，像老师上课一样讲清重点。仅在点击生成后处理正文。
+          大章按原文结构完整讲解，保留推导、例子和适用条件，时长随内容变化。全书范围生成导读。仅在点击生成后处理正文。
         </p>
         <ChapterVideoNarrationForm
           value={narration}
@@ -154,7 +165,7 @@ export function ChapterVideoPanel({
           <Empty
             className="px-6 py-8"
             title={chapterId ? '这一章还没有视频' : '还没有全书导读视频'}
-            description="选择范围和模型，手动生成一段简明讲解。"
+            description="选择范围和模型，手动生成带图解的课程。"
           />
         )
       )}

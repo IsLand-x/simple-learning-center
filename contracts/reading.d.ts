@@ -146,15 +146,33 @@ export type ChapterVideoNarration =
     };
 
 export interface ChapterVideoScene {
+  topicIds?: string[];
+  beats?: ChapterVideoBeat[];
   visual?: {
-    kind: 'trade' | 'balance' | 'flow';
+    kind: 'trade' | 'balance' | 'flow' | 'comparison' | 'ledger';
     mode?: 'closed' | 'export' | 'import' | 'tariff' | 'quota';
+    example?: 'linear-trade';
+    connections?: Array<{ from: number; to: number; label: string }>;
+    comparison?: {
+      left: string;
+      right: string;
+      rows: Array<{ label: string; left: string; right: string }>;
+    };
   };
   title: string;
   narration: string;
   layout: 'concept' | 'steps' | 'compare' | 'summary';
   points: Array<{ title: string; detail: string }>;
   sources: MindMapSource[];
+  startSeconds: number;
+  durationSeconds: number;
+}
+
+export interface ChapterVideoBeat {
+  text: string;
+  focus: 'setup' | 'price' | 'quantities' | 'welfare' | 'revenue' | 'loss' | 'point' | 'conclusion';
+  pointIndex?: number;
+  /** Local to this scene; populated from measured audio, never supplied by the model. */
   startSeconds: number;
   durationSeconds: number;
 }
@@ -168,6 +186,7 @@ export interface ChapterVideo {
   chapterTitle: string;
   title: string;
   summary: string;
+  coverage?: Array<{ title: string; sceneIndexes: number[] }>;
   scenes: ChapterVideoScene[];
   durationSeconds: number;
   hasAudio: boolean;

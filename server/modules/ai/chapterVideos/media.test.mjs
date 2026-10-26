@@ -5,7 +5,6 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { runMediaCommand, synthesizeNarration } from './media.js';
 
 const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 
@@ -15,6 +14,8 @@ test(
   async () => {
     const directory = await mkdtemp(join(tmpdir(), 'chapter-video-audio-'));
     process.env.LEARNING_CENTER_DATA_DIR = directory;
+    const { runMediaCommand, synthesizeNarration } = await import('./media.js');
+    const { prepareSceneAudio } = await import('./audio.js');
     const { initializeDataDirectories, chapterVideoPath, chapterVideoDirectoryPath } =
       await import('../../../infrastructure/fs/files.js');
     const { writePersistedState } = await import('../../state/stateStore.js');
@@ -114,6 +115,43 @@ test(
         startSeconds: 0,
         durationSeconds: 0,
       };
+      const segmented = {
+        ...scene,
+        beats: ['先核对原文中的结论。', '再核对这个结论的适用条件。'].map((text, index) => ({
+          text,
+          focus: 'point',
+          pointIndex: index,
+          startSeconds: 0,
+          durationSeconds: 0,
+        })),
+      };
+      segmented.narration = segmented.beats.map((beat) => beat.text).join('');
+      const prepared = await prepareSceneAudio(segmented, narration, directory, 999, signal);
+      const joinedDuration = Number(
+        await runMediaCommand(
+          'ffprobe',
+          [
+            '-v',
+            'error',
+            '-show_entries',
+            'format=duration',
+            '-of',
+            'default=noprint_wrappers=1:nokey=1',
+            prepared.audioName,
+          ],
+          directory,
+          signal,
+        ),
+      );
+      assert.equal(prepared.audioFormat, 'wav');
+      assert.equal(segmented.beats[0].startSeconds, 0);
+      assert.equal(segmented.beats[1].startSeconds, segmented.beats[0].durationSeconds);
+      assert.ok(
+        Math.abs(
+          joinedDuration - segmented.beats.reduce((sum, beat) => sum + beat.durationSeconds, 0),
+        ) < 0.001,
+        '段落时间必须与解码、合并后的实际音轨相同',
+      );
       const input = {
         id: 'b4a45c29-493b-47d7-b75a-d19c0b311cb4',
         bookId: 'book',
@@ -125,7 +163,7 @@ test(
         hasAudio: true,
         generatedAt: 1,
         durationSeconds: 0,
-        scenes: [scene, scene, scene],
+        scenes: [segmented, scene, scene],
       };
       const rendered = await renderChapterVideo(input, '测试书籍', narration, signal, () => {});
       const path = chapterVideoPath('book', input.id, 'mp4');

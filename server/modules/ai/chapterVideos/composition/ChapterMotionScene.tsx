@@ -1,8 +1,11 @@
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig, Easing } from 'remotion';
+import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { ChapterVideoScene } from '../../../../../contracts/reading.js';
 import { TradeMarket } from './TradeMarket.js';
 import { ConceptMotion } from './ConceptMotion.js';
-import { createSceneCaptions } from './captions.js';
+import { ComparisonMotion } from './ComparisonMotion.js';
+import { LedgerMotion } from './LedgerMotion.js';
+import { createTimedSceneCaptions } from './captions.js';
+import { videoColors as c } from './palette.js';
 
 export type MotionSceneProps = {
   scene: ChapterVideoScene;
@@ -21,16 +24,7 @@ export function ChapterMotionScene({
 }: MotionSceneProps) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const entry = interpolate(frame, [0, 0.8 * fps], [0, 1], {
-    extrapolateRight: 'clamp',
-    extrapolateLeft: 'clamp',
-    easing: Easing.bezier(0.16, 1, 0.3, 1),
-  });
-  const exit = interpolate(frame, [durationInFrames - 0.35 * fps, durationInFrames], [1, 0], {
-    extrapolateRight: 'clamp',
-    extrapolateLeft: 'clamp',
-  });
-  const captions = createSceneCaptions(scene.narration, (durationInFrames / fps) * 1000);
+  const captions = createTimedSceneCaptions(scene, (durationInFrames / fps) * 1000);
   const caption = (
     captions.find(
       (item) => (frame / fps) * 1000 >= item.startMs && (frame / fps) * 1000 < item.endMs,
@@ -39,36 +33,23 @@ export function ChapterMotionScene({
   return (
     <AbsoluteFill
       style={{
-        background: '#091925',
-        color: '#f4f4ee',
+        background: c.paper,
+        color: c.ink,
         fontFamily: '"Noto Sans CJK SC", sans-serif',
         overflow: 'hidden',
       }}
     >
-      <svg width="1280" height="720" style={{ position: 'absolute' }}>
-        <defs>
-          <radialGradient id="spot">
-            <stop stopColor="#194455" />
-            <stop offset="1" stopColor="#091925" />
-          </radialGradient>
-          <pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse">
-            <circle cx="1" cy="1" r="1" fill="#29404e" />
-          </pattern>
-        </defs>
-        <rect width="1280" height="720" fill="url(#spot)" />
-        <rect width="1280" height="720" fill="url(#grid)" opacity=".3" />
-      </svg>
       <div
         style={{
           position: 'absolute',
-          top: 38,
+          top: 30,
           left: 68,
           right: 68,
           display: 'flex',
           justifyContent: 'space-between',
-          fontSize: 18,
-          color: '#90a8b9',
-          letterSpacing: 2,
+          gap: 24,
+          fontSize: 19,
+          color: c.muted,
         }}
       >
         <span
@@ -77,57 +58,69 @@ export function ChapterMotionScene({
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            marginRight: 24,
           }}
         >
           {bookTitle} · {chapterTitle}
         </span>
         <span style={{ flexShrink: 0 }}>
-          {String(index + 1).padStart(2, '0')} / {String(count).padStart(2, '0')}
+          第 {index + 1} / {count} 节
         </span>
       </div>
       <div
         style={{
-          position: 'absolute',
-          inset: 0,
-          opacity: entry * exit,
-          translate: `0 ${(1 - entry) * 20}px`,
+          opacity: interpolate(frame, [0, fps * 0.2], [0, 1], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          }),
         }}
       >
         <div
           style={{
             position: 'absolute',
-            top: 105,
+            top: 78,
             left: 68,
             right: 68,
-            fontSize: 48,
+            fontSize: scene.title.length > 23 ? 46 : 54,
             fontWeight: 700,
-            letterSpacing: -1,
-            lineHeight: 1.2,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            lineHeight: 1.12,
+            letterSpacing: -0.5,
           }}
         >
           {scene.title}
         </div>
         {scene.visual?.kind === 'trade' ? (
-          <TradeMarket mode={scene.visual.mode} points={scene.points} />
+          <TradeMarket scene={scene} />
+        ) : scene.visual?.kind === 'ledger' ? (
+          <LedgerMotion scene={scene} />
+        ) : scene.visual?.kind === 'comparison' ? (
+          <ComparisonMotion scene={scene} />
         ) : (
           <ConceptMotion scene={scene} />
         )}
       </div>
+      {scene.visual?.example === 'linear-trade' ? (
+        <div style={{ position: 'absolute', left: 76, bottom: 96, color: c.muted, fontSize: 18 }}>
+          教学算例，非原书或现实统计 · 小国、世界价格给定
+          {scene.visual.mode === 'quota' ? ' · 许可证免费发给本国持证人' : ''}
+        </div>
+      ) : (
+        scene.visual?.kind === 'trade' && (
+          <div style={{ position: 'absolute', left: 76, bottom: 96, color: c.muted, fontSize: 18 }}>
+            小国、世界价格给定 · 定性机制示意
+          </div>
+        )
+      )}
       <div
         style={{
           position: 'absolute',
-          left: 70,
-          right: 70,
-          bottom: 42,
+          left: 68,
+          right: 68,
+          bottom: 25,
           textAlign: 'center',
-          fontSize: 28,
-          lineHeight: 1.5,
-          color: '#f4f4ee',
+          fontSize: 34,
+          lineHeight: 1.35,
           fontWeight: 500,
+          color: c.ink,
         }}
       >
         {caption}
@@ -138,17 +131,10 @@ export function ChapterMotionScene({
           bottom: 0,
           left: 0,
           height: 3,
-          width: `${100 * (frame / durationInFrames)}%`,
-          background: '#5fe0b9',
+          width: `${(100 * frame) / durationInFrames}%`,
+          background: c.trade,
         }}
       />
-      {scene.visual?.kind === 'trade' && (
-        <div
-          style={{ position: 'absolute', left: 70, bottom: 104, fontSize: 15, color: '#8098aa' }}
-        >
-          小国、世界价格给定 · 曲线为机制示意，非统计数据
-        </div>
-      )}
     </AbsoluteFill>
   );
 }

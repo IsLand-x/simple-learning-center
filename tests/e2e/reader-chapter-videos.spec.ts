@@ -3,6 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import type { BookItem } from '../../contracts/books';
 import type { ChapterVideo } from '../../contracts/reading';
+import {
+  videoFixturePhase,
+  videoFixtureResponse,
+} from '../../server/tests/fixtures/chapterVideoModel.mjs';
 
 let modelServer: Server;
 let baseUrl: string;
@@ -10,7 +14,6 @@ let requests = 0;
 let invalid = false;
 let modelGate: Promise<void> | undefined;
 let releaseModel: (() => void) | undefined;
-const quotes = new Map<string, string>();
 
 test.beforeAll(async () => {
   modelServer = createServer(async (request, response) => {
@@ -24,49 +27,8 @@ test.beforeAll(async () => {
     requests++;
     if (modelGate) await modelGate;
     const prompt = body.messages.filter((message) => message.role === 'user').at(-1)!.content;
-    const entries = JSON.parse(prompt.slice(prompt.indexOf('['))) as Array<{
-      passageId?: string;
-      text?: string;
-      sources?: Array<{ passageId: string; quote: string }>;
-    }>;
-    for (const entry of entries) {
-      if (entry.passageId && entry.text) quotes.set(entry.passageId, entry.text.slice(0, 80));
-      for (const source of entry.sources ?? []) quotes.set(source.passageId, source.quote);
-    }
-    const id = entries[0].passageId ?? entries[0].sources![0].passageId;
-    const source = {
-      passageId: id,
-      quote: invalid ? '这是一段没有出现在书籍中的虚构原文引用。' : quotes.get(id)!,
-    };
-    const isStoryboard = body.messages.some(
-      (message) => message.role === 'system' && message.content.includes('分镜'),
-    );
-    const content = JSON.stringify(
-      isStoryboard
-        ? {
-            title: '用问题、证据与回顾理解阅读',
-            summary: '用三个知识点建立自己的阅读理解',
-            scenes: ['从一个阅读问题开始', '用原文证据连接观点', '回顾知识并试着复述'].map(
-              (title, index) => ({
-                title,
-                narration:
-                  '阅读时可以先提出一个明确的问题，再用书中的证据理解作者的观点，最后用自己的话回顾所学知识。',
-                layout: ['concept', 'steps', 'summary'][index],
-                points: [
-                  { title: '明确问题', detail: '先确认这一节要解决什么问题' },
-                  { title: '核对证据', detail: '让理解能够回到原文中验证' },
-                  { title: '主动回顾', detail: '尝试用自己的话解释知识点' },
-                ],
-                sources: [source],
-              }),
-            ),
-          }
-        : {
-            nodes: [
-              { key: 'learning', parent: null, title: '用问题和证据建立理解', sources: [source] },
-            ],
-          },
-    );
+    const system = body.messages.find((message) => message.role === 'system')?.content ?? '';
+    const content = videoFixtureResponse(videoFixturePhase(system), prompt, invalid);
     response.writeHead(200, { 'Content-Type': 'text/event-stream' });
     response.end(
       `data: ${JSON.stringify({ id: 'video-test', choices: [{ index: 0, delta: { role: 'assistant', content }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ id: 'video-test', choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`,
@@ -94,6 +56,70 @@ async function openPanel(page: Page, mobile: boolean) {
 }
 
 test.use({ reducedMotion: 'reduce', serviceWorkers: 'block' });
+test('手机视频面板按当前阅读章节预选，同名章节跳转后更新且不自动生成', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chrome');
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 375, height: 900 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
+  const { token } = await (
+    await page.request.post('/api/settings/openapi-token', {
+      headers: { 'X-Learning-Center-Request': '1' },
+    })
+  ).json();
+  const uploaded = await page.request.post('/api/openapi/v1/books?filename=video-scope.epub', {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/epub+zip' },
+    data: await readFile(new URL('../fixtures/reader-regression.epub', import.meta.url)),
+  });
+  expect(uploaded.status()).toBe(201);
+  const { book } = (await uploaded.json()) as { book: BookItem };
+  book.toc[0].label = '同名章节';
+  book.toc[1].label = '同名章节';
+  const library = await (await page.request.get('/api/state/library')).json();
+  library.state.books = library.state.books.map((item: BookItem) =>
+    item.id === book.id ? { ...item, toc: book.toc, updatedAt: Date.now() } : item,
+  );
+  expect((await page.request.put('/api/state/library', { data: library })).status()).toBe(204);
+  const requestsBeforeOpen = requests;
+  await page.goto(`/books/${book.id}`);
+  await expect(page.locator('foliate-view')).toBeVisible();
+  await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
+  await openPanel(page, true);
+  const panel = page.getByRole('complementary', { name: '章节视频', exact: true });
+  const scope = panel.locator('#chapter-video-scope');
+  await expect(scope).toContainText('同名章节');
+  await scope.click();
+  const choices = page.getByRole('option').filter({ hasText: '同名章节（含小节）' });
+  await expect(choices.nth(0)).toHaveAttribute('aria-selected', 'true');
+  await expect(choices.nth(1)).toHaveAttribute('aria-selected', 'false');
+  await page.getByRole('option').filter({ hasText: '全书导读' }).click();
+  await expect(scope).toContainText('全书导读');
+  await page.goBack();
+  await expect(panel).toBeHidden();
+  await page.getByRole('button', { name: '打开书籍目录', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('navigation', { name: '书籍目录', exact: true })
+    .locator('.toc-item')
+    .filter({ hasText: '同名章节' })
+    .nth(1)
+    .click();
+  for (const width of [375, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    await openPanel(page, true);
+    await scope.click();
+    await expect(choices.nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(choices.nth(0)).toHaveAttribute('aria-selected', 'false');
+    await page.getByRole('option').filter({ hasText: '全书导读' }).click();
+    await expect(scope).toContainText('全书导读');
+    await page.goBack();
+    await expect(panel).toBeHidden();
+  }
+  expect(requests).toBe(requestsBeforeOpen);
+});
+
 test('章节视频手动生成、实际播放、亮暗主题与四档宽度、章节切换和失败保留', async ({
   page,
 }, testInfo) => {
@@ -206,7 +232,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
         video.durationSeconds,
     ),
   ).toBeLessThan(0.1);
-  await panel.getByRole('button', { name: '播放 用原文证据连接观点', exact: true }).click();
+  await panel.getByRole('button', { name: `播放 ${video.scenes[1].title}`, exact: true }).click();
   await expect
     .poll(() => player.evaluate((element: HTMLVideoElement) => element.currentTime))
     .toBeGreaterThanOrEqual(video.scenes[1].startSeconds - 0.2);
@@ -228,6 +254,14 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       await expect(page.locator('foliate-view')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
       await openPanel(page, width <= 800);
+      if (width <= 800) {
+        await expect(panel.locator('#chapter-video-scope')).toContainText('本章小结');
+        await panel.locator('#chapter-video-scope').click();
+        await expect(
+          page.getByRole('option').filter({ hasText: '本章小结（含小节）' }).first(),
+        ).toHaveAttribute('aria-selected', 'true');
+        await page.getByRole('option').filter({ hasText: '全书导读' }).click();
+      }
       await expect(player).toBeVisible();
       await expect
         .poll(() => player.evaluate((element: HTMLVideoElement) => element.readyState))
@@ -324,4 +358,21 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   await page.keyboard.press('Enter');
   await expect(panel.getByRole('alert')).toContainText('无法核验', { timeout: 30_000 });
   await expect(player).toHaveAttribute('src', savedId!);
+  const requestsBeforeNavigation = requests;
+  await page.goBack();
+  await expect(panel).toBeHidden();
+  await page.getByRole('button', { name: '打开书籍目录', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('navigation', { name: '书籍目录', exact: true })
+    .locator('.toc-item')
+    .filter({ hasText: '本章小结' })
+    .nth(1)
+    .click();
+  await openPanel(page, true);
+  await panel.locator('#chapter-video-scope').click();
+  const currentChoices = page.getByRole('option').filter({ hasText: '本章小结（含小节）' });
+  await expect(currentChoices.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(currentChoices.nth(0)).toHaveAttribute('aria-selected', 'false');
+  expect(requests).toBe(requestsBeforeNavigation);
 });

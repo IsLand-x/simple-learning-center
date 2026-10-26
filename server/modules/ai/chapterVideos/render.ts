@@ -4,8 +4,9 @@ import type { ChapterVideo } from '../../../../contracts/reading.js';
 import { chapterVideoDirectoryPath, chapterVideoPath } from '../../../infrastructure/fs/files.js';
 import { removeChapterVideoFiles } from '../../books/chapterVideos.js';
 import { readPersistedState } from '../../state/stateStore.js';
-import { runMediaCommand, synthesizeNarration, type VideoNarrationContext } from './media.js';
+import { runMediaCommand, type VideoNarrationContext } from './media.js';
 import { createMotionRenderer } from './motion.js';
+import { prepareSceneAudio } from './audio.js';
 
 // Only one encode runs at a time, including across books. Cancellation propagates
 // to FFmpeg and every network request, while temporary files stay private.
@@ -43,45 +44,21 @@ export async function renderChapterVideo(
         onProgress(
           `${narration ? '正在配音并绘制' : '正在绘制'}分镜 ${index + 1}/${next.scenes.length}`,
         );
-        let duration = Math.max(8, Array.from(scene.narration).length / 4.2);
-        const audioName = `audio-${index}.mp3`;
-        const audioFormat = narration?.tts ? 'wav' : 'mp3';
-        if (narration) {
-          await writeFile(
-            join(temporary, audioName),
-            await synthesizeNarration(narration, scene.narration, signal),
-            { mode: 0o600 },
-          );
-          const measured = Number(
-            await runMediaCommand(
-              'ffprobe',
-              [
-                '-v',
-                'error',
-                '-protocol_whitelist',
-                'file,pipe',
-                '-f',
-                audioFormat,
-                '-i',
-                audioName,
-                '-show_entries',
-                'format=duration',
-                '-of',
-                'default=noprint_wrappers=1:nokey=1',
-              ],
-              temporary,
-              signal,
-            ),
-          );
-          if (!Number.isFinite(measured) || measured <= 0 || measured > 90)
-            throw new Error('配音音频时长无效或过长，请检查语音模型');
-          duration = Math.max(3, measured + 0.4);
-        }
-        duration = Math.ceil(duration * 30) / 30;
+        const { duration, audioName, audioFormat } = await prepareSceneAudio(
+          scene,
+          narration,
+          temporary,
+          index,
+          signal,
+          (part, count) => {
+            if (narration)
+              onProgress(`正在配音 ${index + 1}/${next.scenes.length} · 段落 ${part}/${count}`);
+          },
+        );
         scene.startSeconds = cursor;
         scene.durationSeconds = duration;
         cursor += duration;
-        if (cursor > 480) throw new Error('视频超过 8 分钟上限，请选择较小章节');
+        if (cursor > 1800) throw new Error('视频超过 30 分钟单次上限，请选择较小章节');
         await motion.render(
           { scene, bookTitle, chapterTitle: video.chapterTitle, index, count: next.scenes.length },
           duration,
@@ -104,12 +81,12 @@ export async function renderChapterVideo(
             'file,pipe',
             '-i',
             `motion-${index}.mp4`,
-            ...(narration
+            ...(audioName
               ? ['-protocol_whitelist', 'file,pipe', '-f', audioFormat, '-i', audioName]
               : []),
             '-map',
             '0:v:0',
-            ...(narration
+            ...(audioName
               ? [
                   '-map',
                   '1:a:0',
@@ -125,22 +102,8 @@ export async function renderChapterVideo(
                   '128k',
                 ]
               : ['-an']),
-            '-vf',
-            'fps=30',
-            '-r',
-            '30',
-            '-fps_mode',
-            'cfr',
             '-c:v',
-            'libx264',
-            '-pix_fmt',
-            'yuv420p',
-            '-preset',
-            'veryfast',
-            '-crf',
-            '24',
-            '-threads',
-            '2',
+            'copy',
             '-t',
             duration.toFixed(6),
             `scene-${index}.mp4`,

@@ -1,5 +1,6 @@
 import { MIND_MAP_PROMPT } from './mindmaps/generate.js';
 import { VIDEO_PROMPT } from './chapterVideos/model.js';
+import { videoPhasePrompt } from './chapterVideos/prompts.js';
 import { imageHostingMarkdown } from './generation/imageHostingMarkdown.js';
 import { createDiagramTools, diagramMarkdown } from './diagrams/tools.js';
 import { Agent } from '@earendil-works/pi-agent-core';
@@ -70,6 +71,7 @@ export async function runServerAiChat({
   readingSessions,
   webSearchConfig,
   assistantPrompt,
+  videoPhase,
   signal,
   onProgress,
   onNoteChange,
@@ -252,7 +254,9 @@ export async function runServerAiChat({
         purpose === 'mindmap'
           ? MIND_MAP_PROMPT
           : purpose === 'chapter-video'
-            ? VIDEO_PROMPT
+            ? videoPhase
+              ? videoPhasePrompt(videoPhase)
+              : VIDEO_PROMPT
             : agentSystemPrompt(resourceType, purpose, assistantPrompt),
       model: piModel,
       thinkingLevel: reasoningEffort || 'off',

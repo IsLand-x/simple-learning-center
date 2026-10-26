@@ -95,7 +95,9 @@ export function ChapterVideoPlayer({
           {error}
         </p>
       )}
-      <Typography.Text strong>知识点</Typography.Text>
+      <Typography.Text strong>
+        课程目录{video.coverage ? ` · ${video.coverage.length} 个主题` : ''}
+      </Typography.Text>
       <div className="flex min-w-0 flex-col gap-1" aria-label="视频知识点时间线">
         {video.scenes.map((item, index) => (
           <button

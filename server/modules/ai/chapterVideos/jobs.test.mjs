@@ -4,6 +4,7 @@ import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { videoFixtureResponse } from '../../../tests/fixtures/chapterVideoModel.mjs';
 
 const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
 
@@ -35,38 +36,11 @@ test(
       aiJobRunner: async (context) => {
         received.push(context);
         if (block) await block;
-        const id = /"passageId":"([^"]+)"/.exec(context.messages[0].content)?.[1] ?? '1:0';
-        const source = {
-          passageId: id,
-          quote: invalid
-            ? '这是一段不存在于所选书籍正文中的虚构引用。'
-            : id === '2:0'
-              ? other
-              : quote,
-        };
         return {
-          content: JSON.stringify(
-            context.purpose === 'mindmap'
-              ? {
-                  nodes: [
-                    { key: 'reliable', parent: null, title: '理解可靠性', sources: [source] },
-                  ],
-                }
-              : {
-                  title: '用故障理解可靠性',
-                  summary: '从三个角度理解可靠性',
-                  scenes: ['问题引入', '故障与失效', '回顾和复习'].map((title, index) => ({
-                    title,
-                    narration:
-                      '当系统遇到一个组件故障时，我们要观察系统能否继续正确运行，这是理解可靠性的关键。',
-                    layout: ['concept', 'compare', 'summary'][index],
-                    points: [
-                      { title: '组件故障', detail: '一个局部组件出现问题' },
-                      { title: '系统可靠', detail: '整体仍然继续正确运行' },
-                    ],
-                    sources: [source],
-                  })),
-                },
+          content: videoFixtureResponse(
+            context.videoPhase ?? (context.purpose === 'mindmap' ? 'mindmap' : 'overview'),
+            context.messages[0].content,
+            invalid,
           ),
           dialogueContent: [],
         };
@@ -191,6 +165,9 @@ test(
       const chapterJob = await (await request('/api/ai/jobs', 'POST', input('one'))).json();
       await wait(chapterJob.id);
       assert.equal((await videos()).length, 2);
+      const completedChapter = (await videos()).find((video) => video.chapterId === 'one');
+      assert.ok(completedChapter.coverage.length > 0);
+      assert.ok(completedChapter.coverage.every((topic) => topic.sceneIndexes.length > 0));
       assert.equal(received[before].messages[0].content.includes(other), false);
       assert.ok(received[before].messages[0].content.includes(quote), '大章包含下属小节的原文');
       const stale = await (await app.request('/api/state/reading')).json();

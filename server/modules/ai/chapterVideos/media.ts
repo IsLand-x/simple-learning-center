@@ -35,12 +35,30 @@ export async function synthesizeNarration(
   narration: VideoNarrationContext,
   text: string,
   signal: AbortSignal,
+  request: typeof fetch = fetch,
 ): Promise<Buffer> {
-  if (narration.tts) return synthesizeAliyunSpeech(narration.tts, text, signal);
+  if (narration.tts) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      signal.throwIfAborted();
+      try {
+        return await synthesizeAliyunSpeech(narration.tts, text, signal, request);
+      } catch (cause) {
+        signal.throwIfAborted();
+        const transient =
+          cause instanceof Error &&
+          (cause.name === 'TimeoutError' ||
+            (cause instanceof TypeError && cause.message === 'fetch failed'));
+        if (!transient) throw cause;
+        if (attempt)
+          throw new Error('百炼配音请求超时或连接中断（已重试一次），请稍后重新生成', { cause });
+      }
+    }
+    throw new Error('百炼配音未完成');
+  }
   const timeout = AbortSignal.timeout(120_000);
   let response: Response;
   try {
-    response = await fetch(speechUrl(narration.config.baseUrl), {
+    response = await request(speechUrl(narration.config.baseUrl), {
       method: 'POST',
       redirect: 'manual',
       headers: {

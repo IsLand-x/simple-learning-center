@@ -1,4 +1,17 @@
 import type { Caption } from '@remotion/captions';
+import type { ChapterVideoScene } from '../../../../../contracts/reading.js';
+
+export function createTimedSceneCaptions(scene: ChapterVideoScene, durationMs: number): Caption[] {
+  if (!scene.beats?.length || scene.beats.some((beat) => beat.durationSeconds <= 0))
+    return createSceneCaptions(scene.narration, durationMs);
+  return scene.beats.flatMap((beat) =>
+    createSceneCaptions(beat.text, beat.durationSeconds * 1000).map((caption) => ({
+      ...caption,
+      startMs: caption.startMs + beat.startSeconds * 1000,
+      endMs: caption.endMs + beat.startSeconds * 1000,
+    })),
+  );
+}
 
 export function createSceneCaptions(text: string, durationMs: number): Caption[] {
   const chars = Array.from(text.replace(/\s+/g, ' ').trim());
