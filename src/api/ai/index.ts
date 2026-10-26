@@ -21,6 +21,13 @@ export class AiApi {
     });
   }
 
+  async deleteChapterVideoJob(bookId: string, jobId: string): Promise<void> {
+    await this.transport.request(
+      `/api/ai/jobs/chapter-videos/${encodeURIComponent(jobId)}?bookId=${encodeURIComponent(bookId)}`,
+      { method: 'DELETE' },
+    );
+  }
+
   discoverModels(
     input: DiscoverModelsRequest,
     signal?: AbortSignal,

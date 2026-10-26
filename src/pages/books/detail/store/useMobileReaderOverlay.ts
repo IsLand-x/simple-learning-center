@@ -9,14 +9,14 @@ export function useMobileReaderOverlay({
   open: boolean;
   setMobileChromeVisible: Dispatch<SetStateAction<boolean>>;
 }) {
-  const mobileOverlayHistoryActiveRef = useRef(false);
+  const mobileOverlayHistoryActiveRef = useRef<string>();
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
       if (!mobileOverlayHistoryActiveRef.current) return;
-      const state = event.state as { learningCenterMobileOverlay?: boolean } | null;
-      if (state?.learningCenterMobileOverlay) return;
-      mobileOverlayHistoryActiveRef.current = false;
+      const state = event.state as { learningCenterMobileOverlay?: string | boolean } | null;
+      if (state?.learningCenterMobileOverlay === mobileOverlayHistoryActiveRef.current) return;
+      mobileOverlayHistoryActiveRef.current = undefined;
       close();
     };
     window.addEventListener('popstate', handlePopState);
@@ -26,19 +26,20 @@ export function useMobileReaderOverlay({
   useEffect(() => {
     if (open && !mobileOverlayHistoryActiveRef.current) {
       const currentState = window.history.state;
+      const historyId = crypto.randomUUID();
       window.history.pushState(
         {
           ...(currentState && typeof currentState === 'object' ? currentState : {}),
-          learningCenterMobileOverlay: true,
+          learningCenterMobileOverlay: historyId,
         },
         '',
         window.location.href,
       );
-      mobileOverlayHistoryActiveRef.current = true;
+      mobileOverlayHistoryActiveRef.current = historyId;
       return;
     }
     if (!open && mobileOverlayHistoryActiveRef.current) {
-      mobileOverlayHistoryActiveRef.current = false;
+      mobileOverlayHistoryActiveRef.current = undefined;
       window.history.back();
     }
   }, [open]);

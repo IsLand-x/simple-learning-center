@@ -9,6 +9,13 @@
   outline-offset: 2px;
 }
 
+.chapter-video-panel video:fullscreen {
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 @media (max-width: 800px) {
   .chapter-video-panel .chapter-video-actions {
     min-height: 44px;
@@ -24,13 +31,15 @@
     transform: translate(-50%, -50%);
   }
 
-  .chapter-video-panel .chapter-video-select {
+  .chapter-video-panel .chapter-video-select,
+  .chapter-video-panel .chapter-video-rate {
     position: relative;
     max-height: none;
     overflow: visible;
   }
 
-  .chapter-video-panel .chapter-video-select::before {
+  .chapter-video-panel .chapter-video-select::before,
+  .chapter-video-panel .chapter-video-rate::before {
     content: '';
     position: absolute;
     inset: 50% 0 auto;

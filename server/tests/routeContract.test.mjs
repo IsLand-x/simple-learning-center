@@ -247,6 +247,8 @@ const expectedRoutes = [
     method: 'GET',
     path: '/api/ai/jobs/chapter-videos',
   },
+  { method: 'DELETE', path: '/api/ai/jobs/chapter-videos/:jobId' },
+  { method: 'ALL', path: '/api/ai/jobs/chapter-videos/:jobId' },
   {
     method: 'POST',
     path: '/api/ai/jobs',

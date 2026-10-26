@@ -25,6 +25,7 @@ const active = (job: ChapterVideoJob) => job.status === 'queued' || job.status =
 
 export function createChapterVideoJobJournal() {
   const records = new Map<string, ChapterVideoJob[]>();
+  const removed = new Map<string, Set<string>>();
   let writes: Promise<void> = Promise.resolve();
   const path = (bookId: string) => join(chapterVideoDirectoryPath(bookId), 'jobs.json');
   const save = (bookId: string, jobs: ChapterVideoJob[]) =>
@@ -84,6 +85,8 @@ export function createChapterVideoJobJournal() {
       // Persist only whitelisted task metadata, never model context or credentials.
       const snapshot = jobSchema.parse(job);
       return enqueue(async () => {
+        // Cancellation can finish its cleanup after the user removes the record.
+        if (removed.get(snapshot.bookId)?.has(snapshot.id)) return;
         if (!(await bookExists(snapshot.bookId))) {
           records.delete(snapshot.bookId);
           return;
@@ -125,6 +128,26 @@ export function createChapterVideoJobJournal() {
         return structuredClone(await load(bookId)).sort(
           (left, right) => right.createdAt - left.createdAt,
         );
+      });
+    },
+    remove(bookId: string, jobId: string): Promise<void> {
+      return enqueue(async () => {
+        if (!(await bookExists(bookId))) throw statusError(404, '书籍不存在');
+        const previous = await load(bookId);
+        const job = previous.find((entry) => entry.id === jobId);
+        if (!job) throw statusError(404, '视频任务记录不存在');
+        if (active(job)) throw statusError(409, '请先取消正在生成的视频任务');
+        const next = previous.filter((entry) => entry.id !== jobId);
+        await save(bookId, next);
+        if (!(await bookExists(bookId))) {
+          await rm(chapterVideoDirectoryPath(bookId), { recursive: true, force: true });
+          records.delete(bookId);
+          return;
+        }
+        records.set(bookId, next);
+        const deleted = removed.get(bookId) ?? new Set<string>();
+        deleted.add(jobId);
+        removed.set(bookId, deleted);
       });
     },
   };

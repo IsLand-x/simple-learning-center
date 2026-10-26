@@ -1,87 +1,147 @@
-import { Button, Spin, Typography } from '@douyinfe/semi-ui';
+import { IconDelete, IconRefresh } from '@douyinfe/semi-icons';
+import { Button, Empty, Spin, Tooltip } from '@douyinfe/semi-ui';
 import { useState } from 'react';
 import type { ChapterVideoJob } from '../../../../../../contracts/reading';
+import { confirmDialog } from '../../../../../util/confirmDialog';
 
 export function ChapterVideoTasks({
   jobs,
+  ready,
   onSelect,
   onCancel,
+  onRetry,
+  onRemove,
 }: {
   jobs: ChapterVideoJob[];
+  ready: boolean;
   onSelect: (chapterId: string | undefined) => void;
   onCancel: (jobId: string) => Promise<void>;
+  onRetry: (job: ChapterVideoJob) => Promise<void>;
+  onRemove: (jobId: string) => Promise<void>;
 }) {
-  const [cancelling, setCancelling] = useState<string>();
-  if (!jobs.length) return null;
-  const running = jobs.filter((job) => job.status === 'queued' || job.status === 'running');
-  const visible = [...running, ...jobs.filter((job) => !running.includes(job)).slice(0, 5)];
+  const [processing, setProcessing] = useState<string>();
+  const active = (job: ChapterVideoJob) => job.status === 'queued' || job.status === 'running';
+  const visible = [...jobs].sort(
+    (left, right) =>
+      Number(active(right)) - Number(active(left)) || right.createdAt - left.createdAt,
+  );
+  const run = async (job: ChapterVideoJob, action: () => Promise<void>) => {
+    setProcessing(job.id);
+    try {
+      await action();
+    } catch {
+      /* The controller reports the request error in the panel. */
+    } finally {
+      setProcessing(undefined);
+    }
+  };
+  const remove = (job: ChapterVideoJob) =>
+    confirmDialog({
+      title: '删除视频任务记录？',
+      content: '只删除服务器中的这条任务记录，已生成的视频、书籍和配置都会保留。',
+      okText: '删除记录',
+      cancelText: '取消',
+      onOk: () => run(job, () => onRemove(job.id)),
+    });
   return (
-    <section
-      aria-label="视频生成任务"
-      className="flex min-w-0 flex-col gap-2 border-b border-solid [border-color:var(--semi-color-border)] p-3"
-    >
-      <Typography.Text strong>生成任务</Typography.Text>
+    <section aria-label="视频生成任务" className="min-w-0 p-3">
+      {jobs.length ? (
+        <p className="mb-2 text-[12px] leading-normal [color:var(--semi-color-text-2)]">
+          关闭面板后继续生成。重试使用当前模型与配音设置。
+        </p>
+      ) : (
+        <Empty className="py-6" title="还没有生成任务" description="点击上方“生成视频”选择章节。" />
+      )}
       {visible.map((job) => {
-        const active = job.status === 'queued' || job.status === 'running';
+        const running = active(job);
+        const retrying = !running && job.status !== 'completed';
+        const sameScopeRunning = jobs.some(
+          (other) => other.chapterId === job.chapterId && active(other),
+        );
         return (
           <div
             key={job.id}
-            className="min-w-0 rounded-[var(--semi-border-radius-small)] p-2 [background:var(--semi-color-bg-0)]"
+            className="border-b border-solid [border-color:var(--semi-color-border)] py-2"
+            data-job-id={job.id}
           >
-            <div className="chapter-video-actions flex min-w-0 items-center justify-between gap-3">
-              <Button
-                className="min-w-0"
-                theme="borderless"
-                type="tertiary"
-                size="small"
+            <div className="chapter-video-actions flex min-w-0 items-center justify-between gap-4">
+              <button
+                type="button"
                 aria-label={`查看视频任务 ${job.chapterTitle}`}
                 onClick={() => onSelect(job.chapterId)}
+                className="min-h-[44px] min-w-0 flex-1 truncate rounded-[var(--semi-border-radius-small)] border-0 bg-transparent px-0 text-left text-[13px] [font-family:inherit] [color:var(--semi-color-text-0)] touch-manipulation focus-visible:outline-2 focus-visible:[outline-color:var(--semi-color-focus-border)]"
               >
-                <span className="block min-w-0 truncate">{job.chapterTitle}</span>
-              </Button>
-              {active && (
-                <Button
-                  theme="borderless"
-                  type="tertiary"
-                  size="small"
-                  disabled={Boolean(cancelling)}
-                  loading={cancelling === job.id}
-                  onClick={async () => {
-                    setCancelling(job.id);
-                    try {
-                      await onCancel(job.id);
-                    } finally {
-                      setCancelling(undefined);
-                    }
-                  }}
-                >
-                  取消生成
-                </Button>
-              )}
+                {job.chapterTitle}
+              </button>
+              <div className="flex shrink-0 items-center gap-5">
+                {running ? (
+                  <Button
+                    theme="borderless"
+                    type="tertiary"
+                    size="small"
+                    disabled={Boolean(processing)}
+                    loading={processing === job.id}
+                    onClick={() => void run(job, () => onCancel(job.id))}
+                  >
+                    取消生成
+                  </Button>
+                ) : (
+                  <>
+                    {retrying && (
+                      <Tooltip content="使用当前模型与配音设置重试">
+                        <Button
+                          theme="borderless"
+                          size="small"
+                          icon={<IconRefresh />}
+                          aria-label={`重试任务 ${job.chapterTitle}`}
+                          disabled={!ready || Boolean(processing) || sameScopeRunning}
+                          loading={processing === job.id}
+                          onClick={() => void run(job, () => onRetry(job))}
+                        />
+                      </Tooltip>
+                    )}
+                    <Tooltip content="删除任务记录">
+                      <Button
+                        theme="borderless"
+                        type="danger"
+                        size="small"
+                        icon={<IconDelete />}
+                        aria-label={`删除任务 ${job.chapterTitle}`}
+                        disabled={Boolean(processing)}
+                        onClick={() => remove(job)}
+                      />
+                    </Tooltip>
+                  </>
+                )}
+              </div>
             </div>
             <p
               role={job.status === 'failed' ? 'alert' : 'status'}
-              className={`mt-2 flex min-w-0 items-center gap-2 break-words text-[12px] leading-normal ${job.status === 'failed' ? '[color:var(--semi-color-danger)]' : '[color:var(--semi-color-text-1)]'}`}
+              className={`mt-1 flex min-w-0 items-start gap-2 break-words text-[12px] leading-normal ${job.status === 'failed' ? '[color:var(--semi-color-danger)]' : '[color:var(--semi-color-text-1)]'}`}
             >
-              {active && <Spin size="small" />}
+              {running && <Spin size="small" />}
               <span className="min-w-0">
                 {job.status === 'completed'
                   ? '视频已生成'
                   : job.status === 'cancelled'
-                    ? '生成已取消，可以重新生成。'
+                    ? '已取消'
                     : job.status === 'failed'
-                      ? job.error || '视频生成失败，请重试'
+                      ? job.error || '生成失败，请重试'
                       : job.content || '生成任务已排队'}
               </span>
+            </p>
+            <p className="mt-1 truncate text-[11px] [color:var(--semi-color-text-2)]">
+              {job.model} ·{' '}
+              {new Date(job.createdAt).toLocaleString('zh-CN', {
+                month: 'numeric',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </p>
           </div>
         );
       })}
-      {running.length > 0 && (
-        <p className="text-[12px] leading-normal [color:var(--semi-color-text-2)]">
-          关闭面板后继续生成，返回可查看进度；应用服务重启会中断任务并保留记录。
-        </p>
-      )}
     </section>
   );
 }

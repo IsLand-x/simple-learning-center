@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import type { BookItem } from '../../contracts/books';
-import type { ChapterVideo } from '../../contracts/reading';
+import type { ChapterVideo, ChapterVideoJob } from '../../contracts/reading';
 import {
   videoFixturePhase,
   videoFixtureResponse,
@@ -53,6 +53,12 @@ async function openPanel(page: Page, mobile: boolean) {
       .getByRole('button', { name: '打开章节视频', exact: true })
       .click();
   } else await page.getByRole('button', { name: '打开章节视频', exact: true }).click();
+}
+
+async function showGeneration(page: Page) {
+  const panel = page.getByRole('complementary', { name: '章节视频', exact: true });
+  if (!(await panel.locator('#chapter-video-scope').isVisible()))
+    await panel.getByRole('button', { name: '生成视频', exact: true }).click();
 }
 
 test.use({ reducedMotion: 'reduce', serviceWorkers: 'block' });
@@ -214,7 +220,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   await expect(narration).toBeChecked();
   await narration.press('Space');
   await expect(narration).not.toBeChecked();
-  await panel.getByRole('button', { name: '生成视频', exact: true }).click();
+  await panel.getByRole('button', { name: '开始生成', exact: true }).click();
   const player = panel.locator('video');
   await expect(player).toBeVisible({ timeout: 600_000 });
   await expect
@@ -232,6 +238,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
         video.durationSeconds,
     ),
   ).toBeLessThan(0.1);
+  await panel.getByRole('button', { name: '本集要点', exact: true }).click();
   await panel.getByRole('button', { name: `播放 ${video.scenes[1].title}`, exact: true }).click();
   await expect
     .poll(() => player.evaluate((element: HTMLVideoElement) => element.currentTime))
@@ -254,6 +261,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       await expect(page.locator('foliate-view')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
       await openPanel(page, width <= 800);
+      await showGeneration(page);
       if (width <= 800) {
         await expect(panel.locator('#chapter-video-scope')).toContainText('本章小结');
         await panel.locator('#chapter-video-scope').click();
@@ -266,15 +274,33 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       await expect
         .poll(() => player.evaluate((element: HTMLVideoElement) => element.readyState))
         .toBeGreaterThanOrEqual(1);
+      expect(await player.evaluate((element: HTMLVideoElement) => element.paused)).toBe(true);
       await expect(page.locator('body')).toHaveAttribute('theme-mode', theme);
       expect(requests).toBe(completedRequests);
       await expect(panel.getByRole('button', { name: '全屏播放', exact: true })).toBeVisible();
+      if (width <= 800) {
+        await panel.getByLabel('视频播放速度', { exact: true }).click();
+        await expect(page.getByRole('option').filter({ hasText: '1.5×' })).toBeVisible();
+        await page.goBack();
+        await expect(page.getByRole('option').filter({ hasText: '1.5×' })).toBeHidden();
+        await expect(panel).toBeVisible();
+        await panel.getByRole('button', { name: '视频操作', exact: true }).click();
+        await expect(page.getByText('删除此 P', { exact: true })).toBeVisible();
+        await page.goBack();
+        await expect(page.getByText('删除此 P', { exact: true })).toBeHidden();
+        await expect(panel).toBeVisible();
+      }
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth),
       ).toBe(false);
       const overflow = await panel.evaluate((element) => element.scrollWidth > element.clientWidth);
       expect(overflow).toBe(false);
+      await panel.getByRole('button', { name: '选集 1', exact: true }).click();
+      await expect(
+        panel.getByRole('button', { name: '观看 P1 全书导读', exact: true }),
+      ).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath(`chapter-video-${theme}-${width}.png`) });
+      await showGeneration(page);
       await panel.locator('#chapter-video-scope').click();
       await page.getByRole('option').filter({ hasText: '全书导读' }).click({ timeout: 5000 });
       await panel.locator('#chapter-video-scope').click();
@@ -328,7 +354,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   modelGate = new Promise<void>((resolve) => {
     releaseModel = resolve;
   });
-  await panel.getByRole('button', { name: '生成视频', exact: true }).click();
+  await panel.getByRole('button', { name: '开始生成', exact: true }).click();
   const tasks = panel.getByRole('region', { name: '视频生成任务', exact: true });
   await expect(tasks).toContainText('正在提炼知识点', { timeout: 30_000 });
   const progress = await (
@@ -350,13 +376,86 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   modelGate = undefined;
   releaseModel?.();
   await expect(player).toBeVisible({ timeout: 600_000 });
-  await expect(panel.getByLabel('已生成的视频')).toContainText('已生成（2）');
+  await panel.getByRole('button', { name: '选集 2', exact: true }).click();
+  await expect(panel.getByLabel('已生成的视频')).toContainText('共 2 P');
+  // A real media ended event advances through book order, preserves speed, and never wraps.
+  const firstPart = panel.getByRole('button', { name: '观看 P1 全书导读', exact: true });
+  await firstPart.click();
+  await expect(firstPart).toHaveAttribute('aria-current', 'true');
+  await expect
+    .poll(() => player.evaluate((element: HTMLVideoElement) => element.paused))
+    .toBe(false);
+  await panel.getByLabel('视频播放速度', { exact: true }).click();
+  await page.getByRole('option').filter({ hasText: '1.5×' }).click();
+  await expect
+    .poll(() => player.evaluate((element: HTMLVideoElement) => element.playbackRate))
+    .toBe(1.5);
+  await player.evaluate((element: HTMLVideoElement) => {
+    element.currentTime = element.duration - 0.1;
+  });
+  await expect(firstPart).not.toHaveAttribute('aria-current', 'true');
+  await expect(panel.getByRole('button', { name: '下一 P', exact: true })).toBeDisabled();
+  await expect
+    .poll(() => player.evaluate((element: HTMLVideoElement) => element.readyState))
+    .toBeGreaterThanOrEqual(1);
+  await expect
+    .poll(() => player.evaluate((element: HTMLVideoElement) => element.playbackRate))
+    .toBe(1.5);
+  await player.evaluate((element: HTMLVideoElement) => {
+    element.currentTime = element.duration - 0.1;
+  });
+  await expect.poll(() => player.evaluate((element: HTMLVideoElement) => element.ended)).toBe(true);
+  await expect(firstPart).not.toHaveAttribute('aria-current', 'true');
+  await panel.getByRole('button', { name: '上一 P', exact: true }).click();
+  await panel.getByRole('switch', { name: '自动连播下一 P', exact: true }).click();
+  await expect
+    .poll(() => player.evaluate((element: HTMLVideoElement) => element.readyState))
+    .toBeGreaterThanOrEqual(1);
+  await player.evaluate((element: HTMLVideoElement) => {
+    element.currentTime = element.duration - 0.1;
+  });
+  await expect.poll(() => player.evaluate((element: HTMLVideoElement) => element.ended)).toBe(true);
+  await expect(firstPart).toHaveAttribute('aria-current', 'true');
+  await panel.getByRole('button', { name: '下一 P', exact: true }).click();
+  await player.evaluate((element: HTMLVideoElement) => element.pause());
   const savedId = await player.getAttribute('src');
   invalid = true;
+  await showGeneration(page);
   await panel.getByRole('button', { name: '重新生成', exact: true }).click();
   await expect(page.getByText('重新生成章节视频？', { exact: true })).toBeVisible();
   await page.keyboard.press('Enter');
   await expect(panel.getByRole('alert')).toContainText('无法核验', { timeout: 30_000 });
+  await expect(player).toHaveAttribute('src', savedId!);
+  const failedJobs = (
+    await (await page.request.get(`/api/ai/jobs/chapter-videos?bookId=${book.id}`)).json()
+  ).jobs as ChapterVideoJob[];
+  const failed = failedJobs.find((job) => job.status === 'failed')!;
+  const failedRow = tasks.locator(`[data-job-id="${failed.id}"]`);
+  // Retrying another scope must use the failed task's stable ID, not the currently playing intro.
+  await panel.getByRole('button', { name: '上一 P', exact: true }).click();
+  const [retryRequest] = await Promise.all([
+    page.waitForRequest(
+      (request) =>
+        request.method() === 'POST' && new URL(request.url()).pathname === '/api/ai/jobs',
+    ),
+    failedRow.getByRole('button', { name: `重试任务 ${failed.chapterTitle}`, exact: true }).click(),
+  ]);
+  expect(retryRequest.postDataJSON().chapterId).toBe(failed.chapterId);
+  await expect(tasks.getByRole('alert')).toHaveCount(2, { timeout: 30_000 });
+  await expect(player).toHaveAttribute('src', savedId!);
+  await page.screenshot({ path: testInfo.outputPath('chapter-video-failed-tasks-mobile.png') });
+  await failedRow
+    .getByRole('button', { name: `删除任务 ${failed.chapterTitle}`, exact: true })
+    .click();
+  await expect(page.getByText('删除视频任务记录？', { exact: true })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(failedRow).toHaveCount(0);
+  await expect(player).toHaveAttribute('src', savedId!);
+  await page.reload();
+  await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
+  await openPanel(page, true);
+  await panel.getByRole('button', { name: /^生成任务/ }).click();
+  await expect(failedRow).toHaveCount(0);
   await expect(player).toHaveAttribute('src', savedId!);
   const requestsBeforeNavigation = requests;
   await page.goBack();
@@ -370,6 +469,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
     .nth(1)
     .click();
   await openPanel(page, true);
+  await showGeneration(page);
   await panel.locator('#chapter-video-scope').click();
   const currentChoices = page.getByRole('option').filter({ hasText: '本章小结（含小节）' });
   await expect(currentChoices.nth(1)).toHaveAttribute('aria-selected', 'true');

@@ -91,5 +91,13 @@ test('手机工具面板内横滑不关闭弹层，返回仍逐层关闭', async
     .click({ position: { x: 100, y: 20 } });
   await expect(tabs).toBeHidden();
   expect(page.url()).toBe(readerUrl);
+  await open.click();
+  await expect(tabs).toBeVisible();
+  await page.reload();
+  await open.click();
+  await expect(tabs).toBeVisible();
+  await page.goBack();
+  await expect(tabs).toBeHidden();
+  expect(page.url()).toBe(readerUrl);
   await session.detach();
 });

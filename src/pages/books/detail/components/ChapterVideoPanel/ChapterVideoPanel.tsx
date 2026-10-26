@@ -1,18 +1,26 @@
 import './chapterVideo.css';
-import { Button, Empty, Spin, Typography } from '@douyinfe/semi-ui';
-import { useCallback, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { IconPlus } from '@douyinfe/semi-icons';
+import { Button, ButtonGroup, Empty, Spin, Typography } from '@douyinfe/semi-ui';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BookItem } from '../../../../../../contracts/books';
-import type { ChapterVideoNarration, MindMapSource } from '../../../../../../contracts/reading';
-import { AiModelSelector } from '../../../../../components/ai/AiModelSelector';
+import type {
+  ChapterVideo,
+  ChapterVideoJob,
+  ChapterVideoNarration,
+  MindMapSource,
+} from '../../../../../../contracts/reading';
 import { confirmDialog } from '../../../../../util/confirmDialog';
 import { chapterEntries } from '../AssistantPanel/chapterIndex';
-import { ChapterSelect } from '../ChapterSelect';
-import { ChapterVideoNarrationForm } from './ChapterVideoNarrationForm';
+import { ChapterVideoGenerationForm } from './ChapterVideoGenerationForm';
 import { ChapterVideoPlayer } from './ChapterVideoPlayer';
+import { ChapterVideoPlaylist } from './ChapterVideoPlaylist';
 import { ChapterVideoTasks } from './ChapterVideoTasks';
-import { currentVideoChapter, videoTime } from './model';
+import { ChapterVideoTimeline } from './ChapterVideoTimeline';
+import { chapterVideoParts, currentVideoChapter } from './model';
 import { useChapterVideo } from './useChapterVideo';
+import { useChapterVideoPlayback } from './useChapterVideoPlayback';
+
+type VideoView = 'parts' | 'points' | 'tasks' | 'generate';
 
 export function ChapterVideoPanel({
   book,
@@ -29,6 +37,8 @@ export function ChapterVideoPanel({
   const setChapterId = useCallback((chapterId: string | undefined) => setScope({ chapterId }), []);
   const [narration, setNarration] = useState<ChapterVideoNarration>();
   const [narrationReady, setNarrationReady] = useState(false);
+  const [continuous, setContinuous] = useState(true);
+  const [autoplayId, setAutoplayId] = useState<string>();
   const chapters = useMemo(() => chapterEntries(book.toc), [book.toc]);
   const chapterId = scope
     ? scope.chapterId
@@ -36,11 +46,42 @@ export function ChapterVideoPanel({
       ? currentVideoChapter(chapters, activeHref, book.currentChapter)
       : undefined;
   const ai = useChapterVideo(book, chapterId, mobile ? undefined : setChapterId);
-  const video = ai.videos.find((item) => item.chapterId === chapterId);
+  const parts = useMemo(() => chapterVideoParts(ai.videos, chapters), [ai.videos, chapters]);
+  const partIndex = parts.findIndex((item) => item.chapterId === chapterId);
+  const video = parts[partIndex];
+  const [view, setView] = useState<VideoView>(video ? 'parts' : 'generate');
+  const viewRestored = useRef(false);
+  const playback = useChapterVideoPlayback(video, autoplayId);
+  const activeJobs = ai.jobs.filter((job) => job.status === 'queued' || job.status === 'running');
+  const failedCount = ai.jobs.filter((job) => job.status === 'failed').length;
+  useEffect(() => {
+    if (ai.loading || viewRestored.current) return;
+    viewRestored.current = true;
+    if (activeJobs.length) setView('tasks');
+  }, [ai.loading, activeJobs.length]);
+  const chooseView = (next: VideoView) => {
+    viewRestored.current = true;
+    setView(next);
+  };
+  const selectScope = (id: string | undefined) => {
+    setAutoplayId(undefined);
+    setChapterId(id);
+  };
+  const selectPart = (part: ChapterVideo | undefined) => {
+    if (!part) return;
+    if (part.id === video?.id) playback.play();
+    else {
+      setChapterId(part.chapterId);
+      setAutoplayId(part.id);
+    }
+  };
+  const start = async (targetId: string | undefined) => {
+    setChapterId(targetId);
+    if (await ai.generate(narration, { chapterId: targetId })) setView('tasks');
+  };
   const generate = () => {
-    setChapterId(chapterId);
     if (!video) {
-      void ai.generate(narration);
+      void start(chapterId);
       return;
     }
     confirmDialog({
@@ -48,9 +89,10 @@ export function ChapterVideoPanel({
       content: '生成成功后替换服务器中此范围的视频，失败或取消时保留原视频。',
       okText: '重新生成',
       cancelText: '取消',
-      onOk: () => ai.generate(narration),
+      onOk: () => start(chapterId),
     });
   };
+  const retry = (job: ChapterVideoJob) => start(job.chapterId);
   const remove = () => {
     if (!video) return;
     confirmDialog({
@@ -62,68 +104,105 @@ export function ChapterVideoPanel({
     });
   };
   return (
-    <div className="chapter-video-panel min-h-0 min-w-0 flex-1 overflow-auto [color:var(--semi-color-text-0)]">
-      <div className="flex min-w-0 flex-col gap-3 border-b border-solid [border-color:var(--semi-color-border)] p-3">
-        <label
-          id="chapter-video-scope-label"
-          htmlFor="chapter-video-scope"
-          className="text-[12px] [color:var(--semi-color-text-1)]"
+    <div className="chapter-video-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden [color:var(--semi-color-text-0)]">
+      <div className="chapter-video-actions flex shrink-0 items-center justify-between gap-4 px-3 py-2">
+        <Typography.Text strong>
+          章节课程{parts.length > 0 ? ` · ${parts.length} P` : ''}
+        </Typography.Text>
+        <Button
+          size="small"
+          theme={view === 'generate' ? 'light' : 'solid'}
+          icon={<IconPlus />}
+          aria-label="生成视频"
+          aria-pressed={view === 'generate'}
+          onClick={() => chooseView('generate')}
         >
-          讲解范围
-        </label>
-        <ChapterSelect
-          id="chapter-video-scope"
-          label="选择视频讲解范围"
-          labelledBy="chapter-video-scope-label"
-          className="chapter-video-select w-full min-w-0"
-          chapters={chapters}
-          includeBook
-          value={chapterId}
-          disabled={ai.loading || ai.pending || ai.deleting}
-          onChange={setChapterId}
+          生成视频
+        </Button>
+      </div>
+      {video ? (
+        <ChapterVideoPlayer
+          video={video}
+          mobile={mobile}
+          playback={playback}
+          part={partIndex + 1}
+          total={parts.length}
+          regenerateDisabled={
+            ai.busy || ai.deleting || ai.loading || !ai.configured || !narrationReady
+          }
+          removeDisabled={ai.busy || ai.deleting}
+          canPrevious={partIndex > 0}
+          canNext={partIndex + 1 < parts.length}
+          onPrevious={() => selectPart(parts[partIndex - 1])}
+          onNext={() => selectPart(parts[partIndex + 1])}
+          onEnded={() => {
+            if (continuous) selectPart(parts[partIndex + 1]);
+          }}
+          onRegenerate={generate}
+          onRemove={remove}
         />
-        <p className="text-[12px] leading-normal [color:var(--semi-color-text-2)]">
-          大章按原文结构完整讲解，保留推导、例子和适用条件，时长随内容变化。全书范围生成导读。仅在点击生成后处理正文。
-        </p>
-        <ChapterVideoNarrationForm
-          value={narration}
-          disabled={ai.busy}
-          onChange={setNarration}
-          onReady={setNarrationReady}
+      ) : (
+        <Empty
+          className="shrink-0 px-3 py-4"
+          title={chapterId ? '这一章还没有视频' : '还没有全书导读视频'}
+          description={
+            parts.length ? '从选集观看已有章节，或生成当前章。' : '选择章节，手动生成图解课程。'
+          }
         />
-        <div className="chapter-video-actions flex min-w-0 flex-wrap items-center justify-between gap-4">
-          <AiModelSelector
-            configs={ai.configs}
-            provider={ai.preferences.provider}
-            model={ai.model ?? ''}
-            disabled={ai.busy}
-            onChange={ai.selectModel}
-          />
+      )}
+      <nav
+        aria-label="章节视频内容"
+        className="chapter-video-actions flex shrink-0 border-b border-solid [border-color:var(--semi-color-border)] px-3 py-2"
+      >
+        <ButtonGroup>
           <Button
             size="small"
-            theme="solid"
-            loading={ai.busy}
-            disabled={ai.loading || !ai.configured || ai.deleting || !narrationReady}
-            onClick={generate}
+            theme={view === 'parts' ? 'solid' : 'borderless'}
+            type={view === 'parts' ? 'primary' : 'tertiary'}
+            aria-pressed={view === 'parts'}
+            onClick={() => chooseView('parts')}
           >
-            {video ? '重新生成' : '生成视频'}
+            选集{parts.length ? ` ${parts.length}` : ''}
           </Button>
-        </div>
-        {!ai.configured && (
-          <p className="text-[12px] [color:var(--semi-color-text-2)]">
-            请先在<Link to="/settings">设置</Link>中配置 AI 模型。
+          <Button
+            size="small"
+            theme={view === 'points' ? 'solid' : 'borderless'}
+            type={view === 'points' ? 'primary' : 'tertiary'}
+            aria-pressed={view === 'points'}
+            onClick={() => chooseView('points')}
+          >
+            本集要点
+          </Button>
+          <Button
+            size="small"
+            theme={view === 'tasks' ? 'solid' : 'borderless'}
+            type={view === 'tasks' ? 'primary' : 'tertiary'}
+            aria-pressed={view === 'tasks'}
+            onClick={() => chooseView('tasks')}
+          >
+            生成任务
+            {activeJobs.length
+              ? ` ${activeJobs.length} 进行中`
+              : failedCount
+                ? ` ${failedCount} 失败`
+                : ''}
+          </Button>
+        </ButtonGroup>
+      </nav>
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+        {ai.error && (
+          <p
+            role="alert"
+            className="px-3 py-2 text-[12px] break-words [color:var(--semi-color-danger)]"
+          >
+            {ai.error}
           </p>
         )}
-      </div>
-      {ai.error && (
-        <p role="alert" className="px-3 py-2 text-[13px] [color:var(--semi-color-danger)]">
-          {ai.error}
-        </p>
-      )}
-      <ChapterVideoTasks jobs={ai.jobs} onSelect={setChapterId} onCancel={ai.cancel} />
-      {ai.pending && (
-        <div role="status" className="p-3 text-[12px] [color:var(--semi-color-text-1)]">
-          <div className="chapter-video-actions flex items-center justify-between gap-4">
+        {ai.pending && (
+          <div
+            role="status"
+            className="chapter-video-actions flex items-center justify-between gap-4 px-3 py-2 text-[12px] [color:var(--semi-color-text-1)]"
+          >
             <span className="flex min-w-0 items-center gap-2">
               <Spin size="small" />
               {ai.stage || '生成任务已排队'}
@@ -137,62 +216,68 @@ export function ChapterVideoPanel({
               取消生成
             </Button>
           </div>
-        </div>
-      )}
-      {ai.cancelled && !ai.busy && (
-        <p role="status" className="px-3 py-2 text-[12px] [color:var(--semi-color-text-2)]">
-          生成已取消，可以重新生成。
-        </p>
-      )}
-      {video ? (
-        <div className="flex min-w-0 flex-col gap-4 p-3">
-          <ChapterVideoPlayer key={video.id} video={video} onLocateSource={onLocateSource} />
-          <div className="chapter-video-actions flex items-center justify-end">
-            <Button
-              size="small"
-              theme="borderless"
-              type="danger"
-              loading={ai.deleting}
-              disabled={ai.busy}
-              onClick={remove}
-            >
-              删除视频
-            </Button>
-          </div>
-        </div>
-      ) : (
-        !ai.busy && (
-          <Empty
-            className="px-6 py-8"
-            title={chapterId ? '这一章还没有视频' : '还没有全书导读视频'}
-            description="选择范围和模型，手动生成带图解的课程。"
+        )}
+        {ai.cancelled && !ai.busy && (
+          <p role="status" className="px-3 py-2 text-[12px] [color:var(--semi-color-text-2)]">
+            生成已取消，可以重新生成。
+          </p>
+        )}
+        <div hidden={view !== 'generate'}>
+          <ChapterVideoGenerationForm
+            ai={ai}
+            chapters={chapters}
+            chapterId={chapterId}
+            narration={narration}
+            narrationReady={narrationReady}
+            onScopeChange={selectScope}
+            onNarrationChange={setNarration}
+            onNarrationReady={setNarrationReady}
+            onGenerate={generate}
           />
-        )
-      )}
-      {ai.videos.length > 0 && (
-        <section
-          className="flex min-w-0 flex-col gap-1 border-t border-solid [border-color:var(--semi-color-border)] p-3"
-          aria-label="已生成的视频"
-        >
-          <Typography.Text strong>已生成（{ai.videos.length}）</Typography.Text>
-          {ai.videos.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-label={`观看 ${item.chapterTitle}`}
-              aria-pressed={item.id === video?.id}
-              disabled={ai.busy}
-              onClick={() => setChapterId(item.chapterId)}
-              className={`mt-1 flex min-h-[44px] min-w-0 items-center gap-3 rounded-[var(--semi-border-radius-small)] border-0 p-2 text-left [font:inherit] touch-manipulation hover:[background:var(--semi-color-fill-0)] focus-visible:outline-2 focus-visible:[outline-color:var(--semi-color-focus-border)] ${item.id === video?.id ? '[background:var(--semi-color-primary-light-default)] [color:var(--semi-color-primary)]' : 'bg-transparent [color:var(--semi-color-text-1)]'}`}
-            >
-              <span className="min-w-0 flex-1 truncate text-[13px]">{item.chapterTitle}</span>
-              <span className="shrink-0 text-[12px] tabular-nums">
-                {videoTime(item.durationSeconds)}
-              </span>
-            </button>
+        </div>
+        {view === 'parts' && (
+          <ChapterVideoPlaylist
+            videos={parts}
+            selectedId={video?.id}
+            continuous={continuous}
+            onContinuousChange={setContinuous}
+            onSelect={selectPart}
+          />
+        )}
+        {view === 'points' &&
+          (video ? (
+            <ChapterVideoTimeline
+              key={video.id}
+              video={video}
+              current={playback.current}
+              onSeek={playback.seek}
+              onLocateSource={
+                onLocateSource
+                  ? async (source) => {
+                      playback.player.current?.pause();
+                      await onLocateSource(source);
+                    }
+                  : undefined
+              }
+            />
+          ) : (
+            <Empty
+              className="p-6"
+              title="先选择一集视频"
+              description="生成后可按知识点跳转并查看原文。"
+            />
           ))}
-        </section>
-      )}
+        {view === 'tasks' && (
+          <ChapterVideoTasks
+            jobs={ai.jobs}
+            ready={!ai.loading && !ai.pending && ai.configured && narrationReady}
+            onSelect={selectScope}
+            onCancel={ai.cancel}
+            onRetry={retry}
+            onRemove={ai.removeJob}
+          />
+        )}
+      </div>
     </div>
   );
 }

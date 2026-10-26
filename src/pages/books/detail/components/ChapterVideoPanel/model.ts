@@ -1,4 +1,5 @@
 import type { TocItem } from '../../../../../../contracts/books';
+import type { ChapterVideo } from '../../../../../../contracts/reading';
 import { normalizeBookHref, sameBookFile } from '../AssistantPanel/chapterIndex';
 
 export function currentVideoChapter(
@@ -29,4 +30,24 @@ export function currentVideoChapter(
 
 export function videoTime(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+}
+
+export function chapterVideoParts(
+  videos: ChapterVideo[],
+  chapters: Array<TocItem & { path: string[] }>,
+) {
+  const order = new Map(chapters.map((chapter, index) => [chapter.id, index]));
+  const scopes = new Set<string | undefined>();
+  return [...videos]
+    .sort((left, right) => right.generatedAt - left.generatedAt || left.id.localeCompare(right.id))
+    .filter((video) => {
+      if (scopes.has(video.chapterId)) return false;
+      scopes.add(video.chapterId);
+      return true;
+    })
+    .sort((left, right) => {
+      const position = (video: ChapterVideo) =>
+        video.chapterId === undefined ? -1 : (order.get(video.chapterId) ?? chapters.length);
+      return position(left) - position(right) || left.id.localeCompare(right.id);
+    });
 }

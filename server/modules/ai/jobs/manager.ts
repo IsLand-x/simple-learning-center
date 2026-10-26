@@ -228,5 +228,10 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
     subscribe,
     protectPersistedState,
     listVideoJobs: (bookId: string) => videoJournal.list(bookId),
+    async deleteVideoJob(bookId: string, jobId: string) {
+      await videoJournal.remove(bookId, jobId);
+      const job = jobs.get(jobId);
+      if (job?.bookId === bookId && job.purpose === 'chapter-video') jobs.delete(jobId);
+    },
   };
 }

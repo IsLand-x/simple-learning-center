@@ -72,6 +72,56 @@ test('视频任务进度落盘、同名章节隔离、重启中断和删除后�
     assert.equal((await response.json()).jobs.length, 2);
     assert.equal((await app.request('/api/ai/jobs/chapter-videos')).status, 400);
     assert.equal((await app.request('/api/ai/jobs/chapter-videos?bookId=other')).status, 404);
+    const deletionPath = '/api/ai/jobs/chapter-videos/one';
+    assert.equal((await app.request(deletionPath, { method: 'DELETE' })).status, 400);
+    assert.equal(
+      (await app.request(`${deletionPath}?bookId=other`, { method: 'DELETE' })).status,
+      404,
+    );
+    assert.equal(
+      (await app.request(`${deletionPath}?bookId=book`, { method: 'DELETE' })).status,
+      204,
+    );
+    assert.equal(
+      (await app.request(`${deletionPath}?bookId=book`, { method: 'DELETE' })).status,
+      404,
+    );
+    assert.deepEqual(
+      (await (await app.request('/api/ai/jobs/chapter-videos?bookId=book')).json()).jobs.map(
+        (job) => job.id,
+      ),
+      ['two'],
+    );
+    assert.deepEqual(
+      (await createChapterVideoJobJournal().list('book')).map((job) => job.id),
+      ['two'],
+    );
+    // Active tasks are protected; late callbacks after cancellation cannot resurrect a removed row.
+    const deletionJournal = createChapterVideoJobJournal();
+    const mediaPath = join(chapterVideoDirectoryPath('book'), 'existing.mp4');
+    await writeFile(mediaPath, 'existing successful video', { mode: 0o600 });
+    await deletionJournal.record(makeJob('active', 'chapter-two'));
+    await assert.rejects(deletionJournal.remove('book', 'active'), { status: 409 });
+    await deletionJournal.record({
+      ...makeJob('active', 'chapter-two'),
+      revision: 2,
+      status: 'cancelled',
+    });
+    await deletionJournal.remove('book', 'active');
+    await deletionJournal.record({
+      ...makeJob('active', 'chapter-two'),
+      revision: 3,
+      status: 'cancelled',
+    });
+    assert.equal(
+      (await deletionJournal.list('book')).some((job) => job.id === 'active'),
+      false,
+    );
+    assert.equal(
+      JSON.parse(await readFile(path, 'utf8')).jobs.some((job) => job.id === 'active'),
+      false,
+    );
+    assert.equal(await readFile(mediaPath, 'utf8'), 'existing successful video');
     await mutatePersistedState((persisted) => {
       persisted.state.books = [];
     });

@@ -57,32 +57,38 @@ export function useChapterVideo(
 
   useEffect(() => {
     let disposed = false;
-    setStage('');
-    if (!job) return;
-    if (job.status === 'completed' && !synced.current.has(job.id)) {
-      void syncVideos()
-        .then(() => {
-          synced.current.add(job.id);
-        })
-        .catch((cause: unknown) => {
-          if (!disposed)
-            setError(
-              cause instanceof Error ? cause.message : '视频已生成，同步失败，请重新打开面板',
-            );
-        });
+    const completed = jobs.filter(
+      (item) => item.status === 'completed' && !synced.current.has(item.id),
+    );
+    if (completed.length) {
+      completed.forEach((item) => synced.current.add(item.id));
+      void syncVideos().catch((cause: unknown) => {
+        completed.forEach((item) => synced.current.delete(item.id));
+        if (!disposed)
+          setError(cause instanceof Error ? cause.message : '视频已生成，同步失败，请重新打开面板');
+      });
     }
     return () => {
       disposed = true;
     };
-  }, [job]);
+  }, [jobs]);
 
   useEffect(() => {
     setError('');
     setCancelled(false);
   }, [chapterId]);
 
-  const generate = async (videoNarration?: ChapterVideoNarration) => {
-    if (starting.current || loading || busy || deleting || !config || !model) return;
+  const generate = async (
+    videoNarration?: ChapterVideoNarration,
+    target?: { chapterId: string | undefined },
+  ) => {
+    const targetChapterId = target ? target.chapterId : chapterId;
+    const generating = jobs.some(
+      (item) =>
+        item.chapterId === targetChapterId &&
+        (item.status === 'queued' || item.status === 'running'),
+    );
+    if (starting.current || loading || generating || deleting || !config || !model) return false;
     starting.current = true;
     setPending(true);
     setError('');
@@ -102,12 +108,12 @@ export function useChapterVideo(
         reasoningEffort: reasoning === 'auto' ? undefined : reasoning,
         bookId: book.id,
         purpose: 'chapter-video',
-        chapterId,
+        chapterId: targetChapterId,
         videoNarration,
         conversationId: `chapter-video:${createUuid()}`,
         userMessage: {
           id: createUuid(),
-          content: chapterId ? '生成所选大章的讲解视频' : '生成全书导读视频',
+          content: targetChapterId ? '生成所选大章的讲解视频' : '生成全书导读视频',
           createdAt: now,
         },
         session: { title: '章节视频', createdAt: now },
@@ -115,9 +121,11 @@ export function useChapterVideo(
       });
       reportJob(controller.signal.aborted ? await aiApi.cancelJob(started.id) : started);
       await refreshJobs();
+      return true;
     } catch (cause) {
       if (!controller.signal.aborted)
         setError(cause instanceof Error ? cause.message : '无法生成章节视频');
+      return false;
     } finally {
       starting.current = false;
       setPending(false);
@@ -152,6 +160,16 @@ export function useChapterVideo(
       setDeleting(false);
     }
   };
+  const removeJob = async (jobId: string) => {
+    setError('');
+    try {
+      await aiApi.deleteChapterVideoJob(book.id, jobId);
+      await refreshJobs();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '删除任务记录失败');
+      throw cause;
+    }
+  };
   return {
     configs,
     preferences,
@@ -171,6 +189,7 @@ export function useChapterVideo(
     generate,
     cancel,
     remove,
+    removeJob,
     selectModel: (selection: unknown) => {
       if (
         !Array.isArray(selection) ||
