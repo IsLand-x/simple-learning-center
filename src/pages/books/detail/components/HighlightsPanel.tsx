@@ -70,7 +70,7 @@ export function HighlightsPanel({
   }, [contextMenu]);
 
   return (
-    <div className="right-panel__body min-h-0 highlights-panel">
+    <div className="right-panel__body min-h-0 min-w-0 highlights-panel">
       <Input
         aria-label="搜索划线"
         placeholder="搜索划线、评论或章节"
@@ -79,44 +79,46 @@ export function HighlightsPanel({
         showClear
         className="shrink-0 [margin-bottom:8px] mobile:[&_input]:text-[16px]"
       />
-      {filtered.length ? (
-        filtered.map((highlight) => (
-          <article
-            className={`highlight-card [background:var(--semi-color-bg-0)] [padding:9px_10px] [transition:background-color_160ms_ease,_border-color_160ms_ease] ${highlight.id === focusedHighlightId ? ' highlight-card--focused' : ''}`}
-            key={highlight.id}
-            ref={highlight.id === focusedHighlightId ? focusedCardRef : undefined}
-            role="button"
-            tabIndex={0}
-            title="右键可删除高亮"
-            onClick={() => onJumpHighlight(highlight)}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setContextMenu({ highlight, x: event.clientX, y: event.clientY });
-            }}
-            onKeyDown={(event) => {
-              if (event.target !== event.currentTarget) return;
-              if (event.key === 'Enter' || event.key === ' ') {
+      <div className="highlights-panel__list flex min-h-0 min-w-0 flex-1 flex-col [gap:8px] overflow-auto">
+        {filtered.length ? (
+          filtered.map((highlight) => (
+            <article
+              className={`highlight-card shrink-0 [background:var(--semi-color-bg-0)] [padding:9px_10px] [transition:background-color_160ms_ease,_border-color_160ms_ease] ${highlight.id === focusedHighlightId ? ' highlight-card--focused' : ''}`}
+              key={highlight.id}
+              ref={highlight.id === focusedHighlightId ? focusedCardRef : undefined}
+              role="button"
+              tabIndex={0}
+              title="右键可删除高亮"
+              onClick={() => onJumpHighlight(highlight)}
+              onContextMenu={(event) => {
                 event.preventDefault();
-                onJumpHighlight(highlight);
-              }
-            }}
-          >
-            <p>{highlight.text}</p>
-            <div className="highlight-card__footer justify-between [margin-top:6px]">
-              <Text size="small" type="tertiary">
-                {highlight.chapter}
-                {highlight.page ? ` · 第 ${highlight.page} 页` : ''}
-              </Text>
-            </div>
-          </article>
-        ))
-      ) : (
-        <Empty
-          title={keyword ? '没有匹配结果' : '还没有高亮'}
-          description={keyword ? '试试其他关键词，或清空搜索' : '选中阅读器中的文字即可添加高亮'}
-        />
-      )}
+                event.stopPropagation();
+                setContextMenu({ highlight, x: event.clientX, y: event.clientY });
+              }}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onJumpHighlight(highlight);
+                }
+              }}
+            >
+              <p>{highlight.text}</p>
+              <div className="highlight-card__footer justify-between [margin-top:6px]">
+                <Text size="small" type="tertiary">
+                  {highlight.chapter}
+                  {highlight.page ? ` · 第 ${highlight.page} 页` : ''}
+                </Text>
+              </div>
+            </article>
+          ))
+        ) : (
+          <Empty
+            title={keyword ? '没有匹配结果' : '还没有高亮'}
+            description={keyword ? '试试其他关键词，或清空搜索' : '选中阅读器中的文字即可添加高亮'}
+          />
+        )}
+      </div>
       {contextMenu &&
         createPortal(
           <Dropdown

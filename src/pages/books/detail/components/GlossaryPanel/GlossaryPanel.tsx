@@ -39,7 +39,7 @@ export function GlossaryPanel({
     ),
   );
   return (
-    <div className="right-panel__body glossary-panel min-h-0 min-w-0 overflow-auto [padding:8px_12px]">
+    <div className="right-panel__body glossary-panel flex min-h-0 min-w-0 flex-col [padding:8px_12px]">
       <Input
         aria-label="搜索术语"
         placeholder="搜索术语、释义或章节"
@@ -48,24 +48,26 @@ export function GlossaryPanel({
         showClear
         className="shrink-0 [margin-bottom:8px] mobile:[&_input]:text-[16px]"
       />
-      {filtered.length ? (
-        filtered.map((term) => (
-          <GlossaryTerm
-            key={term.id}
-            term={term}
-            onJump={onJump}
-            busy={ai.status(term.id).busy}
-            error={ai.status(term.id).error}
-            configured={ai.configured}
-            onGenerate={() => void ai.generate(term)}
+      <div className="glossary-panel__list min-h-0 min-w-0 flex-1 overflow-auto">
+        {filtered.length ? (
+          filtered.map((term) => (
+            <GlossaryTerm
+              key={term.id}
+              term={term}
+              onJump={onJump}
+              busy={ai.status(term.id).busy}
+              error={ai.status(term.id).error}
+              configured={ai.configured}
+              onGenerate={() => void ai.generate(term)}
+            />
+          ))
+        ) : (
+          <Empty
+            title={keyword ? '没有匹配结果' : '还没有术语'}
+            description={keyword ? '试试其他关键词，或清空搜索' : '选中文字，点击“添加到术语表”'}
           />
-        ))
-      ) : (
-        <Empty
-          title={keyword ? '没有匹配结果' : '还没有术语'}
-          description={keyword ? '试试其他关键词，或清空搜索' : '选中文字，点击“添加到术语表”'}
-        />
-      )}
+        )}
+      </div>
     </div>
   );
 }

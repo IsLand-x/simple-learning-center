@@ -728,6 +728,11 @@
   gap: 12px;
 }
 
+.glossary-panel,
+.highlights-panel {
+  overflow: hidden;
+}
+
 .highlights-panel {
   gap: 8px;
 }
