@@ -73,7 +73,7 @@ export function ConversationHistoryPanel({
   };
 
   return (
-    <div className="right-panel__body min-h-0 history-panel [gap:4px]">
+    <div className="right-panel__body min-h-0 min-w-0 history-panel [gap:4px]">
       <ConversationMessageControls {...loadingState} />
       {sessions.length
         ? sessions.map((session) => {
@@ -85,7 +85,7 @@ export function ConversationHistoryPanel({
                 key={session.id}
                 type="button"
                 title="右键可删除这条对话"
-                className={`ai-history-item w-full [min-height:58px] justify-center [gap:5px] [padding:8px] [color:var(--semi-color-text-1)] [text-align:left] [background:transparent] ${session.id === activeConversationId ? ' ai-history-item--active' : ''}`}
+                className={`ai-history-item min-w-0 w-full shrink-0 [min-height:58px] justify-center [gap:5px] [padding:8px] [color:var(--semi-color-text-1)] [text-align:left] [background:transparent] ${session.id === activeConversationId ? ' ai-history-item--active' : ''}`}
                 onClick={() => onResumeConversation(session)}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -94,10 +94,12 @@ export function ConversationHistoryPanel({
                 }}
               >
                 <span className="ai-history-item__title min-w-0 justify-between">
-                  <strong>{session.title}</strong>
+                  <strong className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
+                    {session.title}
+                  </strong>
                 </span>
                 <span
-                  className="ai-history-item__meta block overflow-hidden [color:var(--semi-color-text-2)] text-ellipsis whitespace-nowrap"
+                  className="ai-history-item__meta block min-w-0 whitespace-normal [overflow-wrap:anywhere] [color:var(--semi-color-text-2)]"
                   title={metaLabel}
                 >
                   {metaLabel}
