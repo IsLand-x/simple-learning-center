@@ -39,6 +39,7 @@ export function AiConversationPanel({
     quote,
     setQuote,
     canSend,
+    starting,
     status,
     send,
     stop,
@@ -136,6 +137,21 @@ export function AiConversationPanel({
           void send(extractInputText(inputContents as Array<Record<string, unknown>>))
         }
         onStopGenerate={stop}
+        renderActionArea={
+          starting
+            ? ({ className }) => (
+                <div className={className}>
+                  <Button
+                    aria-label="正在发送消息"
+                    aria-busy="true"
+                    className="semi-aiChatInput-footer-action-button semi-aiChatInput-footer-action-send"
+                    theme="solid"
+                    loading
+                  />
+                </div>
+              )
+            : undefined
+        }
         showUploadButton={false}
         showTemplateButton={false}
         round

@@ -302,7 +302,7 @@ export function useReaderConversation({
     if (clearedInput) editor.commands.setContent('', { emitUpdate: false });
     setStreamingAssistant(null);
     setStatus('generating');
-    setStatusMessage('正在发送消息，等待服务端保存…');
+    setStatusMessage('');
     setStarting(conversationId, true);
     try {
       const currentText = getCurrentText();
@@ -432,6 +432,7 @@ export function useReaderConversation({
     quote,
     setQuote,
     canSend,
+    starting,
     status,
     send,
     stop,

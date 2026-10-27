@@ -148,7 +148,8 @@ it('shows the pending message immediately, retaining its draft and quote until s
   expect(conversation.dialogueMessages).toEqual([
     expect.objectContaining({ role: 'user', content: question, quote, status: 'queued' }),
   ]);
-  expect(conversation.statusMessage).toContain('正在发送');
+  expect(conversation.statusMessage).toBe('');
+  expect(conversation.starting).toBe(true);
   expect(draft()).toBe(question);
   expect(conversation.quote).toEqual(quote);
   await act(async () => {
@@ -161,6 +162,7 @@ it('shows the pending message immediately, retaining its draft and quote until s
   expect(draft()).toBe('');
   expect(conversation.quote).toBeNull();
   expect(mocks.applyJob).toHaveBeenCalledWith(job);
+  expect(conversation.starting).toBe(false);
 });
 
 it('shows the user message before slow state and index preparation finish', async () => {
@@ -277,6 +279,7 @@ it.each(['index', 'state', 'request'] as const)(
     expect(useLearningStore.getState().chatSessions).toEqual([]);
     expect(conversation.dialogueMessages).toEqual([]);
     expect(conversation.status).toBe('error');
+    expect(conversation.starting).toBe(false);
     expect(conversation.statusMessage).toContain('发送');
     expect(draft()).toBe(question);
     expect(conversation.quote).toEqual(quote);

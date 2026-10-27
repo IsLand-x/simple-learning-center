@@ -35,7 +35,7 @@ export function GlossaryTerm({
       <div className="flex min-w-0 items-center [gap:4px]">
         <button
           type="button"
-          className="glossary-term__title min-w-0 flex-1 mobile:min-h-[44px] truncate text-left font-semibold [font-size:14px] [color:var(--semi-color-text-0)] [border-radius:var(--semi-border-radius-small)] hover:[color:var(--semi-color-primary)] focus-visible:[outline:2px_solid_var(--semi-color-focus-border)]"
+          className="glossary-term__title cursor-pointer min-w-0 flex-1 mobile:min-h-[44px] truncate text-left font-semibold [font-size:14px] [color:var(--semi-color-text-0)] [border-radius:var(--semi-border-radius-small)] hover:[color:var(--semi-color-primary)] focus-visible:[outline:2px_solid_var(--semi-color-focus-border)]"
           onClick={() => onJump(term)}
           title={`${term.text} · ${term.chapter} · 定位原文`}
         >

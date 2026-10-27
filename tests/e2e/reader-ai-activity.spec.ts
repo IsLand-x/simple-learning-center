@@ -253,9 +253,17 @@ test('等待服务端受理时立即显示待发送消息并清空编辑器，�
   const input = page.locator('.reader-ai-input [contenteditable="true"]');
   await expect.poll(jobs.submitted).toBe(true);
   await expect(input).toHaveText('');
-  await expect(page.locator('.ai-composer-message')).toContainText('正在发送');
+  const sendingButton = page.getByRole('button', { name: '正在发送消息', exact: true });
+  await expect(sendingButton).toBeVisible();
+  await expect(sendingButton).toHaveClass(/semi-button-loading/);
+  await expect(sendingButton).toHaveCSS('pointer-events', 'none');
+  await expect(sendingButton).toHaveAttribute('aria-busy', 'true');
+  await expect(sendingButton.locator('[data-icon="spin"]')).toBeVisible();
+  await expect(page.locator('.ai-composer-message')).toBeHidden();
   await expect(page.locator('.semi-chat-area .ai-message--user')).toHaveText('请解释这一章');
   jobs.releaseStart();
+  await expect(sendingButton).toBeHidden();
+  await expect(page.locator('.reader-ai-input .semi-aiChatInput-footer-action-stop')).toBeVisible();
   await expect(page.locator('.semi-chat-area .ai-message--assistant')).toContainText(
     '正在后台继续生成',
   );
