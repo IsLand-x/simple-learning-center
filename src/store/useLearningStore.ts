@@ -13,7 +13,6 @@ import { createReadingActions } from './actions/readingActions';
 import { initialLearningState } from './defaults';
 import type { LearningState } from './learningState';
 import { mergeLearningState } from './persistence/mergeLearningState';
-import { migrateLearningState } from './persistence/migrateLearningState';
 
 export const useLearningStore = create<LearningState>()(
   persist(
@@ -36,9 +35,9 @@ export const useLearningStore = create<LearningState>()(
         ...state
       }) => state,
       migrate: async (state, version) => {
-        const migrated = migrateLearningState(state, version);
-        await migrateServerConversations(migrated, version);
-        const { chats: _chats, chatSessions: _sessions, ...rest } = migrated;
+        const envelope = (state ?? {}) as Partial<LearningState>;
+        await migrateServerConversations(envelope, version);
+        const { chats: _chats, chatSessions: _sessions, ...rest } = envelope;
         return rest;
       },
       merge: mergeLearningState,

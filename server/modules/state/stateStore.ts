@@ -13,6 +13,7 @@ import { protectChatReadState } from './compatibility/chatReadState.js';
 import { protectBookTrashStateFromClient } from './compatibility/bookTrash.js';
 import { hydrateStateFromDisk, prepareStateForDisk } from './serialization.js';
 import type { PersistedState, StoredState } from './types.js';
+import { writeStateToDb } from '../../db/sqliteStateStorage.js';
 
 // Every state.json mutation shares this queue, including resource existence checks.
 // Queue callbacks must not call readPersistedState or enqueue another mutation.
@@ -96,12 +97,13 @@ async function persistState(
   persistedState: PersistedState,
   currentPersistedState: PersistedState | null,
   preserveResourceFiles = false,
+  fields?: readonly (keyof StoredState)[],
 ) {
   const nextState = protectState(persistedState, currentPersistedState);
   const stateForDisk = preserveResourceFiles
     ? nextState
     : await measureServerTiming('state_prepare', () => prepareStateForDisk(nextState));
-  await commitState(stateForDisk);
+  await commitState(stateForDisk, false, fields);
 }
 
 function protectState(
@@ -123,7 +125,11 @@ function protectState(
   return protectChatReadState(protectedState, currentPersistedState);
 }
 
-async function commitState(stateForDisk: DiskState, cacheOwnedSnapshot = false) {
+async function commitState(
+  stateForDisk: DiskState,
+  cacheOwnedSnapshot = false,
+  fields?: readonly (keyof StoredState)[],
+) {
   const envelope = {
     formatVersion: 1 as const,
     updatedAt: new Date().toISOString(),
@@ -134,8 +140,18 @@ async function commitState(stateForDisk: DiskState, cacheOwnedSnapshot = false) 
     () => `${JSON.stringify(envelope, null, 2)}\n`,
   );
   await measureServerTiming('state_write', () => atomicWrite(STATE_FILE, serialized));
-  // Scoped writes own every new field and share only immutable cached fields.
-  // Reuse that snapshot instead of rereading and reparsing the entire file.
+  try {
+    writeStateToDb(
+      {
+        version: stateForDisk.version,
+        deletedConversationIds: stateForDisk.deletedConversationIds,
+        state: stateForDisk.state as unknown as StoredState,
+      },
+      fields,
+    );
+  } catch (dbError) {
+    console.warn('SQLite 状态同步写入失败:', dbError);
+  }
   if (cacheOwnedSnapshot) {
     try {
       stateReadCache = {
@@ -228,6 +244,7 @@ export function writePersistedState(
             state: { ...raw?.state, ...prepared.state },
           },
           true,
+          options.fields,
         );
         return;
       }

@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest';
 import { mergeConversationDrafts } from './conversationDrafts';
-import { migrateLearningState } from './migrateLearningState';
 import { mergeLearningState } from './mergeLearningState';
 import { useLearningStore } from '../useLearningStore';
 
@@ -17,8 +16,7 @@ it('keeps the newest draft per resource and session, including sent empty drafts
     { ...first, resourceId: 'rss:item' },
   ]);
 });
-it('migrates missing drafts and hydrates without overwriting more recent typing', () => {
-  expect(migrateLearningState({ books: [] }, 38).conversationDrafts).toEqual([]);
+it('hydrates drafts without overwriting more recent typing', () => {
   const current = {
     ...useLearningStore.getInitialState(),
     conversationDrafts: [{ ...first, updatedAt: 2 }],

@@ -13,6 +13,13 @@ export const COVER_DIRECTORY = join(DATA_DIRECTORY, 'covers');
 export const NOTE_DIRECTORY = join(DATA_DIRECTORY, 'notes');
 export const SEARCH_INDEX_DIRECTORY = join(DATA_DIRECTORY, 'search-indexes');
 export const STATE_FILE = join(DATA_DIRECTORY, 'state.json');
+export const DB_FILE = join(DATA_DIRECTORY, 'learning-center.db');
+export function getDbFile() {
+  return join(
+    resolve(process.env.LEARNING_CENTER_DATA_DIR || join(PROJECT_DIRECTORY, 'data')),
+    'learning-center.db',
+  );
+}
 export const AUTH_FILE = join(DATA_DIRECTORY, 'auth.json');
 
 export const MODE = process.env.LEARNING_CENTER_MODE === 'remote' ? 'remote' : 'local';

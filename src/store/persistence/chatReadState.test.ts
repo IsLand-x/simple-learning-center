@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useLearningStore } from '../useLearningStore';
 import { createConversationActions } from '../actions/conversationActions';
-import { migrateLearningState } from './migrateLearningState';
 import { mergeLearningState } from './mergeLearningState';
 import type { ChatMessage } from '../../../contracts/ai';
 
@@ -19,19 +18,6 @@ const reply: ChatMessage = {
 };
 
 describe('chat read receipts', () => {
-  it('migrates legacy replies as read without changing users or existing receipts', () => {
-    const chats = [
-      reply,
-      { ...reply, id: 'read', readAt: 12 },
-      { ...reply, id: 'user', role: 'user' as const },
-    ];
-    expect(migrateLearningState({ chats }, 32).chats).toEqual([
-      { ...reply, readAt: 1 },
-      chats[1],
-      chats[2],
-    ]);
-    expect(migrateLearningState({ chats: [reply] }, 33).chats).toEqual([reply]);
-  });
   it('marks only selected assistant replies and preserves receipt times', async () => {
     let state = {
       ...useLearningStore.getInitialState(),

@@ -1,15 +1,9 @@
 import type { LearningData, StateDomain } from '../../contracts/state';
 import { measureAsync } from '../util/browser/measureAsync';
 import { mergeReadingNotes } from './persistence/noteStateMerge';
-import { readingApi } from '../api/reading';
-import { booksApi } from '../api/books';
-import { ServerApiError } from '../api/http/errors';
 import type { PersistedStateEnvelope, StateDomainSnapshot } from '../api/state/type';
-import type { BookSearchIndex } from '../api/reading/type';
 import type { StateStorage } from 'zustand/middleware';
-import type { BookItem } from '../../contracts/books';
 import type { NoteItem } from '../../contracts/reading';
-import { loadLegacyBookSearchIndex, loadLegacyEpubFile } from './persistence/legacyBrowser';
 import { stateApi } from '../api/state';
 import {
   ALL_STATE_DOMAINS,
@@ -17,9 +11,6 @@ import {
   STATE_DOMAIN_FIELDS,
   stateDomainsForPath,
 } from './stateDomains';
-
-const STATE_STORAGE_KEY = 'learning-center-state-v1';
-
 let prepared = false;
 let preparedEnvelope: PersistedStateEnvelope | null = null;
 let preparedState: string | null | undefined;
@@ -208,98 +199,19 @@ export async function migrateServerConversations(state: Partial<LearningData>, v
   domainSubmittedPayloads.delete('conversations');
   domainQueuedPayloads.delete('conversations');
 }
-
-function readLegacyBrowserState() {
-  try {
-    return window.localStorage.getItem(STATE_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function parseLegacyState(rawState: string) {
-  try {
-    const parsed = JSON.parse(rawState) as PersistedStateEnvelope;
-    if (!parsed || typeof parsed !== 'object' || !parsed.state) throw new Error();
-    return parsed;
-  } catch {
-    throw new Error('浏览器中的旧版学习数据格式不正确，无法自动迁移');
-  }
-}
-
-async function uploadLegacyBookData(book: BookItem) {
-  if (book.kind !== 'epub') return;
-  const data = await loadLegacyEpubFile(book.id);
-  if (data) await booksApi.saveEpubFile(book.id, data);
-  const index = await loadLegacyBookSearchIndex<BookSearchIndex>(book.id);
-  if (index) await readingApi.saveSearchIndex(book.id, index);
-}
-
-async function initializeServerState(rawState: string) {
-  try {
-    await stateApi.initialize(parseLegacyState(rawState));
-  } catch (error) {
-    if (!(error instanceof ServerApiError) || error.status !== 409) throw error;
-  }
-}
-
-function resetDomainCache() {
-  preparedEnvelope = null;
-  preparedState = undefined;
-  pendingNoteWrite = undefined;
-  pendingPreferenceWrite = undefined;
-  activePreferenceWrite = undefined;
-  loadedDomains.clear();
-  activeDomains.clear();
-  domainEtags.clear();
-  domainPayloads.clear();
-  domainSubmittedPayloads.clear();
-  domainQueuedPayloads.clear();
-  domainLocalRevisions.clear();
-}
-
 export async function prepareServerState(onProgress?: (message: string) => void) {
   if (prepared) return serializePreparedState();
   onProgress?.('正在读取页面数据…');
   const initialDomains = stateDomainsForPath(window.location.pathname);
   await loadStateDomains(initialDomains);
-  if (preparedEnvelope) {
-    if (preparedStateVersion() < LEARNING_STORE_VERSION) {
-      onProgress?.('正在升级学习数据…');
-      await loadStateDomains(ALL_STATE_DOMAINS);
-    }
-    activateServerStateDomains([...loadedDomains]);
-    prepared = true;
-    return serializePreparedState();
+  if (preparedEnvelope && preparedStateVersion() < LEARNING_STORE_VERSION) {
+    onProgress?.('正在升级学习数据…');
+    await loadStateDomains(ALL_STATE_DOMAINS);
   }
-
-  const legacyState = readLegacyBrowserState();
-  if (legacyState) {
-    const parsed = parseLegacyState(legacyState);
-    const books = Array.isArray(parsed.state?.books) ? parsed.state.books : [];
-    const epubBooks = books.filter((book) => book.kind === 'epub');
-    for (let index = 0; index < epubBooks.length; index += 1) {
-      onProgress?.(`正在迁移书籍文件（${index + 1}/${epubBooks.length}）…`);
-      try {
-        await uploadLegacyBookData(epubBooks[index]);
-      } catch (error) {
-        console.warn(`未能迁移《${epubBooks[index].title}》的浏览器文件`, error);
-      }
-    }
-    onProgress?.('正在迁移笔记、进度和对话…');
-    await initializeServerState(legacyState);
-    resetDomainCache();
-    await loadStateDomains(initialDomains);
-    if (preparedStateVersion() < LEARNING_STORE_VERSION) {
-      await loadStateDomains(ALL_STATE_DOMAINS);
-    }
-  }
-
   activateServerStateDomains([...loadedDomains]);
   prepared = true;
   return serializePreparedState();
 }
-
 export const serverStateStorage: StateStorage = {
   getItem: async () => {
     if (!prepared) await prepareServerState();

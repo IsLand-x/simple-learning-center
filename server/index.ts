@@ -7,6 +7,8 @@ import { initializeDataDirectories } from './infrastructure/fs/files.js';
 
 validateServerConfig();
 await initializeDataDirectories();
+import { migrateFromStateJson } from './db/migrateFromStateJson.js';
+await migrateFromStateJson();
 const bookTrashScheduler = createBookTrashScheduler();
 const aiJobManager = createAiJobManager();
 
