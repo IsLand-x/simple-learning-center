@@ -1,13 +1,14 @@
+import type { LegacyStateDomainFields, StateDomainFields } from '../../../contracts/state.js';
 import type { PersistedState } from './types.js';
 import { createHash } from 'node:crypto';
 import { statusError } from '../../infrastructure/http/errors.js';
 
 const STATE_DOMAIN_FIELDS = Object.freeze({
-  library: Object.freeze(['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones']),
-  reading: Object.freeze(['readingSessions', 'chapterMindMaps', 'chapterVideos']),
-  notes: Object.freeze(['notes', 'deletedNoteTombstones']),
-  highlights: Object.freeze(['highlights', 'deletedHighlightTombstones']),
-  conversations: Object.freeze(['chats', 'chatSessions']),
+  library: Object.freeze(['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'] as const),
+  reading: Object.freeze(['readingSessions', 'chapterMindMaps', 'chapterVideos'] as const),
+  notes: Object.freeze(['notes', 'deletedNoteTombstones'] as const),
+  highlights: Object.freeze(['highlights', 'deletedHighlightTombstones'] as const),
+  conversations: Object.freeze(['chats', 'chatSessions'] as const),
   rss: Object.freeze([
     'rssFolders',
     'rssFeeds',
@@ -17,8 +18,8 @@ const STATE_DOMAIN_FIELDS = Object.freeze({
     'rssDigestRuns',
     'rssDigestSettings',
     'rssPanelWidth',
-  ]),
-  videos: Object.freeze(['videoResources', 'videoTimestampNotes', 'videoPanelWidth']),
+  ] as const),
+  videos: Object.freeze(['videoResources', 'videoTimestampNotes', 'videoPanelWidth'] as const),
   preferences: Object.freeze([
     'openAIConfigs',
     'webSearchConfig',
@@ -30,8 +31,8 @@ const STATE_DOMAIN_FIELDS = Object.freeze({
     'readerPreferencesUpdatedAt',
     'readerStyleUpdatedAt',
     'readerLayoutUpdatedAt',
-  ]),
-});
+  ] as const),
+} satisfies StateDomainFields & LegacyStateDomainFields);
 
 export function isStateDomain(value: unknown): value is keyof typeof STATE_DOMAIN_FIELDS {
   return typeof value === 'string' && Object.hasOwn(STATE_DOMAIN_FIELDS, value);
@@ -71,7 +72,8 @@ export function mergeStateDomainSnapshot(
   const nextState = currentPersistedState?.state
     ? structuredClone(currentPersistedState)
     : { state: {}, version: 0 };
-  for (const field of STATE_DOMAIN_FIELDS[domain]) {
+  // 白名单已由共享契约校验；动态复制继续使用 unknown 索引以兼容旧快照。
+  for (const field of STATE_DOMAIN_FIELDS[domain] as readonly string[]) {
     if (Object.hasOwn(incomingSnapshot.state, field)) {
       nextState.state[field] = structuredClone(incomingSnapshot.state[field]);
     }

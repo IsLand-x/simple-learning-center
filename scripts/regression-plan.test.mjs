@@ -33,16 +33,16 @@ test('阅读器运行时、共享模块、持久化、依赖和未知变动全�
 });
 test('文档免运行时回归，删除和手动强制不允许缩减', () => {
   assert.equal(regressionPlan([change('README.md')]).mode, 'none');
-  assert.equal(regressionPlan([change('src/pages/rss/reader/index.tsx', 'D')]).mode, 'full');
+  assert.equal(regressionPlan([change('src/pages/books/list/index.tsx', 'D')]).mode, 'full');
   assert.equal(regressionPlan([], true).mode, 'full');
 });
 test('页面变动包含功能、视觉与路由；直接改测试不会遗漏', () => {
   const plan = regressionPlan([
-    change('src/pages/rss/reader/index.tsx'),
+    change('src/pages/books/list/index.tsx'),
     change('tests/e2e/book-sharing.spec.ts'),
   ]);
   assert.equal(plan.mode, 'related');
-  assert.ok(plan.specs.includes('tests/e2e/rss-video-workflows.spec.ts'));
+  assert.ok(plan.specs.includes('tests/e2e/book-list-order.spec.ts'));
   assert.ok(plan.specs.includes('tests/e2e/visual-regression.spec.ts'));
   assert.ok(plan.specs.includes('tests/e2e/app-shell.spec.ts'));
   assert.ok(plan.specs.includes('tests/e2e/book-sharing.spec.ts'));

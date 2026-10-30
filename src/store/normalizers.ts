@@ -1,6 +1,5 @@
 import { normalizeReaderCustomStyle, READER_THEME_PRESETS } from '../util/reading/readerThemes';
 import type { ReaderCustomStyle, ReaderFont, ReaderTheme } from '../../contracts/reading';
-import type { RssFeed } from '../../contracts/rss';
 
 export function normalizeReaderFont(font: unknown): ReaderFont {
   if (font === 'kai' || font === 'wenkai-screen') return 'kai';
@@ -20,23 +19,4 @@ export function normalizeStoredCustomStyle(style: Partial<ReaderCustomStyle> | u
 
 export function normalizeReaderTheme(theme: unknown): ReaderTheme {
   return READER_THEME_PRESETS.find((preset) => preset.id === theme)?.id ?? 'custom';
-}
-
-export function normalizeRssFeedSource(feed: RssFeed): RssFeed {
-  const source = feed.source;
-  if (source?.kind === 'rss' && typeof source.feedUrl === 'string' && source.feedUrl) return feed;
-  if (source?.kind === 'bilibili-weekly') return feed;
-  if (source?.kind === 'bilibili-up' && typeof source.uid === 'string' && source.uid) return feed;
-  if (
-    source?.kind === 'youtube-channel' &&
-    typeof source.channelId === 'string' &&
-    source.channelId &&
-    typeof source.feedUrl === 'string' &&
-    source.feedUrl
-  )
-    return feed;
-  return {
-    ...feed,
-    source: { kind: 'rss', feedUrl: feed.url },
-  };
 }

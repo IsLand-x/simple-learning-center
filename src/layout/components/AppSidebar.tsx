@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Nav, Toast, Tooltip } from '@douyinfe/semi-ui';
 import {
-  IconArticle,
   IconBook,
   IconChevronLeft,
   IconChevronRight,
@@ -9,7 +8,6 @@ import {
   IconMoon,
   IconSettingStroked,
   IconSun,
-  IconVideo,
 } from '@douyinfe/semi-icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { applyAppTheme } from '../../util/appTheme';
@@ -37,24 +35,8 @@ export function AppSidebar() {
   const [installationStatus, setInstallationStatus] = useState<
     'checking' | 'installed' | 'not-installed'
   >(() => (isRunningAsInstalledPwa() ? 'installed' : 'checking'));
-  const activeSection =
-    location.pathname === '/settings'
-      ? 'settings'
-      : location.pathname.startsWith('/rss')
-        ? 'rss'
-        : location.pathname.startsWith('/videos')
-          ? 'videos'
-          : 'books';
+  const activeSection = location.pathname === '/settings' ? 'settings' : 'books';
   const readingBook = location.pathname.startsWith('/books/');
-  const rssSearchParams = location.pathname.startsWith('/rss')
-    ? new URLSearchParams(location.search)
-    : null;
-  const rssView = rssSearchParams?.get('view');
-  const readingRssItem = Boolean(
-    rssView === 'detail' || (!rssView && rssSearchParams?.has('item')),
-  );
-  const readingVideo =
-    location.pathname.startsWith('/videos') && new URLSearchParams(location.search).has('video');
 
   useEffect(() => {
     applyAppTheme(themeMode);
@@ -161,35 +143,13 @@ export function AppSidebar() {
         isCollapsed={navCollapsed}
         onCollapseChange={setNavCollapsed}
         selectedKeys={[activeSection]}
-        onClick={({ itemKey }) =>
-          navigate(
-            itemKey === 'settings'
-              ? '/settings'
-              : itemKey === 'rss'
-                ? '/rss'
-                : itemKey === 'videos'
-                  ? '/videos'
-                  : '/',
-          )
-        }
+        onClick={({ itemKey }) => navigate(itemKey === 'settings' ? '/settings' : '/')}
         items={[
           {
             itemKey: 'books',
             text: '读书',
             icon: <IconBook />,
             onClick: () => navigate('/'),
-          },
-          {
-            itemKey: 'rss',
-            text: 'RSS',
-            icon: <IconArticle />,
-            onClick: () => navigate('/rss'),
-          },
-          {
-            itemKey: 'videos',
-            text: '视频',
-            icon: <IconVideo />,
-            onClick: () => navigate('/videos'),
           },
           {
             itemKey: 'settings',
@@ -209,9 +169,9 @@ export function AppSidebar() {
           ),
         }}
       />
-      {!readingBook && !readingRssItem && !readingVideo && (
+      {!readingBook && (
         <nav
-          className="mobile-main-nav mobile:[z-index:40] mobile:[height:calc(var(--mobile-main-nav-height)_+_env(safe-area-inset-bottom))] mobile:[min-height:calc(var(--mobile-main-nav-height)_+_env(safe-area-inset-bottom))] mobile:[grid-template-columns:repeat(4,_minmax(0,_1fr))] mobile:[order:2] mobile:[flex:0_0_auto] mobile:[border-top:1px_solid_var(--semi-color-border)] mobile:[background:var(--semi-color-bg-1)] mobile:overflow-hidden mobile:[overscroll-behavior:none]"
+          className="mobile-main-nav mobile:[z-index:40] mobile:[height:calc(var(--mobile-main-nav-height)_+_env(safe-area-inset-bottom))] mobile:[min-height:calc(var(--mobile-main-nav-height)_+_env(safe-area-inset-bottom))] mobile:[grid-template-columns:repeat(2,_minmax(0,_1fr))] mobile:[order:2] mobile:[flex:0_0_auto] mobile:[border-top:1px_solid_var(--semi-color-border)] mobile:[background:var(--semi-color-bg-1)] mobile:overflow-hidden mobile:[overscroll-behavior:none]"
           aria-label="主导航"
         >
           <Button
@@ -224,28 +184,6 @@ export function AppSidebar() {
             onClick={() => navigate('/')}
           >
             读书
-          </Button>
-          <Button
-            aria-current={activeSection === 'rss' ? 'page' : undefined}
-            aria-label="打开 RSS"
-            className={activeSection === 'rss' ? 'mobile-main-nav__button--active' : ''}
-            icon={<IconArticle />}
-            theme="borderless"
-            type="tertiary"
-            onClick={() => navigate('/rss')}
-          >
-            RSS
-          </Button>
-          <Button
-            aria-current={activeSection === 'videos' ? 'page' : undefined}
-            aria-label="打开视频学习"
-            className={activeSection === 'videos' ? 'mobile-main-nav__button--active' : ''}
-            icon={<IconVideo />}
-            theme="borderless"
-            type="tertiary"
-            onClick={() => navigate('/videos')}
-          >
-            视频
           </Button>
           <Button
             aria-current={activeSection === 'settings' ? 'page' : undefined}

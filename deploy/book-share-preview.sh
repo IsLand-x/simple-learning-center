@@ -21,8 +21,6 @@ docker run -d \
   --env LEARNING_CENTER_MODE=remote \
   --env LEARNING_CENTER_DATA_DIR=/data \
   --env LEARNING_CENTER_PORT=4174 \
-  --env LEARNING_CENTER_RSS_REFRESH_INTERVAL_MS=86400000 \
-  --env LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS=86400000 \
   --publish 127.0.0.1:4178:4174 \
   --mount "type=volume,source=$volume,target=/data" \
   "$image_ref"

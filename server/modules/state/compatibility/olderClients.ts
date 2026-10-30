@@ -1,3 +1,4 @@
+// Legacy：保留 RSS 与独立视频的旧快照保护；本文件中的书单兼容规则继续生效。
 import type { PersistedState } from '../types.js';
 
 const RSS_STATE_VERSION = 16;

@@ -41,16 +41,3 @@ export interface OAuthProviderStatus {
 }
 
 export type OAuthOperation = 'login' | 'cancel' | 'logout';
-
-export interface BilibiliCredentialStatus {
-  configured: boolean;
-  verificationStatus: 'unconfigured' | 'unverified' | 'valid' | 'invalid';
-  updatedAt?: number;
-  lastVerifiedAt?: number;
-  accountLabel?: string;
-  message?: string;
-}
-
-export interface SaveBilibiliCookieRequest {
-  cookie: string;
-}

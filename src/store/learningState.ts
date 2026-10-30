@@ -1,4 +1,4 @@
-import type { LearningData } from '../api/state/type';
+import type { LearningData } from '../../contracts/state';
 import type { StoreApi } from 'zustand';
 import type {
   AiPreferences,
@@ -15,16 +15,7 @@ import type {
   ReaderPreferences,
   ReadingSession,
 } from '../../contracts/reading';
-import type {
-  RssAnnotation,
-  RssDailyDigest,
-  RssDigestSettings,
-  RssFeed,
-  RssFolder,
-  RssItem,
-} from '../../contracts/rss';
 import type { ThemeMode, WebSearchConfig } from '../../contracts/settings';
-import type { VideoResource, VideoTimestampNote } from '../../contracts/videos';
 
 export interface LearningState extends LearningData {
   setConversationDraft: (resourceId: string, conversationId: string, text: string) => void;
@@ -73,37 +64,6 @@ export interface LearningState extends LearningData {
   addChatMessage: (message: ChatMessage) => void;
   clearBookChats: (bookId: string) => Promise<void>;
   upsertReadingSession: (session: ReadingSession) => void;
-  addRssFolder: (folder: RssFolder) => void;
-  updateRssFolder: (folderId: string, changes: Partial<Pick<RssFolder, 'name'>>) => void;
-  moveRssFolder: (folderId: string, beforeFolderId?: string) => void;
-  deleteRssFolder: (folderId: string) => void;
-  upsertRssFeed: (feed: RssFeed) => void;
-  updateRssFeed: (feedId: string, changes: Partial<RssFeed>) => void;
-  moveRssFeed: (feedId: string, folderId?: string, beforeFeedId?: string) => void;
-  deleteRssFeed: (feedId: string) => void;
-  mergeRssItems: (feedId: string, items: RssItem[]) => void;
-  updateRssItem: (itemId: string, changes: Partial<RssItem>) => void;
-  addRssAnnotation: (annotation: RssAnnotation) => void;
-  updateRssAnnotation: (
-    annotationId: string,
-    changes: Partial<Pick<RssAnnotation, 'comment' | 'commentUpdatedAt'>>,
-  ) => void;
-  deleteRssAnnotation: (annotationId: string) => void;
-  upsertRssDailyDigest: (digest: RssDailyDigest) => void;
-  setRssDigestSettings: (changes: Partial<RssDigestSettings>) => void;
-  markRssItemsRead: (itemIds?: string[]) => void;
-  markRssItemsUnread: (itemIds?: string[]) => void;
-  setRssPanelWidth: (width: number) => void;
-  upsertVideoResource: (video: VideoResource) => void;
-  updateVideoResource: (videoId: string, changes: Partial<VideoResource>) => void;
-  deleteVideoResource: (videoId: string) => void;
-  addVideoTimestampNote: (note: VideoTimestampNote) => void;
-  updateVideoTimestampNote: (
-    noteId: string,
-    changes: Partial<Pick<VideoTimestampNote, 'content'>>,
-  ) => void;
-  deleteVideoTimestampNote: (noteId: string) => void;
-  setVideoPanelWidth: (width: number) => void;
   addOpenAIConfig: (config: OpenAICompatibleConfig) => void;
   updateOpenAIConfig: (configId: string, changes: Partial<OpenAICompatibleConfig>) => void;
   deleteOpenAIConfig: (configId: string) => void;

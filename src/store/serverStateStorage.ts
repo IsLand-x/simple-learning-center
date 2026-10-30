@@ -1,14 +1,10 @@
+import type { LearningData, StateDomain } from '../../contracts/state';
 import { measureAsync } from '../util/browser/measureAsync';
 import { mergeReadingNotes } from './persistence/noteStateMerge';
 import { readingApi } from '../api/reading';
 import { booksApi } from '../api/books';
 import { ServerApiError } from '../api/http/errors';
-import type {
-  LearningData,
-  PersistedStateEnvelope,
-  StateDomain,
-  StateDomainSnapshot,
-} from '../api/state/type';
+import type { PersistedStateEnvelope, StateDomainSnapshot } from '../api/state/type';
 import type { BookSearchIndex } from '../api/reading/type';
 import type { StateStorage } from 'zustand/middleware';
 import type { BookItem } from '../../contracts/books';

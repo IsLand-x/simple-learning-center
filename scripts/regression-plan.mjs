@@ -27,8 +27,6 @@ const domains = [
       'reader-chapter-videos',
     ],
   ],
-  [/^src\/pages\/rss\//, ['rss-video-workflows']],
-  [/^src\/pages\/videos\//, ['rss-video-workflows', 'video-dialog-state']],
   [
     /^src\/pages\/settings\//,
     ['settings-model-controls', 'settings-tts', 'oauth-settings', 'about-settings'],

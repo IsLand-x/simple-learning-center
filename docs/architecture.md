@@ -16,29 +16,27 @@ src/
   pages/
     books/list/           书架、书单、导入、回收站
     books/detail/         阅读器与学习面板
-    rss/reader/           订阅源、列表、文章、日报、助手
-    videos/study/         视频资料、播放器、字幕与学习笔记
-    settings/             账号、模型、内容源、授权与关于
+    settings/             账号、模型、授权与关于
   api/
-    rss/
-      index.ts            RssApi class 和实例
+    books/
+      index.ts            BooksApi class 和实例
       type.ts             本域请求体与响应体
-    books/                同样使用 index.ts + type.ts
-    ai/ auth/ reading/ settings/ state/ videos/
+    ai/ auth/ reading/ settings/ state/ book-shares/ conversations/
     http/                 内部 transport、错误与传输类型
   store/                  唯一 Zustand 持久化状态及同步
   types/                  仅浏览器使用的跨页面类型
   util/                   确有跨页面用途的纯工具与适配器
   styles/                 Tailwind 入口与必要兼容样式
 contracts/
-  books.d.ts reading.d.ts rss.d.ts videos.d.ts ai.d.ts settings.d.ts
+  books.d.ts reading.d.ts ai.d.ts settings.d.ts state.d.ts
+  rss.d.ts videos.d.ts     仅用于历史数据兼容
 ```
 
 每个 TSX 文件只定义一个组件，每个组件只有一个实现文件。简单组件使用单个文件；复杂区域将组件、私有 Hook、纯计算和测试放在一个目录。页面入口保留 `index.tsx`，组件文件使用真实组件名称，例如 `SourcesPanel.tsx`、`ReaderPageHeader.tsx`，不为每个组件再创建 index 或转发文件。已有共享组件直接导入，不增加单页转发壳。
 
 页面入口只组合区域与稳定的生命周期所有者。页面 `store/` 只保留跨区域的状态和导航；组件自己的展开、草稿、提交状态在组件内，复杂时放同级 `useX.ts`。不统一创建 `hooks/model/application/ui` 等多层配套目录，也不把全页逻辑原样搬入大 Hook。
 
-例如改添加订阅表单，先看 `pages/rss/reader/components/SourcesPanel`；改书籍图片资源，看 `books/detail/components/ResourcesPanel`；改视频笔记，看 `videos/study/components/Playback`。协议变更才进一步修改 `api/<domain>/index.ts` 和 `type.ts`。
+例如改书单，先看 `books/list/components/BookLists`；改书籍图片资源，看 `books/detail/components/ResourcesPanel`；改章节讲解视频，看 `books/detail/components/ChapterVideoPanel`。协议变更才进一步修改 `api/<domain>/index.ts` 和 `type.ts`。
 
 书架封面恢复和 EPUB 导入属于书架；Foliate 适配、书内段落读取、手势和文字光标属于阅读器。旧浏览器存储读取跟随 `store/persistence`。阅读字体、主题和共用 AI 提示词有多个实际消费者，继续放在 util。
 
@@ -48,8 +46,6 @@ contracts/
 
 阅读器从 version 41 起将排版与纸张配色解耦：`readerPreferences.fontFamily/fontSize/lineHeight/paragraphStyle` 是排版的唯一生效来源，预设主题及 `customStyle` 负责配色与纹理。历史 `customStyle` 中的字体等字段仅用于兼容迁移；迁移按旧预设实际显示值初始化，旧自定义样式保留段落留白。`paragraphStyle` 仍归属 preferences 分区内的阅读样式版本组，客户端与服务端按同一时间戳保护。`resolveReaderStyle` 统一生成排版变量，演示正文与 Foliate iframe 共用 `reader-prose.css`，纸书模式的段间距为零、首行缩进为两字，段落留白模式继续复用原有三档密度。
 
-- RSS 的 `source/feed/item/digest/range/view/panel` 继续由 URL 驱动，保留默认项、失效参数回退、push/replace、刷新直达和返回行为，不创建双向同步的第二份选中状态。
-- RSS 页面只建立一个状态作用域，Context 以 navigation / sources / article / tasks 的明确接口连接区域；各 Hook 通过参数连接，不互相读取 Context。页面直接组合桌面/移动工作区和常驻弹窗，Dialog 内拥有自己的草稿。任务恢复、订阅、结果回写在页面生命周期中执行，不随可见面板切换重复启动。
 - 阅读器只随 `book.id` 建立生命周期，其余最新参数通过稳定 ref 输入。`ReaderPageContent.tsx` 负责页面编排，页面共享的标注、导航、布局、会话 Hook 放在本页 store；标注状态与动作由同一个 Hook 管理。Foliate 和演示正文归入 ReaderSurface 的私有目录，阅读页其它区域不依赖它们的实现。
 - 阅读器 AI 的活动状态与任务进度使用独立 Context。页面导航和工具栏只订阅稳定的活动状态与会话 ID，聊天和导图面板订阅任务进度；流式 revision 更新不会重渲染阅读器外层。对话消息数组按来源缓存，内容组件按实际字段复用，已完成 Markdown 片段不因输入或后续输出重复解析。
 - 视频导入弹窗自己持有 URL 和提交状态；播放时间、播放器 ref 和字幕模式是播放器与字幕共用状态，保留在稳定页面范围。学习笔记逻辑位于播放区域。
@@ -59,7 +55,11 @@ contracts/
 
 对话读取从页面启动分区中移出：`/api/conversations?bookId=…` 按资源分页返回会话摘要（消息数与未读数由服务端计算），`/:id/messages?bookId=…&before=…` 使用消息 ID 游标按时间及 ID 稳定排序，每页默认 50 条。选择与计数发生在状态克隆前，摘要缓存与当前解析的状态对象绑定；客户端只保存已打开的消息页，使用有界 ETag 响应缓存，并仅刷新当前挂载的资源与会话。摘要延迟或失败不阻塞阅读，历史列表与消息区域各自展示加载、错误及重试。聊天缓存与摘要不进入常规 Zustand persist 快照；首次旧版迁移仍完整读取，对话格式发生变化时显式合并保存规范化结果，并保留读取后其他设备新增的会话与消息；随后清除迁移快照中的对话字段。模型修改、已读和删除使用独立接口，消息与首次会话由既有 AI 任务 API 原子保存，全部写入继续共享状态写队列。服务端 envelope 的 `deletedConversationIds` 是仅服务端维护的删除记录，旧客户端快照不能复活这些会话，新任务也不能复用已删除的 ID。原 `/api/state/conversations` 保留兼容，在同一文件版本内复用 JSON 与 ETag，避免 304 前重复克隆和序列化。磁盘实体仍保留于原 `state.json`，本轮不改变备份方式或引入数据库。阅读页的周期任务列表使用 `view=summary`，只有打开的会话读取任务正文及 SSE，隐藏面板时仍同步任务状态与 AI 笔记。
 
-根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 42，library / reading / notes / highlights / conversations / rss / videos / preferences 八个分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护；当前客户端另外传输非持久化的 notesBase 编辑基准，服务端在单实例写队列内进行正文合并并返回规范快照，持久化核心订阅保存结果以更新当前编辑区。独立文本修改自动合并，重叠修改保留完整草稿。AI 新增笔记使用同一写队列原子追加，替换仍要求读取版本。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。存档同样使用 library 分区内的书籍可选元数据：`archivedAt` 表示当前存档，`archiveUpdatedAt` 独立记录存档与取消存档的修改版本；旧书籍缺省保持普通书架状态。服务端按该版本单独合并存档决定，旧客户端或较晚保存的阅读进度不会撤销存档；书籍和学习记录仍保存在原有位置。书架底部默认折叠存档区，搜索与筛选时展开匹配结果。
+根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 42，library / reading / notes / highlights / conversations / preferences 六个活动分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护；当前客户端另外传输非持久化的 notesBase 编辑基准，服务端在单实例写队列内进行正文合并并返回规范快照，持久化核心订阅保存结果以更新当前编辑区。独立文本修改自动合并，重叠修改保留完整草稿。AI 新增笔记使用同一写队列原子追加，替换仍要求读取版本。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。存档同样使用 library 分区内的书籍可选元数据：`archivedAt` 表示当前存档，`archiveUpdatedAt` 独立记录存档与取消存档的修改版本；旧书籍缺省保持普通书架状态。服务端按该版本单独合并存档决定，旧客户端或较晚保存的阅读进度不会撤销存档；书籍和学习记录仍保存在原有位置。书架底部默认折叠存档区，搜索与筛选时展开匹配结果。
+
+RSS 和独立 YouTube 学习功能已下线，页面、业务 API、内容源凭据入口、抓取服务及定时任务均删除；旧页面地址通过路由兜底返回书架，旧业务接口返回 404。书籍内的章节讲解视频继续属于 reading 分区。历史 RSS/视频字段仅在兼容边界保留，不进入客户端活动状态，也不触发加载、抓取或 AI 任务；不删除服务器数据文件。
+
+`contracts/state.d.ts` 是活动状态与分区字段归属的类型来源，客户端默认值、Zustand actions 与服务端兼容存储均从其派生。两端字段表受精确元组约束，防止字段遗漏或顺序漂移。`LegacyLearningData` 独立表达旧字段，服务端继续保留旧快照中的未知字段。
 
 ## API 与类型
 
@@ -79,24 +79,24 @@ server/
   infrastructure/          文件系统及外部 HTTP 原语
   modules/
     books/                 导入、书架、回收站、笔记、索引、图片、MCP
-    rss/                   来源、正文、刷新、翻译与定时任务
-    videos/                视频元数据与字幕
     ai/                    模型、工具、任务与 generation
     auth/                  应用认证与 middleware
-    settings/              凭据、Token、运行信息
+    settings/              Token、运行信息
     state/                 stateStore、serialization 与 compatibility
   tests/                   整个应用、路由顺序等集成测试
 ```
 
 业务路由、实现与领域测试就近存放，只有 `app.ts` 装配子路由。书籍模块可以提供 books、search、import、MCP 等多个 router，保持原 URL；目录聚合不等于改 HTTP 前缀。复杂业务按真实职责拆文件，不强制增加 controller/service/repository 转发层。
 
+AI 任务启动按输入校验、书籍上下文准备和任务注册拆分，主流程保持校验、并发检查和持久化先后；任务资源只支持书籍，chat、glossary、mindmap 和 chapter-video 各用途共用同一生命周期。
+
 知识地图和信息图执行归 `ai/generation`；图片落盘、书籍存在性校验、收藏与重命名归 books。AI 使用书籍服务，books 不反向依赖 AI 运行时。
 
-阅读对话的脚本绘图归 `ai/diagrams`，仅在 `resourceType = book` 且 `purpose = chat` 时注册 `render_diagram` 与主动绘图指令，不向 RSS、视频、日报或术语释义暴露该能力。脚本在独立 worker 中的 QuickJS WebAssembly 环境运行，无宿主函数与模块加载器，限制脚本长度、内存、堆栈和执行时间；父任务提供总超时和取消终止。SVG 使用元素、属性白名单拒绝外部资源、实体、CSS 和主动内容，限定尺寸、节点数与层级，再由 resvg 本地生成 PNG。生产容器提供 Noto CJK 字体，本地可指定 `LEARNING_CENTER_DIAGRAM_FONT`。每条消息串行执行至多 4 个不同方案，允许根据实际检查结果修正，重复方案共享 Promise。
+阅读对话的脚本绘图归 `ai/diagrams`，仅在 `resourceType = book` 且 `purpose = chat` 时注册 `render_diagram` 与主动绘图指令，术语释义不注册该能力。脚本在独立 worker 中的 QuickJS WebAssembly 环境运行，无宿主函数与模块加载器，限制脚本长度、内存、堆栈和执行时间；父任务提供总超时和取消终止。SVG 使用元素、属性白名单拒绝外部资源、实体、CSS 和主动内容，限定尺寸、节点数与层级，再由 resvg 本地生成 PNG。生产容器提供 Noto CJK 字体，本地可指定 `LEARNING_CENTER_DIAGRAM_FONT`。每条消息串行执行至多 4 个不同方案，允许根据实际检查结果修正，重复方案共享 Promise。
 
 绘图的依据、假设、数值检查项和示例数据声明为显式 schema 字段；声明示例数据的图必须包含“示例数据”文字。`toolDefinition` 可将结果转换为模型可见的文本/图片内容，只有所选模型声明图片输入时才附加 PNG；纯文本模型得到真实执行状态及未完成视觉检查的限制，不修改全局模型能力。图片由服务端确定性追加到现有任务消息，检查状态不伪装成已经通过视觉检查。脚本图不走 AI 生图或 COS 上传；PNG 和可运行 JavaScript 源码由 books 在单实例写队列中校验书籍并保存，下载脚本把模型代码作为字符串交给 QuickJS，避免直接在 Node 宿主执行；源码通过受认证的文本附件路由下载，随书籍彻底删除。对话、图片查看和资源收藏复用既有链路，无新持久化字段或迁移。
 
-`modules/state/stateStore.ts` 保持 state.json 唯一串行提交入口；序列化及纯保护规则就近独立。AI、RSS、阅读与删除合并保留原顺序。队列回调不得再次入队，底层状态服务不得反向调用业务副作用。图片保存与书籍删除共享原有串行边界；认证、Token 和来源凭据继续使用各自独立队列。
+`modules/state/stateStore.ts` 保持 state.json 唯一串行提交入口；序列化及纯保护规则就近独立。AI、阅读与删除合并保留原顺序。队列回调不得再次入队，底层状态服务不得反向调用业务副作用。图片保存与书籍删除共享原有串行边界；认证和 Token 继续使用各自独立队列。状态路由需要的回收站清理由 dependencies.ts 注入，state 模块不直接引用书籍业务。
 
 路由契约显式核对各业务路由的注册顺序；新增章节视频及封面路由经过同一鉴权，保持 Cookie、ETag、SSE、错误与静态兜底语义。`scripts/test-server.mjs` 递归发现测试并核对源文件与构建产物，避免测试迁移后被根目录 glob 漏掉。
 
@@ -106,7 +106,7 @@ server/
 - components 不依赖 pages/layout；util 不依赖界面或 store；根 store 不依赖界面。
 - API 只依赖传输与纯类型；类型文件不能包含运行时代码。
 - contracts 不依赖浏览器或服务端实现；infrastructure 不依赖业务 modules。
-- stateStore/serialization 不反向依赖其他业务模块；books 不依赖 AI。
+- state 模块不直接导入其他业务模块，跨业务操作由应用装配后注入；books 不依赖 AI。
 
 `check:boundaries` 通过 TypeScript AST 和模块解析检查静态/动态导入、重导出、循环依赖、API 文件配对及纯类型声明。`check:components` 检查所有生产 TSX 恰好定义一个组件，测试 TSX 最多一个组件，测试夹具单独管理。两项都进入 `verify`，并保留 TypeScript 未使用检查、零 warning lint、格式和 Knip。
 
@@ -118,7 +118,7 @@ server/
 
 ## 验证与发布
 
-`verify` 包含类型、lint、格式、组件与模块边界、死代码、Node/Web 测试、Vite/PWA 构建。服务端由 `test:server` 编译一次，后续 `build:web` 只处理前端；独立 `build` 仍构建完整前后端。`verify:full` 再用固定 Docker 浏览器环境执行 E2E。保留原 48 张视觉基线，覆盖四种宽度、两种主题、登录与五个页面；另有真实 EPUB、RSS、视频、表单草稿与持久化行为回归。所有 E2E 使用临时示例数据，单 worker 避免并发改同一分区。
+`verify` 包含类型、lint、格式、组件与模块边界、死代码、Node/Web 测试、Vite/PWA 构建。服务端由 `test:server` 编译一次，后续 `build:web` 只处理前端；独立 `build` 仍构建完整前后端。`verify:full` 再用固定 Docker 浏览器环境执行 E2E。视觉基线覆盖书架、阅读器和设置的四种宽度、两种主题，以及登录页，共 32 张；另有真实 EPUB、表单草稿、章节视频与持久化行为回归。导航删除属于本次明确批准的界面变更，相应基线在固定容器内更新。所有 E2E 使用临时示例数据，单 worker 避免并发改同一分区。
 
 生产流水线在验证阶段注入提交标识、更新时间及资源 CDN 配置，完成构建后只打包 `dist/` 与 `server-dist/`，通过同次运行、同一 SHA 的短期 artifact 传递。发布任务只构建 `verified-runtime`，不重复运行验证与源码构建；默认 `runtime` 仍从源码执行完整验证。两个目标继承同一个运行时基座，保留相同的非 root 用户、字体、健康检查与启动命令；生产依赖在 Alpine 中单独安装，与应用产物分层缓存，避免跨 libc 复用原生模块及每次发布重新传输依赖。只有 CI 验证通过的同一产物进入镜像，服务器继续按镜像 digest 发布、检查健康并在失败时回滚。
 
@@ -142,7 +142,7 @@ server/
 
 `server/modules/ai/modelRoutes.ts` 在现有认证中间件之后提供 `POST /api/ai/models/discover`，只接收 API 地址和可选 API Key。`modelDiscovery.ts` 校验 HTTP(S) 地址，规范化 `/models`、`/chat/completions` 后缀，并在根地址不支持模型列表时尝试同一供应商的 `/v1/models`。请求最多等待 15 秒、读取 2 MiB，不跟随重定向；上游原始响应与网络错误不会暴露到日志或前端。
 
-设置页通过 `api/ai` 请求发现接口。`useModelDiscovery.ts` 管理请求与取消，地址、Key 或编辑状态变化时取消旧请求；模型多选由页面私有组件负责。新配置先保留为页面草稿，确认后通过已有 `addOpenAIConfig` 一次保存为单个供应商，编辑时复用 `updateOpenAIConfig`。继续使用 `openAIConfigs[].models` 与 preferences 分区，无新增持久化字段或迁移；读书、RSS 与视频助手复用既有供应商与模型选择器。
+设置页通过 `api/ai` 请求发现接口。`useModelDiscovery.ts` 管理请求与取消，地址、Key 或编辑状态变化时取消旧请求；模型多选由页面私有组件负责。新配置先保留为页面草稿，确认后通过已有 `addOpenAIConfig` 一次保存为单个供应商，编辑时复用 `updateOpenAIConfig`。继续使用 `openAIConfigs[].models` 与 preferences 分区，无新增持久化字段或迁移；书籍助手复用既有供应商与模型选择器。
 
 ## AI 供应商 OAuth
 
@@ -220,11 +220,11 @@ EPUB 正文索引升级至 version 3，增加每个段落所属的目录节点�
 
 节点跳转先在原 CFI 范围内核验引用，再生成细化 CFI，并进入现有 Foliate 导航队列。定位使用临时 Overlayer 提示，下一次导航或短暂展示后清除；不改变持久高亮。调整字体、纸张或分栏不会改变来源锚点。
 
-正文划词光标由 `src/util/reading/textCursor.ts` 统一生成，复用于 EPUB iframe、演示书籍和 RSS 正文；采用阅读主题的正文、纸张和强调色，以加粗 I 形、双层描边和圆环提高定位对比。光标使用原生 CSS cursor，不监听鼠标移动或创建跟随浮层；链接、图片与表单保留各自光标，高对比模式回退系统 text 光标。
+正文划词光标由 `src/util/reading/textCursor.ts` 统一生成，复用于 EPUB iframe 和演示书籍；采用阅读主题的正文、纸张和强调色，以加粗 I 形、双层描边和圆环提高定位对比。光标使用原生 CSS cursor，不监听鼠标移动或创建跟随浮层；链接、图片与表单保留各自光标，高对比模式回退系统 text 光标。
 
 ### 状态分区读写与原文跳转
 
-状态仍以 `state.json` 和独立 Markdown 文件持久化，保留原有备份、迁移和单实例原子写队列。library、reading、notes、highlights、conversations、preferences 的 PUT 在队列内只复制目标分区和书籍生命周期依赖；兼容合并后仅写回目标字段，其余字段共享不可变磁盘快照并原样保留。只有 notes 写入才扫描和协调 Markdown 文件，library 写入才处理封面。RSS/视频删除会同时清理会话，仍使用完整事务。分区提交后复用自有不可变快照，避免下次读取重新解析整份 JSON；inode/mtime/ctime 签名继续检测外部替换。文件整体序列化和原子替换仍随总数据量增长，本次未引入数据库或改变磁盘格式。
+状态仍以 `state.json` 和独立 Markdown 文件持久化，保留原有备份、迁移和单实例原子写队列。library、reading、notes、highlights、conversations、preferences 的 PUT 在队列内只复制目标分区和书籍生命周期依赖；兼容合并后仅写回目标字段，其余字段共享不可变磁盘快照并原样保留。只有 notes 写入才扫描和协调 Markdown 文件，library 写入才处理封面。分区提交后复用自有不可变快照，避免下次读取重新解析整份 JSON；inode/mtime/ctime 签名继续检测外部替换。文件整体序列化和原子替换仍随总数据量增长，本次未引入数据库或改变磁盘格式。
 
 元数据 GET 使用最近一次原子提交的快照，不等待未完成的后台写入；读取结果与缓存隔离，PUT 返回后可见新值。notes 依赖独立可编辑的 Markdown 文件，因此仍等待写队列。回收站过期检测只读元数据，不解析封面；实际删除仍在同一队列内复核。HTTP `Server-Timing` 通过请求范围的 AsyncLocalStorage 收集固定阶段和时长，不包含资源 ID、正文、查询参数或凭据。
 

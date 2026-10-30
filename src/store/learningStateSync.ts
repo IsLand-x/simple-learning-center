@@ -1,4 +1,4 @@
-import type { StateDomain } from '../api/state/type';
+import type { StateDomain } from '../../contracts/state';
 import { useLearningStore } from './useLearningStore';
 import { refreshServerState } from './serverStateStorage';
 import { refreshActiveConversations } from './conversationSync';

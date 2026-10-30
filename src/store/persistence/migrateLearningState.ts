@@ -9,18 +9,14 @@ import {
 import type { AiPreferences, ChatMessage, ChatSession } from '../../../contracts/ai';
 import type { HighlightItem, NoteItem } from '../../../contracts/reading';
 import {
-  DEFAULT_RSS_DIGEST_PROMPT,
   defaultAiPreferences,
   defaultReaderPreferences,
-  defaultRssDigestSettings,
   defaultWebSearchConfig,
-  LEGACY_RSS_DIGEST_PROMPT,
 } from '../defaults';
 import type { LearningState } from '../learningState';
 import {
   normalizeReaderFont,
   normalizeReaderTheme,
-  normalizeRssFeedSource,
   normalizeStoredCustomStyle,
 } from '../normalizers';
 
@@ -197,91 +193,7 @@ export function migrateLearningState(persistedState: unknown, version: number) {
       },
     };
   }
-  if (version < 13) {
-    migrated = {
-      ...migrated,
-      rssFolders: [],
-      rssFeeds: [],
-      rssItems: [],
-    };
-  }
-  if (version < 14) {
-    migrated = {
-      ...migrated,
-      rssPanelWidth: 380,
-    };
-  }
-  if (version < 15) {
-    migrated = {
-      ...migrated,
-      rssItems: (migrated.rssItems ?? []).map((item) => ({
-        ...item,
-        ...(item.aiSummary && !item.aiSummaryVersion ? { aiSummaryVersion: 1 } : {}),
-      })),
-    };
-  }
-  if (version < 16) {
-    migrated = {
-      ...migrated,
-      rssAnnotations: [],
-    };
-  }
-  if (version < 17) {
-    migrated = {
-      ...migrated,
-      rssFeeds: (migrated.rssFeeds ?? []).map((feed) => ({
-        ...feed,
-        fetchFullContent: Boolean(feed.fetchFullContent),
-      })),
-    };
-  }
-  if (version < 18) {
-    migrated = {
-      ...migrated,
-      videoResources: [],
-      videoTimestampNotes: [],
-      videoPanelWidth: 400,
-    };
-  }
-  if (version < 19) {
-    migrated = {
-      ...migrated,
-      rssDailyDigests: [],
-      rssDigestSettings: defaultRssDigestSettings,
-    };
-  }
-  if (version < 20) {
-    migrated = {
-      ...migrated,
-      rssDigestRuns: [],
-    };
-  }
-  if (version < 21) {
-    const digestSettings = migrated.rssDigestSettings;
-    migrated = {
-      ...migrated,
-      rssDigestSettings: {
-        ...defaultRssDigestSettings,
-        ...digestSettings,
-        prompt:
-          !digestSettings?.prompt || digestSettings.prompt === LEGACY_RSS_DIGEST_PROMPT
-            ? DEFAULT_RSS_DIGEST_PROMPT
-            : digestSettings.prompt,
-      },
-    };
-  }
-  if (version < 23) {
-    migrated = {
-      ...migrated,
-      rssItems: (migrated.rssItems ?? []).map((item) => ({
-        ...item,
-        ...(typeof item.aiTranslationHtml === 'string' && item.aiTranslationHtml.trim()
-          ? { aiTranslationHtml: item.aiTranslationHtml }
-          : { aiTranslationHtml: undefined }),
-      })),
-      rssFeeds: (migrated.rssFeeds ?? []).map((feed) => normalizeRssFeedSource(feed)),
-    };
-  }
+  // RSS 与独立视频已停用；历史字段原样透传，不再初始化或迁移。
   if (version < 24) {
     migrated = {
       ...migrated,

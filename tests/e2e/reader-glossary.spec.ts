@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import type { View } from 'foliate-js/view.js';
+import { prepareWorkspace } from './workspace-fixtures';
 
 async function selectTerm(page: Page, mobile: boolean) {
   const point = await page.locator('foliate-view').evaluate((element) => {
@@ -156,34 +157,26 @@ test('术语侧栏浅深色与四档宽度保持紧凑，无溢出，键盘可�
   for (const theme of ['light', 'dark']) {
     for (const width of [375, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 });
-      await page.goto('/');
-      await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
-      for (const [domain, changes] of Object.entries({
-        library: { books: [book] },
-        preferences: { themeMode: theme },
-        highlights: {
-          highlights: [
-            {
-              id: 'visual-term',
-              bookId: book.id,
-              kind: 'term',
-              text,
-              cfi: 'demo:chapter-1:selection:1',
-              chapter: '第一章',
-              definition: '这是一段简短释义。长文本与术语编辑保持在面板宽度以内。',
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            },
-          ],
+      await prepareWorkspace(page, { theme, fixedTime: false });
+      const snapshot = await (await page.request.get('/api/state/highlights')).json();
+      const timestamp = Date.now();
+      snapshot.state.highlights = [
+        {
+          // 每轮使用新 ID，避免命中上一轮清理时留下的删除墓碑。
+          id: `visual-term-${crypto.randomUUID()}`,
+          bookId: book.id,
+          kind: 'term',
+          text,
+          cfi: 'demo:chapter-1:selection:1',
+          chapter: '第一章',
+          definition: '这是一段简短释义。长文本与术语编辑保持在面板宽度以内。',
+          createdAt: timestamp,
+          updatedAt: timestamp,
         },
-      })) {
-        const snapshot = await (await page.request.get(`/api/state/${domain}`)).json();
-        Object.assign(snapshot.state, changes);
-        snapshot.version = 38;
-        expect((await page.request.put(`/api/state/${domain}`, { data: snapshot })).status()).toBe(
-          204,
-        );
-      }
+      ];
+      expect((await page.request.put('/api/state/highlights', { data: snapshot })).status()).toBe(
+        204,
+      );
       await page.goto(`/books/${book.id}`);
       await openPanel(page, width <= 800);
       const panel = page.getByRole('complementary', { name: '术语表', exact: true });
@@ -195,6 +188,8 @@ test('术语侧栏浅深色与四档宽度保持紧凑，无溢出，键盘可�
         true,
       );
       const title = panel.locator('.glossary-term__title');
+      await expect(title).toHaveCount(1);
+      await expect(title).toHaveText(text);
       await page.keyboard.press('Tab');
       await title.focus();
       expect(await title.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe(

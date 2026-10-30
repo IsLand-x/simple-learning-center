@@ -1,4 +1,4 @@
-import type { StateDomain, StateDomainData } from '../api/state/type';
+import type { StateDomain, StateDomainFields } from '../../contracts/state';
 
 export const STATE_DOMAIN_FIELDS = {
   library: ['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'],
@@ -6,17 +6,6 @@ export const STATE_DOMAIN_FIELDS = {
   notes: ['notes', 'deletedNoteTombstones'],
   highlights: ['highlights', 'deletedHighlightTombstones'],
   conversations: ['chats', 'chatSessions'],
-  rss: [
-    'rssFolders',
-    'rssFeeds',
-    'rssItems',
-    'rssAnnotations',
-    'rssDailyDigests',
-    'rssDigestRuns',
-    'rssDigestSettings',
-    'rssPanelWidth',
-  ],
-  videos: ['videoResources', 'videoTimestampNotes', 'videoPanelWidth'],
   preferences: [
     'openAIConfigs',
     'webSearchConfig',
@@ -29,7 +18,7 @@ export const STATE_DOMAIN_FIELDS = {
     'readerStyleUpdatedAt',
     'readerLayoutUpdatedAt',
   ],
-} as const satisfies { [Domain in StateDomain]: readonly (keyof StateDomainData[Domain])[] };
+} as const satisfies StateDomainFields;
 
 export const LEARNING_STORE_VERSION = 42;
 
@@ -43,14 +32,10 @@ export const READER_STATE_DOMAINS = [
   'notes',
   'highlights',
 ] as const;
-export const RSS_STATE_DOMAINS = ['preferences', 'rss', 'videos'] as const;
-export const VIDEO_STATE_DOMAINS = ['preferences', 'videos', 'notes'] as const;
 export const SETTINGS_STATE_DOMAINS = ['preferences'] as const;
 
 export function stateDomainsForPath(pathname: string): readonly StateDomain[] {
   if (pathname.startsWith('/books/')) return READER_STATE_DOMAINS;
-  if (pathname.startsWith('/rss')) return RSS_STATE_DOMAINS;
-  if (pathname.startsWith('/videos')) return VIDEO_STATE_DOMAINS;
   if (pathname.startsWith('/settings')) return SETTINGS_STATE_DOMAINS;
   return LIBRARY_STATE_DOMAINS;
 }

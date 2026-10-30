@@ -14,7 +14,6 @@ const environment = {
   LEARNING_CENTER_CHROMIUM: chromium.executablePath(),
   LEARNING_CENTER_MODE: 'local',
   LEARNING_CENTER_PORT: useBuild ? '15173' : '18787',
-  LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS: '1800000',
 };
 const children = [
   spawn(process.execPath, ['server-dist/index.js'], {

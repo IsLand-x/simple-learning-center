@@ -96,8 +96,8 @@ export function WebSearchSettings() {
           autoComplete="off"
         />
         <Text size="small" type="tertiary">
-          配置保存在服务器数据目录。Agent 调用联网工具，或 RSS
-          静态抓取无法读取动态网页时，搜索词或目标网址会发送给 Jina AI。
+          配置保存在服务器数据目录。Agent 调用联网搜索或网页读取工具时，搜索词或目标网址会发送给
+          Jina AI。
         </Text>
       </label>
       <div className="web-search-settings__footer justify-end">

@@ -53,20 +53,9 @@ export async function runServerAiChat({
   reasoningEffort,
   conversationId,
   messages,
-  resourceType = 'book',
   purpose = 'chat',
   book,
-  rssItem,
-  rssFeed,
-  translationSource,
-  relatedRssItems = [],
-  digestItems = [],
-  digestFeeds = [],
-  previousDigest,
-  video,
-  videoTimestampNotes = [],
   currentText,
-  notes,
   highlights,
   readingSessions,
   webSearchConfig,
@@ -108,7 +97,7 @@ export async function runServerAiChat({
   };
   const requestMessages = messages.map((message) => ({
     role: message.role,
-    content: requestMessageContent(message, resourceType, book, rssItem, video),
+    content: requestMessageContent(message, book),
     createdAt: message.createdAt,
   }));
   let knowledgeMapRun: Promise<MapResult> | undefined;
@@ -127,7 +116,7 @@ export async function runServerAiChat({
       ? (toolSignal?: AbortSignal) => {
           if (!knowledgeMapRun) reserveImage();
           knowledgeMapRun ??= knowledgeMapGenerator({
-            book: book!,
+            book: book,
             runtime,
             signal: toolSignal,
             onStage: (stage) => {
@@ -157,9 +146,9 @@ export async function runServerAiChat({
         }
       : undefined;
   const infographicTools =
-    config.oauthProvider === 'openai-codex' && resourceType === 'book'
+    config.oauthProvider === 'openai-codex'
       ? createInfographicTools({
-          book: book!,
+          book: book,
           runtime,
           reserveImage,
           generateImage: infographicImageGenerator,
@@ -189,20 +178,8 @@ export async function runServerAiChat({
         })
       : undefined;
   const toolMap = createAgentTools({
-    resourceType,
-    purpose,
     book,
-    rssItem,
-    rssFeed,
-    translationSource,
-    relatedRssItems,
-    digestItems,
-    digestFeeds,
-    previousDigest,
-    video,
-    videoTimestampNotes,
     currentText,
-    notes,
     highlights,
     readingSessions,
     webSearchConfig,
@@ -210,9 +187,9 @@ export async function runServerAiChat({
     knowledgeMapAction,
     infographicTools,
     diagramTools:
-      resourceType === 'book' && purpose === 'chat'
+      purpose === 'chat'
         ? createDiagramTools({
-            book: book!,
+            book: book,
             supportsImages: piModel.input.includes('image'),
             render: diagramRender,
             save: diagramSave,
@@ -257,7 +234,7 @@ export async function runServerAiChat({
             ? videoPhase
               ? videoPhasePrompt(videoPhase)
               : VIDEO_PROMPT
-            : agentSystemPrompt(resourceType, purpose, assistantPrompt),
+            : agentSystemPrompt(purpose, assistantPrompt),
       model: piModel,
       thinkingLevel: reasoningEffort || 'off',
       tools,

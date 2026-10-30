@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { BookItem } from '../../contracts/books';
 import type { ChapterVideo, ChapterVideoJob } from '../../contracts/reading';
 import {
@@ -61,6 +61,34 @@ async function showGeneration(page: Page) {
     await panel.getByRole('button', { name: '生成视频', exact: true }).click();
 }
 
+async function openScopeOptions(page: Page) {
+  const scope = page
+    .getByRole('complementary', { name: '章节视频', exact: true })
+    .locator('#chapter-video-scope');
+  await expect(scope).toHaveAttribute('aria-disabled', 'false');
+  await expect(scope).toHaveAttribute('aria-expanded', 'false');
+  const popupId = await scope.getAttribute('aria-controls');
+  expect(popupId).toBeTruthy();
+  const popup = page.locator(`[id="${popupId}"]`);
+  // Semi 在关闭动画结束后才提交受控选值，旧 option 在此之前仍留在 DOM 中。
+  await expect(popup).toHaveCount(0);
+  await scope.click();
+  await expect(scope).toHaveAttribute('aria-expanded', 'true');
+  const options = popup.getByRole('listbox');
+  await expect(options).toBeVisible();
+  return options;
+}
+
+async function selectScopeOption(page: Page, options: Locator, label: string, index = 0) {
+  await options.getByRole('option').filter({ hasText: label }).nth(index).click({ timeout: 5000 });
+  const scope = page
+    .getByRole('complementary', { name: '章节视频', exact: true })
+    .locator('#chapter-video-scope');
+  await expect(scope).toHaveAttribute('aria-expanded', 'false');
+  await expect(options).toHaveCount(0);
+  await expect(scope).toContainText(label);
+}
+
 test.use({ reducedMotion: 'reduce', serviceWorkers: 'block' });
 test('手机视频面板按当前阅读章节预选，同名章节跳转后更新且不自动生成', async ({
   page,
@@ -96,11 +124,11 @@ test('手机视频面板按当前阅读章节预选，同名章节跳转后更�
   const panel = page.getByRole('complementary', { name: '章节视频', exact: true });
   const scope = panel.locator('#chapter-video-scope');
   await expect(scope).toContainText('同名章节');
-  await scope.click();
-  const choices = page.getByRole('option').filter({ hasText: '同名章节（含小节）' });
+  const options = await openScopeOptions(page);
+  const choices = options.getByRole('option').filter({ hasText: '同名章节（含小节）' });
   await expect(choices.nth(0)).toHaveAttribute('aria-selected', 'true');
   await expect(choices.nth(1)).toHaveAttribute('aria-selected', 'false');
-  await page.getByRole('option').filter({ hasText: '全书导读' }).click();
+  await selectScopeOption(page, options, '全书导读');
   await expect(scope).toContainText('全书导读');
   await page.goBack();
   await expect(panel).toBeHidden();
@@ -115,10 +143,11 @@ test('手机视频面板按当前阅读章节预选，同名章节跳转后更�
   for (const width of [375, 768]) {
     await page.setViewportSize({ width, height: 900 });
     await openPanel(page, true);
-    await scope.click();
+    const options = await openScopeOptions(page);
+    const choices = options.getByRole('option').filter({ hasText: '同名章节（含小节）' });
     await expect(choices.nth(1)).toHaveAttribute('aria-selected', 'true');
     await expect(choices.nth(0)).toHaveAttribute('aria-selected', 'false');
-    await page.getByRole('option').filter({ hasText: '全书导读' }).click();
+    await selectScopeOption(page, options, '全书导读');
     await expect(scope).toContainText('全书导读');
     await page.goBack();
     await expect(panel).toBeHidden();
@@ -264,11 +293,11 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       await showGeneration(page);
       if (width <= 800) {
         await expect(panel.locator('#chapter-video-scope')).toContainText('本章小结');
-        await panel.locator('#chapter-video-scope').click();
+        const options = await openScopeOptions(page);
         await expect(
-          page.getByRole('option').filter({ hasText: '本章小结（含小节）' }).first(),
+          options.getByRole('option').filter({ hasText: '本章小结（含小节）' }).first(),
         ).toHaveAttribute('aria-selected', 'true');
-        await page.getByRole('option').filter({ hasText: '全书导读' }).click();
+        await selectScopeOption(page, options, '全书导读');
       }
       await expect(player).toBeVisible();
       await expect
@@ -301,16 +330,18 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       ).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath(`chapter-video-${theme}-${width}.png`) });
       await showGeneration(page);
-      await panel.locator('#chapter-video-scope').click();
-      await page.getByRole('option').filter({ hasText: '全书导读' }).click({ timeout: 5000 });
-      await panel.locator('#chapter-video-scope').click();
-      const summaries = page.getByRole('option').filter({ hasText: '本章小结（含小节）' });
+      await selectScopeOption(page, await openScopeOptions(page), '全书导读');
+      const options = await openScopeOptions(page);
+      const summaries = options.getByRole('option').filter({ hasText: '本章小结（含小节）' });
       await expect(summaries).toHaveCount(2);
-      await summaries.nth(1).click();
-      await panel.locator('#chapter-video-scope').click();
-      await expect(summaries.nth(1)).toHaveAttribute('aria-selected', 'true');
-      await expect(summaries.nth(0)).toHaveAttribute('aria-selected', 'false');
-      await page.getByRole('option').filter({ hasText: '全书导读' }).click();
+      await selectScopeOption(page, options, '本章小结（含小节）', 1);
+      const selectedOptions = await openScopeOptions(page);
+      const selectedSummaries = selectedOptions
+        .getByRole('option')
+        .filter({ hasText: '本章小结（含小节）' });
+      await expect(selectedSummaries.nth(1)).toHaveAttribute('aria-selected', 'true');
+      await expect(selectedSummaries.nth(0)).toHaveAttribute('aria-selected', 'false');
+      await selectScopeOption(page, selectedOptions, '全书导读');
       if (width <= 800) {
         expect(
           await panel.locator('#chapter-video-scope').evaluate((element) => {
@@ -345,12 +376,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   await expect(narration).toBeChecked();
   await narration.press('Space');
   await expect(narration).not.toBeChecked();
-  await panel.locator('#chapter-video-scope').click();
-  await page
-    .getByRole('option')
-    .filter({ hasText: `${book.toc[0].label}（含小节）` })
-    .first()
-    .click({ timeout: 5000 });
+  await selectScopeOption(page, await openScopeOptions(page), `${book.toc[0].label}（含小节）`);
   modelGate = new Promise<void>((resolve) => {
     releaseModel = resolve;
   });
@@ -470,8 +496,10 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
     .click();
   await openPanel(page, true);
   await showGeneration(page);
-  await panel.locator('#chapter-video-scope').click();
-  const currentChoices = page.getByRole('option').filter({ hasText: '本章小结（含小节）' });
+  const currentOptions = await openScopeOptions(page);
+  const currentChoices = currentOptions
+    .getByRole('option')
+    .filter({ hasText: '本章小结（含小节）' });
   await expect(currentChoices.nth(1)).toHaveAttribute('aria-selected', 'true');
   await expect(currentChoices.nth(0)).toHaveAttribute('aria-selected', 'false');
   expect(requests).toBe(requestsBeforeNavigation);

@@ -19,19 +19,11 @@ for (const theme of ['light', 'dark']) {
       } else {
         expect(bookCursor).toBe('text');
       }
-      await page.goto('/rss?source=all&range=all&item=e2e-reading-article&view=detail');
-      const body = page.locator('.rss-article__body');
-      await expect(body).toBeVisible();
-      const rssCursor = await body.evaluate((element) => getComputedStyle(element).cursor);
-      expect(rssCursor).toContain('data:image/svg+xml');
-      expect(rssCursor).toContain('16 16');
-      const link = body.locator('a').first();
-      if (await link.count()) await expect(link).toHaveCSS('cursor', 'pointer');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
       await page.emulateMedia({ forcedColors: 'active' });
-      await expect(body).toHaveCSS('cursor', 'text');
+      await expect(article).toHaveCSS('cursor', 'text');
     });
   }
 }

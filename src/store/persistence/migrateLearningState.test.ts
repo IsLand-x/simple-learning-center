@@ -306,3 +306,32 @@ it('adds chapter videos in version 42 and preserves existing server results and 
     videos,
   );
 });
+
+it.each([0, 12, 13, 17, 18, 20, 22, 34, 41, 42])(
+  '版本 %s 的 RSS 和独立视频历史字段原样保留，书籍位置不变',
+  (version) => {
+    const previous = {
+      books: [{ id: 'book', currentCfi: 'epubcfi(/6/4!/4/2:30)', progress: 37 }],
+      rssFolders: [{ id: 'folder', name: '历史目录' }],
+      rssFeeds: [{ id: 'feed', url: 'https://example.com/feed' }],
+      rssItems: [{ id: 'item', aiSummary: '已有摘要', aiTranslationHtml: '<p>已有翻译</p>' }],
+      rssAnnotations: [{ id: 'annotation', comment: '已有批注' }],
+      rssDailyDigests: [{ id: 'digest', content: '已有日报' }],
+      rssDigestRuns: [{ id: 'run', status: 'completed' }],
+      rssDigestSettings: { enabled: true, prompt: '旧版自定义提示词' },
+      rssPanelWidth: 345,
+      videoResources: [{ id: 'video', title: '历史视频' }],
+      videoTimestampNotes: [{ id: 'timestamp', content: '已有时间戳笔记' }],
+      videoPanelWidth: 456,
+    };
+    const migrated = migrateLearningState(previous, version);
+    for (const [field, value] of Object.entries(previous)) {
+      expect(migrated).toHaveProperty(field, value);
+    }
+  },
+);
+
+it.each([0, 12, 17, 18, 20, 22, 41, 42])('版本 %s 缺少停用功能字段时不再补默认数据', (version) => {
+  const migrated = migrateLearningState({}, version);
+  expect(Object.keys(migrated).filter((field) => /^(rss|video)/.test(field))).toEqual([]);
+});

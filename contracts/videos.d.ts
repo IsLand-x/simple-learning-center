@@ -1,4 +1,4 @@
-export interface VideoCaptionCue {
+interface VideoCaptionCue {
   startSeconds: number;
   durationSeconds: number;
   text: string;

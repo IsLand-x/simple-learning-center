@@ -200,3 +200,32 @@ test('书架读取不被未完成的后台写入阻塞，写入提交后立即�
     '新提交',
   );
 });
+
+test('仅书架和完整状态读取执行注入的回收站清理，并在条件请求前完成', async () => {
+  await writePersistedState({ version: 42, state: { books: [], notes: [], themeMode: 'light' } });
+  let purgeCount = 0;
+  const app = createApp({
+    mode: 'local',
+    serveFrontend: false,
+    purgeBookTrash: async () => {
+      purgeCount += 1;
+      return [];
+    },
+  });
+  assert.equal((await app.request('/api/state/preferences')).status, 200);
+  assert.equal((await app.request('/api/state/unknown')).status, 404);
+  assert.equal(purgeCount, 0);
+
+  const library = await app.request('/api/state/library');
+  assert.equal(library.status, 200);
+  assert.equal(purgeCount, 1);
+  const etag = library.headers.get('ETag');
+  assert.ok(etag);
+  assert.equal(
+    (await app.request('/api/state/library', { headers: { 'If-None-Match': etag } })).status,
+    304,
+  );
+  assert.equal(purgeCount, 2);
+  assert.equal((await app.request('/api/state')).status, 200);
+  assert.equal(purgeCount, 3);
+});

@@ -15,14 +15,10 @@ type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export interface AiJob {
   id: string;
   bookId: string;
-  resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
+  resourceType?: 'book';
   termId?: string;
   chapterId?: string;
-  rssItemId?: string;
-  videoId?: string;
-  digestDate?: string;
-  purpose?:
-    'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap' | 'chapter-video';
+  purpose?: 'chat' | 'glossary' | 'mindmap' | 'chapter-video';
   conversationId: string;
   userMessageId: string;
   userMessage?: ChatMessage;
@@ -31,7 +27,6 @@ export interface AiJob {
   status: AiJobStatus;
   revision: number;
   content: string;
-  translationHtml?: string;
   dialogueContent: AiDialogueContentItem[];
   notesRevision?: number;
   error?: string;
@@ -40,25 +35,17 @@ export interface AiJob {
   completedAt?: number;
 }
 
-export type AiJobSummary = Omit<
-  AiJob,
-  'content' | 'dialogueContent' | 'translationHtml' | 'userMessage'
->;
+export type AiJobSummary = Omit<AiJob, 'content' | 'dialogueContent' | 'userMessage'>;
 
 export interface StartAiJobInput {
   configId: string;
   model: string;
   reasoningEffort?: Exclude<AiReasoningEffort, 'auto'>;
   bookId: string;
-  resourceType?: 'book' | 'rss' | 'video' | 'rssDigest';
+  resourceType?: 'book';
   termId?: string;
   chapterId?: string;
-  rssItemId?: string;
-  videoId?: string;
-  digestDate?: string;
-  digestItemIds?: string[];
-  purpose?:
-    'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap' | 'chapter-video';
+  purpose?: 'chat' | 'glossary' | 'mindmap' | 'chapter-video';
   videoNarration?: ChapterVideoNarration;
   conversationId: string;
   userMessage: {

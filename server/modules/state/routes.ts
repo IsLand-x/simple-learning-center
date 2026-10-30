@@ -4,7 +4,6 @@ import { mergeClientNoteDrafts } from './noteDrafts.js';
 import type { PersistedState } from './types.js';
 import type { AppDependencies } from '../../dependencies.js';
 import { createRouter } from '../../http/router.js';
-import { purgeExpiredTrashedBooks } from '../books/trash.js';
 import { MAX_STATE_BYTES } from '../../config.js';
 import {
   isStateDomain,
@@ -18,11 +17,14 @@ import { methodNotAllowed, noContent } from '../../http/responses.js';
 import { readSerializedConversations } from './conversationSnapshot.js';
 import { mergeMigratedConversations } from './compatibility/conversations.js';
 
-export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
+export function createStateRoutes({
+  aiJobs,
+  purgeBookTrash,
+}: Pick<AppDependencies, 'aiJobs' | 'purgeBookTrash'>) {
   const app = createRouter();
   app.use('*', compress({ encoding: 'gzip', contentTypeFilter: /^application\/json/ }));
   app.get('/', async (c) => {
-    await purgeExpiredTrashedBooks();
+    await purgeBookTrash();
     const etag = await stateFileEtag();
     if (etag) c.header('ETag', etag);
     if (
@@ -57,7 +59,7 @@ export function createStateRoutes({ aiJobs }: Pick<AppDependencies, 'aiJobs'>) {
   app.get('/:domain', async (c) => {
     const domain = c.req.param('domain');
     if (!isStateDomain(domain)) return c.json({ error: '状态分区不存在' }, 404);
-    if (domain === 'library') await purgeExpiredTrashedBooks();
+    if (domain === 'library') await purgeBookTrash();
     const state =
       domain === 'conversations'
         ? null

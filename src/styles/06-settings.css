@@ -30,7 +30,6 @@
 .settings-notice,
 .web-search-settings,
 .ai-assistant-settings,
-.content-source-settings,
 .settings-about,
 .account-settings,
 .api-config-list,
@@ -208,46 +207,6 @@
   gap: 12px;
   border: 1px solid var(--semi-color-border);
   border-radius: var(--semi-border-radius-medium);
-}
-
-.content-source-settings {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  border: 1px solid var(--semi-color-border);
-  border-radius: var(--semi-border-radius-medium);
-}
-
-.content-source-settings__heading,
-.content-source-settings__identity,
-.content-source-settings__actions {
-  display: flex;
-  align-items: center;
-}
-
-.content-source-settings__identity {
-  gap: 10px;
-}
-
-.content-source-settings__identity > div {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.content-source-settings__identity h5 {
-  margin: 0;
-}
-
-.content-source-settings__form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.content-source-settings__actions {
-  gap: 8px;
 }
 
 .web-search-settings--editing {

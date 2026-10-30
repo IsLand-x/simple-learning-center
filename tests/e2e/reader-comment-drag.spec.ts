@@ -35,31 +35,40 @@ for (const theme of ['light', 'dark']) {
       const editor = await openComment(page);
       const handle = editor.getByRole('button', { name: '拖动评论输入框' });
       await expect(handle.locator('svg path')).toHaveCount(6);
-      expect(await handle.evaluate((element) => getComputedStyle(element).cursor)).toBe('grab');
-      expect(await handle.evaluate((element) => getComputedStyle(element).touchAction)).toBe(
-        'none',
-      );
+      await expect(handle).toHaveCSS('cursor', 'grab');
+      await expect(handle).toHaveCSS('touch-action', 'none');
       const before = (await editor.boundingBox())!;
       const grip = (await handle.boundingBox())!;
       await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
       await page.mouse.down();
+      await expect(handle).toHaveCSS('cursor', 'grabbing');
       await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + 100, { steps: 5 });
       await page.mouse.up();
+      await expect(handle).toHaveCSS('cursor', 'grab');
+      // 鼠标事件返回时，浏览器的几何读取仍可能落后于已更新的位置样式。
+      await expect.poll(async () => (await editor.boundingBox())?.y).toBeCloseTo(before.y + 100, 0);
       const after = (await editor.boundingBox())!;
-      expect(after.y).toBeCloseTo(before.y + 100, 0);
       await expect(editor.locator('textarea')).toBeFocused();
       await expect(editor.locator('textarea')).toHaveValue('移开输入框，继续对照原文。');
       const chapter = await page.locator('.reader-prose h1').textContent();
       await handle.focus();
       await page.keyboard.press('ArrowDown');
-      expect((await editor.boundingBox())!.y).toBeCloseTo(after.y + 10, 0);
+      await expect.poll(async () => (await editor.boundingBox())?.y).toBeCloseTo(after.y + 10, 0);
       await expect(page.locator('.reader-prose h1')).toHaveText(chapter!);
       await page.screenshot({ path: info.outputPath(`comment-drag-${theme}-${width}.png`) });
       const moved = (await handle.boundingBox())!;
       await page.mouse.move(moved.x + moved.width / 2, moved.y + moved.height / 2);
       await page.mouse.down();
+      await expect(handle).toHaveCSS('cursor', 'grabbing');
       await page.mouse.move(0, 0);
       await page.mouse.up();
+      await expect(handle).toHaveCSS('cursor', 'grab');
+      await expect
+        .poll(async () => {
+          const rect = await editor.boundingBox();
+          return { x: rect?.x, y: rect?.y };
+        })
+        .toEqual({ x: 8, y: 8 });
       const bounded = (await editor.boundingBox())!;
       expect(bounded.x).toBeGreaterThanOrEqual(8);
       expect(bounded.y).toBeGreaterThanOrEqual(8);
@@ -104,15 +113,16 @@ test('触屏拖动及虚拟键盘可视区域变化不会关闭或丢失评论',
   const session = await page.context().newCDPSession(page);
   const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+  await expect(handle).toHaveCSS('cursor', 'grabbing');
   await session.send('Input.dispatchTouchEvent', {
     type: 'touchMove',
     touchPoints: [{ ...point, y: point.y + 80 }],
   });
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  expect((await editor.boundingBox())!.y).toBeCloseTo(
-    Math.min(before.y + 80, page.viewportSize()!.height - before.height - 8),
-    0,
-  );
+  await expect(handle).toHaveCSS('cursor', 'grab');
+  await expect
+    .poll(async () => (await editor.boundingBox())?.y)
+    .toBeCloseTo(Math.min(before.y + 80, page.viewportSize()!.height - before.height - 8), 0);
   await page.evaluate(() => {
     Object.defineProperty(window.visualViewport, 'height', {
       configurable: true,

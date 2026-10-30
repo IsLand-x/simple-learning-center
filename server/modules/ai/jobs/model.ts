@@ -1,18 +1,8 @@
-import type { AiDialogueContentItem, ChatMessage } from '../../../../contracts/ai.js';
-import type { RssDigestRun } from '../../../../contracts/rss.js';
-import type { StoredState } from '../../state/types.js';
+import type { ChatMessage } from '../../../../contracts/ai.js';
 import type { AiJob, ReasoningEffort } from './types.js';
 import { statusError } from '../../../infrastructure/http/errors.js';
 
-const MAX_RETAINED_DIGEST_RUNS = 100;
 const AI_REASONING_EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
-
-export function upsertDigestRun(state: StoredState, run: RssDigestRun) {
-  const runs = Array.isArray(state.rssDigestRuns) ? state.rssDigestRuns : [];
-  state.rssDigestRuns = [run, ...runs.filter((item) => item.id !== run.id)]
-    .sort((left, right) => Number(right.startedAt || 0) - Number(left.startedAt || 0))
-    .slice(0, MAX_RETAINED_DIGEST_RUNS);
-}
 
 export function requiredString(value: unknown, label: string, maxLength: number) {
   if (typeof value !== 'string' || !value.trim() || value.length > maxLength) {
@@ -40,9 +30,6 @@ export function publicJob(job: AiJob) {
     id: job.id,
     bookId: job.bookId,
     resourceType: job.resourceType,
-    rssItemId: job.rssItemId,
-    videoId: job.videoId,
-    digestDate: job.digestDate,
     purpose: job.purpose,
     termId: job.termId,
     chapterId: job.chapterId,
@@ -54,7 +41,6 @@ export function publicJob(job: AiJob) {
     status: job.status,
     revision: job.revision,
     content: job.content,
-    translationHtml: job.translationHtml,
     dialogueContent: job.dialogueContent,
     notesRevision: job.notesRevision,
     error: job.error,
@@ -96,25 +82,4 @@ export function normalizedMessage(
         }
       : {}),
   };
-}
-
-export function translatedDialogueContent(dialogueContent: AiDialogueContentItem[], text: string) {
-  const items = structuredClone(Array.isArray(dialogueContent) ? dialogueContent : []);
-  let messageIndex = -1;
-  for (let index = items.length - 1; index >= 0; index -= 1) {
-    if (items[index]?.type === 'message' && items[index]?.role === 'assistant') {
-      messageIndex = index;
-      break;
-    }
-  }
-  const message = {
-    ...(messageIndex >= 0 ? items[messageIndex] : {}),
-    type: 'message',
-    role: 'assistant',
-    status: 'completed',
-    content: [{ type: 'output_text', text }],
-  };
-  if (messageIndex >= 0) items[messageIndex] = message;
-  else items.push(message);
-  return items;
 }

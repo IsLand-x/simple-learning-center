@@ -14,11 +14,11 @@ it('revalidates summary and message pages and encodes resource identifiers', asy
       });
     }),
   );
-  const first = await api.list('rss:中文/文章');
-  expect(await api.list('rss:中文/文章')).toEqual(first);
+  const first = await api.list('book:中文/章节');
+  expect(await api.list('book:中文/章节')).toEqual(first);
   expect(new Headers(calls[1].init?.headers).get('If-None-Match')).toBe('"revision"');
   expect(new URL(calls[0].path, 'https://test.invalid').searchParams.get('bookId')).toBe(
-    'rss:中文/文章',
+    'book:中文/章节',
   );
   await api.messages('book', 'session/one', 'message:two');
   expect(calls[2].path).toContain('/session%2Fone/messages?');

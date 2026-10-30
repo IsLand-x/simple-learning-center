@@ -6,7 +6,6 @@ import {
 } from '../util/reading/readerThemes';
 import type { AiPreferences } from '../../contracts/ai';
 import type { ReaderPreferences } from '../../contracts/reading';
-import type { RssDigestSettings } from '../../contracts/rss';
 import type { WebSearchConfig } from '../../contracts/settings';
 import type { LearningState } from './learningState';
 
@@ -26,21 +25,6 @@ export const defaultAiPreferences: AiPreferences = {
   assistantPrompt: DEFAULT_READER_AI_ASSISTANT_PROMPT,
   autoHideReasoning: false,
   hiddenPromptTemplateIds: [],
-};
-
-export const LEGACY_RSS_DIGEST_PROMPT =
-  '请把当天尚未读过的 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
-
-export const DEFAULT_RSS_DIGEST_PROMPT =
-  '请把当天全部 RSS 内容整理成一份中文日报。先按事件和主题去重，再按重要性组织；每条结论说明发生了什么、为什么值得关注，并用 Markdown 链接附上对应订阅源原文。不要重复陈述同一事件，不要编造来源或正文中没有的信息。';
-
-export const defaultRssDigestSettings: RssDigestSettings = {
-  enabled: false,
-  provider: null,
-  model: '',
-  prompt: DEFAULT_RSS_DIGEST_PROMPT,
-  scheduleMode: 'every-4-hours',
-  times: ['08:00', '12:00', '18:00', '22:00'],
 };
 
 export const defaultWebSearchConfig: WebSearchConfig = {
@@ -74,17 +58,6 @@ export const initialLearningState: LearningStateData = {
   readingSessions: [],
   chapterMindMaps: [],
   chapterVideos: [],
-  rssFolders: [],
-  rssFeeds: [],
-  rssItems: [],
-  rssAnnotations: [],
-  rssDailyDigests: [],
-  rssDigestRuns: [],
-  rssDigestSettings: defaultRssDigestSettings,
-  rssPanelWidth: 380,
-  videoResources: [],
-  videoTimestampNotes: [],
-  videoPanelWidth: 400,
   openAIConfigs: [],
   webSearchConfig: defaultWebSearchConfig,
   aiPreferences: defaultAiPreferences,

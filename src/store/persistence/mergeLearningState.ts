@@ -3,14 +3,12 @@ import { upgradeReaderTypography } from '../../util/reading/readerThemes';
 import {
   defaultAiPreferences,
   defaultReaderPreferences,
-  defaultRssDigestSettings,
   defaultWebSearchConfig,
 } from '../defaults';
 import type { LearningState } from '../learningState';
 import {
   normalizeReaderFont,
   normalizeReaderTheme,
-  normalizeRssFeedSource,
   normalizeStoredCustomStyle,
 } from '../normalizers';
 import { normalizeHiddenReaderAiPromptTemplateIds } from '../../util/ai/readerAiPrompts';
@@ -54,44 +52,7 @@ export function mergeLearningState(
       : currentState.deletedBookTombstones,
     deletedHighlightTombstones: mergedHighlights.deletedHighlightTombstones,
     highlights: mergedHighlights.highlights,
-    rssFolders: Array.isArray(persisted.rssFolders)
-      ? persisted.rssFolders
-      : currentState.rssFolders,
-    rssFeeds: Array.isArray(persisted.rssFeeds)
-      ? persisted.rssFeeds.map((feed) => normalizeRssFeedSource(feed))
-      : currentState.rssFeeds,
-    rssItems: Array.isArray(persisted.rssItems) ? persisted.rssItems : currentState.rssItems,
-    rssAnnotations: Array.isArray(persisted.rssAnnotations)
-      ? persisted.rssAnnotations
-      : currentState.rssAnnotations,
-    rssDailyDigests: Array.isArray(persisted.rssDailyDigests)
-      ? persisted.rssDailyDigests
-      : currentState.rssDailyDigests,
-    rssDigestRuns: Array.isArray(persisted.rssDigestRuns)
-      ? persisted.rssDigestRuns
-      : currentState.rssDigestRuns,
-    rssDigestSettings: {
-      ...defaultRssDigestSettings,
-      ...currentState.rssDigestSettings,
-      ...(persisted.rssDigestSettings ?? {}),
-      times: Array.isArray(persisted.rssDigestSettings?.times)
-        ? persisted.rssDigestSettings.times
-        : currentState.rssDigestSettings.times,
-    },
-    rssPanelWidth:
-      typeof persisted.rssPanelWidth === 'number'
-        ? persisted.rssPanelWidth
-        : currentState.rssPanelWidth,
-    videoResources: Array.isArray(persisted.videoResources)
-      ? persisted.videoResources
-      : currentState.videoResources,
-    videoTimestampNotes: Array.isArray(persisted.videoTimestampNotes)
-      ? persisted.videoTimestampNotes
-      : currentState.videoTimestampNotes,
-    videoPanelWidth:
-      typeof persisted.videoPanelWidth === 'number'
-        ? persisted.videoPanelWidth
-        : currentState.videoPanelWidth,
+    // 已停用功能的历史字段由上面的快照展开原样保留，不补默认值或重新规范化。
     readerPreferences: upgradeReaderTypography({
       ...defaultReaderPreferences,
       ...mergedPreferences.readerPreferences,

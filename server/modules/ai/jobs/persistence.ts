@@ -1,7 +1,6 @@
 import type { ChatMessage } from '../../../../contracts/ai.js';
 import type { AiJob, AiResult } from './types.js';
 import { mutatePersistedState } from '../../state/stateStore.js';
-import { upsertDigestRun } from './model.js';
 import { removeChapterVideoFiles } from '../../books/chapterVideos.js';
 import type { ChapterVideo } from '../../../../contracts/reading.js';
 
@@ -74,71 +73,6 @@ export async function persistAssistant(job: AiJob, result: AiResult) {
           ? { ...session, updatedAt: Math.max(session.updatedAt, message.createdAt) }
           : session,
       );
-      if (job.resourceType === 'rss' && job.purpose === 'summary') {
-        const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-        state.rssItems = rssItems.map((item) =>
-          item.id === job.rssItemId
-            ? {
-                ...item,
-                aiSummary: result.content,
-                aiSummaryUpdatedAt: job.assistantCreatedAt,
-                aiSummaryVersion: 2,
-              }
-            : item,
-        );
-      }
-      if (job.resourceType === 'rss' && job.purpose === 'translation') {
-        const rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-        state.rssItems = rssItems.map((item) =>
-          item.id === job.rssItemId
-            ? {
-                ...item,
-                aiTranslation: result.content,
-                aiTranslationHtml: result.translationHtml,
-                aiTranslationUpdatedAt: job.assistantCreatedAt,
-                aiTranslationSourceFetchedAt: Number(
-                  item.fullContentFetchedAt || item.fetchedAt || 0,
-                ),
-              }
-            : item,
-        );
-      }
-      if (job.resourceType === 'rssDigest' && job.purpose === 'digest') {
-        const completedAt = Date.now();
-        const digests = Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [];
-        const feedIds = [...new Set(job.digestItems.map((item) => item.feedId))];
-        const previous = digests.find((digest) => digest.date === job.digestDate!);
-        const digest = {
-          id: `rss-digest:${job.digestDate}`,
-          date: job.digestDate!,
-          content: result.content,
-          sourceItemIds: job.digestItems.map((item) => item.id),
-          sourceFeedIds: feedIds,
-          itemCount: job.digestItems.length,
-          model: job.model,
-          generatedAt: previous?.generatedAt || job.assistantCreatedAt,
-          updatedAt: job.assistantCreatedAt,
-        };
-        state.rssDailyDigests = [digest, ...digests.filter((item) => item.id !== digest.id)].sort(
-          (left, right) => right.date.localeCompare(left.date),
-        );
-        state.rssDigestSettings = {
-          ...(state.rssDigestSettings || {}),
-          lastCompletedAt: completedAt,
-          lastError: undefined,
-        };
-        const runs = Array.isArray(state.rssDigestRuns) ? state.rssDigestRuns : [];
-        const digestRun = runs.find((run) => run.id === job.digestRunId);
-        if (digestRun) {
-          upsertDigestRun(state, {
-            ...digestRun,
-            status: 'completed',
-            completedAt,
-            updatedAt: completedAt,
-            message: undefined,
-          });
-        }
-      }
     },
     { preserveResourceFiles: true },
   );

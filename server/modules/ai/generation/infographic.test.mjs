@@ -258,11 +258,10 @@ test('真实 PiAgent 工具循环先读正文再规划与生图，方案和图�
   );
 });
 
-test('非 ChatGPT 供应商或非阅读场景不提供信息图工具', async () => {
+test('非 ChatGPT 供应商不提供信息图工具', async () => {
   for (const [provider, resourceType] of [
     ['kimi-coding', 'book'],
     [undefined, 'book'],
-    ['openai-codex', 'video'],
   ]) {
     const faux = fauxProvider({ tokensPerSecond: 0 });
     faux.setResponses([

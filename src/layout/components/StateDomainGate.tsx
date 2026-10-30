@@ -1,4 +1,4 @@
-import type { StateDomain } from '../../api/state/type';
+import type { StateDomain } from '../../../contracts/state';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Spin } from '@douyinfe/semi-ui';
 import {

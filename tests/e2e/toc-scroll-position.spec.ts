@@ -9,7 +9,8 @@ test('同步阅读状态保留手动目录滚动，切换章节和重新展开�
   await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible({ timeout: 20_000 });
   const book = {
     ...demoBooks[0],
-    id: 'demo-toc-scroll',
+    // Each project keeps its own reading position in the shared data service.
+    id: `demo-toc-scroll-${testInfo.project.name}-${testInfo.repeatEachIndex}`,
     currentChapter: '第 1 章',
     currentCfi: 'demo:chapter-1:scroll:0',
     toc: Array.from({ length: 80 }, (_, index) => ({

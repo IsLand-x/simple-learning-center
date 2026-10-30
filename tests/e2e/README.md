@@ -31,7 +31,7 @@ LEARNING_CENTER_E2E_PRODUCTION=1 LEARNING_CENTER_E2E_BROWSER=chromium npm run te
 
 ## 视觉基线
 
-`visual-regression.spec.ts` 比较书架、阅读器、RSS 阅读、视频学习和设置页面，共 40 张完整视口截图。每个页面都覆盖浅色/深色以及 375、768、1024、1440 四种宽度。`login-layout.spec.ts` 用相同组合覆盖未登录的应用壳，另有 8 张截图，共 48 张基线。
+`visual-regression.spec.ts` 比较书架、阅读器和设置页面，共 24 张完整视口截图。每个页面都覆盖浅色/深色以及 375、768、1024、1440 四种宽度。`login-layout.spec.ts` 用相同组合覆盖未登录的应用壳，另有 8 张截图，共 32 张基线。
 
 2026-10-05 的阅读排版优化在同一固定容器中更新了 8 张演示阅读器截图，并通过 `reader-typography.spec.ts` 新增 8 张真实 EPUB 排版截图（浅色象牙纸与深色墨夜纸，各覆盖四种宽度）。原创样张由 `node tests/fixtures/generate-reader-regression.mjs --typography` 生成，包含标题、嵌套列表、引用、代码、表格及作者指定的居中与缩进；语义断言同时检查标题层级、留白、等宽代码与原有排版保留。同日针对 Kindle/Calibre 标准 `h3/h4` 小标题补充明确粗体和递进字号，新增 8 张小标题截图；原创样张通过 `--headings` 生成，不包含个人书籍正文，并检查 `h3–h6` 字重、嵌套 span、标题居中和正文缩进。其余页面基线保持不变。
 
@@ -41,7 +41,7 @@ LEARNING_CENTER_E2E_PRODUCTION=1 LEARNING_CENTER_E2E_BROWSER=chromium npm run te
 
 2026-09-26 重新采集时，旧版与新版使用完全相同的 `workspace-fixtures.ts`，没有修改原应用源码或构建文件。原构建 `dist/index.html` 的 SHA-256 为 `d959a0d5080d8a4211edbfa2bc2593e497c680e07017d2c8cbac5c05816b76a2`；43 个 `dist/assets/` 文件按相对路径排序，逐行拼接 `SHA-256 + 两个空格 + 相对路径 + 换行` 后的 SHA-256 为 `3669c911c75b84cc48ddc4de137b50ac64ed0ecfb9b4c1d618f5cba606466343`。这些摘要用于追踪基线来源，构建产物本身不提交。
 
-测试固定日期、时区和语言，启用减少动态效果，并禁用 Service Worker。页面仍由真实构建渲染；视觉状态完全由独立字面量夹具提供，不读取服务端已有状态，书架进度、章节、时间还另有语义断言。YouTube iframe 使用本地响应，阅读字体 CDN 被拦截，统一使用测试容器中的离线字体，避免网络字体或其他用例的写入改变像素。
+测试固定日期、时区和语言，启用减少动态效果，并禁用 Service Worker。页面仍由真实构建渲染；视觉状态完全由独立字面量夹具提供，不读取服务端已有状态，书架进度、章节、时间还另有语义断言。阅读字体 CDN 被拦截，统一使用测试容器中的离线字体，避免网络字体或其他用例的写入改变像素。
 
 ```bash
 npm run test:e2e:container -- tests/e2e/visual-regression.spec.ts tests/e2e/login-layout.spec.ts --project=desktop-chrome
@@ -51,15 +51,13 @@ npm run test:e2e:container -- tests/e2e/visual-regression.spec.ts tests/e2e/logi
 
 `bootstrap-loading.spec.ts` 暂停鉴权与状态读取请求，验证连接、读取提示的阶段转换与 Performance 记录；新增 8 张启动等待截图，覆盖亮暗主题与四种宽度，并检查等待文字在暗色下为亮色、无横向溢出。
 
-## RSS 与视频业务用例
+## 书籍功能与下线回归
 
-`rss-video-workflows.spec.ts` 在桌面和移动浏览器中验证：
+`app-shell.spec.ts` 覆盖书架与设置的状态分区加载，确认旧 RSS 和视频地址返回书架。服务端集成测试确认旧 RSS、YouTube 导入及内容源凭据接口返回 404。书籍内章节讲解视频继续由 `reader-chapter-videos.spec.ts` 覆盖。
 
-- RSS 打开文章、已读状态、收藏筛选、刷新后保留和取消收藏。
-- 视频字幕语言切换、字幕时间跳转、学习笔记持久化，以及桌面端删除视频时清理关联笔记（当前移动端没有该删除入口）。
-- 提交视频链接、接收导入结果、打开相应视频和刷新后恢复。
+2026-10-30 下线 RSS 与独立 YouTube 功能后，删除这两个页面的 16 张截图；书架、阅读器和设置的导航随功能入口减少，相应截图在同一固定浏览器容器中重新验收。原历史基线的来源记录仍保留用于追溯。
 
-这些用例使用真实状态分区和笔记存储 API；只替换 YouTube 播放器和视频导入上游响应，不需要个人视频、外网视频服务或模型凭据。
+本轮视觉检查同时核对了截图中此前已存在的书籍菜单和章节视频入口；对应组件未在本轮修改。真实 EPUB 排版的 1024px / 1440px 截图也同步更新导航与已有章节视频入口，正文排版保持一致。视觉夹具独立模拟书籍分享状态，避免仅运行截图用例时依赖服务端已有书架并出现初始化错误提示，截图前明确检查没有 Toast。
 
 ## 实际 EPUB 运行时
 

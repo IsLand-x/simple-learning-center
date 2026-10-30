@@ -1,21 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import type {
+  LearningData,
+  LegacyLearningData,
+  LegacyStateDomainFields,
+  StateDomain,
+} from '../../contracts/state';
 import {
   ALL_STATE_DOMAINS,
   LIBRARY_STATE_DOMAINS,
   READER_STATE_DOMAINS,
-  RSS_STATE_DOMAINS,
   SETTINGS_STATE_DOMAINS,
   STATE_DOMAIN_FIELDS,
-  VIDEO_STATE_DOMAINS,
   stateDomainsForPath,
 } from './stateDomains';
 
 describe('stateDomainsForPath', () => {
   it.each([
     ['/books/book-1', READER_STATE_DOMAINS],
-    ['/rss', RSS_STATE_DOMAINS],
-    ['/rss?feed=feed-1', RSS_STATE_DOMAINS],
-    ['/videos', VIDEO_STATE_DOMAINS],
+    ['/rss', LIBRARY_STATE_DOMAINS],
+    ['/rss?feed=feed-1', LIBRARY_STATE_DOMAINS],
+    ['/videos', LIBRARY_STATE_DOMAINS],
     ['/settings', SETTINGS_STATE_DOMAINS],
     ['/', LIBRARY_STATE_DOMAINS],
     ['/unknown', LIBRARY_STATE_DOMAINS],
@@ -40,8 +44,28 @@ describe('stateDomainsForPath', () => {
     expect(STATE_DOMAIN_FIELDS.reading).toContain('chapterVideos');
   });
 
+  it('全部活动持久化字段均且仅归属一个分区', () => {
+    const fields = Object.values(STATE_DOMAIN_FIELDS).flat();
+    expect(new Set(fields).size).toBe(fields.length);
+    expectTypeOf<(typeof STATE_DOMAIN_FIELDS)[StateDomain][number]>().toEqualTypeOf<
+      keyof LearningData
+    >();
+  });
+
+  it('历史字段分区保持完整，且不与活动字段重叠', () => {
+    expectTypeOf<LegacyStateDomainFields[keyof LegacyStateDomainFields][number]>().toEqualTypeOf<
+      keyof LegacyLearningData
+    >();
+    expectTypeOf<Extract<keyof LearningData, keyof LegacyLearningData>>().toEqualTypeOf<never>();
+  });
+
+  it('活动分区不再包含 RSS 和独立视频', () => {
+    expect(ALL_STATE_DOMAINS).not.toContain('rss');
+    expect(ALL_STATE_DOMAINS).not.toContain('videos');
+  });
+
   it('never blocks content routes on the complete conversation history', () => {
-    for (const domains of [READER_STATE_DOMAINS, RSS_STATE_DOMAINS, VIDEO_STATE_DOMAINS]) {
+    for (const domains of [READER_STATE_DOMAINS, LIBRARY_STATE_DOMAINS]) {
       expect(domains).not.toContain('conversations');
     }
   });

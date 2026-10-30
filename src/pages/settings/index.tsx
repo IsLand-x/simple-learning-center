@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { ReaderAiSettingsForm } from '../../components/ai/ReaderAiSettingsForm';
 import { AboutSettings } from './components/AboutSettings';
 import { AccountSettings } from './components/AccountSettings';
-import { ContentSourceSettings } from './components/ContentSourceSettings';
 import { McpSettings } from './components/Mcp/McpSettings';
 import { ModelSettings } from './components/Models/ModelSettings';
 import { OpenApiSettings } from './components/OpenApiSettings';
@@ -15,7 +14,8 @@ const { Title, Text } = Typography;
 
 export function SettingsPage() {
   const [params, setParams] = useSearchParams();
-  const activeTab = params.get('tab') ?? 'models';
+  const requestedTab = params.get('tab');
+  const activeTab = requestedTab === 'content-sources' ? 'models' : (requestedTab ?? 'models');
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
 
   return (
@@ -23,7 +23,7 @@ export function SettingsPage() {
       <header className="settings-header justify-between [gap:16px]">
         <div>
           <Title heading={4}>设置</Title>
-          <Text type="tertiary">管理账户、内容源、AI 模型、阅读助手、联网搜索与软件信息</Text>
+          <Text type="tertiary">管理账户、AI 模型、阅读助手、联网搜索与软件信息</Text>
         </div>
       </header>
 
@@ -48,20 +48,6 @@ export function SettingsPage() {
         </TabPane>
         <TabPane itemKey="tts" tab="TTS">
           <TtsSettings />
-        </TabPane>
-        <TabPane itemKey="content-sources" tab="内容源">
-          <section
-            className="settings-notice [margin-right:auto] [margin-left:auto] [gap:4px] [margin-bottom:16px] [padding:12px_14px] [background:var(--semi-color-fill-0)] mobile:[padding:14px]"
-            aria-label="内容源凭据说明"
-          >
-            <Text strong>内容抓取由学习中心服务端执行</Text>
-            <Text size="small" type="tertiary">
-              B站每周必看通常无需登录；指定 UP 主会先匿名请求，失败后才使用这里保存的
-              Cookie。YouTube 频道使用官方公开 Feed。远程访问时必须启用应用认证，并通过 HTTPS
-              反向代理打开设置页。
-            </Text>
-          </section>
-          <ContentSourceSettings />
         </TabPane>
         <TabPane itemKey="web-search" tab="联网搜索">
           <section

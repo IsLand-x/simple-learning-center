@@ -1,6 +1,7 @@
+import type { StateDomain } from '../../contracts/state';
 import { expect, it, vi } from 'vitest';
 import { LEARNING_STORE_VERSION } from './stateDomains';
-import type { StateDomain, StateDomainSnapshot, StateDomainResponse } from '../api/state/type';
+import type { StateDomainSnapshot, StateDomainResponse } from '../api/state/type';
 
 const mocks = vi.hoisted(() => ({
   readDomain: vi.fn(),
@@ -598,3 +599,46 @@ it('preserves conversation normalization during one-time migration and then disc
   );
   expect(storage.areServerStateDomainsActive(['conversations'])).toBe(false);
 });
+
+it.each(['/', '/books/test', '/rss', '/videos'])(
+  '打开 %s 或升级旧快照时不请求、不写入停用分区',
+  async (pathname) => {
+    vi.resetModules();
+    mocks.readDomain.mockReset();
+    mocks.writeDomain.mockReset();
+    window.history.replaceState(null, '', pathname);
+    const storage = await import('./serverStateStorage');
+    mocks.readDomain.mockResolvedValue({
+      status: 200,
+      etag: null,
+      snapshot: { version: 41, state: { navCollapsed: false } },
+    });
+    await storage.prepareServerState();
+    const requested = mocks.readDomain.mock.calls.map((call) => call[0]);
+    expect(requested).not.toContain('rss');
+    expect(requested).not.toContain('videos');
+    expect(requested).toContain('reading');
+    await storage.serverStateStorage.setItem(
+      'learning-center-state-v1',
+      JSON.stringify({
+        version: 42,
+        state: {
+          navCollapsed: true,
+          rssItems: [{ id: 'legacy-rss' }],
+          videoResources: [{ id: 'legacy-video' }],
+        },
+      }),
+    );
+    const written = mocks.writeDomain.mock.calls.map((call) => call[0]);
+    expect(written).toContain('preferences');
+    expect(written).not.toContain('rss');
+    expect(written).not.toContain('videos');
+    expect(
+      mocks.writeDomain.mock.calls.every(
+        ([, snapshot]) =>
+          !Object.hasOwn(snapshot.state, 'rssItems') &&
+          !Object.hasOwn(snapshot.state, 'videoResources'),
+      ),
+    ).toBe(true);
+  },
+);

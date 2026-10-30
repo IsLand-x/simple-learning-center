@@ -136,7 +136,11 @@ for (const theme of ['light', 'dark']) {
             bounds!.x + bounds!.width / 2,
             bounds!.y + bounds!.height / 2 - 20,
           );
-          await page.getByRole('option', { name: /添加时间倒序$/ }).click();
+          const descendingOption = page.getByRole('option', { name: /添加时间倒序$/ });
+          await descendingOption.click();
+          // 历史标记先于下拉层退出完成清除，须等旧选项隐藏后再用键盘重开。
+          await expect(sort).toHaveAttribute('aria-expanded', 'false');
+          await expect(descendingOption).toBeHidden();
           await expect
             .poll(() => page.evaluate(() => Boolean(history.state?.learningCenterAnnotationSort)))
             .toBe(false);
@@ -149,11 +153,24 @@ for (const theme of ['light', 'dark']) {
         );
         await page.mouse.move(0, 0);
         await sort.focus();
-        await page.keyboard.press('Enter');
+        await expect(sort).toBeFocused();
+        await sort.press('Enter');
+        await expect(sort).toHaveAttribute('aria-expanded', 'true');
         await expect(page.getByRole('option', { name: /添加时间正序$/ })).toBeVisible();
-        await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('Enter');
+        await expect(sort).toBeFocused();
+        await sort.press('ArrowDown');
+        // 选项可见不代表键盘活动项已更新；确认 ArrowDown 的结果后再提交。
+        await expect
+          .poll(() =>
+            sort.evaluate((element) => {
+              const activeId = element.getAttribute('aria-activedescendant');
+              return activeId ? document.getElementById(activeId)?.textContent?.trim() : null;
+            }),
+          )
+          .toBe('添加时间正序');
+        await sort.press('Enter');
         await expect(sort).toContainText('添加时间正序');
+        await expect(sort).toHaveAttribute('aria-expanded', 'false');
         await page.screenshot({
           path: testInfo.outputPath(`sorting-${label}-${theme}-${width}.png`),
         });

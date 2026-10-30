@@ -1,11 +1,9 @@
 import type {
-  BilibiliCredentialStatus,
   McpTokenResponse,
   OAuthOperation,
   OAuthProviderId,
   OAuthProviderStatus,
   OpenApiTokenStatus,
-  SaveBilibiliCookieRequest,
   SystemInfo,
 } from './type';
 import { apiTransport } from '../http/transport';
@@ -75,26 +73,6 @@ class SettingsApi {
       method: operation === 'login' ? 'POST' : 'DELETE',
       headers: { 'X-Learning-Center-OAuth': '1' },
     });
-  }
-
-  getBilibiliCredentialStatus(): Promise<BilibiliCredentialStatus> {
-    return this.transport.json('/api/source-credentials/bilibili');
-  }
-
-  saveBilibiliCookie(input: SaveBilibiliCookieRequest): Promise<BilibiliCredentialStatus> {
-    return this.transport.json('/api/source-credentials/bilibili', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-  }
-
-  verifySavedBilibiliCookie(): Promise<BilibiliCredentialStatus> {
-    return this.transport.json('/api/source-credentials/bilibili/verify', { method: 'POST' });
-  }
-
-  deleteSavedBilibiliCookie(): Promise<BilibiliCredentialStatus> {
-    return this.transport.json('/api/source-credentials/bilibili', { method: 'DELETE' });
   }
 }
 

@@ -90,11 +90,12 @@ function validate(file, target) {
   )
     reject('只有 app.ts 可以挂载业务路由');
   if (
-    /^server\/modules\/state\/(stateStore|serialization)\.ts$/.test(source) &&
+    source.startsWith('server/modules/state/') &&
+    !source.endsWith('.test.mjs') &&
     destination.startsWith('server/modules/') &&
     !destination.startsWith('server/modules/state/')
   )
-    reject('状态读写与序列化只依赖本模块纯规则');
+    reject('状态模块只依赖自身规则，跨业务操作由应用装配后注入');
   if (source.startsWith('server/modules/books/') && destination.startsWith('server/modules/ai/'))
     reject('书籍存储不得反向依赖 AI 运行时');
   if (source.startsWith('server/infrastructure/') && destination.startsWith('server/modules/'))

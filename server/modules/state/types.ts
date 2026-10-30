@@ -1,74 +1,16 @@
-import type {
-  ConversationDraft,
-  AiPreferences,
-  ChatMessage,
-  ChatSession,
-  OpenAICompatibleConfig,
-} from '../../../contracts/ai.js';
-import type {
-  BookItem,
-  BookList,
-  DeletedBookTombstone,
-  TrashedBookItem,
-} from '../../../contracts/books.js';
-import type {
-  ChapterMindMap,
-  ChapterVideo,
-  DeletedHighlightTombstone,
-  DeletedNoteTombstone,
-  HighlightItem,
-  NoteItem,
-  ReaderPreferences,
-  ReadingSession,
-} from '../../../contracts/reading.js';
-import type {
-  RssAnnotation,
-  RssDailyDigest,
-  RssDigestRun,
-  RssDigestSettings,
-  RssFeed,
-  RssFolder,
-  RssItem,
-} from '../../../contracts/rss.js';
-import type { ThemeMode, WebSearchConfig } from '../../../contracts/settings.js';
-import type { VideoResource, VideoTimestampNote } from '../../../contracts/videos.js';
+import type { LearningData, LegacyLearningData } from '../../../contracts/state.js';
 
 // Older clients can omit domains. Unknown fields survive snapshots and disk writes.
-export interface StoredState {
-  books?: Array<BookItem & { deletedAt?: number }>;
-  bookLists?: BookList[];
-  trashedBooks?: TrashedBookItem[];
-  deletedBookTombstones?: DeletedBookTombstone[];
-  highlights?: HighlightItem[];
-  deletedHighlightTombstones?: DeletedHighlightTombstone[];
-  notes?: NoteItem[];
-  deletedNoteTombstones?: DeletedNoteTombstone[];
-  readingSessions?: ReadingSession[];
-  chapterMindMaps?: ChapterMindMap[];
-  chapterVideos?: ChapterVideo[];
-  chats?: ChatMessage[];
-  chatSessions?: ChatSession[];
-  rssFolders?: RssFolder[];
-  rssFeeds?: RssFeed[];
-  rssItems?: RssItem[];
-  rssAnnotations?: RssAnnotation[];
-  rssDailyDigests?: RssDailyDigest[];
-  rssDigestRuns?: RssDigestRun[];
-  rssDigestSettings?: Partial<RssDigestSettings>;
-  rssPanelWidth?: number;
-  videoResources?: VideoResource[];
-  videoTimestampNotes?: VideoTimestampNote[];
-  videoPanelWidth?: number;
-  openAIConfigs?: OpenAICompatibleConfig[];
-  webSearchConfig?: WebSearchConfig;
-  conversationDrafts?: ConversationDraft[];
-  aiPreferences?: Partial<AiPreferences>;
-  navCollapsed?: boolean;
-  themeMode?: ThemeMode;
-  readerPreferences?: Partial<ReaderPreferences>;
-  readerPreferencesUpdatedAt?: number;
-  readerStyleUpdatedAt?: number;
-  readerLayoutUpdatedAt?: number;
+export interface StoredState extends Partial<
+  Omit<
+    LearningData & LegacyLearningData,
+    'books' | 'rssDigestSettings' | 'aiPreferences' | 'readerPreferences'
+  >
+> {
+  books?: Array<LearningData['books'][number] & { deletedAt?: number }>;
+  rssDigestSettings?: Partial<LegacyLearningData['rssDigestSettings']>;
+  aiPreferences?: Partial<LearningData['aiPreferences']>;
+  readerPreferences?: Partial<LearningData['readerPreferences']>;
   [field: string]: unknown;
 }
 

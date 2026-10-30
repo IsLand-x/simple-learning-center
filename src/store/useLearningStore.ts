@@ -10,8 +10,6 @@ import { createConversationActions } from './actions/conversationActions';
 import { createLibraryActions } from './actions/libraryActions';
 import { createPreferenceActions } from './actions/preferenceActions';
 import { createReadingActions } from './actions/readingActions';
-import { createRssActions } from './actions/rssActions';
-import { createVideoActions } from './actions/videoActions';
 import { initialLearningState } from './defaults';
 import type { LearningState } from './learningState';
 import { mergeLearningState } from './persistence/mergeLearningState';
@@ -24,8 +22,6 @@ export const useLearningStore = create<LearningState>()(
       ...createLibraryActions(set),
       ...createReadingActions(set),
       ...createConversationActions(set, get),
-      ...createRssActions(set),
-      ...createVideoActions(set),
       ...createPreferenceActions(set),
     }),
     {

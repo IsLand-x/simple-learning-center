@@ -1,13 +1,10 @@
-import type { RssDigestRun } from '../../../../contracts/rss.js';
 import type { PersistedState } from '../../state/types.js';
 import type { AiJob, AiChatRunner } from './types.js';
 import { statusError } from '../../../infrastructure/http/errors.js';
-import { mutatePersistedState } from '../../state/stateStore.js';
 import { runServerAiChat } from '../chat.js';
-import { createDigestStarter } from '../digest.js';
 import { createJobExecutor } from './execute.js';
 import { createJobStarter } from './start.js';
-import { publicJob, upsertDigestRun } from './model.js';
+import { publicJob } from './model.js';
 import { createChapterVideoJobJournal } from '../chapterVideos/jobJournal.js';
 
 const JOB_RETENTION_MS = 24 * 60 * 60 * 1_000;
@@ -17,24 +14,6 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
   const jobs = new Map<string, AiJob>();
   const videoJournal = createChapterVideoJobJournal();
   const subscribers = new Map<string, Set<(job: ReturnType<typeof publicJob>) => void>>();
-
-  async function updateDigestRun(runId: string | undefined, changes: Partial<RssDigestRun>) {
-    if (!runId) return;
-    await mutatePersistedState((persistedState) => {
-      const runs = Array.isArray(persistedState.state.rssDigestRuns)
-        ? persistedState.state.rssDigestRuns
-        : [];
-      const current = runs.find((run) => run.id === runId);
-      if (!current) return;
-      upsertDigestRun(persistedState.state, {
-        ...current,
-        ...changes,
-        updatedAt: Number.isFinite(changes.updatedAt)
-          ? (changes.updatedAt ?? Date.now())
-          : Date.now(),
-      });
-    });
-  }
 
   async function persistJob(job: AiJob) {
     if (job.purpose !== 'chapter-video') return;
@@ -115,13 +94,6 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
       job.status = 'cancelled';
       job.completedAt = Date.now();
       job.updatedAt = job.completedAt;
-      if (job.resourceType === 'rssDigest') {
-        void updateDigestRun(job.digestRunId, {
-          status: 'cancelled',
-          completedAt: job.completedAt,
-          message: '任务已取消',
-        }).catch(() => undefined);
-      }
       job.revision += 1;
       publishJob(job);
     }
@@ -133,8 +105,6 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
     if (!state) return persistedState;
     const sessions = Array.isArray(state.chatSessions) ? state.chatSessions : [];
     const chats = Array.isArray(state.chats) ? state.chats : [];
-    let rssItems = Array.isArray(state.rssItems) ? state.rssItems : [];
-    let rssDailyDigests = Array.isArray(state.rssDailyDigests) ? state.rssDailyDigests : [];
     for (const job of jobs.values()) {
       if (
         job.purpose === 'glossary' ||
@@ -143,13 +113,7 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
       )
         continue;
       const hasSession = sessions.some((session) => session.id === job.conversationId);
-      const resumableRssTask =
-        job.resourceType === 'rss' &&
-        (job.purpose === 'summary' || job.purpose === 'translation') &&
-        rssItems.some((item) => item.id === job.rssItemId);
-      const resumableDigest = job.resourceType === 'rssDigest' && job.purpose === 'digest';
-      if (!hasSession && !resumableRssTask && !resumableDigest) continue;
-      if (!hasSession) sessions.push(structuredClone(job.session));
+      if (!hasSession) continue;
       if (!chats.some((message) => message.id === job.userMessage.id)) {
         chats.push(structuredClone(job.userMessage));
       }
@@ -164,64 +128,16 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
           createdAt: job.assistantCreatedAt,
         });
       }
-      if (job.resourceType === 'rss' && job.purpose === 'summary' && job.finalResult) {
-        rssItems = rssItems.map((item) =>
-          item.id === job.rssItemId
-            ? {
-                ...item,
-                aiSummary: job.finalResult!.content,
-                aiSummaryUpdatedAt: job.assistantCreatedAt,
-                aiSummaryVersion: 2,
-              }
-            : item,
-        );
-      }
-      if (job.resourceType === 'rss' && job.purpose === 'translation' && job.finalResult) {
-        rssItems = rssItems.map((item) =>
-          item.id === job.rssItemId
-            ? {
-                ...item,
-                aiTranslation: job.finalResult!.content,
-                aiTranslationHtml: job.finalResult!.translationHtml,
-                aiTranslationUpdatedAt: job.assistantCreatedAt,
-                aiTranslationSourceFetchedAt: Number(
-                  item.fullContentFetchedAt || item.fetchedAt || 0,
-                ),
-              }
-            : item,
-        );
-      }
-      if (job.resourceType === 'rssDigest' && job.purpose === 'digest' && job.finalResult) {
-        const previous = rssDailyDigests.find((digest) => digest.date === job.digestDate!);
-        const digest = {
-          id: `rss-digest:${job.digestDate}`,
-          date: job.digestDate!,
-          content: job.finalResult!.content,
-          sourceItemIds: job.digestItems.map((item) => item.id),
-          sourceFeedIds: [...new Set(job.digestItems.map((item) => item.feedId))],
-          itemCount: job.digestItems.length,
-          model: job.model,
-          generatedAt: previous?.generatedAt || job.assistantCreatedAt,
-          updatedAt: job.assistantCreatedAt,
-        };
-        rssDailyDigests = [digest, ...rssDailyDigests.filter((item) => item.id !== digest.id)].sort(
-          (left, right) => right.date.localeCompare(left.date),
-        );
-      }
     }
     state.chatSessions = sessions;
     state.chats = chats;
-    state.rssItems = rssItems;
-    state.rssDailyDigests = rssDailyDigests;
     return persistedState;
   }
 
-  const executeJob = createJobExecutor({ runChat, publishJob, pruneJobs, updateDigestRun });
+  const executeJob = createJobExecutor({ runChat, publishJob, pruneJobs });
   const start = createJobStarter({ jobs, pruneJobs, executeJob, persistJob });
-  const startDigest = createDigestStarter({ jobs, start });
   return {
     start,
-    startDigest,
     get,
     list,
     cancel,

@@ -5,7 +5,7 @@
 ## 项目定位
 
 - 这是一个本地优先的个人 EPUB 阅读与 AI 学习 Web App，配套单用户 Node 数据服务。
-- 当前一级功能是“读书”“RSS”“视频”和“设置”；不要擅自增加多用户账号、云同步或无关一级栏目。
+- 当前保留“读书”和配套“设置”，RSS 与独立 YouTube 学习功能已下线；不要擅自增加多用户账号、云同步或无关一级栏目。
 - 数据服务同时支持仅本机访问和带认证的远程访问；不要擅自扩展为多用户平台。
 - 按文末“Git 与提交”的发布约定完成验证、提交和部署；问题修复和新需求均默认发布到生产环境，不再默认部署预览环境。
 - 所有新增文案默认使用简体中文，技术标识、协议名和代码除外。
@@ -44,7 +44,7 @@ npm run preview
 本轮结构和 Tailwind 方案由用户明确指定，优先于旧版 feature/lib 分层与“默认语义 CSS”约定。
 
 - `src/layout/`：程序外壳、登录、侧栏、路由、鉴权恢复、启动与 PWA。登录输入和提交状态留在登录组件；路由继续 lazy loading 与 `StateDomainGate`。
-- `src/pages/`：按业务和子页面组织：`books/list`、`books/detail`、`rss/reader`、`videos/study`、`settings`。
+- `src/pages/`：按业务和子页面组织：`books/list`、`books/detail`、`books/share`、`settings`。
 - 每个子页面的 `index.tsx` 主要组合 UI；`components/` 保存仅本页使用的精简组件；`store/` 只保存页面级共享状态与跨区域编排；纯计算放在所属功能区域。组件自己的轻量状态直接使用 useState/useEffect；逻辑较多时拆为组件同级的 useX.ts，不因使用 hook 就放进 store。不要将重逻辑放回 index，也不要为了减少行数把整页原样搬到一个巨大 hook。
 - `src/components/`：确实被多个页面复用的 UI（包含间接消费者），按 `ai`、`reading`、`notes`、`layout` 等能力分组。不得导入任何页面的私有组件或 store。单页适配参数在页面内组装，不在根 components 暴露单页包装器；不要用页面空壳或仅转发 barrel 掩盖实际归属。
 - 每个生产 TSX 文件只定义一个组件，组件只有一个实现文件；组件文件使用实际组件名称，页面入口保留 index.tsx。共享或私有子组件都使用独立文件，不在父组件内声明另一个组件；无 JSX 的 Hook/逻辑使用 `.ts`。组件私有 Hook、类型和计算可以同目录保存，但不建立空壳转发组件。`check:components` 持续检查这一约定。
@@ -52,10 +52,10 @@ npm run preview
 - `src/types/`：跨页面的纯客户端类型（如选区几何与 UI 状态），API 协议类型放回对应 `api/<domain>/type.ts`，前后端共同的实体直接从 `contracts/<domain>` 导入。禁止用 any、宽泛 Record 或未类型化 Response 掩盖业务协议；二进制、204 空响应和流式事件也必须显式定义类型。
 - `src/util/`：跨页面工具与能力，按 `ai`、`reading`、`browser` 等职责分组，不依赖页面、layout 或 components；单页的 EPUB 导入与渲染适配回到对应页面。
 - `src/store/`：唯一 Zustand 持久化核心，负责 actions、默认值、状态契约、迁移、合并及服务端分区同步。页面 store 复用这个核心，不创建同一数据的第二个持久化来源。
-- `contracts/`：按 books、reading、rss、videos、ai、settings 拆分前后端共用的纯领域类型，不依赖运行时实现，不建立全量转发入口。
+- `contracts/`：按 books、reading、ai、settings、state 拆分前后端共用的纯领域类型；rss、videos 仅用于历史数据兼容，不依赖运行时实现，不建立全量转发入口。
 - `src/styles/index.css`：Tailwind 入口和必要的全局/第三方/正文兼容样式；普通组件优先在 JSX 中使用静态 Tailwind utilities 和 Semi 语义变量。
 - `server/app.ts`：构造依赖、认证 middleware、Hono 子应用与兜底；`server/http/`：通用 HTTP 原语；各 `server/modules/<domain>/*Routes.ts` 或 `routes.ts`：对应业务的 HTTP transport。
-- `server/modules/`：按 books、rss、videos、ai、auth、settings、state 聚合路由、用例、规则与测试；生图归 AI，书籍资源保存归 books，状态纯合并规则归 state；`server/infrastructure/`：不带业务归属的文件/HTTP 原语。
+- `server/modules/`：按 books、ai、auth、settings、state 聚合路由、用例、规则与测试；生图归 AI，书籍资源保存归 books，状态纯合并规则归 state；`server/infrastructure/`：不带业务归属的文件/HTTP 原语。
 - `server/index.ts`：进程与调度器生命周期。后端编译到 `server-dist/`，测试和生产均使用编译产物；不得手改构建产物。
 - `public/`：PWA 图标和无需编译的资源；`data/`：用户数据，禁止提交 Git。
 

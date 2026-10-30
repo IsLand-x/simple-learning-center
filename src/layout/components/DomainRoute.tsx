@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { StateDomain } from '../../api/state/type';
+import type { StateDomain } from '../../../contracts/state';
 import { LoadingRoute } from './LoadingRoute';
 import { StateDomainGate } from './StateDomainGate';
 export function DomainRoute({

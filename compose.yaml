@@ -5,7 +5,7 @@ services:
       context: .
     restart: unless-stopped
     init: true
-    user: "${LEARNING_CENTER_UID:-1000}:${LEARNING_CENTER_GID:-1000}"
+    user: '${LEARNING_CENTER_UID:-1000}:${LEARNING_CENTER_GID:-1000}'
     read_only: true
     cap_drop:
       - ALL
@@ -14,20 +14,17 @@ services:
     tmpfs:
       - /tmp:size=64m,mode=1777
     ports:
-      - "${LEARNING_CENTER_BIND_ADDRESS:-127.0.0.1}:${LEARNING_CENTER_PORT:-4174}:4174"
+      - '${LEARNING_CENTER_BIND_ADDRESS:-127.0.0.1}:${LEARNING_CENTER_PORT:-4174}:4174'
     environment:
       LEARNING_CENTER_MODE: remote
-      LEARNING_CENTER_USERNAME: "${LEARNING_CENTER_USERNAME:-admin}"
-      LEARNING_CENTER_PASSWORD: "${LEARNING_CENTER_PASSWORD:-password}"
+      LEARNING_CENTER_USERNAME: '${LEARNING_CENTER_USERNAME:-admin}'
+      LEARNING_CENTER_PASSWORD: '${LEARNING_CENTER_PASSWORD:-password}'
       LEARNING_CENTER_DATA_DIR: /data
       LEARNING_CENTER_PORT: 4174
-      LEARNING_CENTER_RSS_REFRESH_INTERVAL_MS: "${LEARNING_CENTER_RSS_REFRESH_INTERVAL_MS:-1800000}"
-      LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS: "${LEARNING_CENTER_RSS_REFRESH_INITIAL_DELAY_MS:-15000}"
-      LEARNING_CENTER_YOUTUBE_PROXY: "${LEARNING_CENTER_YOUTUBE_PROXY:-}"
-      HTTPS_PROXY: "${HTTPS_PROXY:-}"
-      HTTP_PROXY: "${HTTP_PROXY:-}"
-      NO_PROXY: "${NO_PROXY:-}"
+      HTTPS_PROXY: '${HTTPS_PROXY:-}'
+      HTTP_PROXY: '${HTTP_PROXY:-}'
+      NO_PROXY: '${NO_PROXY:-}'
     volumes:
       - type: bind
-        source: "${LEARNING_CENTER_DATA_DIR:-./data}"
+        source: '${LEARNING_CENTER_DATA_DIR:-./data}'
         target: /data

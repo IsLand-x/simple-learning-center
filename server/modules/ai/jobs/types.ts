@@ -9,22 +9,16 @@ import type { ChapterMindMap, ChapterVideo } from '../../../../contracts/reading
 import type { VideoNarrationContext } from '../chapterVideos/media.js';
 import type { BookItem } from '../../../../contracts/books.js';
 import type { HighlightItem, NoteItem, ReadingSession } from '../../../../contracts/reading.js';
-import type { RssDailyDigest, RssDigestRun, RssFeed, RssItem } from '../../../../contracts/rss.js';
-import type { VideoResource, VideoTimestampNote } from '../../../../contracts/videos.js';
 import type { WebSearchConfig } from '../../../../contracts/settings.js';
-import type { prepareRssTranslationSource } from '../../rss/translation.js';
 
 export type ReasoningEffort = Exclude<AiReasoningEffort, 'auto'>;
-export type ResourceType = 'book' | 'rss' | 'video' | 'rssDigest';
-export type JobPurpose =
-  'chat' | 'summary' | 'translation' | 'digest' | 'glossary' | 'mindmap' | 'chapter-video';
+export type JobPurpose = 'chat' | 'glossary' | 'mindmap' | 'chapter-video';
 export type VideoGenerationPhase = 'evidence' | 'plan' | 'script' | 'review';
 type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface AiResult {
   content: string;
   dialogueContent: AiDialogueContentItem[];
-  translationHtml?: string;
   mindMap?: ChapterMindMap;
   chapterVideo?: ChapterVideo;
 }
@@ -32,19 +26,12 @@ export interface AiResult {
 export interface AiJob {
   id: string;
   bookId: string;
-  resourceType: ResourceType;
+  resourceType: 'book';
   purpose: JobPurpose;
   termId?: string;
   chapterId?: string;
   chapterTitle?: string;
   termUpdatedAt?: number;
-  rssItemId?: string;
-  videoId?: string;
-  digestDate?: string;
-  digestRunId?: string;
-  digestTrigger: 'manual' | 'schedule';
-  digestScheduleKey?: string;
-  digestItems: RssItem[];
   model: string;
   reasoningEffort?: ReasoningEffort;
   conversationId: string;
@@ -54,7 +41,6 @@ export interface AiJob {
   status: JobStatus;
   revision: number;
   content: string;
-  translationHtml?: string;
   mindMap?: ChapterMindMap;
   dialogueContent: AiDialogueContentItem[];
   notesRevision: number;
@@ -77,18 +63,9 @@ export interface AiChatContext {
   messages: Array<
     Pick<ChatMessage, 'role' | 'content' | 'quote'> & Partial<Pick<ChatMessage, 'createdAt'>>
   >;
-  resourceType: ResourceType;
+  resourceType: 'book';
   purpose: JobPurpose;
-  book?: BookItem;
-  rssItem?: RssItem;
-  rssFeed?: RssFeed;
-  translationSource?: ReturnType<typeof prepareRssTranslationSource>;
-  relatedRssItems?: RssItem[];
-  digestItems?: RssItem[];
-  digestFeeds?: RssFeed[];
-  previousDigest?: RssDailyDigest;
-  video?: VideoResource;
-  videoTimestampNotes?: VideoTimestampNote[];
+  book: BookItem;
   currentText: string;
   notes: NoteItem[];
   highlights: HighlightItem[];
@@ -117,14 +94,6 @@ export interface AiJobRequest {
   model?: unknown;
   reasoningEffort?: unknown;
   bookId?: unknown;
-  rssItemId?: unknown;
-  videoId?: unknown;
-  digestDate?: unknown;
-  digestRunId?: unknown;
-  digestTrigger?: unknown;
-  digestScheduleKey?: unknown;
-  digestRunStartedAt?: number;
-  digestItemIds?: string[];
   conversationId?: unknown;
   currentText?: unknown;
   userMessage?: {
@@ -135,13 +104,3 @@ export interface AiJobRequest {
   };
   session?: { title?: unknown; createdAt?: number };
 }
-
-export interface DigestInput {
-  date?: unknown;
-  force?: boolean;
-  trigger?: string;
-  scheduleKey?: string;
-}
-
-export type DigestAttempt = Pick<RssDigestRun, 'status'> &
-  Partial<Pick<RssDigestRun, 'message' | 'model' | 'itemCount'>>;

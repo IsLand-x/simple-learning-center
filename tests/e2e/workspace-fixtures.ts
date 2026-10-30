@@ -1,33 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
 const fixtureTime = Date.parse('2026-09-26T04:00:00.000Z');
-export const fixtureArticleTitle = '把阅读记录整理成可检索的知识';
-export const fixtureVideo = {
-  id: 'e2e-learning-video',
-  youtubeVideoId: 'e2eVideo001',
-  url: 'https://www.youtube.com/watch?v=e2eVideo001',
-  title: '如何通过主动回忆理解一本书',
-  channelTitle: '学习方法示例频道',
-  description: '此视频资料与字幕仅供自动化测试，不会请求真实视频服务。',
-  durationSeconds: 180,
-  captions: {
-    originalLanguage: 'en',
-    originalLanguageLabel: 'English',
-    original: [
-      { startSeconds: 0, durationSeconds: 30, text: 'Start with a question before reading.' },
-      { startSeconds: 30, durationSeconds: 40, text: 'Explain the idea using your own words.' },
-      { startSeconds: 70, durationSeconds: 40, text: 'Return to the book and check your answer.' },
-    ],
-    chinese: [
-      { startSeconds: 0, durationSeconds: 30, text: '阅读前，先提出一个问题。' },
-      { startSeconds: 30, durationSeconds: 40, text: '用自己的语言解释这个概念。' },
-      { startSeconds: 70, durationSeconds: 40, text: '回到书中，检查自己的答案。' },
-    ],
-  },
-  createdAt: fixtureTime,
-  updatedAt: fixtureTime,
-};
-
 const books = [
   {
     id: 'demo-data-intensive',
@@ -123,13 +96,6 @@ export async function prepareWorkspace(
   }: { visualOnly?: boolean; theme?: string; fixedTime?: boolean } = {},
 ) {
   if (fixedTime) await page.clock.setFixedTime(new Date(fixtureTime));
-  // The player remains a real iframe; its third-party content is replaced with a static fixture.
-  await page.route('https://www.youtube-nocookie.com/embed/**', (route) =>
-    route.fulfill({
-      contentType: 'text/html',
-      body: '<!doctype html><html lang="zh-CN"><body style="margin:0;background:#111"></body></html>',
-    }),
-  );
   if (visualOnly) {
     // Visual tests use the container's fixed offline fonts, never a CDN-dependent font load.
     await page.route('https://cdn.jsdelivr.net/**', (route) => route.abort());
@@ -183,62 +149,14 @@ export async function prepareWorkspace(
     readerStyleUpdatedAt: fixtureTime,
     readerLayoutUpdatedAt: fixtureTime,
   });
-  // Remove the fixture feed before recreating it; server merges otherwise retain its read state.
-  if (!visualOnly) await seed('rss', { rssFeeds: [], rssItems: [] });
-  await seed('rss', {
-    rssFolders: [],
-    rssFeeds: [
-      {
-        id: 'e2e-reading-feed',
-        title: '阅读与思考',
-        url: 'https://example.invalid/reading.xml',
-        source: { kind: 'rss', feedUrl: 'https://example.invalid/reading.xml' },
-        type: 'article',
-        fetchFullContent: false,
-        createdAt: fixtureTime,
-        updatedAt: fixtureTime,
-        lastFetchedAt: fixtureTime,
-      },
-    ],
-    rssItems: [
-      {
-        id: 'e2e-reading-article',
-        feedId: 'e2e-reading-feed',
-        title: fixtureArticleTitle,
-        link: 'https://example.invalid/reading-notes',
-        author: '示例作者',
-        publishedAt: fixtureTime - 3_600_000,
-        fetchedAt: fixtureTime,
-        contentText:
-          '阅读时先提出问题，再用自己的语言记录理解。定期回顾笔记，可以发现不同主题之间的联系。',
-        contentHtml:
-          '<h2>从问题开始</h2><p>阅读时先提出问题，再用自己的语言记录理解。</p><h2>建立可回顾的记录</h2><p>定期回顾笔记，可以发现不同主题之间的联系。</p>',
-      },
-      {
-        id: 'e2e-review-article',
-        feedId: 'e2e-reading-feed',
-        title: '给笔记安排一次定期回顾',
-        link: 'https://example.invalid/review-notes',
-        author: '示例作者',
-        publishedAt: fixtureTime - 7_200_000,
-        fetchedAt: fixtureTime,
-        contentText: '将自己的解释和原文对照，修正遗漏的条件。',
-        contentHtml: '<p>将自己的解释和原文对照，修正遗漏的条件。</p>',
-      },
-    ],
-    rssAnnotations: [],
-    rssDailyDigests: [],
-    rssDigestRuns: [],
-    rssPanelWidth: 380,
-    rssDigestSettings: { enabled: false },
-  });
-  await seed('videos', {
-    videoResources: [fixtureVideo],
-    videoTimestampNotes: [],
-    videoPanelWidth: 400,
-  });
 
   if (visualOnly) {
+    // Share status belongs to the same isolated visual fixture as the book metadata.
+    await page.route(/\/api\/books\/[^/]+\/share(?:\?.*)?$/, (route) =>
+      route.request().method() === 'GET'
+        ? route.fulfill({ contentType: 'application/json', body: 'null' })
+        : route.fallback(),
+    );
     // Pixel assertions isolate state loading from previous E2E writes. Business tests use real APIs.
     await page.route(/\/api\/conversations(?:[/?].*)?$/, (route) =>
       route.fulfill({ json: { sessions: [], nextCursor: null } }),

@@ -1,3 +1,4 @@
+// Legacy：RSS 与独立视频功能已停用，这些规则仅保护旧客户端及历史快照。
 import type { RssItem } from '../../../../contracts/rss.js';
 import type { PersistedState } from '../types.js';
 
@@ -79,7 +80,7 @@ function mergeConcurrentItem(incomingItem: RssItem, currentItem: RssItem) {
   return merged;
 }
 
-export function rssState(persistedState: PersistedState | null) {
+function rssState(persistedState: PersistedState | null) {
   return persistedState?.state && typeof persistedState.state === 'object'
     ? persistedState.state
     : null;

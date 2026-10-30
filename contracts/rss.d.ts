@@ -1,13 +1,13 @@
 import type { AiProvider } from './ai';
-export type RssFeedType = 'article' | 'video' | 'social';
+type RssFeedType = 'article' | 'video' | 'social';
 
-export type RssSource =
+type RssSource =
   | { kind: 'rss'; feedUrl: string }
   | { kind: 'bilibili-weekly' }
   | { kind: 'bilibili-up'; uid: string }
   | { kind: 'youtube-channel'; channelId: string; feedUrl: string };
 
-export type RssSourceErrorCode =
+type RssSourceErrorCode =
   | 'SOURCE_INPUT_INVALID'
   | 'BILIBILI_COOKIE_REQUIRED'
   | 'BILIBILI_COOKIE_INVALID'
@@ -90,8 +90,7 @@ export interface RssDigestSettings {
 
 type RssDigestRunTrigger = 'manual' | 'schedule';
 
-export type RssDigestRunStatus =
-  'queued' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled';
+type RssDigestRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'skipped' | 'cancelled';
 
 export interface RssDigestRun {
   id: string;

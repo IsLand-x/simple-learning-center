@@ -204,13 +204,8 @@ for (const supportsImages of [false, true]) {
   });
 }
 
-test('RSS、视频、日报与术语释义不暴露绘图工具或主动绘图指令', async () => {
-  for (const [resourceType, purpose] of [
-    ['rss', 'chat'],
-    ['video', 'chat'],
-    ['rssDigest', 'digest'],
-    ['book', 'glossary'],
-  ]) {
+test('术语释义不暴露绘图工具或主动绘图指令', async () => {
+  for (const [resourceType, purpose] of [['book', 'glossary']]) {
     const faux = fauxProvider({ tokensPerSecond: 0 });
     faux.setResponses([
       (context) => {

@@ -16,18 +16,11 @@ import { createBookImportRoutes } from './modules/books/importRoutes.js';
 import { createHealthRoutes } from './http/healthRoutes.js';
 import { createMcpRoutes } from './modules/books/mcpRoutes.js';
 import { createOpenApiTokenRoutes } from './modules/settings/tokenRoutes.js';
-import {
-  createRssArticleRoutes,
-  createRssDigestRoutes,
-  createRssFeedRoutes,
-} from './modules/rss/routes.js';
 import { createSearchIndexRoutes } from './modules/books/searchRoutes.js';
-import { createSourceCredentialRoutes } from './modules/settings/sourceCredentialRoutes.js';
 import { createStateRoutes } from './modules/state/routes.js';
 import { createStaticRoutes } from './http/staticRoutes.js';
 import { createSystemInfoRoutes } from './modules/settings/systemInfoRoutes.js';
 import { createTtsRoutes } from './modules/ai/speech/routes.js';
-import { createVideoRoutes } from './modules/videos/routes.js';
 
 export function createApp({ serveFrontend = true, ...options }: AppOptions = {}) {
   const app = createRouter();
@@ -49,11 +42,6 @@ export function createApp({ serveFrontend = true, ...options }: AppOptions = {})
   app.route('/api/conversations', createConversationRoutes());
   app.route('/api/ai/oauth', createAiOAuthRoutes(dependencies));
   app.route('/api/ai/models', createAiModelRoutes());
-  app.route('/api/rss', createRssFeedRoutes(dependencies));
-  app.route('/api/source-credentials', createSourceCredentialRoutes(dependencies));
-  app.route('/api/rss', createRssArticleRoutes(dependencies));
-  app.route('/api/rss', createRssDigestRoutes(dependencies));
-  app.route('/api/videos', createVideoRoutes(dependencies));
   app.route('/api/ai/jobs', createAiRoutes(dependencies));
   app.route('/api/books', createBookRoutes());
   app.route('/api/books', createChapterVideoRoutes());

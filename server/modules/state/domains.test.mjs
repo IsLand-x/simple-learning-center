@@ -114,3 +114,42 @@ test('AI 草稿属于偏好分区，旧快照不能恢复已发送草稿或覆�
     draft,
   ]);
 });
+
+test('旧快照的可选配置、书籍删除时间和未知字段保持兼容', () => {
+  const legacy = {
+    version: 1,
+    futureEnvelopeField: { retained: true },
+    state: {
+      books: [{ id: 'book-1', deletedAt: 100 }],
+      aiPreferences: { model: 'legacy-model' },
+      readerPreferences: { fontSize: 20 },
+      rssDigestSettings: { enabled: false },
+      rssItems: [{ id: 'legacy-rss', aiSummary: '已有摘要' }],
+      videoResources: [{ id: 'legacy-video' }],
+      videoTimestampNotes: [{ id: 'legacy-timestamp' }],
+      futureStateField: { retained: true },
+    },
+  };
+  const merged = mergeStateDomainSnapshot(
+    legacy,
+    { version: 42, state: { bookLists: [], futureStateField: { retained: false } } },
+    'library',
+  );
+  assert.deepEqual(merged, {
+    ...legacy,
+    version: 42,
+    state: { ...legacy.state, bookLists: [] },
+  });
+  assert.deepEqual(createStateDomainSnapshot(merged, 'library').state, {
+    books: legacy.state.books,
+    bookLists: [],
+  });
+  assert.deepEqual(createStateDomainSnapshot(merged, 'preferences').state, {
+    aiPreferences: legacy.state.aiPreferences,
+    readerPreferences: legacy.state.readerPreferences,
+  });
+  assert.deepEqual(createStateDomainSnapshot(merged, 'rss').state, {
+    rssItems: legacy.state.rssItems,
+    rssDigestSettings: legacy.state.rssDigestSettings,
+  });
+});

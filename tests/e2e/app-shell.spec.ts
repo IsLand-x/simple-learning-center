@@ -73,13 +73,13 @@ test('all top-level routes load through their state-domain gates', async ({ page
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: '设置' })).toBeVisible({ timeout: 15_000 });
 
-  await page.goto('/rss?source=all&range=all');
-  await expect(page.getByRole('heading', { name: 'RSS', exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
-
-  await page.goto('/videos');
-  await expect(page.getByRole('heading', { name: '视频学习' })).toBeVisible({ timeout: 15_000 });
+  for (const path of ['/rss?source=all&range=all', '/videos']) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole('heading', { name: '我的书架' })).toBeVisible();
+  }
+  await expect(page.getByRole('button', { name: 'RSS', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '视频', exact: true })).toHaveCount(0);
 });
 
 test('theme switching keeps the application on semantic dark mode', async ({ page }, testInfo) => {

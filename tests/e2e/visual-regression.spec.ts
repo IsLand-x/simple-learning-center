@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fixtureArticleTitle, fixtureVideo, prepareWorkspace } from './workspace-fixtures';
+import { prepareWorkspace } from './workspace-fixtures';
 
 test.use({
   locale: 'zh-CN',
@@ -18,12 +18,6 @@ const viewports = [
 const screens = [
   { name: 'library', path: '/', ready: '.library-page' },
   { name: 'reader', path: '/books/demo-data-intensive', ready: '.demo-reader article' },
-  {
-    name: 'rss',
-    path: '/rss?source=all&range=all&item=e2e-reading-article&view=detail',
-    ready: '.rss-article',
-  },
-  { name: 'videos', path: `/videos?video=${fixtureVideo.id}`, ready: '.video-transcript-panel' },
   { name: 'settings', path: '/settings', ready: '.settings-page' },
 ];
 // Scope intentional baseline updates while normal regressions still cover every screen.
@@ -55,18 +49,9 @@ for (const theme of ['light', 'dark']) {
           await expect(firstBook).toContainText('第一章 · 可靠、可扩展与可维护');
           await expect(firstBook).toContainText('1 小时前');
         }
-        if (screen.name === 'rss') {
-          await expect(page.getByRole('heading', { name: fixtureArticleTitle })).toBeVisible();
-        }
-        if (screen.name === 'videos') {
-          await expect(page.locator('.youtube-player__status')).toHaveCount(0);
-          await expect(page.getByRole('button', { name: '双语', exact: true })).toHaveAttribute(
-            'aria-pressed',
-            'true',
-          );
-        }
         await page.evaluate(() => document.fonts.ready);
         await page.mouse.move(0, 0);
+        await expect(page.locator('.semi-toast[role="alert"]')).toHaveCount(0);
         const dimensions = await page.evaluate(() => ({
           width: document.documentElement.clientWidth,
           scrollWidth: document.documentElement.scrollWidth,

@@ -1,31 +1,17 @@
 import { generateChapterMindMap } from '../mindmaps/generate.js';
 import { generateChapterVideo } from '../chapterVideos/generate.js';
 import { removeChapterVideoFiles } from '../../books/chapterVideos.js';
-import type { RssDigestRun } from '../../../../contracts/rss.js';
 import type { AiJob, AiChatContext, AiChatRunner, AiResult } from './types.js';
-import { mutatePersistedState } from '../../state/stateStore.js';
-import { completeRssTranslation } from '../../rss/translation.js';
 import { persistAssistant } from './persistence.js';
-import {
-  isCancelled,
-  safeErrorMessage,
-  translatedDialogueContent,
-  upsertDigestRun,
-} from './model.js';
+import { isCancelled, safeErrorMessage } from './model.js';
 
 interface ExecutionDependencies {
   runChat: AiChatRunner;
   publishJob: (job: AiJob) => void;
   pruneJobs: () => void;
-  updateDigestRun: (runId: string | undefined, changes: Partial<RssDigestRun>) => Promise<void>;
 }
 
-export function createJobExecutor({
-  runChat,
-  publishJob,
-  pruneJobs,
-  updateDigestRun,
-}: ExecutionDependencies) {
+export function createJobExecutor({ runChat, publishJob, pruneJobs }: ExecutionDependencies) {
   async function executeJob(job: AiJob, context: AiChatContext) {
     if (isCancelled(job)) return;
     job.status = 'running';
@@ -34,9 +20,6 @@ export function createJobExecutor({
     publishJob(job);
     let generatedVideo: AiResult['chapterVideo'];
     try {
-      if (job.resourceType === 'rssDigest') {
-        await updateDigestRun(job.digestRunId, { status: 'running' });
-      }
       const reportProgress = (progress: AiResult) => {
         if (isCancelled(job)) return;
         job.content = progress.content;
@@ -90,29 +73,11 @@ export function createJobExecutor({
               });
       generatedVideo = rawResult.chapterVideo;
       if (job.controller.signal.aborted || isCancelled(job)) return;
-      const result =
-        job.resourceType === 'rss' && job.purpose === 'translation'
-          ? (() => {
-              const translation = completeRssTranslation(
-                rawResult.content,
-                context.translationSource!,
-              );
-              return {
-                ...rawResult,
-                content: translation.text,
-                dialogueContent: translatedDialogueContent(
-                  rawResult.dialogueContent,
-                  translation.text,
-                ),
-                translationHtml: translation.html,
-              };
-            })()
-          : rawResult;
+      const result = rawResult;
       job.finalResult = structuredClone(result);
       if (job.purpose === 'chapter-video') job.committing = true;
       await persistAssistant(job, result);
       job.content = result.content;
-      job.translationHtml = result.translationHtml;
       job.dialogueContent = structuredClone(result.dialogueContent);
       job.status = 'completed';
       job.completedAt = Date.now();
@@ -138,29 +103,6 @@ export function createJobExecutor({
       }
       job.completedAt = Date.now();
       job.updatedAt = job.completedAt;
-      if (job.resourceType === 'rssDigest') {
-        await mutatePersistedState((persistedState) => {
-          if (job.status === 'failed') {
-            persistedState.state.rssDigestSettings = {
-              ...(persistedState.state.rssDigestSettings || {}),
-              lastError: job.error,
-            };
-          }
-          const runs = Array.isArray(persistedState.state.rssDigestRuns)
-            ? persistedState.state.rssDigestRuns
-            : [];
-          const digestRun = runs.find((run) => run.id === job.digestRunId);
-          if (digestRun) {
-            upsertDigestRun(persistedState.state, {
-              ...digestRun,
-              status: job.status,
-              completedAt: job.completedAt,
-              updatedAt: job.completedAt!,
-              message: job.error,
-            });
-          }
-        }).catch(() => undefined);
-      }
       job.revision += 1;
       publishJob(job);
     } finally {

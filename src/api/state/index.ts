@@ -1,9 +1,5 @@
-import type {
-  PersistedStateEnvelope,
-  StateDomain,
-  StateDomainResponse,
-  StateDomainSnapshot,
-} from './type';
+import type { StateDomain } from '../../../contracts/state';
+import type { PersistedStateEnvelope, StateDomainResponse, StateDomainSnapshot } from './type';
 import { apiTransport } from '../http/transport';
 import type { NoteItem } from '../../../contracts/reading';
 
