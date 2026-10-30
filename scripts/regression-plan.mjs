@@ -27,10 +27,7 @@ const domains = [
       'reader-chapter-videos',
     ],
   ],
-  [
-    /^src\/pages\/settings\//,
-    ['settings-model-controls', 'settings-tts', 'oauth-settings', 'about-settings'],
-  ],
+  [/^src\/pages\/settings\//, ['settings-model-controls', 'settings-tts', 'about-settings']],
 ];
 
 export function regressionPlan(changes, forceFull = false) {

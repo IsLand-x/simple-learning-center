@@ -15,7 +15,7 @@ const { Title, Text } = Typography;
 export function SettingsPage() {
   const [params, setParams] = useSearchParams();
   const requestedTab = params.get('tab');
-  const activeTab = requestedTab === 'content-sources' ? 'models' : (requestedTab ?? 'models');
+  const activeTab = requestedTab === 'content-sources' ? 'about' : (requestedTab ?? 'about');
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
 
   return (

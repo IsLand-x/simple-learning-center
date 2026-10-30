@@ -1,4 +1,3 @@
-import { OAuthProviders } from './OAuthProviders';
 import { Button, Empty, Typography } from '@douyinfe/semi-ui';
 import { IconPlus } from '@douyinfe/semi-icons';
 import { useState } from 'react';
@@ -56,7 +55,6 @@ export function ModelSettings({ editingConfigId, onEditingConfigChange }: ModelS
           CORS。远程模式请务必启用访问认证和 HTTPS。
         </Text>
       </section>
-      <OAuthProviders />
       <section
         className="api-config-list [margin-right:auto] [margin-left:auto]"
         aria-label="AI 模型配置列表"

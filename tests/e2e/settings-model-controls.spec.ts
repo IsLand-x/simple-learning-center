@@ -16,7 +16,7 @@ test('模型设置移除导入导出和冗余提示，普通按钮沿用 Semi �
       await page.setViewportSize({ width, height: 900 });
       snapshot.state.themeMode = theme;
       await page.request.put('/api/state/preferences', { data: snapshot });
-      await page.goto('/settings');
+      await page.goto('/settings?tab=models');
       await expect(page.getByRole('button', { name: /导入 API Key|导出 API Key/ })).toHaveCount(0);
       await expect(page.getByText('添加 API Key 模型，或在上方完成账号授权后开始对话')).toHaveCount(
         0,
@@ -48,7 +48,7 @@ test('地址检测批量加入同一个供应商，取消草稿不落盘，并�
       json: { baseUrl: 'https://provider.example/v1', models: ['model-a', 'model-b', 'model-c'] },
     });
   });
-  await page.goto('/settings');
+  await page.goto('/settings?tab=models');
   await page.getByRole('button', { name: /添加模型$/ }).click();
   const form = page.locator('.api-config-card--editing');
   await expect(form.getByRole('button', { name: '检测模型' })).toBeDisabled();
@@ -117,7 +117,7 @@ test('检测失败保留手动添加，重新检测已有供应商不产生重�
         : { json: { baseUrl: 'https://manual.example/v1', models: ['new-model'] } },
     ),
   );
-  await page.goto('/settings');
+  await page.goto('/settings?tab=models');
   await page.getByRole('button', { name: /添加模型$/ }).click();
   const form = page.locator('.api-config-card--editing');
   await form.getByLabel('模型配置名称').fill('手动供应商');
@@ -151,7 +151,7 @@ test('检测编辑器适配代表宽度与亮暗主题，长模型 ID 不撑破�
       },
     }),
   );
-  await page.goto('/settings');
+  await page.goto('/settings?tab=models');
   await page.getByRole('button', { name: /添加模型$/ }).click();
   const form = page.locator('.api-config-card--editing');
   await form.getByLabel('OpenAI 兼容 API 地址').fill('https://visual.example/v1');
