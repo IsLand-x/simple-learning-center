@@ -60,7 +60,7 @@ export const highlights = sqliteTable('highlights', {
   comment: text('comment'),
   commentUpdatedAt: integer('comment_updated_at'),
   createdAt: integer('created_at').notNull().default(0),
-  updatedAt: integer('updated_at').notNull().default(0),
+  updatedAt: integer('updated_at'),
 });
 
 export const deletedHighlightTombstones = sqliteTable('deleted_highlight_tombstones', {

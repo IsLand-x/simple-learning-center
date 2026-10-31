@@ -1,11 +1,16 @@
-name: 重构预览镜像
+name: 预览镜像
 
 on:
   # 仅在用户明确要求预览时手动启动，日常发布走 main 的生产工作流。
   workflow_dispatch:
+    inputs:
+      tag:
+        description: '镜像标签前缀 (如 preview, refactor, share)'
+        required: false
+        default: 'preview'
 
 concurrency:
-  group: learning-center-refactor-preview
+  group: learning-center-preview
   cancel-in-progress: true
 
 jobs:
@@ -31,9 +36,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/island-x/simple-learning-center:refactor-${{ github.sha }}
+          tags: ghcr.io/island-x/simple-learning-center:${{ inputs.tag || 'preview' }}-${{ github.sha }}
           build-args: |
             APP_BUILD_REVISION=${{ github.sha }}
             APP_UPDATED_AT=${{ steps.metadata.outputs.updated_at }}
-          cache-from: type=gha,scope=refactor-preview
-          cache-to: type=gha,mode=max,scope=refactor-preview
+          cache-from: type=gha,scope=preview
+          cache-to: type=gha,mode=max,scope=preview

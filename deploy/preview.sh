@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Deliberately separate from deploy.sh and the production container/volume.
-image_ref=${1:?Usage: deploy/refactor-preview.sh IMAGE_REF PRIVATE_ENV_FILE}
+# 通用按需独立预览部署脚本
+image_ref=${1:?Usage: deploy/preview.sh IMAGE_REF PRIVATE_ENV_FILE [PORT] [CONTAINER_NAME] [VOLUME_NAME]}
 environment_file=${2:?A private environment file is required}
-container=learning-center-refactor-preview
-volume=learning-center-refactor-preview-data
+port=${3:-4177}
+container=${4:-learning-center-preview}
+volume=${5:-learning-center-preview-data}
 
 test -f "$environment_file"
 docker pull "$image_ref"
@@ -21,13 +22,13 @@ docker run -d \
   --env LEARNING_CENTER_MODE=remote \
   --env LEARNING_CENTER_DATA_DIR=/data \
   --env LEARNING_CENTER_PORT=4174 \
-  --publish 127.0.0.1:4177:4174 \
+  --publish "127.0.0.1:${port}:4174" \
   --mount "type=volume,source=$volume,target=/data" \
   "$image_ref"
 
 for attempt in {1..30}; do
-  if curl --fail --silent http://127.0.0.1:4177/api/auth/session >/dev/null; then
-    printf 'Preview is responding at 127.0.0.1:4177 (%s)\n' "$image_ref"
+  if curl --fail --silent "http://127.0.0.1:${port}/api/auth/session" >/dev/null; then
+    printf 'Preview is responding at 127.0.0.1:%s (%s)\n' "$port" "$image_ref"
     exit 0
   fi
   sleep 2

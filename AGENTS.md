@@ -19,7 +19,7 @@
 - 全局状态使用 Zustand；持久化使用 Zustand `persist`。
 - 可调整分栏使用 Allotment，不要重新引入自制拖拽分隔条。
 - PWA 使用 `vite-plugin-pwa`。
-- 服务端使用 Hono、`@hono/node-server` 与 Node.js 文件系统 API，不依赖外部数据库服务。
+- 服务端使用 Hono、`@hono/node-server`、SQLite (Drizzle ORM) 与 Node.js 文件系统 API，提供高性能低延迟的本地数据服务。
 
 常用命令：
 
@@ -74,7 +74,7 @@ npm run preview
 
 - 默认数据目录是仓库根目录下的 `data/`，可通过 `LEARNING_CENTER_DATA_DIR` 指向其他路径。
 - EPUB 文件保存在 `data/books/`，书内搜索索引保存在 `data/search-indexes/`，Markdown 笔记正文保存在 `data/notes/`。
-- 元数据、阅读进度、高亮、评论、AI 对话、模型配置和笔记元数据保存在 `data/state.json`。
+- 元数据、阅读进度、高亮、评论、AI 对话、模型配置和笔记元数据持久化保存在 SQLite 数据库（`data/learning-center.db`）并与 `data/state.json` 保持双向灾备同步。
 - `localStorage` 与 IndexedDB 的旧数据只用于服务端空目录首次启动时的自动迁移；迁移后不得继续作为日常持久化来源。
 - 修改持久化数据结构时必须同步检查 `LearningState`、默认值、所属 action、客户端与服务端 `STATE_DOMAIN_FIELDS`、store version、迁移、合并规则及对应测试，不能让已有本地数据静默丢失。
 - 每个持久化字段必须且只能归属一个状态分区。新增或调整顶层路由时，必须在 `src/layout/AppRoutes.tsx` 保持 lazy loading 与 `StateDomainGate`，同步更新客户端路径分区、客户端/服务端字段映射以及顶层路由 E2E。

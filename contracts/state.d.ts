@@ -16,17 +16,7 @@ import type {
   ReaderPreferences,
   ReadingSession,
 } from './reading.js';
-import type {
-  RssAnnotation,
-  RssDailyDigest,
-  RssDigestRun,
-  RssDigestSettings,
-  RssFeed,
-  RssFolder,
-  RssItem,
-} from './rss.js';
 import type { ThemeMode, WebSearchConfig } from './settings.js';
-import type { VideoResource, VideoTimestampNote } from './videos.js';
 
 export interface LearningData {
   books: BookItem[];
@@ -56,16 +46,16 @@ export interface LearningData {
 
 // 已停用的 RSS 与独立视频字段仅用于旧快照与服务端保护，不进入客户端活动状态。
 export interface LegacyLearningData {
-  rssFolders: RssFolder[];
-  rssFeeds: RssFeed[];
-  rssItems: RssItem[];
-  rssAnnotations: RssAnnotation[];
-  rssDailyDigests: RssDailyDigest[];
-  rssDigestRuns: RssDigestRun[];
-  rssDigestSettings: RssDigestSettings;
+  rssFolders: unknown[];
+  rssFeeds: Array<{ id: string }>;
+  rssItems: Array<{ id: string; feedId: string }>;
+  rssAnnotations: unknown[];
+  rssDailyDigests: unknown[];
+  rssDigestRuns: unknown[];
+  rssDigestSettings: Record<string, unknown>;
   rssPanelWidth: number;
-  videoResources: VideoResource[];
-  videoTimestampNotes: VideoTimestampNote[];
+  videoResources: Array<{ id: string }>;
+  videoTimestampNotes: unknown[];
   videoPanelWidth: number;
 }
 

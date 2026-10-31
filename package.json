@@ -9,7 +9,6 @@
   "scripts": {
     "dev": "npm run build:server && node server-dist/dev.js",
     "dev:web": "vite --host 127.0.0.1",
-    "dev:local": "npm run build:server && node server-dist/dev.js",
     "generate:pwa-assets": "pwa-assets-generator --preset minimal-2023 public/app-icon.svg",
     "test": "npm run test:server && npm run test:web",
     "test:server": "npm run build:server && node scripts/test-server.mjs",

@@ -1,7 +1,15 @@
+import { inArray, sql } from 'drizzle-orm';
 import { getDatabase } from './index.js';
 import * as schema from './schema.js';
 import type { PersistedState, StoredState } from '../modules/state/types.js';
-import type { NoteItem } from '../../contracts/reading.js';
+import type { BookItem } from '../../contracts/books.js';
+import type { HighlightItem, NoteItem, ChapterVideo } from '../../contracts/reading.js';
+import type {
+  ChatMessage,
+  OpenAICompatibleConfig,
+  AiProvider,
+  AiReasoningEffort,
+} from '../../contracts/ai.js';
 
 export function writeStateToDb(persisted: PersistedState, fields?: readonly (keyof StoredState)[]) {
   const { db, sqlite } = getDatabase();
@@ -10,6 +18,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
   const updates = (f: keyof StoredState) => shouldUpdateAll || fields?.includes(f);
 
   sqlite.transaction(() => {
+    if (shouldUpdateAll) {
+      db.delete(schema.keyValues).run();
+    }
     // Version & deletedConversationIds
     db.insert(schema.keyValues)
       .values({ key: 'version', value: String(persisted.version) })
@@ -114,7 +125,7 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
           comment: h.comment,
           commentUpdatedAt: h.commentUpdatedAt,
           createdAt: h.createdAt ?? 0,
-          updatedAt: h.updatedAt ?? 0,
+          updatedAt: h.updatedAt,
         }));
         db.insert(schema.highlights).values(normalizedHighlights).run();
       }
@@ -316,5 +327,316 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
     if (updates('readerLayoutUpdatedAt') && state.readerLayoutUpdatedAt !== undefined) {
       saveKv('readerLayoutUpdatedAt', state.readerLayoutUpdatedAt);
     }
+    // Track stored fields
+    let storedFieldsSet = new Set<string>();
+    if (!shouldUpdateAll) {
+      const storedFieldsRow = db
+        .select()
+        .from(schema.keyValues)
+        .where(sql`${schema.keyValues.key} = '__storedFields'`)
+        .get();
+      if (storedFieldsRow?.value) {
+        try {
+          storedFieldsSet = new Set(JSON.parse(storedFieldsRow.value));
+        } catch {
+          // Ignore malformed JSON
+        }
+      }
+      if (fields) {
+        for (const f of fields) {
+          if (Object.hasOwn(state, f)) {
+            storedFieldsSet.add(String(f));
+          } else {
+            storedFieldsSet.delete(String(f));
+          }
+        }
+      }
+    } else {
+      storedFieldsSet = new Set(Object.keys(state));
+    }
+    saveKv('__storedFields', [...storedFieldsSet]);
   })();
+}
+export function readStateFromDb(fields?: readonly (keyof StoredState)[]): PersistedState | null {
+  const { db } = getDatabase();
+  const shouldRead = (f: keyof StoredState) => !fields || fields.includes(f);
+  const storedFieldsRow = db
+    .select()
+    .from(schema.keyValues)
+    .where(sql`${schema.keyValues.key} = '__storedFields'`)
+    .get();
+  let storedFieldsSet: Set<string> | undefined;
+  if (storedFieldsRow?.value) {
+    try {
+      storedFieldsSet = new Set(JSON.parse(storedFieldsRow.value));
+    } catch {
+      // Ignore malformed JSON
+    }
+  }
+  const shouldInclude = (f: keyof StoredState) =>
+    shouldRead(f) && (!storedFieldsSet || storedFieldsSet.has(String(f)));
+
+  const versionRow = db
+    .select()
+    .from(schema.keyValues)
+    .where(sql`${schema.keyValues.key} = 'version'`)
+    .get();
+
+  if (!versionRow) {
+    const hasAnyBook = db.select({ id: schema.books.id }).from(schema.books).limit(1).get();
+    if (!hasAnyBook) return null;
+  }
+
+  const version = versionRow ? Number(versionRow.value) : 42;
+
+  let deletedConversationIds: string[] | undefined;
+  const delRow = db
+    .select()
+    .from(schema.keyValues)
+    .where(sql`${schema.keyValues.key} = 'deletedConversationIds'`)
+    .get();
+  if (delRow?.value) {
+    try {
+      deletedConversationIds = JSON.parse(delRow.value);
+    } catch {
+      // Ignore malformed JSON
+    }
+  }
+
+  const state: StoredState = {};
+
+  if (shouldInclude('books')) {
+    const rows = db.select().from(schema.books).all();
+    state.books = rows.map((b) => ({
+      id: b.id,
+      kind: (b.kind as BookItem['kind']) ?? 'epub',
+      title: b.title,
+      author: b.author,
+      fileName: b.fileName,
+      fileSize: b.fileSize,
+      coverDataUrl: b.coverDataUrl ?? undefined,
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
+      pinnedAt: b.pinnedAt ?? undefined,
+      archivedAt: b.archivedAt ?? undefined,
+      archiveUpdatedAt: b.archiveUpdatedAt ?? undefined,
+      progress: b.progress,
+      currentCfi: b.currentCfi ?? undefined,
+      currentChapter: b.currentChapter,
+      currentPage: b.currentPage ?? undefined,
+      totalPages: b.totalPages ?? undefined,
+      toc: b.toc ?? [],
+      deletedAt: b.deletedAt ?? undefined,
+    }));
+  }
+
+  if (shouldInclude('bookLists')) {
+    const rows = db.select().from(schema.bookLists).all();
+    state.bookLists = rows.map((l) => ({
+      id: l.id,
+      name: l.name,
+      note: l.note ?? undefined,
+      bookIds: (l.bookIds as string[]) ?? [],
+      createdAt: l.createdAt,
+      updatedAt: l.updatedAt,
+    }));
+  }
+
+  if (shouldInclude('trashedBooks')) {
+    const rows = db.select().from(schema.trashedBooks).all();
+    state.trashedBooks = rows.map((t) => ({
+      book: t.book as unknown as BookItem,
+      deletedAt: t.deletedAt,
+      bookListPositions: t.bookListPositions,
+    }));
+  }
+
+  if (shouldInclude('deletedBookTombstones')) {
+    const rows = db.select().from(schema.deletedBookTombstones).all();
+    state.deletedBookTombstones = rows.map((t) => ({
+      bookId: t.bookId,
+      deletedAt: t.deletedAt,
+    }));
+  }
+
+  if (shouldInclude('highlights')) {
+    const rows = db.select().from(schema.highlights).all();
+    state.highlights = rows.map((h) => ({
+      id: h.id,
+      bookId: h.bookId,
+      kind: (h.kind as HighlightItem['kind']) ?? undefined,
+      definition: h.definition ?? undefined,
+      text: h.text,
+      cfi: h.cfi,
+      chapter: h.chapter,
+      page: h.page ?? undefined,
+      comment: h.comment ?? undefined,
+      commentUpdatedAt: h.commentUpdatedAt ?? undefined,
+      createdAt: h.createdAt,
+      updatedAt: (h.updatedAt ?? undefined) as number,
+    }));
+  }
+
+  if (shouldInclude('deletedHighlightTombstones')) {
+    const rows = db.select().from(schema.deletedHighlightTombstones).all();
+    state.deletedHighlightTombstones = rows.map((t) => ({
+      highlightId: t.highlightId,
+      bookId: t.bookId,
+      deletedAt: t.deletedAt,
+    }));
+  }
+
+  if (shouldInclude('notes')) {
+    const rows = db.select().from(schema.notes).all();
+    state.notes = rows.map((n) => ({
+      id: n.id,
+      bookId: n.bookId,
+      title: n.title,
+      content: n.content,
+      fileName: n.fileName ?? undefined,
+      contentFile: n.contentFile ?? undefined,
+      createdAt: n.createdAt,
+      updatedAt: n.updatedAt,
+    })) as unknown as NoteItem[];
+  }
+
+  if (shouldInclude('deletedNoteTombstones')) {
+    const rows = db.select().from(schema.deletedNoteTombstones).all();
+    state.deletedNoteTombstones = rows.map((t) => ({
+      noteId: t.noteId,
+      bookId: t.bookId,
+      deletedAt: t.deletedAt,
+    }));
+  }
+
+  if (shouldInclude('readingSessions')) {
+    const rows = db.select().from(schema.readingSessions).all();
+    state.readingSessions = rows.map((s) => ({
+      id: s.id,
+      bookId: s.bookId,
+      startedAt: s.startedAt,
+      endedAt: s.endedAt,
+      durationMs: s.durationMs,
+    }));
+  }
+
+  if (shouldInclude('chapterMindMaps')) {
+    const rows = db.select().from(schema.chapterMindMaps).all();
+    state.chapterMindMaps = rows.map((m) => ({
+      id: m.id,
+      version: 1 as const,
+      revision: m.revision,
+      bookId: m.bookId,
+      chapterId: m.chapterId,
+      chapterTitle: m.chapterTitle,
+      nodes: m.nodes ?? [],
+      model: m.model ?? undefined,
+      generatedAt: m.generatedAt,
+      updatedAt: m.updatedAt,
+    }));
+  }
+
+  if (shouldInclude('chapterVideos')) {
+    const rows = db.select().from(schema.chapterVideos).all();
+    state.chapterVideos = rows.map((v) => ({
+      id: v.id,
+      version: 1 as const,
+      bookId: v.bookId,
+      chapterId: v.chapterId ?? undefined,
+      chapterTitle: v.chapterTitle,
+      title: v.title,
+      summary: v.summary,
+      coverage: v.coverage ?? undefined,
+      scenes: v.scenes ?? [],
+      durationSeconds: v.durationSeconds,
+      hasAudio: v.hasAudio,
+      model: (v.model as unknown as ChapterVideo['model']) ?? undefined,
+      generatedAt: v.generatedAt,
+    }));
+  }
+
+  if (shouldInclude('chatSessions')) {
+    const rows = db.select().from(schema.chatSessions).all();
+    state.chatSessions = rows.map((s) => ({
+      id: s.id,
+      bookId: s.bookId,
+      title: s.title,
+      provider: (s.provider as AiProvider) ?? undefined,
+      model: s.model ?? undefined,
+      reasoningEffort: (s.reasoningEffort as AiReasoningEffort) ?? undefined,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+    }));
+  }
+
+  if (shouldInclude('chats')) {
+    const rows = db.select().from(schema.chats).all();
+    state.chats = rows.map((c) => ({
+      id: c.id,
+      bookId: c.bookId,
+      conversationId: c.conversationId,
+      role: c.role as ChatMessage['role'],
+      content: c.content,
+      dialogueContent: c.dialogueContent ?? undefined,
+      readAt: c.readAt ?? undefined,
+      quote: c.quote ?? undefined,
+      createdAt: c.createdAt,
+    }));
+  }
+
+  if (shouldInclude('conversationDrafts')) {
+    const rows = db.select().from(schema.conversationDrafts).all();
+    state.conversationDrafts = rows.map((d) => ({
+      resourceId: d.resourceId,
+      conversationId: d.conversationId,
+      text: d.text,
+      updatedAt: d.updatedAt,
+    }));
+  }
+
+  if (shouldInclude('openAIConfigs')) {
+    const rows = db.select().from(schema.openAiConfigs).all();
+    state.openAIConfigs = rows.map((cfg) => ({
+      id: cfg.id,
+      name: cfg.name,
+      baseUrl: cfg.baseUrl,
+      apiKey: cfg.apiKey,
+      models: cfg.models ?? [],
+      oauthProvider: (cfg.oauthProvider as OpenAICompatibleConfig['oauthProvider']) ?? undefined,
+      createdAt: cfg.createdAt,
+      updatedAt: cfg.updatedAt,
+    }));
+  }
+
+  const kvKeys = [
+    'webSearchConfig',
+    'aiPreferences',
+    'navCollapsed',
+    'themeMode',
+    'readerPreferences',
+    'readerPreferencesUpdatedAt',
+    'readerStyleUpdatedAt',
+    'readerLayoutUpdatedAt',
+  ].filter((k) => shouldInclude(k as keyof StoredState));
+
+  if (kvKeys.length > 0) {
+    const kvRows = db
+      .select()
+      .from(schema.keyValues)
+      .where(inArray(schema.keyValues.key, kvKeys))
+      .all();
+    for (const row of kvRows) {
+      try {
+        state[row.key as keyof StoredState] = JSON.parse(row.value);
+      } catch {
+        // Ignore malformed JSON
+      }
+    }
+  }
+
+  return {
+    version,
+    ...(deletedConversationIds ? { deletedConversationIds } : {}),
+    state,
+  };
 }

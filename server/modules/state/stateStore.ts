@@ -4,16 +4,12 @@ import { measureServerTiming, recordServerTiming } from '../../infrastructure/ht
 import { STATE_FILE } from '../../config.js';
 import { atomicWrite, exists } from '../../infrastructure/fs/files.js';
 import { errorHasCode, statusError } from '../../infrastructure/http/errors.js';
-import {
-  protectRssStateFromOlderClient,
-  protectVideoStateFromOlderClient,
-  protectBookListStateFromOlderClient,
-} from './compatibility/olderClients.js';
+import { protectBookListStateFromOlderClient } from './compatibility/olderClients.js';
 import { protectChatReadState } from './compatibility/chatReadState.js';
 import { protectBookTrashStateFromClient } from './compatibility/bookTrash.js';
 import { hydrateStateFromDisk, prepareStateForDisk } from './serialization.js';
 import type { PersistedState, StoredState } from './types.js';
-import { writeStateToDb } from '../../db/sqliteStateStorage.js';
+import { readStateFromDb, writeStateToDb } from '../../db/sqliteStateStorage.js';
 
 // Every state.json mutation shares this queue, including resource existence checks.
 // Queue callbacks must not call readPersistedState or enqueue another mutation.
@@ -62,7 +58,18 @@ async function readStateFile() {
   if (stateReadCache?.signature === signature) return stateReadCache.result;
   const entry = {
     signature,
-    result: readFile(STATE_FILE, 'utf8').then((content) => JSON.parse(content) as StateFile),
+    result: readFile(STATE_FILE, 'utf8').then((content) => {
+      const parsed = JSON.parse(content) as StateFile;
+      const unwrapped = unwrapState(parsed);
+      if (unwrapped) {
+        try {
+          writeStateToDb(unwrapped);
+        } catch {
+          // Ignore DB write errors during fallback hydration
+        }
+      }
+      return parsed;
+    }),
   };
   stateReadCache = entry;
   try {
@@ -81,7 +88,18 @@ async function readPersistedStateFromDisk(
     hydrateCovers?: boolean;
   } = {},
 ) {
-  const diskState = unwrapState(await measureServerTiming('state_read', readStateFile));
+  const diskFile = await measureServerTiming('state_read', readStateFile);
+  let diskState: PersistedState | null = null;
+  if (options.fields && diskFile) {
+    try {
+      diskState = readStateFromDb(options.fields);
+    } catch {
+      // Fallback
+    }
+  }
+  if (!diskState && diskFile) {
+    diskState = unwrapState(diskFile);
+  }
   return diskState
     ? measureServerTiming('state_hydrate', () =>
         hydrateStateFromDisk(diskState, options.hydrateNote, options.fields, options.hydrateCovers),
@@ -112,13 +130,7 @@ function protectState(
 ) {
   const protectedState = currentPersistedState
     ? protectBookTrashStateFromClient(
-        protectBookListStateFromOlderClient(
-          protectVideoStateFromOlderClient(
-            protectRssStateFromOlderClient(persistedState, currentPersistedState),
-            currentPersistedState,
-          ),
-          currentPersistedState,
-        ),
+        protectBookListStateFromOlderClient(persistedState, currentPersistedState),
         currentPersistedState,
       )
     : persistedState;
@@ -161,6 +173,8 @@ async function commitState(
     } catch {
       stateReadCache = undefined;
     }
+  } else {
+    stateReadCache = undefined;
   }
 }
 
@@ -231,8 +245,11 @@ export function writePersistedState(
         // Dependency fields are read only (e.g. book deletion tombstones).
         const selected: StoredState = {};
         for (const field of options.fields) {
-          if (Object.hasOwn(protectedState.state, field))
-            selected[field] = protectedState.state[field];
+          if (Object.hasOwn(protectedState.state, field)) {
+            (selected as Record<string, unknown>)[field] = (
+              protectedState.state as Record<string, unknown>
+            )[field];
+          }
         }
         const prepared = await measureServerTiming('state_prepare', () =>
           prepareStateForDisk({ ...protectedState, state: selected }, options.fields),

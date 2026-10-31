@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
-import { mkdirSync } from 'node:fs';
+import { statSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { getDbFile } from '../config.js';
 import * as schema from './schema.js';
@@ -8,12 +8,26 @@ import * as schema from './schema.js';
 let dbInstance: BetterSQLite3Database<typeof schema> | undefined;
 let sqliteInstance: Database.Database | undefined;
 let currentDbFile: string | undefined;
+let currentDbIno: bigint | undefined;
 
 export function initDatabase(dbFilePath: string = getDbFile()) {
-  if (dbInstance && sqliteInstance && currentDbFile === dbFilePath && sqliteInstance.open) {
-    return { db: dbInstance, sqlite: sqliteInstance };
+  let fileIno: bigint | undefined;
+  try {
+    fileIno = statSync(dbFilePath, { bigint: true }).ino;
+  } catch {
+    // Ignore missing file
   }
 
+  if (
+    dbInstance &&
+    sqliteInstance &&
+    currentDbFile === dbFilePath &&
+    sqliteInstance.open &&
+    fileIno !== undefined &&
+    currentDbIno === fileIno
+  ) {
+    return { db: dbInstance, sqlite: sqliteInstance };
+  }
   if (sqliteInstance) {
     try {
       sqliteInstance.close();
@@ -87,7 +101,7 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
       comment TEXT,
       comment_updated_at INTEGER,
       created_at INTEGER NOT NULL DEFAULT 0,
-      updated_at INTEGER NOT NULL DEFAULT 0
+      updated_at INTEGER
     );
 
     CREATE TABLE IF NOT EXISTS deleted_highlight_tombstones (
@@ -202,13 +216,32 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
   dbInstance = db;
   sqliteInstance = sqlite;
   currentDbFile = dbFilePath;
+  try {
+    currentDbIno = statSync(dbFilePath, { bigint: true }).ino;
+  } catch {
+    // Ignore missing file
+  }
 
   return { db, sqlite };
 }
 
 export function getDatabase() {
   const targetDbFile = getDbFile();
-  if (!dbInstance || !sqliteInstance || currentDbFile !== targetDbFile) {
+  let fileIno: bigint | undefined;
+  try {
+    fileIno = statSync(targetDbFile, { bigint: true }).ino;
+  } catch {
+    // Ignore missing file
+  }
+
+  if (
+    !dbInstance ||
+    !sqliteInstance ||
+    currentDbFile !== targetDbFile ||
+    !sqliteInstance.open ||
+    fileIno === undefined ||
+    currentDbIno !== fileIno
+  ) {
     return initDatabase(targetDbFile);
   }
   return { db: dbInstance, sqlite: sqliteInstance };
