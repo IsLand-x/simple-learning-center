@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BookItem } from '../../../../../../contracts/books';
-import type { ChapterVideo, ChapterVideoNarration } from '../../../../../../contracts/reading';
+import type {
+  ChapterVideo,
+  ChapterVideoJob,
+  ChapterVideoNarration,
+} from '../../../../../../contracts/reading';
 import { aiApi } from '../../../../../api/ai';
 import { booksApi } from '../../../../../api/books';
 import { useLearningStore } from '../../../../../store/useLearningStore';
@@ -24,18 +28,54 @@ export function useChapterVideo(
   chapterId: string | undefined,
   restoreScope?: (chapterId: string | undefined) => void,
 ) {
-  const configs = useLearningStore((state) => state.openAIConfigs);
+  const rawConfigs = useLearningStore((state) => state.openAIConfigs);
+  const configs = useMemo(() => rawConfigs.filter((item) => !item.oauthProvider), [rawConfigs]);
   const preferences = useLearningStore((state) => state.aiPreferences);
   const setPreferences = useLearningStore((state) => state.setAiPreferences);
   const videos = useLearningStore((state) => state.chapterVideos);
   const { reportJob } = useReaderAiJobs();
-  const { jobs, loading, error: jobsError, refresh: refreshJobs } = useChapterVideoJobs(book.id);
-  const job = jobs
-    .filter((item) => item.bookId === book.id && item.chapterId === chapterId)
-    .sort((left, right) => right.createdAt - left.createdAt)[0];
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [stage, setStage] = useState('');
+  const [pendingScope, setPendingScope] = useState<{
+    chapterId: string | undefined;
+    chapterTitle: string;
+  } | null>(null);
+  const {
+    jobs,
+    loading,
+    error: jobsError,
+    refresh: refreshJobs,
+  } = useChapterVideoJobs(book.id, pending);
+  const config = configs.find((item) => preferences.provider === `api:${item.id}`) ?? configs[0];
+  const model = config?.models.includes(preferences.model) ? preferences.model : config?.models[0];
+  const pendingJob: ChapterVideoJob | undefined = useMemo(() => {
+    if (!pending || !pendingScope) return undefined;
+    return {
+      id: 'pending-job',
+      bookId: book.id,
+      chapterId: pendingScope.chapterId,
+      chapterTitle: pendingScope.chapterTitle,
+      model: model ?? '',
+      status: 'running',
+      revision: 0,
+      content: stage || '正在准备书籍正文',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+  }, [pending, pendingScope, book.id, model, stage]);
+  const displayJobs = useMemo(() => {
+    if (!pendingJob) return jobs;
+    const sameRunning = jobs.some(
+      (item) =>
+        item.chapterId === pendingJob.chapterId &&
+        (item.status === 'queued' || item.status === 'running'),
+    );
+    return sameRunning ? jobs : [pendingJob, ...jobs];
+  }, [jobs, pendingJob]);
+  const job = displayJobs
+    .filter((item) => item.bookId === book.id && item.chapterId === chapterId)
+    .sort((left, right) => right.createdAt - left.createdAt)[0];
   const [deleting, setDeleting] = useState(false);
   const [cancelled, setCancelled] = useState(false);
   const preparation = useRef<AbortController>();
@@ -44,8 +84,6 @@ export function useChapterVideo(
   const restoredScope = useRef(false);
   const latestBook = useRef(book);
   latestBook.current = book;
-  const config = configs.find((item) => preferences.provider === `api:${item.id}`);
-  const model = config?.models.includes(preferences.model) ? preferences.model : config?.models[0];
   const busy = pending || job?.status === 'queued' || job?.status === 'running';
 
   useEffect(() => {
@@ -83,14 +121,19 @@ export function useChapterVideo(
     target?: { chapterId: string | undefined },
   ) => {
     const targetChapterId = target ? target.chapterId : chapterId;
-    const generating = jobs.some(
+    const generating = displayJobs.some(
       (item) =>
         item.chapterId === targetChapterId &&
         (item.status === 'queued' || item.status === 'running'),
     );
     if (starting.current || loading || generating || deleting || !config || !model) return false;
     starting.current = true;
+    const targetTitle = targetChapterId
+      ? (book.toc.find((t) => t.id === targetChapterId)?.label ?? '章节讲解')
+      : '全书导读';
     setPending(true);
+    setStage('正在准备书籍正文');
+    setPendingScope({ chapterId: targetChapterId, chapterTitle: targetTitle });
     setError('');
     setCancelled(false);
     const controller = new AbortController();
@@ -129,17 +172,18 @@ export function useChapterVideo(
     } finally {
       starting.current = false;
       setPending(false);
+      setPendingScope(null);
       preparation.current = undefined;
     }
   };
   const cancel = async (jobId?: string) => {
-    if (pending && !jobId) {
+    if (pending && (!jobId || jobId === 'pending-job')) {
       preparation.current?.abort();
       setCancelled(true);
       return;
     }
     const targetId = jobId ?? job?.id;
-    if (!targetId) return;
+    if (!targetId || targetId === 'pending-job') return;
     try {
       reportJob(await aiApi.cancelJob(targetId));
       await refreshJobs();
@@ -177,7 +221,7 @@ export function useChapterVideo(
     busy,
     loading,
     pending,
-    jobs,
+    jobs: displayJobs,
     deleting,
     stage,
     configured: Boolean(config && model),

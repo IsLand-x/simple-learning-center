@@ -19,11 +19,13 @@ export function AiModelSelector({
 }) {
   const treeData = useMemo(
     () =>
-      configs.map((config) => ({
-        label: config.name,
-        value: `api:${config.id}`,
-        children: config.models.map((item) => ({ label: item, value: item })),
-      })),
+      configs
+        .filter((config) => !config.oauthProvider)
+        .map((config) => ({
+          label: config.name,
+          value: `api:${config.id}`,
+          children: config.models.map((item) => ({ label: item, value: item })),
+        })),
     [configs],
   );
   // Semi compares the controlled value by reference and resets its active path.

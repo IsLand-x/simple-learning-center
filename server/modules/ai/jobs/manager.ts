@@ -1,3 +1,4 @@
+import type { ChapterVideoJob } from '../../../../contracts/reading.js';
 import type { PersistedState } from '../../state/types.js';
 import type { AiJob, AiChatRunner } from './types.js';
 import { statusError } from '../../../infrastructure/http/errors.js';
@@ -143,7 +144,35 @@ export function createAiJobManager({ runChat = runServerAiChat }: { runChat?: Ai
     cancel,
     subscribe,
     protectPersistedState,
-    listVideoJobs: (bookId: string) => videoJournal.list(bookId),
+    async listVideoJobs(bookId: string) {
+      const persisted = await videoJournal.list(bookId);
+      const activeVideoJobs = [...jobs.values()]
+        .filter(
+          (job) =>
+            job.purpose === 'chapter-video' &&
+            job.bookId === bookId &&
+            ['queued', 'running'].includes(job.status),
+        )
+        .map((job): ChapterVideoJob => ({
+          id: job.id,
+          bookId: job.bookId,
+          chapterId: job.chapterId,
+          chapterTitle: job.chapterTitle ?? '全书导读',
+          model: job.model,
+          status: job.status as ChapterVideoJob['status'],
+          revision: job.revision,
+          content: job.content,
+          error: job.error,
+          createdAt: job.createdAt,
+          updatedAt: job.updatedAt,
+          completedAt: job.completedAt,
+        }));
+      if (!activeVideoJobs.length) return persisted;
+      const activeIds = new Set(activeVideoJobs.map((j) => j.id));
+      return [...activeVideoJobs, ...persisted.filter((j) => !activeIds.has(j.id))].sort(
+        (left, right) => right.createdAt - left.createdAt,
+      );
+    },
     async deleteVideoJob(bookId: string, jobId: string) {
       await videoJournal.remove(bookId, jobId);
       const job = jobs.get(jobId);

@@ -91,10 +91,9 @@ export function ChapterVideoPanel({
 
   const start = async (targetId: string | undefined) => {
     setChapterId(targetId);
-    if (await ai.generate(narration, { chapterId: targetId })) {
-      setGenerateModalOpen(false);
-      setView('tasks');
-    }
+    setGenerateModalOpen(false);
+    setView('tasks');
+    await ai.generate(narration, { chapterId: targetId });
   };
 
   const generate = () => {
@@ -225,7 +224,7 @@ export function ChapterVideoPanel({
             {ai.error}
           </p>
         )}
-        {ai.pending && (
+        {ai.pending && view !== 'tasks' && (
           <div
             role="status"
             className="chapter-video-actions flex items-center justify-between gap-4 px-3 py-2 text-[12px] [color:var(--semi-color-text-1)]"

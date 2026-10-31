@@ -72,15 +72,19 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
     ? ''
     : `
       @media (hover: hover) and (pointer: fine) {
-        html, body {
-          cursor: ${textSelectionCursor};
+        html,
+        body,
+        body :where(p, div, span, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6, article, section) {
+          cursor: ${textSelectionCursor} !important;
         }
         body :where(a, button, input, textarea, select, option, label, summary, img, svg, video, [role="button"], [contenteditable="true"]) {
-          cursor: auto;
+          cursor: auto !important;
         }
       }
       @media (forced-colors: active) {
-        html, body {
+        html,
+        body,
+        body :where(p, div, span, li, blockquote, dd, dt, h1, h2, h3, h4, h5, h6, article, section) {
           cursor: text !important;
         }
       }

@@ -7,6 +7,7 @@ import {
   resolveReaderStyle,
 } from '../../../../../../util/reading/readerThemes';
 import type { ReaderSurfaceHandle, ReaderSurfaceProps } from '../type';
+import { createReaderTextSelectionCursor } from '../../../../../../util/reading/textCursor';
 import { MobileSelectionHandles } from './MobileSelectionHandles';
 import type {
   MobileSelectionController,
@@ -151,6 +152,9 @@ export function FoliateEpubReader({
     '--reader-color-scheme': readerStyle.isDark ? 'dark' : 'light',
     '--reader-highlight-color': readerStyle.highlightColor,
     '--reader-highlight-icon-color': readerStyle.textColor,
+    '--reader-text-selection-cursor': compactLayout
+      ? 'text'
+      : createReaderTextSelectionCursor(readerStyle),
     '--reader-texture-image': texture.backgroundImage,
     '--reader-texture-size': texture.backgroundSize,
     '--reader-texture-position': texture.backgroundPosition,

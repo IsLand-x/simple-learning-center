@@ -411,13 +411,21 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .demo-reader article {
+  .demo-reader,
+  .demo-reader article,
+  .foliate-reader-wrap,
+  .foliate-reader-host,
+  .foliate-reader {
     cursor: var(--reader-text-selection-cursor, text);
   }
 }
 
 @media (forced-colors: active) {
-  .demo-reader article {
+  .demo-reader,
+  .demo-reader article,
+  .foliate-reader-wrap,
+  .foliate-reader-host,
+  .foliate-reader {
     cursor: text;
   }
 }

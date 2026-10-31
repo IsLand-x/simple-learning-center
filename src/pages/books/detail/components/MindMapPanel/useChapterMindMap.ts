@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BookItem } from '../../../../../../contracts/books';
 import { aiApi } from '../../../../../api/ai';
 import { useLearningStore } from '../../../../../store/useLearningStore';
@@ -12,7 +12,8 @@ import { getBookPassages } from '../AssistantPanel/bookSearch';
 import { useReaderAiJobs } from '../AssistantPanel/useReaderAiActivity';
 
 export function useChapterMindMap(book: BookItem, chapterId: string) {
-  const configs = useLearningStore((state) => state.openAIConfigs);
+  const rawConfigs = useLearningStore((state) => state.openAIConfigs);
+  const configs = useMemo(() => rawConfigs.filter((item) => !item.oauthProvider), [rawConfigs]);
   const preferences = useLearningStore((state) => state.aiPreferences);
   const setPreferences = useLearningStore((state) => state.setAiPreferences);
   const mindMap = useLearningStore((state) =>
@@ -33,7 +34,7 @@ export function useChapterMindMap(book: BookItem, chapterId: string) {
   const synced = useRef(new Set<string>());
   const latestBook = useRef(book);
   latestBook.current = book;
-  const config = configs.find((item) => preferences.provider === `api:${item.id}`);
+  const config = configs.find((item) => preferences.provider === `api:${item.id}`) ?? configs[0];
   const model = config?.models.includes(preferences.model) ? preferences.model : config?.models[0];
   const busy = pending || job?.status === 'queued' || job?.status === 'running';
 

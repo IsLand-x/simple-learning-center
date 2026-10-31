@@ -3,7 +3,7 @@ import type { ChapterVideoJob } from '../../../../../../contracts/reading';
 import { aiApi } from '../../../../../api/ai';
 import { useReaderJobPolling } from '../AssistantPanel/useReaderJobPolling';
 
-export function useChapterVideoJobs(bookId: string) {
+export function useChapterVideoJobs(bookId: string, isGenerating = false) {
   const [jobs, setJobs] = useState<ChapterVideoJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,7 +34,7 @@ export function useChapterVideoJobs(bookId: string) {
   );
   useReaderJobPolling(
     refresh,
-    jobs.some((job) => job.status === 'queued' || job.status === 'running'),
+    isGenerating || jobs.some((job) => job.status === 'queued' || job.status === 'running'),
   );
   return { jobs, loading, error, refresh };
 }

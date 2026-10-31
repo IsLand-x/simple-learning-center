@@ -1,5 +1,5 @@
 import { Toast } from '@douyinfe/semi-ui';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { HighlightItem } from '../../../../../../contracts/reading';
 import { aiApi } from '../../../../../api/ai';
 import type { AiJob } from '../../../../../api/ai/type';
@@ -18,9 +18,10 @@ export function useGlossaryExplanation(bookId: string, getCurrentText: () => str
   const [revision, setRevision] = useState(0);
   const starting = useRef(new Set<string>());
   const completed = useRef(new Set<string>());
-  const configs = useLearningStore((state) => state.openAIConfigs);
+  const rawConfigs = useLearningStore((state) => state.openAIConfigs);
+  const configs = useMemo(() => rawConfigs.filter((item) => !item.oauthProvider), [rawConfigs]);
   const preferences = useLearningStore((state) => state.aiPreferences);
-  const config = configs.find((item) => preferences.provider === `api:${item.id}`);
+  const config = configs.find((item) => preferences.provider === `api:${item.id}`) ?? configs[0];
   const model = config?.models.includes(preferences.model) ? preferences.model : config?.models[0];
 
   useEffect(() => {

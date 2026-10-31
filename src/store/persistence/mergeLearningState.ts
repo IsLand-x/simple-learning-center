@@ -26,6 +26,26 @@ export function mergeLearningState(
   const localChats = persisted.chats
     ? new Map(currentState.chats.map((message) => [message.id, message]))
     : null;
+  const rawConfigs = Array.isArray(persisted.openAIConfigs)
+    ? persisted.openAIConfigs
+    : currentState.openAIConfigs;
+  const mergedConfigs = rawConfigs.filter((config) => !config.oauthProvider);
+  const rawProvider = persisted.aiPreferences
+    ? persisted.aiPreferences.provider?.startsWith('api:')
+      ? persisted.aiPreferences.provider
+      : null
+    : currentState.aiPreferences.provider;
+  const activeConfig = mergedConfigs.find((c) => `api:${c.id}` === rawProvider);
+  const fallbackConfig = mergedConfigs[0];
+  const activeProvider = activeConfig
+    ? rawProvider
+    : fallbackConfig
+      ? (`api:${fallbackConfig.id}` as const)
+      : null;
+  const rawModel = persisted.aiPreferences?.model ?? currentState.aiPreferences.model;
+  const activeModel = activeConfig?.models.includes(rawModel)
+    ? rawModel
+    : (activeConfig?.models[0] ?? fallbackConfig?.models[0] ?? '');
   return {
     ...currentState,
     ...persisted,
@@ -35,6 +55,7 @@ export function mergeLearningState(
     chapterMindMaps: Array.isArray(persisted.chapterMindMaps)
       ? persisted.chapterMindMaps
       : currentState.chapterMindMaps,
+    openAIConfigs: mergedConfigs,
     conversationDrafts: mergeConversationDrafts(
       currentState.conversationDrafts,
       persisted.conversationDrafts ?? [],
@@ -68,12 +89,8 @@ export function mergeLearningState(
     readerStyleUpdatedAt: mergedPreferences.readerStyleUpdatedAt,
     readerLayoutUpdatedAt: mergedPreferences.readerLayoutUpdatedAt,
     aiPreferences: {
-      provider: persisted.aiPreferences
-        ? persisted.aiPreferences.provider?.startsWith('api:')
-          ? persisted.aiPreferences.provider
-          : null
-        : currentState.aiPreferences.provider,
-      model: persisted.aiPreferences?.model ?? currentState.aiPreferences.model,
+      provider: activeProvider,
+      model: activeModel,
       reasoningEffort: persisted.aiPreferences
         ? normalizeAiReasoningEffort(persisted.aiPreferences.reasoningEffort)
         : normalizeAiReasoningEffort(currentState.aiPreferences.reasoningEffort),

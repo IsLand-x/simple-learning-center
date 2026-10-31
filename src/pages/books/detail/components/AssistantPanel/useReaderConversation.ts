@@ -48,7 +48,8 @@ export function useReaderConversation({
         (draft) => draft.resourceId === book.id && draft.conversationId === conversationId,
       )?.text ?? '',
   );
-  const configs = useLearningStore((state) => state.openAIConfigs);
+  const rawConfigs = useLearningStore((state) => state.openAIConfigs);
+  const configs = useMemo(() => rawConfigs.filter((config) => !config.oauthProvider), [rawConfigs]);
   const aiPreferences = useLearningStore((state) => state.aiPreferences);
   const setAiPreferences = useLearningStore((state) => state.setAiPreferences);
   const createChatSession = useLearningStore((state) => state.createChatSession);
@@ -67,9 +68,11 @@ export function useReaderConversation({
   );
   const currentSession = allSessions.find((session) => session.id === conversationId);
   const provider = aiPreferences.provider;
-  const selectedConfig = provider
+  const matchedConfig = provider
     ? configs.find((config) => provider === `api:${config.id}`)
     : undefined;
+  const selectedConfig = matchedConfig ?? configs[0];
+  const effectiveProvider = selectedConfig ? (`api:${selectedConfig.id}` as const) : null;
   const model = selectedConfig?.models.includes(aiPreferences.model)
     ? aiPreferences.model
     : (selectedConfig?.models[0] ?? '');
@@ -78,6 +81,19 @@ export function useReaderConversation({
     selectedConfig,
     model,
   );
+  useEffect(() => {
+    if (configs.length > 0 && provider && !matchedConfig && selectedConfig) {
+      setAiPreferences({ provider: effectiveProvider, model });
+    }
+  }, [
+    configs,
+    provider,
+    matchedConfig,
+    selectedConfig,
+    effectiveProvider,
+    model,
+    setAiPreferences,
+  ]);
   const [status, setStatus] = useState<AiStatus>(() =>
     selectedConfig && model ? 'ready' : 'unavailable',
   );
@@ -425,7 +441,7 @@ export function useReaderConversation({
     userTurns,
     jumpToUserTurn,
     dialogueMessages,
-    provider,
+    provider: effectiveProvider,
     configs,
     aiPreferences,
     inputRef,

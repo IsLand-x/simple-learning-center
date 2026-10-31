@@ -33,7 +33,7 @@ export function useReaderConversations(
 
   const resumeConversation = (session: ChatSession) => {
     const config = session.provider
-      ? openAIConfigs.find((item) => session.provider === `api:${item.id}`)
+      ? openAIConfigs.find((item) => session.provider === `api:${item.id}` && !item.oauthProvider)
       : undefined;
     if (session.provider && config) {
       const model =

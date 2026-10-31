@@ -53,3 +53,57 @@ it('keeps the controlled path stable during unrelated updates and updates real s
     await act(async () => root.unmount());
   }
 });
+
+it('filters out oauthProvider configs so ChatGPT and Kimi OAuth models are not displayed', async () => {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  const props: ComponentProps<typeof AiModelSelector> = {
+    configs: [
+      {
+        id: 'oauth-openai-codex',
+        name: 'ChatGPT / Codex',
+        oauthProvider: 'openai-codex',
+        models: ['gpt-6.1-sol', 'gpt-6-astra'],
+        baseUrl: '',
+        apiKey: '',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: 'oauth-kimi-coding',
+        name: 'Kimi Coding',
+        oauthProvider: 'kimi-coding',
+        models: ['kimi-coding'],
+        baseUrl: '',
+        apiKey: '',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: 'custom-api',
+        name: '自定供应商',
+        models: ['deepseek-v3'],
+        baseUrl: 'https://api.example.com/v1',
+        apiKey: 'secret',
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ],
+    provider: 'api:custom-api',
+    model: 'deepseek-v3',
+    disabled: false,
+    onChange: vi.fn(),
+  };
+  try {
+    await act(async () => root.render(createElement(AiModelSelector, props)));
+    expect(captured.props.treeData).toEqual([
+      {
+        label: '自定供应商',
+        value: 'api:custom-api',
+        children: [{ label: 'deepseek-v3', value: 'deepseek-v3' }],
+      },
+    ]);
+  } finally {
+    await act(async () => root.unmount());
+  }
+});
