@@ -1,5 +1,6 @@
 import { publishBookImage } from '../../books/imageHosting.js';
 import type { BookItem } from '../../../../contracts/books.js';
+import type { OpenAICompatibleConfig } from '../../../../contracts/ai.js';
 import type { BookPassage } from '../../books/search.js';
 import type { PiRuntime } from '../runtime.js';
 import { loadBookPassages } from '../../books/search.js';
@@ -65,6 +66,7 @@ async function analyze(
 export async function generateBookKnowledgeMap({
   book,
   runtime,
+  config,
   signal,
   onStage = () => {},
   load = loadBookPassages,
@@ -75,6 +77,7 @@ export async function generateBookKnowledgeMap({
 }: {
   book: BookItem;
   runtime: PiRuntime;
+  config?: OpenAICompatibleConfig;
   signal?: AbortSignal;
   onStage?: (stage: string) => void;
   load?: typeof loadBookPassages;
@@ -121,9 +124,10 @@ export async function generateBookKnowledgeMap({
     '输出一张全景知识地图的内容：全书中心问题、一句话主旨、4—8 个主题分支、各分支的核心观点及含义、关键论据和章节出处、分支间的因果或对比关系、应用启示、局限。以作者观点为主，明确标出推断。用短句，适合在一张图中阅读，最多 2200 字。',
     signal,
   );
-  onStage('正在使用 ChatGPT 订阅生成图片');
+  onStage('正在生成知识地图图片');
   const png = await generateImage({
     runtime,
+    config,
     signal,
     prompt: `请生成一张横向高清全景知识地图。简体中文，文字清晰，克制的学术信息图风格。中心是书名与核心问题，周围按阅读顺序布局主题、观点、论据与含义，用有标签的连线表达关系。只使用以下分析内容，不能增加书中未提到的事实。\n${outline}`,
   });

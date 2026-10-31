@@ -1,5 +1,6 @@
 import type { ImageHostingResult } from '../../books/imageHosting.js';
 import { publishBookImage } from '../../books/imageHosting.js';
+import type { OpenAICompatibleConfig } from '../../../../contracts/ai.js';
 import type { JsonObject, Static, TSchema } from '@earendil-works/pi-ai';
 import type { BookItem } from '../../../../contracts/books.js';
 import type { PiRuntime } from '../runtime.js';
@@ -135,6 +136,7 @@ function outlineFor(plan: Static<typeof planSchema>) {
 export function createInfographicTools({
   book,
   runtime,
+  config,
   onPlan,
   onStage,
   onResult,
@@ -145,6 +147,7 @@ export function createInfographicTools({
 }: {
   book: BookItem;
   runtime: PiRuntime;
+  config?: OpenAICompatibleConfig;
   onPlan?: (outline: string, planId: string) => void;
   onStage?: (stage: string, status: 'in_progress' | 'completed' | 'failed', planId: string) => void;
   onResult?: (
@@ -216,7 +219,7 @@ export function createInfographicTools({
     },
     generate_infographic: {
       description:
-        '使用当前选择的 ChatGPT/Codex 账号，将 plan_infographic 返回的结构方案生成 PNG 信息图。必须先规划再调用，不能直接传自由提示词。会消耗订阅额度，可能需数分钟；用户要求多张时为每张图分别规划并传入各自 plan_id，每条消息最多 4 张；同一 plan_id 只生成一次，失败不自动重试。',
+        '使用当前选择的供应商，将 plan_infographic 返回的结构方案生成 PNG 信息图。必须先规划再调用，不能直接传自由提示词。会消耗订阅额度，可能需数分钟；用户要求多张时为每张图分别规划并传入各自 plan_id，每条消息最多 4 张；同一 plan_id 只生成一次，失败不自动重试。',
       inputSchema: generateSchema,
       execute: async (params: unknown, signal?: AbortSignal) => {
         signal?.throwIfAborted();
@@ -230,13 +233,10 @@ export function createInfographicTools({
           // Reserve synchronously before starting any network work; parallel calls share one attempt.
           generation = Promise.resolve()
             .then(async () => {
-              onStage?.(
-                `正在使用 ChatGPT 生成信息图：${planned.plan.title}`,
-                'in_progress',
-                plan_id,
-              );
+              onStage?.(`正在生成信息图：${planned.plan.title}`, 'in_progress', plan_id);
               const png = await generateImage({
                 runtime,
+                config,
                 signal,
                 prompt: [
                   '根据下面已整理的内容稿生成一张阅读学习信息图，只回答本张主题。',

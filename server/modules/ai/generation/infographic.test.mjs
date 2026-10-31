@@ -281,6 +281,25 @@ test('非 ChatGPT 供应商不提供信息图工具', async () => {
   }
 });
 
+test('自定义或 Magpie 代理供应商为 Agent 提供信息图工具', async () => {
+  const faux = fauxProvider({ tokensPerSecond: 0 });
+  faux.setResponses([
+    (context) => {
+      assert.ok(getCurrentTools(context.messages).some((tool) => tool.name === 'plan_infographic'));
+      assert.ok(
+        getCurrentTools(context.messages).some((tool) => tool.name === 'generate_infographic'),
+      );
+      return fauxAssistantMessage('已提供生图工具');
+    },
+  ]);
+  const runtime = runtimeFor(faux);
+  await runServerAiChat({
+    ...options,
+    config: { baseUrl: 'http://127.0.0.1:3425/v1', apiKey: 'magpie-test-key' },
+    runtimeFactory: () => runtime,
+  });
+});
+
 test('生图失败保留方案和真实失败状态，并阻止改用全景工具再次收费', async () => {
   const faux = fauxProvider({ tokensPerSecond: 0 });
   faux.setResponses([

@@ -145,6 +145,63 @@ test('缺图、截断、供应商错误、无效图片不成功且不泄露凭�
   }
 });
 
+test('自定义或 Magpie 代理通过 Responses 端点成功生图', async () => {
+  const proxyConfig = {
+    baseUrl: 'http://127.0.0.1:3425/v1',
+    apiKey: 'magpie-test-key',
+    models: ['gpt-4o'],
+  };
+  const proxyRuntime = {
+    model: { id: 'gpt-4o', baseUrl: 'http://127.0.0.1:3425/v1' },
+    models: { getAuth: async () => undefined },
+  };
+  const result = await generateCodexImage({
+    runtime: proxyRuntime,
+    config: proxyConfig,
+    prompt: '地图',
+    fetchImpl: async (url, options) => {
+      assert.equal(url, 'http://127.0.0.1:3425/v1/responses');
+      assert.equal(options.headers.Authorization, 'Bearer magpie-test-key');
+      const body = JSON.parse(options.body);
+      assert.equal(body.model, 'gpt-4o');
+      return stream([done, { type: 'response.completed' }]);
+    },
+  });
+  assert.deepEqual(result, png);
+});
+
+test('代理不支持 Responses 时自动回退到 images/generations 生图', async () => {
+  const proxyConfig = {
+    baseUrl: 'https://proxy.example.com/v1',
+    apiKey: 'sk-test',
+    models: ['gpt-4o'],
+  };
+  const proxyRuntime = {
+    model: { id: 'gpt-4o', baseUrl: 'https://proxy.example.com/v1' },
+    models: { getAuth: async () => undefined },
+  };
+  const result = await generateCodexImage({
+    runtime: proxyRuntime,
+    config: proxyConfig,
+    prompt: '地图',
+    fetchImpl: async (url, options) => {
+      if (url.endsWith('/responses')) {
+        return new Response('Not Found', { status: 404 });
+      }
+      assert.equal(url, 'https://proxy.example.com/v1/images/generations');
+      assert.equal(options.headers.Authorization, 'Bearer sk-test');
+      const body = JSON.parse(options.body);
+      assert.equal(body.model, 'dall-e-3');
+      assert.equal(body.response_format, 'b64_json');
+      return new Response(JSON.stringify({ data: [{ b64_json: png.toString('base64') }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    },
+  });
+  assert.deepEqual(result, png);
+});
+
 test('图片权限、鉴权、路径校验、彻底删除清理与删除竞态', async () => {
   await atomicWrite(
     join(directory, 'state.json'),

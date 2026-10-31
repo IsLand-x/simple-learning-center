@@ -166,18 +166,10 @@ export function AiConversationPanel({
                 {visiblePromptTemplates.map((template) => (
                   <Button
                     aria-label={`发送提示词：${template.label}`}
-                    disabled={
-                      !canSend ||
-                      ((template.id === 'book-knowledge-map' ||
-                        template.id === 'infographic' ||
-                        template.id === 'chapter-comic') &&
-                        selectedConfig?.oauthProvider !== 'openai-codex')
-                    }
+                    disabled={!canSend}
                     title={
                       template.id === 'chapter-comic'
-                        ? selectedConfig?.oauthProvider === 'openai-codex'
-                          ? '读取当前章节，生成 4—6 格导读漫画，用生活例子解释作者观点。会消耗当前 ChatGPT 订阅额度。'
-                          : '请先选择已登录的 ChatGPT/Codex 模型以生成漫画。'
+                        ? '读取当前章节，生成 4—6 格导读漫画，用生活例子解释作者观点。'
                         : template.id === 'infographic'
                           ? '根据当前问题选择合适的图型，先整理内容稿与来源，再生成图片。也可在输入框指定图型和样式。'
                           : template.id === 'book-knowledge-map'

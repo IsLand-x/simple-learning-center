@@ -76,7 +76,7 @@ export function createAgentTools({
       ? {
           generate_book_knowledge_map: defineTool({
             description:
-              '仅在读者明确要求生成全书知识地图图片时调用。自动分段分析全部已提取正文，再使用当前 ChatGPT 订阅生图；无需预先搜索或传入正文。会消耗订阅额度，可能需要数分钟。返回已保存图片地址、全书分析和覆盖范围。每个请求最多生成一次。',
+              '仅在读者明确要求生成全书知识地图图片时调用。自动分段分析全部已提取正文，再使用当前供应商生图；无需预先搜索或传入正文。可能需要数分钟。返回已保存图片地址、全书分析和覆盖范围。每个请求最多生成一次。',
             inputSchema: Type.Object({}),
             execute: async (_params, signal) => knowledgeMapAction(signal),
           }),

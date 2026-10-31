@@ -111,72 +111,75 @@ export async function runServerAiChat({
       );
     imagesReserved += 1;
   };
-  const knowledgeMapAction =
-    config.oauthProvider === 'openai-codex'
-      ? (toolSignal?: AbortSignal) => {
-          if (!knowledgeMapRun) reserveImage();
-          knowledgeMapRun ??= knowledgeMapGenerator({
-            book: book,
-            runtime,
-            signal: toolSignal,
-            onStage: (stage) => {
-              const entry = ensureEntry('tool', 'knowledge-map-stage', {
-                name: '全景知识地图',
-                arguments: '',
-              });
-              entry.arguments = stage;
-              publish();
-            },
-          })
-            .then((result) => {
-              const entry = ensureEntry('message', 'knowledge-map-result');
-              entry.status = 'completed';
-              entry.text = `${imageHostingMarkdown('全景知识地图', result)}\n\n${result.outline}\n\n已分析 ${result.passages} 个正文段落（${result.batches} 批）。${result.coverage}`;
-              ensureEntry('tool', 'knowledge-map-stage').status = 'completed';
-              publish();
-              return result;
-            })
-            .catch((error) => {
-              imageFailed = true;
-              ensureEntry('tool', 'knowledge-map-stage').status = 'failed';
-              publish();
-              throw error;
-            });
-          return knowledgeMapRun;
-        }
-      : undefined;
-  const infographicTools =
-    config.oauthProvider === 'openai-codex'
-      ? createInfographicTools({
+  const allowGeneration =
+    config.oauthProvider === 'openai-codex' ||
+    (config.oauthProvider !== 'kimi-coding' && (Boolean(config.baseUrl) || Boolean(config.apiKey)));
+  const knowledgeMapAction = allowGeneration
+    ? (toolSignal?: AbortSignal) => {
+        if (!knowledgeMapRun) reserveImage();
+        knowledgeMapRun ??= knowledgeMapGenerator({
           book: book,
           runtime,
-          reserveImage,
-          generateImage: infographicImageGenerator,
-          save: infographicImageSave,
-          onPlan: (outline, planId) => {
-            const entry = ensureEntry('message', `infographic-plan:${planId}`);
-            entry.text = outline;
-            entry.status = 'completed';
-            publish();
-          },
-          onStage: (stage, status, planId) => {
-            if (status === 'failed') imageFailed = true;
-            const entry = ensureEntry('tool', `infographic-stage:${planId}`, {
-              name: '信息图',
+          config,
+          signal: toolSignal,
+          onStage: (stage) => {
+            const entry = ensureEntry('tool', 'knowledge-map-stage', {
+              name: '全景知识地图',
               arguments: '',
             });
             entry.arguments = stage;
-            entry.status = status;
-            publish();
-          },
-          onResult: (result, planId) => {
-            const entry = ensureEntry('message', `infographic-result:${planId}`);
-            entry.text = `${imageHostingMarkdown('信息图', result)}\n\n图片中的文字与关系请对照原文核查。`;
-            entry.status = 'completed';
             publish();
           },
         })
-      : undefined;
+          .then((result) => {
+            const entry = ensureEntry('message', 'knowledge-map-result');
+            entry.status = 'completed';
+            entry.text = `${imageHostingMarkdown('全景知识地图', result)}\n\n${result.outline}\n\n已分析 ${result.passages} 个正文段落（${result.batches} 批）。${result.coverage}`;
+            ensureEntry('tool', 'knowledge-map-stage').status = 'completed';
+            publish();
+            return result;
+          })
+          .catch((error) => {
+            imageFailed = true;
+            ensureEntry('tool', 'knowledge-map-stage').status = 'failed';
+            publish();
+            throw error;
+          });
+        return knowledgeMapRun;
+      }
+    : undefined;
+  const infographicTools = allowGeneration
+    ? createInfographicTools({
+        book: book,
+        runtime,
+        config,
+        reserveImage,
+        generateImage: infographicImageGenerator,
+        save: infographicImageSave,
+        onPlan: (outline, planId) => {
+          const entry = ensureEntry('message', `infographic-plan:${planId}`);
+          entry.text = outline;
+          entry.status = 'completed';
+          publish();
+        },
+        onStage: (stage, status, planId) => {
+          if (status === 'failed') imageFailed = true;
+          const entry = ensureEntry('tool', `infographic-stage:${planId}`, {
+            name: '信息图',
+            arguments: '',
+          });
+          entry.arguments = stage;
+          entry.status = status;
+          publish();
+        },
+        onResult: (result, planId) => {
+          const entry = ensureEntry('message', `infographic-result:${planId}`);
+          entry.text = `${imageHostingMarkdown('信息图', result)}\n\n图片中的文字与关系请对照原文核查。`;
+          entry.status = 'completed';
+          publish();
+        },
+      })
+    : undefined;
   const toolMap = createAgentTools({
     book,
     currentText,
