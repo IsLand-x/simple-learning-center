@@ -1,4 +1,4 @@
-import type { LegacyStateDomainFields, StateDomainFields } from '../../../contracts/state.js';
+import type { StateDomainFields } from '../../../contracts/state.js';
 import type { PersistedState } from './types.js';
 import { createHash } from 'node:crypto';
 import { statusError } from '../../infrastructure/http/errors.js';
@@ -9,17 +9,6 @@ const STATE_DOMAIN_FIELDS = Object.freeze({
   notes: Object.freeze(['notes', 'deletedNoteTombstones'] as const),
   highlights: Object.freeze(['highlights', 'deletedHighlightTombstones'] as const),
   conversations: Object.freeze(['chats', 'chatSessions'] as const),
-  rss: Object.freeze([
-    'rssFolders',
-    'rssFeeds',
-    'rssItems',
-    'rssAnnotations',
-    'rssDailyDigests',
-    'rssDigestRuns',
-    'rssDigestSettings',
-    'rssPanelWidth',
-  ] as const),
-  videos: Object.freeze(['videoResources', 'videoTimestampNotes', 'videoPanelWidth'] as const),
   preferences: Object.freeze([
     'openAIConfigs',
     'webSearchConfig',
@@ -32,7 +21,7 @@ const STATE_DOMAIN_FIELDS = Object.freeze({
     'readerStyleUpdatedAt',
     'readerLayoutUpdatedAt',
   ] as const),
-} satisfies StateDomainFields & LegacyStateDomainFields);
+} satisfies StateDomainFields);
 
 export function isStateDomain(value: unknown): value is keyof typeof STATE_DOMAIN_FIELDS {
   return typeof value === 'string' && Object.hasOwn(STATE_DOMAIN_FIELDS, value);

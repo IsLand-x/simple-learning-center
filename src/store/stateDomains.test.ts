@@ -1,10 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
-import type {
-  LearningData,
-  LegacyLearningData,
-  LegacyStateDomainFields,
-  StateDomain,
-} from '../../contracts/state';
+import type { LearningData, StateDomain } from '../../contracts/state';
 import {
   ALL_STATE_DOMAINS,
   LIBRARY_STATE_DOMAINS,
@@ -50,13 +45,6 @@ describe('stateDomainsForPath', () => {
     expectTypeOf<(typeof STATE_DOMAIN_FIELDS)[StateDomain][number]>().toEqualTypeOf<
       keyof LearningData
     >();
-  });
-
-  it('历史字段分区保持完整，且不与活动字段重叠', () => {
-    expectTypeOf<LegacyStateDomainFields[keyof LegacyStateDomainFields][number]>().toEqualTypeOf<
-      keyof LegacyLearningData
-    >();
-    expectTypeOf<Extract<keyof LearningData, keyof LegacyLearningData>>().toEqualTypeOf<never>();
   });
 
   it('活动分区不再包含 RSS 和独立视频', () => {

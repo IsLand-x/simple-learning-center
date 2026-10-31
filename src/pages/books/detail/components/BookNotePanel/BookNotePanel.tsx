@@ -1,6 +1,6 @@
 import { Typography } from '@douyinfe/semi-ui';
 import { useEffect, useMemo } from 'react';
-import { MarkdownNoteEditor } from '../../../../../components/notes/MarkdownNoteEditor';
+import { MarkdownNoteEditor } from './MarkdownNoteEditor';
 import { synchronizeLearningState } from '../../../../../store/learningStateSync';
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import type { BookItem } from '../../../../../../contracts/books';

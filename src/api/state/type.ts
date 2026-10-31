@@ -1,13 +1,8 @@
-import type {
-  LearningData,
-  LegacyLearningData,
-  StateDomain,
-  StateDomainData,
-} from '../../../contracts/state';
+import type { LearningData, StateDomain, StateDomainData } from '../../../contracts/state';
 
 // Legacy snapshots can omit fields until their existing migrations have run.
 export interface PersistedStateEnvelope {
-  state?: Partial<LearningData & LegacyLearningData>;
+  state?: Partial<LearningData>;
   version?: number;
 }
 

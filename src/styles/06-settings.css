@@ -379,45 +379,6 @@
   .mcp-settings .semi-input { font-size: 16px; }
 }
 
-.oauth-providers,
-.oauth-provider,
-.oauth-provider__authorization {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.oauth-provider__heading,
-.oauth-provider__actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.oauth-provider__authorization {
-  overflow-wrap: anywhere;
-}
-
-.oauth-provider__authorization a {
-  color: var(--semi-color-primary);
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-}
-
-.oauth-provider__authorization a:focus-visible {
-  outline: 2px solid var(--semi-color-focus-border);
-  outline-offset: 2px;
-}
-
-@media (max-width: 800px) {
-  .oauth-provider__actions .semi-button {
-    touch-action: manipulation;
-  }
-}
-
 .settings-about__machine {
   display: flex;
   flex-direction: column;

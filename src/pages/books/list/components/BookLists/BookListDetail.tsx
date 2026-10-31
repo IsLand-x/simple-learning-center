@@ -53,10 +53,7 @@ export function BookListDetail({
           <Title heading={5} ellipsis={{ showTooltip: true }}>
             {bookList.name}
           </Title>
-          <Text
-            type="tertiary"
-            className={bookList.note ? '' : 'book-list-detail__empty-note [font-style:italic]'}
-          >
+          <Text type="tertiary" className={bookList.note ? '' : '[font-style:italic]'}>
             {bookList.note || '暂无备注'}
           </Text>
         </div>

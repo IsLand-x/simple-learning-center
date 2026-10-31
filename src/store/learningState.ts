@@ -9,12 +9,7 @@ import type {
   OpenAICompatibleConfig,
 } from '../../contracts/ai';
 import type { BookItem, BookList } from '../../contracts/books';
-import type {
-  HighlightItem,
-  NoteItem,
-  ReaderPreferences,
-  ReadingSession,
-} from '../../contracts/reading';
+import type { HighlightItem, ReaderPreferences, ReadingSession } from '../../contracts/reading';
 import type { ThemeMode, WebSearchConfig } from '../../contracts/settings';
 
 export interface LearningState extends LearningData {
@@ -47,13 +42,7 @@ export interface LearningState extends LearningData {
     changes: Partial<Pick<HighlightItem, 'comment' | 'definition'>>,
   ) => void;
   deleteHighlight: (highlightId: string) => void;
-  addNote: (note: NoteItem) => void;
   setBookNoteContent: (bookId: string, bookTitle: string, content: string) => void;
-  updateNote: (
-    noteId: string,
-    changes: Partial<Pick<NoteItem, 'title' | 'content' | 'fileName'>>,
-  ) => void;
-  deleteNote: (noteId: string) => void;
   markChatMessagesRead: (messageIds: string[]) => Promise<void>;
   createChatSession: (session: ChatSession) => void;
   updateChatSession: (
@@ -62,7 +51,6 @@ export interface LearningState extends LearningData {
   ) => Promise<void>;
   deleteChatSession: (sessionId: string) => Promise<void>;
   addChatMessage: (message: ChatMessage) => void;
-  clearBookChats: (bookId: string) => Promise<void>;
   upsertReadingSession: (session: ReadingSession) => void;
   addOpenAIConfig: (config: OpenAICompatibleConfig) => void;
   updateOpenAIConfig: (configId: string, changes: Partial<OpenAICompatibleConfig>) => void;

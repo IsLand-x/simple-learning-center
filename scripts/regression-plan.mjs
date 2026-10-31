@@ -28,6 +28,7 @@ const domains = [
     ],
   ],
   [/^src\/pages\/settings\//, ['settings-model-controls', 'settings-tts', 'about-settings']],
+  [/^src\/pages\/books\/share\//, ['book-sharing', 'book-share-loading']],
 ];
 
 export function regressionPlan(changes, forceFull = false) {

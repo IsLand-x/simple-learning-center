@@ -100,6 +100,23 @@ function validate(file, target) {
     reject('书籍存储不得反向依赖 AI 运行时');
   if (source.startsWith('server/infrastructure/') && destination.startsWith('server/modules/'))
     reject('通用基础设施不得依赖业务模块');
+  if (
+    source.startsWith('server/db/') &&
+    !source.endsWith('.test.mjs') &&
+    !destination.startsWith('server/db/') &&
+    destination !== 'server/config.ts' &&
+    destination !== 'server/modules/state/types.ts' &&
+    !destination.startsWith('contracts/')
+  )
+    reject('数据库持久化层只依赖自身、配置、状态类型与共享契约');
+  if (
+    destination.startsWith('server/db/') &&
+    !source.startsWith('server/db/') &&
+    !source.startsWith('server/modules/state/') &&
+    source !== 'server/index.ts' &&
+    !source.endsWith('.test.mjs')
+  )
+    reject('业务模块必须通过状态服务访问持久化层，不得直接导入 server/db');
 }
 
 for (const file of files) {

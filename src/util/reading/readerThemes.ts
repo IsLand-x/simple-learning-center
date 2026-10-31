@@ -655,9 +655,3 @@ export function readerDensityFromLineHeight(lineHeight: unknown): ReaderDensity 
   if (lineHeight >= 1.95) return 'relaxed';
   return 'balanced';
 }
-
-export function legacyReaderPaperColor(theme: unknown) {
-  if (theme === 'night') return '#202A36';
-  if (theme === 'white') return '#FAF9F6';
-  return '#F3EBDD';
-}

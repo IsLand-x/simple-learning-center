@@ -90,7 +90,11 @@ export function ReaderRightPanel({
   }, [mobile, settingsVisible]);
 
   return (
-    <BookResourcesProvider key={book.id} bookId={book.id}>
+    <BookResourcesProvider
+      key={book.id}
+      bookId={book.id}
+      enabled={activePanel === 'resources' || activePanel === 'ai'}
+    >
       <aside
         className={`right-panel w-full min-h-0 overflow-hidden [background:var(--semi-color-bg-1)] min-w-0 [max-width:none] ${activePanel === 'ai' ? ' right-panel--ai' : ''}`}
         aria-label={panelMeta[activePanel].label}
@@ -132,7 +136,6 @@ export function ReaderRightPanel({
                   if (
                     value === 'created-desc' ||
                     value === 'created-asc' ||
-                    value === 'position' ||
                     value === 'position-asc' ||
                     value === 'position-desc'
                   ) {

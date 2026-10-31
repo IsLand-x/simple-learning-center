@@ -12,9 +12,11 @@ import {
   ReaderStylePanel,
   type ReaderStylePanelProps,
 } from '../../../../../components/reading/ReaderStylePanel';
-import type { ReaderToolbarNavigationProps } from './options';
-
-interface ReaderDesktopToolbarProps extends ReaderToolbarNavigationProps, ReaderStylePanelProps {
+interface ReaderDesktopToolbarProps extends ReaderStylePanelProps {
+  tocCollapsed: boolean;
+  onToggleToc: () => void;
+  onPrev: () => void;
+  onNext: () => void;
   stylePopoverVisible: boolean;
   onStylePopoverVisibleChange: (visible: boolean) => void;
 }

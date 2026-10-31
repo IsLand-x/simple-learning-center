@@ -2,7 +2,6 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { sites } from '@openai/sites-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -848,7 +847,6 @@ export default defineConfig({
     foliateSrcdocCompatibility(),
     react(),
     tailwindcss(),
-    sites(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['favicon.ico', 'app-icon.svg', 'apple-touch-icon-180x180.png', 'og.png'],

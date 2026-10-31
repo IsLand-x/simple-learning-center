@@ -1,5 +1,5 @@
 import type { StateDomain } from '../../../contracts/state';
-import type { PersistedStateEnvelope, StateDomainResponse, StateDomainSnapshot } from './type';
+import type { StateDomainResponse, StateDomainSnapshot } from './type';
 import { apiTransport } from '../http/transport';
 import type { NoteItem } from '../../../contracts/reading';
 
@@ -34,14 +34,6 @@ export class StateApi {
     } catch {
       throw new Error('服务端学习数据格式不正确');
     }
-  }
-
-  async initialize(snapshot: PersistedStateEnvelope): Promise<void> {
-    await this.transport.request('/api/state?initialize=1', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(snapshot),
-    });
   }
 
   async migrateConversations(snapshot: StateDomainSnapshot<'conversations'>): Promise<void> {

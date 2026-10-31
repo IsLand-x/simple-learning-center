@@ -1,21 +1,13 @@
 import type { AppDependencies } from '../../dependencies.js';
+import { isSameOriginRequest } from '../../http/middleware.js';
 import { createRouter } from '../../http/router.js';
 import { statusError } from '../../infrastructure/http/errors.js';
 
 export function createAiOAuthRoutes({ oauth }: Pick<AppDependencies, 'oauth'>) {
   const app = createRouter();
   app.use('/*', async (c, next) => {
-    const origin = c.req.header('origin');
-    let sameHost;
-    try {
-      sameHost = !origin || new URL(origin).host === new URL(c.req.url).host;
-    } catch {
-      sameHost = false;
-    }
-    // HTTPS can terminate at the reverse proxy, so compare hosts, as other settings routes do.
     if (
-      !sameHost ||
-      c.req.header('sec-fetch-site') === 'cross-site' ||
+      !isSameOriginRequest(c.req.header('origin'), c.req.url, c.req.header('sec-fetch-site')) ||
       (c.req.method !== 'GET' && c.req.header('x-learning-center-oauth') !== '1')
     ) {
       throw statusError(403, '请从学习中心设置页面操作 OAuth 登录');

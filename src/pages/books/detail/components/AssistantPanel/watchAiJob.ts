@@ -1,5 +1,5 @@
-import { aiApi } from '../../api/ai';
-import type { AiJob } from '../../api/ai/type';
+import { aiApi } from '../../../../../api/ai';
+import type { AiJob } from '../../../../../api/ai/type';
 
 export function watchAiJob({
   jobId,

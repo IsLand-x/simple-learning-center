@@ -80,6 +80,7 @@ npm run verify:full  # 再在固定 Docker 环境执行真实浏览器与视觉�
 - 点击高亮可直接将原文作为独立引用带入 AI 助手，也可以取消高亮、在高亮面板中查看，或继续添加和编辑评论。
 - 阅读器右侧提供“笔记”入口；每本书只有一篇随手笔记，使用内置 Markdown 编辑器并自动保存为独立 `.md` 文件。连续编辑时合并尚未发送的保存草稿，避免慢网络下逐字积压请求；用户编辑与 AI 追加同时发生时仍保留双方内容。
 - 选中文字提问时，原文以独立引用标签加入 AI 输入框，不与用户问题混合。
+- 评论输入框左侧提供六点拖动把手，可用鼠标或触屏移开遮挡；聚焦把手后也可用方向键移动，Shift + 方向键加快移动。位置限制在当前可见视口内，键盘弹出或窗口变化时自动校正；关闭后再次评论会重新贴近原文定位。
 
 ### AI 阅读助手
 
@@ -138,11 +139,18 @@ npm run verify:full  # 再在固定 Docker 环境执行真实浏览器与视觉�
 
 ```text
 data/
-├── state.json                  # 书籍、书单、回收站、进度、高亮、对话、设置和笔记元数据
+├── learning-center.db          # SQLite 数据库（WAL 模式，按表保存书籍、笔记、高亮、对话、设置等）
+├── state.json                  # 状态快照（与 SQLite 双向灾备与兼容同步）
 ├── auth.json                   # 登录凭据哈希与会话签名密钥
+├── ai-oauth.json               # ChatGPT / Kimi OAuth 授权凭据（0600）
+├── tts.json                    # 阿里云百炼 TTS 语音凭据与偏好（0600）
+├── openapi-token.json          # OpenAPI 与 MCP 访问 Token（0600）
+├── book-shares.json            # 公开书籍分享令牌映射（0600）
+├── cos-images.json             # 可选的腾讯云 COS 图床配置（0600）
 ├── books/                      # EPUB 原文件
 ├── covers/<bookId>/            # 从 EPUB 提取、由书架按需加载的封面图片
 ├── notes/<bookId>/<noteId>.md  # Markdown 笔记正文
+├── knowledge-maps/<bookId>/    # 知识地图、信息图、脚本绘图及 resources.json 收藏清单
 ├── chapter-videos/<bookId>/    # 私有 MP4、封面及 jobs.json 任务记录；分镜元数据在 reading 分区
 └── search-indexes/             # 按需生成的书内搜索索引
 ```
@@ -206,6 +214,28 @@ npm run verify       # 静态检查、格式、边界、dead code、测试与构
 npm run verify:full  # 在 verify 后用 Docker 执行桌面与移动 Chromium 回归
 npm run preview      # 使用 Node 服务运行现有生产构建
 ```
+
+完整 E2E 和截图验收统一使用 Docker 中的固定 Chromium、Ubuntu 与中文字体，不依赖宿主机字体：
+
+```bash
+npm run verify:full
+```
+
+原生浏览器只用于交互调试。无桌面 Chrome 的 Linux 环境可安装 Playwright 的无头 Chromium（默认仍使用 Chrome）：
+
+```bash
+npx playwright install chromium --only-shell
+LEARNING_CENTER_E2E_BROWSER=chromium npm run test:e2e -- --grep-invert 'workspace visual parity|unauthenticated login shell'
+```
+
+已有构建产物时，可单独执行容器回归；测试直接使用生产包：
+
+```bash
+npm run build
+npm run test:e2e:container
+```
+
+E2E 使用独立临时数据目录，退出时清理，不会修改日常数据。截图基线使用固定测试镜像的字体，不在其他系统或字体环境中更新。
 
 ### 远程访问
 
@@ -287,7 +317,7 @@ Linux 上如果挂载目录不可写，把 `.env` 中的 `LEARNING_CENTER_UID` �
 
 ### 自动部署到 Docker 服务器
 
-`main` 更新后，`.github/workflows/ci.yml` 先完成核心检查与一次前后端构建，将 `dist/` 和 `server-dist/` 作为同次运行、同一提交的 artifact 传给 `.github/workflows/deploy.yml`。发布使用 Docker 的 `verified-runtime` 目标直接打包已验证产物，避免再次安装开发依赖、完整验证和重新构建；生产依赖仍在 Alpine 中安装，保证原生模块兼容。依赖与中文字体位于独立缓存层，普通应用改动仅传输变化的应用层。artifact 只保留一天，缺失时发布失败，不回退到其他提交的构建。
+`main` 更新后，`.github/workflows/ci.yml` 先完成核心检查与一次前后端构建，将 `dist/` 和 `server-dist/` 作为同次运行、同一提交的 artifact 传给 `.github/workflows/deploy.yml`。发布使用 Docker 的 `verified-runtime` 目标直接打包已验证产物，避免再次安装开发依赖、完整验证和重新构建；生产依赖在 `node:22-bookworm-slim`（Debian Bookworm Slim）独立阶段中安装，保证原生模块与 Remotion 无头浏览器兼容。依赖与中文字体位于独立缓存层，普通应用改动仅传输变化的应用层。artifact 只保留一天，缺失时发布失败，不回退到其他提交的构建。
 
 默认 `docker build`、Compose 和明确触发的预览源码构建仍使用完整验证目标。工作流会在首次构建时把提交标识、提交时间及 CDN 配置写入前端版本信息，将不可变镜像发布到 GHCR，再通过专用 SSH 账号调用服务器上的受限部署脚本。服务器只在部署期间使用当前任务的短期 `GITHUB_TOKEN` 拉取镜像，不保存长期镜像仓库凭据。日常小改在本地只运行相关检查；CI 统一执行全量工程门禁，浏览器矩阵由定时任务或按需执行。
 
@@ -409,33 +439,6 @@ Token 及其校验摘要独立保存在 `data/openapi-token.json`（或配置的
 服务端提供标准无会话 Streamable HTTP MCP，地址 `/api/openapi/mcp`，所有请求必须携带 `Authorization: Bearer <Token>`，不接受登录 Cookie 替代。支持标准初始化、工具发现与调用。
 
 **本机文件导入限制：** HTTP 服务无法读取 AI 电脑上的本地路径。AI 客户端必须具备文件读取能力，将 EPUB 编码后调用 `upload_book`；文件内容可能进入该客户端的工具调用上下文。较大文件或希望避免 Base64 上下文开销时，可让具备终端或 HTTP 文件上传能力的 AI 使用上节的 `curl --data-binary` 示例，携带同一 Token 直接上传，最大 100 MiB，无需额外连接脚本。仅支持远程 MCP 调用、没有本地文件读取能力的客户端不能直接导入电脑上的文件。
-
-完整 E2E 和截图验收统一使用 Docker 中的固定 Chromium、Ubuntu 与中文字体，不依赖宿主机字体：
-
-```bash
-npm run verify:full
-```
-
-原生浏览器只用于交互调试。无桌面 Chrome 的 Linux 环境可安装 Playwright 的无头 Chromium（默认仍使用 Chrome）：
-
-```bash
-npx playwright install chromium --only-shell
-LEARNING_CENTER_E2E_BROWSER=chromium npm run test:e2e -- --grep-invert 'workspace visual parity|unauthenticated login shell'
-```
-
-该模式覆盖桌面与移动视口；它验证 Chromium 行为，不能替代真实移动设备或其他浏览器的兼容性测试。
-
-已有构建产物时，可单独执行容器回归；测试直接使用生产包：
-
-```bash
-npm run build
-npm run test:e2e:container
-```
-
-E2E 使用独立临时数据目录，退出时清理，不会修改日常数据。
-
-截图基线使用固定测试镜像的字体，不在其他系统或字体环境中更新。原生调试仍需安装可用的本机中文字体，避免出现方框；它的截图不作为像素验收结果。
-
 ### 全景知识地图
 
 阅读侧栏 → AI → 选择已登录的 ChatGPT/Codex 供应商及模型 → 点击「全景知识地图」，也可直接要求 Agent 生成全书知识地图。该入口使用现有 PiAgent 工具，在服务器逐段分析全部已提取正文、分层合并章节观点，再通过当前账号的 Codex 生图能力生成 PNG。正文分析和生图都会消耗所选 ChatGPT 账号的订阅额度；不会自动切换到其他供应商或 API Key。
@@ -526,5 +529,3 @@ AI 对话中的信息图和全景知识地图下方提供「保存到资源库�
 启用后，新生成的 PNG 会上传腾讯云，且该图片允许任何知道链接的人公开读取；桶本身无需开放公开列目录。AI 对话中的图片预览和「查看或保存原图」优先使用上传成功后的 COS 地址，并增加「COS 原图链接（公开访问）」。本地原图与资源库收藏入口继续保留，使用 COS 地址的新旧对话图片均可收藏本书对应的本地原图；未启用 COS 或上传失败时，对话使用本地图片地址。此规则适用于新生成的对话结果，已有历史消息的图片地址不自动修改。上传失败会提示，仍保留本地原图，不自动重新生图。默认域名是否支持浏览器直接预览取决于 COS 地域和当前域名规则，正式使用前需实际验证，必要时配置自定义域名。
 
 每张成功上传的图片在原图旁保存 `<图片ID>.cos.json`，仅记录桶、地域和对象键，不保存密钥；不新增 Zustand 状态字段或版本。移入回收站保留云端图片；彻底删除书籍或回收站过期时删除对应 COS 对象，再清理本地文件。云端清理失败时保留本地文件与对象记录，彻底删除接口会报错，可恢复网络、权限或原桶配置后重试。删除对话或移除资源收藏不会删除原图；已经下载或缓存到外部的公开副本无法收回。
-
-评论输入框左侧提供六点拖动把手，可用鼠标或触屏移开遮挡；聚焦把手后也可用方向键移动，Shift + 方向键加快移动。位置限制在当前可见视口内，键盘弹出或窗口变化时自动校正；关闭后再次评论会重新贴近原文定位。

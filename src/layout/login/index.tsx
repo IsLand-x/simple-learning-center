@@ -33,7 +33,7 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
 
   return (
     <main className="login-page relative w-full [padding:24px] [place-items:center] [background:linear-gradient(145deg,_var(--semi-color-bg-0),_var(--semi-color-fill-0))] [@media(max-width:480px)]:[padding:16px]">
-      <div className="login-page__theme-switch fixed [top:20px] [right:20px] [z-index:1] [@media(max-width:480px)]:[top:12px] [@media(max-width:480px)]:[right:12px]">
+      <div className="fixed [top:20px] [right:20px] [z-index:1] [@media(max-width:480px)]:[top:12px] [@media(max-width:480px)]:[right:12px]">
         <Tooltip content={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'}>
           <Button
             aria-label={themeMode === 'light' ? '切换为深色主题' : '切换为浅色主题'}
@@ -76,7 +76,7 @@ export function LoginPage({ onAuthenticated }: { onAuthenticated: () => void }) 
             placeholder="请输入密码"
           />
         </label>
-        <div className="login-card__message [min-height:20px] [margin-top:-8px]" aria-live="polite">
+        <div className="[min-height:20px] [margin-top:-8px]" aria-live="polite">
           {error ? (
             <Text size="small" type="danger">
               {error}

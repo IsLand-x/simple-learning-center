@@ -5,7 +5,9 @@ import { dirname } from 'node:path';
 import { getDbFile } from '../config.js';
 import * as schema from './schema.js';
 
-let dbInstance: BetterSQLite3Database<typeof schema> | undefined;
+export type AppDatabase = BetterSQLite3Database<typeof schema>;
+
+let dbInstance: AppDatabase | undefined;
 let sqliteInstance: Database.Database | undefined;
 let currentDbFile: string | undefined;
 let currentDbIno: bigint | undefined;
@@ -210,6 +212,15 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE INDEX IF NOT EXISTS idx_highlights_book_id ON highlights(book_id);
+    CREATE INDEX IF NOT EXISTS idx_notes_book_id ON notes(book_id);
+    CREATE INDEX IF NOT EXISTS idx_reading_sessions_book_id ON reading_sessions(book_id);
+    CREATE INDEX IF NOT EXISTS idx_chapter_mind_maps_book_id ON chapter_mind_maps(book_id);
+    CREATE INDEX IF NOT EXISTS idx_chapter_videos_book_id ON chapter_videos(book_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_sessions_book_id ON chat_sessions(book_id, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_chats_conversation_id ON chats(conversation_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_chats_book_id ON chats(book_id);
   `);
 
   const db = drizzle(sqlite, { schema });
@@ -227,6 +238,14 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
 
 export function getDatabase() {
   const targetDbFile = getDbFile();
+  if (
+    process.env.NODE_ENV === 'production' &&
+    dbInstance &&
+    sqliteInstance?.open &&
+    currentDbFile === targetDbFile
+  ) {
+    return { db: dbInstance, sqlite: sqliteInstance };
+  }
   let fileIno: bigint | undefined;
   try {
     fileIno = statSync(targetDbFile, { bigint: true }).ino;

@@ -48,7 +48,7 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ !contains(github.event.head_commit.message, '[preview]') && format('{0}:latest', env.IMAGE_NAME) || '' }}
+            ${{ env.IMAGE_NAME }}:latest
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -57,7 +57,6 @@ jobs:
 
   deploy:
     name: 部署到生产服务器
-    if: ${{ !contains(github.event.head_commit.message, '[preview]') }}
     needs: build
     runs-on: ubuntu-latest
     environment:

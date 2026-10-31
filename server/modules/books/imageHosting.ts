@@ -152,19 +152,22 @@ export async function publishBookImage(
     };
     attempted = true;
     await requestObject('PUT', config, object, fetchImpl, png, signal);
-    await mutatePersistedState(async (snapshot) => {
-      signal?.throwIfAborted();
-      if (
-        !snapshot.state.books?.some((book) => book.id === bookId && !book.deletedAt) ||
-        !(await exists(join(knowledgeMapDirectoryPath(bookId), `${imageId}.png`)))
-      )
-        throw new Error('书籍或本地图片已删除。');
-      await atomicWrite(
-        join(knowledgeMapDirectoryPath(bookId), `${imageId}.cos.json`),
-        JSON.stringify(object),
-      );
-      registered = true;
-    });
+    await mutatePersistedState(
+      async (snapshot) => {
+        signal?.throwIfAborted();
+        if (
+          !snapshot.state.books?.some((book) => book.id === bookId && !book.deletedAt) ||
+          !(await exists(join(knowledgeMapDirectoryPath(bookId), `${imageId}.png`)))
+        )
+          throw new Error('书籍或本地图片已删除。');
+        await atomicWrite(
+          join(knowledgeMapDirectoryPath(bookId), `${imageId}.cos.json`),
+          JSON.stringify(object),
+        );
+        registered = true;
+      },
+      { preserveResourceFiles: true, readOnly: true },
+    );
     return { cosUrl: objectUrl(object) };
   } catch (error) {
     // A PUT interrupted after sending may still have created an object. Remove it

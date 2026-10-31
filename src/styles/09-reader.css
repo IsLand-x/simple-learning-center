@@ -100,15 +100,6 @@
   gap: 8px;
 }
 
-.panel-titlebar--note-detail .panel-titlebar__title {
-  flex: 1;
-}
-
-.panel-titlebar--note-detail .panel-titlebar__title > .semi-typography {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
 .panel-titlebar__new-chat.semi-button {
   flex: 0 0 auto;
   font-weight: 400;
@@ -810,20 +801,12 @@
   padding: 24px 8px;
 }
 
-.panel-mini-action {
-  align-self: flex-start;
-}
-
-.notes-panel--list,
-.notes-panel--detail,
 .book-note-panel {
   gap: 8px;
   padding: 8px;
   overflow: hidden;
 }
 
-.notes-list-toolbar,
-.notes-list-actions,
 .markdown-note-editor__footer {
   display: flex;
   align-items: center;

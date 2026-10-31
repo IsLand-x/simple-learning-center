@@ -2,13 +2,25 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { booksApi } from '../../../../../api/books/index';
 import type { BookImageResource, BookResourcesResponse } from '../../../../../api/books/type';
 
-export function useBookResources(bookId: string) {
+export interface BookResourcesState {
+  bookId: string;
+  resources: BookImageResource[];
+  loading: boolean;
+  error: string;
+  pending: boolean;
+  reload: () => Promise<void>;
+  mutate: (imageId: string, title?: string) => Promise<void>;
+  rename: (imageId: string, title: string) => Promise<void>;
+}
+
+export function useBookResources(bookId: string, enabled = true): BookResourcesState {
   const [resources, setResources] = useState<BookImageResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const revision = useRef(0);
+  const initializedRef = useRef(false);
   const reload = useCallback(async () => {
     if (busy.current) return;
     const current = ++revision.current;
@@ -25,11 +37,16 @@ export function useBookResources(bookId: string) {
     }
   }, [bookId]);
   useEffect(() => {
+    if (!enabled || initializedRef.current) return;
+    initializedRef.current = true;
     void reload();
-    return () => {
+  }, [enabled, reload]);
+  useEffect(
+    () => () => {
       revision.current += 1;
-    };
-  }, [reload]);
+    },
+    [],
+  );
 
   const update = async (operation: () => Promise<BookResourcesResponse>) => {
     if (busy.current) throw new Error('正在保存资源，请稍候');
@@ -57,7 +74,7 @@ export function useBookResources(bookId: string) {
   return { bookId, resources, loading, error, pending, reload, mutate, rename };
 }
 
-export const BookResourcesContext = createContext<ReturnType<typeof useBookResources> | null>(null);
+export const BookResourcesContext = createContext<BookResourcesState | null>(null);
 export function useBookResourcesContext() {
   const context = useContext(BookResourcesContext);
   if (!context) throw new Error('缺少书籍资源库上下文');

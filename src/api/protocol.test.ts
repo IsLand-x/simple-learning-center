@@ -122,13 +122,15 @@ describe('状态快照协议', () => {
     },
   );
 
-  it('初始化冲突仍向持久化层暴露 409，成功写入无需响应正文', async () => {
+  it('分区写入冲突暴露 409，成功写入无需响应正文', async () => {
     const { fetcher, transport } = createTransport();
     const api = new StateApi(transport);
     fetcher
       .mockResolvedValueOnce(Response.json({ error: '服务端已有数据' }, { status: 409 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
-    await expect(api.initialize({ state: {}, version: 33 })).rejects.toMatchObject({
+    await expect(
+      api.writeDomain('conversations', { state: { chats: [], chatSessions: [] }, version: 33 }),
+    ).rejects.toMatchObject({
       status: 409,
       message: '服务端已有数据',
     });

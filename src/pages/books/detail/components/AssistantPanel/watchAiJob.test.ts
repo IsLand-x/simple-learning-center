@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { AiJob } from '../../api/ai/type';
+import type { AiJob } from '../../../../../api/ai/type';
 import { watchAiJob } from './watchAiJob';
 
 const api = vi.hoisted(() => ({ watchJob: vi.fn(), getJob: vi.fn() }));
-vi.mock('../../api/ai', () => ({ aiApi: api }));
+vi.mock('../../../../../api/ai', () => ({ aiApi: api }));
 const job: AiJob = {
   id: 'job',
   bookId: 'book',

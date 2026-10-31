@@ -1,5 +1,5 @@
 import { inArray, sql } from 'drizzle-orm';
-import { getDatabase } from './index.js';
+import { getDatabase, type AppDatabase } from './index.js';
 import * as schema from './schema.js';
 import type { PersistedState, StoredState } from '../modules/state/types.js';
 import type { BookItem } from '../../contracts/books.js';
@@ -11,16 +11,120 @@ import type {
   AiReasoningEffort,
 } from '../../contracts/ai.js';
 
-export function writeStateToDb(persisted: PersistedState, fields?: readonly (keyof StoredState)[]) {
+const TABLE_BACKED_FIELDS: Record<string, true> = {
+  books: true,
+  bookLists: true,
+  trashedBooks: true,
+  deletedBookTombstones: true,
+  highlights: true,
+  deletedHighlightTombstones: true,
+  notes: true,
+  deletedNoteTombstones: true,
+  readingSessions: true,
+  chapterMindMaps: true,
+  chapterVideos: true,
+  chatSessions: true,
+  chats: true,
+  conversationDrafts: true,
+  openAIConfigs: true,
+};
+
+const RESERVED_KV_KEYS: Record<string, true> = {
+  version: true,
+  deletedConversationIds: true,
+  __storedFields: true,
+};
+
+function inferExistingStoredFields(db: AppDatabase): Set<string> {
+  const inferred = new Set<string>();
+  const checkTable = (field: string, table: unknown) => {
+    const row = db
+      .select({ count: sql<number>`count(*)` })
+      .from(table as typeof schema.books)
+      .get();
+    if ((row?.count ?? 0) > 0) inferred.add(field);
+  };
+  checkTable('books', schema.books);
+  checkTable('bookLists', schema.bookLists);
+  checkTable('trashedBooks', schema.trashedBooks);
+  checkTable('deletedBookTombstones', schema.deletedBookTombstones);
+  checkTable('highlights', schema.highlights);
+  checkTable('deletedHighlightTombstones', schema.deletedHighlightTombstones);
+  checkTable('notes', schema.notes);
+  checkTable('deletedNoteTombstones', schema.deletedNoteTombstones);
+  checkTable('readingSessions', schema.readingSessions);
+  checkTable('chapterMindMaps', schema.chapterMindMaps);
+  checkTable('chapterVideos', schema.chapterVideos);
+  checkTable('chatSessions', schema.chatSessions);
+  checkTable('chats', schema.chats);
+  checkTable('conversationDrafts', schema.conversationDrafts);
+  checkTable('openAIConfigs', schema.openAiConfigs);
+
+  const kvRows = db.select({ key: schema.keyValues.key }).from(schema.keyValues).all();
+  for (const row of kvRows) {
+    if (!RESERVED_KV_KEYS[row.key]) {
+      inferred.add(row.key);
+    }
+  }
+  return inferred;
+}
+
+export function writeStateToDb(
+  persisted: PersistedState,
+  fields?: readonly (keyof StoredState)[],
+  noteContents?: ReadonlyMap<string, string>,
+) {
   const { db, sqlite } = getDatabase();
   const state = persisted.state;
   const shouldUpdateAll = !fields;
   const updates = (f: keyof StoredState) => shouldUpdateAll || fields?.includes(f);
 
   sqlite.transaction(() => {
+    let existingStoredFields: Set<string> | undefined;
+    if (!shouldUpdateAll) {
+      const storedFieldsRow = db
+        .select()
+        .from(schema.keyValues)
+        .where(sql`${schema.keyValues.key} = '__storedFields'`)
+        .get();
+      if (storedFieldsRow?.value) {
+        try {
+          existingStoredFields = new Set(JSON.parse(storedFieldsRow.value));
+        } catch {
+          // Ignore malformed JSON
+        }
+      }
+      if (!existingStoredFields) {
+        existingStoredFields = inferExistingStoredFields(db);
+      }
+    }
+
+    let existingNoteContents: Map<string, string> | undefined;
+    if (updates('notes') && state.notes && !noteContents) {
+      const needsExistingContent = state.notes.some(
+        (n) => typeof (n as NoteItem).content !== 'string',
+      );
+      if (needsExistingContent) {
+        const rows = db
+          .select({ id: schema.notes.id, content: schema.notes.content })
+          .from(schema.notes)
+          .all();
+        existingNoteContents = new Map(rows.map((r) => [r.id, r.content]));
+      }
+    }
+
     if (shouldUpdateAll) {
       db.delete(schema.keyValues).run();
     }
+
+    const saveKv = (key: string, val: unknown) => {
+      const serialized = JSON.stringify(val);
+      db.insert(schema.keyValues)
+        .values({ key, value: serialized })
+        .onConflictDoUpdate({ target: schema.keyValues.key, set: { value: serialized } })
+        .run();
+    };
+
     // Version & deletedConversationIds
     db.insert(schema.keyValues)
       .values({ key: 'version', value: String(persisted.version) })
@@ -31,21 +135,16 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       .run();
 
     if (persisted.deletedConversationIds) {
-      db.insert(schema.keyValues)
-        .values({
-          key: 'deletedConversationIds',
-          value: JSON.stringify(persisted.deletedConversationIds),
-        })
-        .onConflictDoUpdate({
-          target: schema.keyValues.key,
-          set: { value: JSON.stringify(persisted.deletedConversationIds) },
-        })
+      saveKv('deletedConversationIds', persisted.deletedConversationIds);
+    } else if (shouldUpdateAll) {
+      db.delete(schema.keyValues)
+        .where(sql`${schema.keyValues.key} = 'deletedConversationIds'`)
         .run();
     }
 
-    if (updates('books') && state.books) {
+    if (updates('books')) {
       db.delete(schema.books).run();
-      if (state.books.length > 0) {
+      if (state.books && state.books.length > 0) {
         const normalizedBooks = state.books.map((b) => ({
           id: b.id,
           kind: b.kind ?? 'epub',
@@ -71,9 +170,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('bookLists') && state.bookLists) {
+    if (updates('bookLists')) {
       db.delete(schema.bookLists).run();
-      if (state.bookLists.length > 0) {
+      if (state.bookLists && state.bookLists.length > 0) {
         const rows = state.bookLists.map((l) => ({
           id: l.id,
           name: l.name,
@@ -86,9 +185,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('trashedBooks') && state.trashedBooks) {
+    if (updates('trashedBooks')) {
       db.delete(schema.trashedBooks).run();
-      if (state.trashedBooks.length > 0) {
+      if (state.trashedBooks && state.trashedBooks.length > 0) {
         const rows = state.trashedBooks.map((t) => ({
           bookId: t.book.id,
           book: t.book,
@@ -99,9 +198,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('deletedBookTombstones') && state.deletedBookTombstones) {
+    if (updates('deletedBookTombstones')) {
       db.delete(schema.deletedBookTombstones).run();
-      if (state.deletedBookTombstones.length > 0) {
+      if (state.deletedBookTombstones && state.deletedBookTombstones.length > 0) {
         const rows = state.deletedBookTombstones.map((t) => ({
           bookId: t.bookId,
           deletedAt: t.deletedAt,
@@ -110,9 +209,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('highlights') && state.highlights) {
+    if (updates('highlights')) {
       db.delete(schema.highlights).run();
-      if (state.highlights.length > 0) {
+      if (state.highlights && state.highlights.length > 0) {
         const normalizedHighlights = state.highlights.map((h) => ({
           id: h.id,
           bookId: h.bookId,
@@ -131,9 +230,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('deletedHighlightTombstones') && state.deletedHighlightTombstones) {
+    if (updates('deletedHighlightTombstones')) {
       db.delete(schema.deletedHighlightTombstones).run();
-      if (state.deletedHighlightTombstones.length > 0) {
+      if (state.deletedHighlightTombstones && state.deletedHighlightTombstones.length > 0) {
         const rows = state.deletedHighlightTombstones.map((t) => ({
           highlightId: t.highlightId,
           bookId: t.bookId,
@@ -143,16 +242,20 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('notes') && state.notes) {
+    if (updates('notes')) {
       db.delete(schema.notes).run();
-      if (state.notes.length > 0) {
+      if (state.notes && state.notes.length > 0) {
         const normalizedNotes = state.notes.map((n) => {
           const noteWithOptionalDiskFields = n as NoteItem & { contentFile?: string };
+          const resolvedContent =
+            typeof n.content === 'string'
+              ? n.content
+              : (noteContents?.get(n.id) ?? existingNoteContents?.get(n.id) ?? '');
           return {
             id: n.id,
             bookId: n.bookId,
             title: n.title ?? '',
-            content: n.content ?? '',
+            content: resolvedContent,
             fileName: n.fileName,
             contentFile: noteWithOptionalDiskFields.contentFile,
             createdAt: n.createdAt ?? 0,
@@ -163,9 +266,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('deletedNoteTombstones') && state.deletedNoteTombstones) {
+    if (updates('deletedNoteTombstones')) {
       db.delete(schema.deletedNoteTombstones).run();
-      if (state.deletedNoteTombstones.length > 0) {
+      if (state.deletedNoteTombstones && state.deletedNoteTombstones.length > 0) {
         const rows = state.deletedNoteTombstones.map((t) => ({
           noteId: t.noteId,
           bookId: t.bookId,
@@ -175,9 +278,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('readingSessions') && state.readingSessions) {
+    if (updates('readingSessions')) {
       db.delete(schema.readingSessions).run();
-      if (state.readingSessions.length > 0) {
+      if (state.readingSessions && state.readingSessions.length > 0) {
         const normalizedSessions = state.readingSessions.map((s) => ({
           id: s.id,
           bookId: s.bookId,
@@ -189,9 +292,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('chapterMindMaps') && state.chapterMindMaps) {
+    if (updates('chapterMindMaps')) {
       db.delete(schema.chapterMindMaps).run();
-      if (state.chapterMindMaps.length > 0) {
+      if (state.chapterMindMaps && state.chapterMindMaps.length > 0) {
         const rows = state.chapterMindMaps.map((m) => ({
           id: m.id,
           version: m.version ?? 1,
@@ -208,9 +311,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('chapterVideos') && state.chapterVideos) {
+    if (updates('chapterVideos')) {
       db.delete(schema.chapterVideos).run();
-      if (state.chapterVideos.length > 0) {
+      if (state.chapterVideos && state.chapterVideos.length > 0) {
         const rows = state.chapterVideos.map((v) => ({
           id: v.id,
           version: v.version ?? 1,
@@ -230,9 +333,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('chatSessions') && state.chatSessions) {
+    if (updates('chatSessions')) {
       db.delete(schema.chatSessions).run();
-      if (state.chatSessions.length > 0) {
+      if (state.chatSessions && state.chatSessions.length > 0) {
         const rows = state.chatSessions.map((s) => ({
           id: s.id,
           bookId: s.bookId,
@@ -247,9 +350,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('chats') && state.chats) {
+    if (updates('chats')) {
       db.delete(schema.chats).run();
-      if (state.chats.length > 0) {
+      if (state.chats && state.chats.length > 0) {
         const rows = state.chats.map((c) => ({
           id: c.id,
           bookId: c.bookId,
@@ -265,9 +368,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('conversationDrafts') && state.conversationDrafts) {
+    if (updates('conversationDrafts')) {
       db.delete(schema.conversationDrafts).run();
-      if (state.conversationDrafts.length > 0) {
+      if (state.conversationDrafts && state.conversationDrafts.length > 0) {
         const rows = state.conversationDrafts.map((d) => ({
           resourceId: d.resourceId,
           conversationId: d.conversationId,
@@ -278,9 +381,9 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    if (updates('openAIConfigs') && state.openAIConfigs) {
+    if (updates('openAIConfigs')) {
       db.delete(schema.openAiConfigs).run();
-      if (state.openAIConfigs.length > 0) {
+      if (state.openAIConfigs && state.openAIConfigs.length > 0) {
         const rows = state.openAIConfigs.map((cfg) => ({
           id: cfg.id,
           name: cfg.name ?? '',
@@ -295,56 +398,26 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
       }
     }
 
-    // Key-value settings
-    const saveKv = (key: string, val: unknown) => {
-      db.insert(schema.keyValues)
-        .values({ key, value: JSON.stringify(val) })
-        .onConflictDoUpdate({ target: schema.keyValues.key, set: { value: JSON.stringify(val) } })
-        .run();
-    };
-
-    if (updates('webSearchConfig') && state.webSearchConfig !== undefined) {
-      saveKv('webSearchConfig', state.webSearchConfig);
-    }
-    if (updates('aiPreferences') && state.aiPreferences !== undefined) {
-      saveKv('aiPreferences', state.aiPreferences);
-    }
-    if (updates('navCollapsed') && state.navCollapsed !== undefined) {
-      saveKv('navCollapsed', state.navCollapsed);
-    }
-    if (updates('themeMode') && state.themeMode !== undefined) {
-      saveKv('themeMode', state.themeMode);
-    }
-    if (updates('readerPreferences') && state.readerPreferences !== undefined) {
-      saveKv('readerPreferences', state.readerPreferences);
-    }
-    if (updates('readerPreferencesUpdatedAt') && state.readerPreferencesUpdatedAt !== undefined) {
-      saveKv('readerPreferencesUpdatedAt', state.readerPreferencesUpdatedAt);
-    }
-    if (updates('readerStyleUpdatedAt') && state.readerStyleUpdatedAt !== undefined) {
-      saveKv('readerStyleUpdatedAt', state.readerStyleUpdatedAt);
-    }
-    if (updates('readerLayoutUpdatedAt') && state.readerLayoutUpdatedAt !== undefined) {
-      saveKv('readerLayoutUpdatedAt', state.readerLayoutUpdatedAt);
-    }
-    // Track stored fields
-    let storedFieldsSet = new Set<string>();
-    if (!shouldUpdateAll) {
-      const storedFieldsRow = db
-        .select()
-        .from(schema.keyValues)
-        .where(sql`${schema.keyValues.key} = '__storedFields'`)
-        .get();
-      if (storedFieldsRow?.value) {
-        try {
-          storedFieldsSet = new Set(JSON.parse(storedFieldsRow.value));
-        } catch {
-          // Ignore malformed JSON
-        }
+    // Store all non-table scalar/JSON fields (preferences and any extra extension fields)
+    const candidateKvKeys = shouldUpdateAll ? Object.keys(state) : (fields?.map(String) ?? []);
+    for (const key of candidateKvKeys) {
+      if (TABLE_BACKED_FIELDS[key] || RESERVED_KV_KEYS[key]) continue;
+      if (Object.hasOwn(state, key) && state[key] !== undefined) {
+        saveKv(key, state[key]);
+      } else if (!shouldUpdateAll) {
+        db.delete(schema.keyValues)
+          .where(sql`${schema.keyValues.key} = ${key}`)
+          .run();
       }
+    }
+
+    // Track stored fields
+    let storedFieldsSet: Set<string>;
+    if (!shouldUpdateAll) {
+      storedFieldsSet = existingStoredFields ?? new Set<string>();
       if (fields) {
         for (const f of fields) {
-          if (Object.hasOwn(state, f)) {
+          if (Object.hasOwn(state, f) && state[f] !== undefined) {
             storedFieldsSet.add(String(f));
           } else {
             storedFieldsSet.delete(String(f));
@@ -352,11 +425,14 @@ export function writeStateToDb(persisted: PersistedState, fields?: readonly (key
         }
       }
     } else {
-      storedFieldsSet = new Set(Object.keys(state));
+      storedFieldsSet = new Set(
+        Object.keys(state).filter((k) => state[k] !== undefined && !RESERVED_KV_KEYS[k]),
+      );
     }
     saveKv('__storedFields', [...storedFieldsSet]);
   })();
 }
+
 export function readStateFromDb(fields?: readonly (keyof StoredState)[]): PersistedState | null {
   const { db } = getDatabase();
   const shouldRead = (f: keyof StoredState) => !fields || fields.includes(f);
@@ -414,19 +490,23 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
       author: b.author,
       fileName: b.fileName,
       fileSize: b.fileSize,
-      coverDataUrl: b.coverDataUrl ?? undefined,
+      ...(b.coverDataUrl ? { coverDataUrl: b.coverDataUrl } : {}),
       createdAt: b.createdAt,
       updatedAt: b.updatedAt,
-      pinnedAt: b.pinnedAt ?? undefined,
-      archivedAt: b.archivedAt ?? undefined,
-      archiveUpdatedAt: b.archiveUpdatedAt ?? undefined,
+      ...(b.pinnedAt !== null && b.pinnedAt !== undefined ? { pinnedAt: b.pinnedAt } : {}),
+      ...(b.archivedAt !== null && b.archivedAt !== undefined ? { archivedAt: b.archivedAt } : {}),
+      ...(b.archiveUpdatedAt !== null && b.archiveUpdatedAt !== undefined
+        ? { archiveUpdatedAt: b.archiveUpdatedAt }
+        : {}),
       progress: b.progress,
-      currentCfi: b.currentCfi ?? undefined,
+      ...(b.currentCfi !== null && b.currentCfi !== undefined ? { currentCfi: b.currentCfi } : {}),
       currentChapter: b.currentChapter,
-      currentPage: b.currentPage ?? undefined,
-      totalPages: b.totalPages ?? undefined,
+      ...(b.currentPage !== null && b.currentPage !== undefined
+        ? { currentPage: b.currentPage }
+        : {}),
+      ...(b.totalPages !== null && b.totalPages !== undefined ? { totalPages: b.totalPages } : {}),
       toc: b.toc ?? [],
-      deletedAt: b.deletedAt ?? undefined,
+      ...(b.deletedAt !== null && b.deletedAt !== undefined ? { deletedAt: b.deletedAt } : {}),
     }));
   }
 
@@ -435,7 +515,7 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
     state.bookLists = rows.map((l) => ({
       id: l.id,
       name: l.name,
-      note: l.note ?? undefined,
+      note: l.note ?? '',
       bookIds: (l.bookIds as string[]) ?? [],
       createdAt: l.createdAt,
       updatedAt: l.updatedAt,
@@ -464,16 +544,18 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
     state.highlights = rows.map((h) => ({
       id: h.id,
       bookId: h.bookId,
-      kind: (h.kind as HighlightItem['kind']) ?? undefined,
-      definition: h.definition ?? undefined,
+      ...(h.kind ? { kind: h.kind as HighlightItem['kind'] } : {}),
+      ...(h.definition !== null && h.definition !== undefined ? { definition: h.definition } : {}),
       text: h.text,
       cfi: h.cfi,
       chapter: h.chapter,
-      page: h.page ?? undefined,
-      comment: h.comment ?? undefined,
-      commentUpdatedAt: h.commentUpdatedAt ?? undefined,
+      ...(h.page !== null && h.page !== undefined ? { page: h.page } : {}),
+      ...(h.comment !== null && h.comment !== undefined ? { comment: h.comment } : {}),
+      ...(h.commentUpdatedAt !== null && h.commentUpdatedAt !== undefined
+        ? { commentUpdatedAt: h.commentUpdatedAt }
+        : {}),
       createdAt: h.createdAt,
-      updatedAt: (h.updatedAt ?? undefined) as number,
+      updatedAt: (h.updatedAt ?? h.createdAt) as number,
     }));
   }
 
@@ -492,9 +574,8 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
       id: n.id,
       bookId: n.bookId,
       title: n.title,
-      content: n.content,
-      fileName: n.fileName ?? undefined,
-      contentFile: n.contentFile ?? undefined,
+      ...(n.contentFile ? { contentFile: n.contentFile } : { content: n.content }),
+      ...(n.fileName ? { fileName: n.fileName } : {}),
       createdAt: n.createdAt,
       updatedAt: n.updatedAt,
     })) as unknown as NoteItem[];
@@ -542,11 +623,11 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
       id: v.id,
       version: 1 as const,
       bookId: v.bookId,
-      chapterId: v.chapterId ?? undefined,
+      ...(v.chapterId ? { chapterId: v.chapterId } : {}),
       chapterTitle: v.chapterTitle,
       title: v.title,
       summary: v.summary,
-      coverage: v.coverage ?? undefined,
+      ...(v.coverage ? { coverage: v.coverage } : {}),
       scenes: v.scenes ?? [],
       durationSeconds: v.durationSeconds,
       hasAudio: v.hasAudio,
@@ -561,9 +642,9 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
       id: s.id,
       bookId: s.bookId,
       title: s.title,
-      provider: (s.provider as AiProvider) ?? undefined,
-      model: s.model ?? undefined,
-      reasoningEffort: (s.reasoningEffort as AiReasoningEffort) ?? undefined,
+      ...(s.provider ? { provider: s.provider as AiProvider } : {}),
+      ...(s.model ? { model: s.model } : {}),
+      ...(s.reasoningEffort ? { reasoningEffort: s.reasoningEffort as AiReasoningEffort } : {}),
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
     }));
@@ -577,9 +658,9 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
       conversationId: c.conversationId,
       role: c.role as ChatMessage['role'],
       content: c.content,
-      dialogueContent: c.dialogueContent ?? undefined,
-      readAt: c.readAt ?? undefined,
-      quote: c.quote ?? undefined,
+      ...(c.dialogueContent ? { dialogueContent: c.dialogueContent } : {}),
+      ...(c.readAt !== null && c.readAt !== undefined ? { readAt: c.readAt } : {}),
+      ...(c.quote ? { quote: c.quote } : {}),
       createdAt: c.createdAt,
     }));
   }
@@ -602,30 +683,39 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
       baseUrl: cfg.baseUrl,
       apiKey: cfg.apiKey,
       models: cfg.models ?? [],
-      oauthProvider: (cfg.oauthProvider as OpenAICompatibleConfig['oauthProvider']) ?? undefined,
+      ...(cfg.oauthProvider
+        ? { oauthProvider: cfg.oauthProvider as OpenAICompatibleConfig['oauthProvider'] }
+        : {}),
       createdAt: cfg.createdAt,
       updatedAt: cfg.updatedAt,
     }));
   }
 
-  const kvKeys = [
-    'webSearchConfig',
-    'aiPreferences',
-    'navCollapsed',
-    'themeMode',
-    'readerPreferences',
-    'readerPreferencesUpdatedAt',
-    'readerStyleUpdatedAt',
-    'readerLayoutUpdatedAt',
-  ].filter((k) => shouldInclude(k as keyof StoredState));
+  // Read non-table scalar/JSON fields from key_values
+  const candidateKvKeys = fields
+    ? fields.map(String).filter((k) => !TABLE_BACKED_FIELDS[k] && !RESERVED_KV_KEYS[k])
+    : storedFieldsSet
+      ? [...storedFieldsSet].filter((k) => !TABLE_BACKED_FIELDS[k] && !RESERVED_KV_KEYS[k])
+      : undefined;
 
-  if (kvKeys.length > 0) {
+  if (!candidateKvKeys) {
+    const kvRows = db.select().from(schema.keyValues).all();
+    for (const row of kvRows) {
+      if (RESERVED_KV_KEYS[row.key] || TABLE_BACKED_FIELDS[row.key]) continue;
+      try {
+        state[row.key as keyof StoredState] = JSON.parse(row.value);
+      } catch {
+        // Ignore malformed JSON
+      }
+    }
+  } else if (candidateKvKeys.length > 0) {
     const kvRows = db
       .select()
       .from(schema.keyValues)
-      .where(inArray(schema.keyValues.key, kvKeys))
+      .where(inArray(schema.keyValues.key, candidateKvKeys))
       .all();
     for (const row of kvRows) {
+      if (!shouldInclude(row.key as keyof StoredState)) continue;
       try {
         state[row.key as keyof StoredState] = JSON.parse(row.value);
       } catch {

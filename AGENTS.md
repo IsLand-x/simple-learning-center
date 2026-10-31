@@ -46,13 +46,13 @@ npm run preview
 - `src/layout/`：程序外壳、登录、侧栏、路由、鉴权恢复、启动与 PWA。登录输入和提交状态留在登录组件；路由继续 lazy loading 与 `StateDomainGate`。
 - `src/pages/`：按业务和子页面组织：`books/list`、`books/detail`、`books/share`、`settings`。
 - 每个子页面的 `index.tsx` 主要组合 UI；`components/` 保存仅本页使用的精简组件；`store/` 只保存页面级共享状态与跨区域编排；纯计算放在所属功能区域。组件自己的轻量状态直接使用 useState/useEffect；逻辑较多时拆为组件同级的 useX.ts，不因使用 hook 就放进 store。不要将重逻辑放回 index，也不要为了减少行数把整页原样搬到一个巨大 hook。
-- `src/components/`：确实被多个页面复用的 UI（包含间接消费者），按 `ai`、`reading`、`notes`、`layout` 等能力分组。不得导入任何页面的私有组件或 store。单页适配参数在页面内组装，不在根 components 暴露单页包装器；不要用页面空壳或仅转发 barrel 掩盖实际归属。
+- `src/components/`：确实被多个页面复用的 UI（包含间接消费者），按 `ai`、`reading` 等能力分组。不得导入任何页面的私有组件或 store。单页适配参数在页面内组装，不在根 components 暴露单页包装器；不要用页面空壳或仅转发 barrel 掩盖实际归属。
 - 每个生产 TSX 文件只定义一个组件，组件只有一个实现文件；组件文件使用实际组件名称，页面入口保留 index.tsx。共享或私有子组件都使用独立文件，不在父组件内声明另一个组件；无 JSX 的 Hook/逻辑使用 `.ts`。组件私有 Hook、类型和计算可以同目录保存，但不建立空壳转发组件。`check:components` 持续检查这一约定。
 - `src/api/<domain>/index.ts`：本业务域的 API class 与单例；同目录 `type.ts` 保存请求体、响应体和传输结果。`api/http/` 仅放传输与错误原语；组件、hook、store、util 不直接 fetch 或调用底层 transport。
 - `src/types/`：跨页面的纯客户端类型（如选区几何与 UI 状态），API 协议类型放回对应 `api/<domain>/type.ts`，前后端共同的实体直接从 `contracts/<domain>` 导入。禁止用 any、宽泛 Record 或未类型化 Response 掩盖业务协议；二进制、204 空响应和流式事件也必须显式定义类型。
 - `src/util/`：跨页面工具与能力，按 `ai`、`reading`、`browser` 等职责分组，不依赖页面、layout 或 components；单页的 EPUB 导入与渲染适配回到对应页面。
 - `src/store/`：唯一 Zustand 持久化核心，负责 actions、默认值、状态契约、迁移、合并及服务端分区同步。页面 store 复用这个核心，不创建同一数据的第二个持久化来源。
-- `contracts/`：按 books、reading、ai、settings、state 拆分前后端共用的纯领域类型；rss、videos 仅用于历史数据兼容，不依赖运行时实现，不建立全量转发入口。
+- `contracts/`：按 books、reading、ai、settings、state 拆分前后端共用的纯领域类型，不依赖运行时实现，不建立全量转发入口。
 - `src/styles/index.css`：Tailwind 入口和必要的全局/第三方/正文兼容样式；普通组件优先在 JSX 中使用静态 Tailwind utilities 和 Semi 语义变量。
 - `server/app.ts`：构造依赖、认证 middleware、Hono 子应用与兜底；`server/http/`：通用 HTTP 原语；各 `server/modules/<domain>/*Routes.ts` 或 `routes.ts`：对应业务的 HTTP transport。
 - `server/modules/`：按 books、ai、auth、settings、state 聚合路由、用例、规则与测试；生图归 AI，书籍资源保存归 books，状态纯合并规则归 state；`server/infrastructure/`：不带业务归属的文件/HTTP 原语。
@@ -130,7 +130,7 @@ npm run preview
 
 - 整体气质是克制、紧凑、内容优先的阅读工作台，不是营销网站。不要新增 Logo、“学习中心”品牌横幅、Hero、大段宣传文案、高饱和装饰、玻璃态、拟物化或无功能意义的渐变色块；登录页现有的主题表面渐变是例外。
 - 页面底层和主内容区使用 `--semi-color-bg-0`；导航、标题栏、工具栏、侧栏和页面级卡片通常使用 `--semi-color-bg-1`；嵌入 `bg-1` 面板内的笔记、高亮、评论等卡片使用 `bg-0` 形成一级层次；Popover、正文选区工具栏和评论编辑器等真正悬浮的表面使用 `--semi-color-bg-2`。
-- 独立卡片依靠 `1px solid var(--semi-color-border)`、背景层级和间距区分，不使用常驻重阴影；目录、RSS 来源、笔记列表等行式内容默认无边框，靠背景和选中态区分。`--semi-shadow-elevated` 只用于登录卡、Popover、SideSheet、覆盖式目录和其他确实离开文档平面的浮层。
+- 独立卡片依靠 `1px solid var(--semi-color-border)`、背景层级和间距区分，不使用常驻重阴影；目录、书单列表等行式内容默认无边框，靠背景和选中态区分。`--semi-shadow-elevated` 只用于登录卡、Popover、SideSheet、覆盖式目录和其他确实离开文档平面的浮层。
 - 相邻面板之间只保留一条必要的 1px 分隔线；隐藏或折叠面板时同步隐藏对应分隔线，禁止双线、多层描边和卡片套卡片。
 - 圆角必须复用 Semi token：列表项和自制小按钮使用 `--semi-border-radius-small`，自制卡片、编辑器容器和浮层通常使用 `--semi-border-radius-medium`，登录卡或大型模态才使用 `--semi-border-radius-large`；原生 Semi 输入与按钮保留组件默认圆角。`9999px` 只用于标签、上下文与选择器等胶囊控件，`50%` 只用于圆形标记；不要把所有容器做成大圆角。
 - 书籍封面保留“书脊较直、右侧稍圆”的形态：桌面为 `3px 8px 8px 3px`，移动端为 `4px 8px 8px 4px`；底部阅读抽屉保留 `20px 20px 0 0`，这些是功能语义明确的例外，不扩散到普通卡片。
@@ -151,10 +151,10 @@ npm run preview
 
 - `html`、`body`、`#root` 和 `.app-shell` 固定占满视口并保持 `overflow: hidden`；滚动下沉到页面内容区或具体面板。所有参与 flex/grid 分栏的中间层必须保留 `min-width: 0` 和 `min-height: 0`，避免内容撑破布局。
 - 桌面左侧主导航默认宽 `180px`，折叠宽 `60px`；不在导航顶部增加品牌区。底部工具依次保留 PWA 安装、主题切换和功能栏折叠按钮。
-- 普通页面沿用居中内容骨架：书架最大宽 `1180px`，设置最大宽 `880px`，桌面页面 padding 使用 `24px 28px` 量级。长文正文限制行宽，当前 RSS 正文最大 `760px`、标题与摘要最大 `820px`，禁止在宽屏上横向铺满。
-- 工作台页面（阅读器、RSS 等）使用 `overflow: hidden` 的全高分栏，各栏内部独立滚动；可调整分栏继续使用 Allotment，不实现第二套拖拽分隔条。
-- 桌面阅读器标题栏、阅读工具栏、目录标题栏和右面板标题栏统一使用 `--reader-bar-height: 44px`；栏内通常左 padding `12px`、右 padding `8px`、控件 gap `6–8px`。RSS 栏内标题和详情工具栏也为 `44px`，页面级 RSS 总标题栏为 `52px`，不要混淆两个层级。
-- 阅读目录宽度限制为 `220–400px`，右侧辅助面板为 `320–720px`；RSS 订阅源栏为 `160–340px`（默认 `220px`），内容列表为 `190–520px`（默认 `320px`），右侧辅助面板为 `320–720px`。新增分栏应复用相近量级并为主内容保留空间，不使用无上下限的固定宽栏。
+- 普通页面沿用居中内容骨架：书架最大宽 `1180px`，设置最大宽 `880px`，桌面页面 padding 使用 `24px 28px` 量级。长文正文限制行宽（最大 `760px`），禁止在宽屏上横向铺满。
+- 工作台页面（阅读器等）使用 `overflow: hidden` 的全高分栏，各栏内部独立滚动；可调整分栏继续使用 Allotment，不实现第二套拖拽分隔条。
+- 桌面阅读器标题栏、阅读工具栏、目录标题栏和右面板标题栏统一使用 `--reader-bar-height: 44px`；栏内通常左 padding `12px`、右 padding `8px`、控件 gap `6–8px`。
+- 阅读目录宽度限制为 `220–400px`，右侧辅助面板为 `320–720px`。新增分栏应复用相近量级并为主内容保留空间，不使用无上下限的固定宽栏。
 - 右侧辅助功能栏固定宽 `52px`，内部按钮为 `44×44px`，栏内 padding 与按钮 gap 均为 `4px`；保持图标在上、文字在下，图标约 `18px`、文字 `10px`。
 - 间距优先复用当前节奏：微间距 `2/4/6/8px`，组件内间距 `10/12/14/16px`，区块间距 `20/24/28/32px`。现有 `3/5/7/9/17/18px` 等光学校准值可以保留，但不要机械扩散或为了“统一”重写；密集侧栏使用 `6–12px` 内边距，不在列表中引入 24px 以上的大留白。
 - 卡片只承载独立内容单元。桌面书籍卡片使用 `min-height: 178px; padding: 16px; gap: 16px`，设置摘要约 `min-height: 64px; padding: 10px 12px`；面板列表应优先使用透明列表行，而不是把每一行都包装成带阴影卡片。
@@ -181,7 +181,7 @@ npm run preview
 
 ### 响应式与移动端
 
-- `800px` 是进入移动视觉模式的唯一主断点，CSS 与 `matchMedia('(max-width: 800px)')` 行为判断必须一致。`860px` 只用于配置表单折行，`700px` 是 RSS 紧凑工作区的 viewport 判断，`560/480px` 用于极窄屏微调；现有 `720px` 规则只是局部回退且部分会被后置的 `800px` 规则覆盖，不要继续把新移动规则堆入其中。
+- `800px` 是进入移动视觉模式的唯一主断点，CSS 与 `matchMedia('(max-width: 800px)')` 行为判断必须一致。`860px` 只用于配置表单折行，`560/480px` 用于极窄屏微调；现有 `720px` 规则只是局部回退且部分会被后置的 `800px` 规则覆盖，不要继续把新移动规则堆入其中。
 - 移动端完全隐藏桌面左导航，普通页面改用底部一级导航；阅读页不显示全局底栏，而使用专用阅读工具栏。底栏项目等宽，图标在上、文字在下。
 - 移动全局底栏高度为 `64px + env(safe-area-inset-bottom)`；移动阅读顶栏为 `58px`，底部阅读工具栏为 `58px + safe-area`，并在 `.reader-page` 中预留等高空间，禁止直接覆盖正文。
 - 移动阅读工具栏固定为目录、上一页、下一页和更多功能四等分，实际按钮高 `50px`。全局底栏、阅读工具栏和面板标签统一使用图标行 `20px`、文字行 `14px` 的网格轨道与 `2px` 间距；实际文字字号分别约为 `12px`、`11px`、`10px`，不依赖组件库默认 icon margin。
@@ -205,7 +205,7 @@ npm run preview
 
 - JSX 优先使用可静态识别的 Tailwind utility；颜色、圆角等继续使用 Semi 语义变量。复用组件收纳重复组合，不拼接无法被 Tailwind 扫描的动态类名，不复制长串 inline 静态样式或引入 CSS-in-JS。动态坐标、阅读主题色和数据驱动预览可使用 inline style。只有第三方组件覆盖、EPUB/富文本、复杂选择器、原生滚动条、安全区及确需保持级联顺序的规则保留在 styles；改动须通过视觉对比。
 - class 命名延续现有 `block__element--modifier` 语义；覆盖 Semi 内部样式必须由页面或组件父 class 限定，禁止无作用域污染全局组件。
-- 新组件先复用已有视觉原型：普通页面参考书架/设置，分栏工作台参考阅读器/RSS，右侧工具参考 `ActivityRailButton`，移动抽屉参考 `ReaderMobileChrome`，浮层参考正文选区工具栏。
+- 新组件先复用已有视觉原型：普通页面参考书架/设置，分栏工作台参考阅读器，右侧工具参考 `ActivityButton`，移动抽屉参考 `ReaderMobileChrome`，浮层参考正文选区工具栏。
 - 没有明确需求时，不新增新的颜色 token、阴影级别、圆角等级、断点或动画曲线；确需新增时说明现有规范为何无法覆盖，并保持可复用。
 - 视觉调整至少检查桌面浅色、桌面深色、移动浅色、移动深色四种组合，并覆盖 `375px`、`768px`、`1024px`、`1440px` 代表宽度。
 - 验收同时检查：键盘焦点、44px 触控目标、长文本省略、空状态、loading/disabled/error、虚拟键盘、安全区、无横向溢出和 `prefers-reduced-motion`。

@@ -18,23 +18,38 @@ function createLoginLimiter() {
   const attempts = new Map<string, { resetAt: number; failures: number }>();
   const windowMilliseconds = 60_000;
   const maxFailures = 5;
+  const maxTrackedKeys = 1024;
+
+  function prune(now: number) {
+    for (const [trackedKey, value] of attempts) {
+      if (value.resetAt <= now) attempts.delete(trackedKey);
+    }
+    while (attempts.size >= maxTrackedKeys) {
+      const oldestKey = attempts.keys().next().value;
+      if (oldestKey === undefined) break;
+      attempts.delete(oldestKey);
+    }
+  }
 
   return {
     check(key: string) {
+      const now = Date.now();
       const entry = attempts.get(key);
-      if (!entry || entry.resetAt <= Date.now()) {
+      if (!entry || entry.resetAt <= now) {
         attempts.delete(key);
         return 0;
       }
-      return entry.failures >= maxFailures ? Math.ceil((entry.resetAt - Date.now()) / 1000) : 0;
+      return entry.failures >= maxFailures ? Math.ceil((entry.resetAt - now) / 1000) : 0;
     },
     fail(key: string) {
       const now = Date.now();
+      if (attempts.size >= maxTrackedKeys) prune(now);
       const previous = attempts.get(key);
       const entry =
         !previous || previous.resetAt <= now
           ? { failures: 1, resetAt: now + windowMilliseconds }
           : { ...previous, failures: previous.failures + 1 };
+      attempts.delete(key);
       attempts.set(key, entry);
       return entry.failures >= maxFailures ? Math.ceil((entry.resetAt - now) / 1000) : 0;
     },

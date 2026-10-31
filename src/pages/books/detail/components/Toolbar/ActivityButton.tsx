@@ -1,4 +1,4 @@
-import { ActivityRailButton } from '../../../../../components/layout/ActivityRailButton';
+import { Button, Tooltip } from '@douyinfe/semi-ui';
 import type { RightPanel } from '../../../../../types/reader';
 import { readerAiActivityLabel } from '../AssistantPanel/activity';
 import { ReaderAiActivityIcon } from '../AssistantPanel/ReaderAiActivityIcon';
@@ -35,20 +35,31 @@ export function ActivityButton({
       : active
         ? `收起${meta.label}`
         : `打开${meta.label}`;
+  const fullAriaLabel = statusLabel ? `${ariaLabel}，${statusLabel}` : ariaLabel;
+  const icon =
+    panel === 'ai' ? (
+      <ReaderAiActivityIcon className="panel-tool-icon" />
+    ) : (
+      <PanelIcon className="panel-tool-icon" />
+    );
   return (
-    <ActivityRailButton
-      active={active}
-      ariaLabel={statusLabel ? `${ariaLabel}，${statusLabel}` : ariaLabel}
-      icon={
-        panel === 'ai' ? (
-          <ReaderAiActivityIcon className="panel-tool-icon" />
-        ) : (
-          <PanelIcon className="panel-tool-icon" />
-        )
-      }
-      label={activityLabel(panel)}
-      tooltip={statusLabel || tooltip}
-      onClick={onClick}
-    />
+    <Tooltip
+      className="activity-button__tooltip pointer-events-none"
+      content={statusLabel || tooltip}
+      position="left"
+    >
+      <Button
+        aria-label={fullAriaLabel}
+        aria-pressed={active}
+        className={`activity-button [width:44px] [min-width:44px] [height:44px] [min-height:44px] justify-center [padding:3px] [background:transparent] ${active ? ' activity-button--active' : ''}`}
+        icon={icon}
+        size="small"
+        theme="borderless"
+        type="tertiary"
+        onClick={onClick}
+      >
+        {activityLabel(panel)}
+      </Button>
+    </Tooltip>
   );
 }

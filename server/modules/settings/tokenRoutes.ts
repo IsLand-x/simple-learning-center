@@ -1,4 +1,5 @@
 import type { AppDependencies } from '../../dependencies.js';
+import { isSameOriginRequest } from '../../http/middleware.js';
 import { createRouter } from '../../http/router.js';
 import { methodNotAllowed } from '../../http/responses.js';
 
@@ -8,15 +9,7 @@ export function createOpenApiTokenRoutes({
   const app = createRouter();
   const tokenPath = '/api/settings/openapi-token';
   app.use(`${tokenPath}*`, async (c, next) => {
-    const origin = c.req.header('origin');
-    let sameHost;
-    try {
-      sameHost = !origin || new URL(origin).host === new URL(c.req.url).host;
-    } catch {
-      sameHost = false;
-    }
-    // TLS may terminate at the reverse proxy; compare hosts rather than its internal scheme.
-    if (!sameHost || c.req.header('sec-fetch-site') === 'cross-site')
+    if (!isSameOriginRequest(c.req.header('origin'), c.req.url, c.req.header('sec-fetch-site')))
       return c.json({ error: '不允许跨站管理 Token' }, 403);
     if (c.req.method !== 'GET' && c.req.header('x-learning-center-request') !== '1')
       return c.json({ error: '缺少设置请求标识' }, 403);

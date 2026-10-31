@@ -15,7 +15,6 @@ type AiJobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export interface AiJob {
   id: string;
   bookId: string;
-  resourceType?: 'book';
   termId?: string;
   chapterId?: string;
   purpose?: 'chat' | 'glossary' | 'mindmap' | 'chapter-video';
@@ -42,7 +41,6 @@ export interface StartAiJobInput {
   model: string;
   reasoningEffort?: Exclude<AiReasoningEffort, 'auto'>;
   bookId: string;
-  resourceType?: 'book';
   termId?: string;
   chapterId?: string;
   purpose?: 'chat' | 'glossary' | 'mindmap' | 'chapter-video';

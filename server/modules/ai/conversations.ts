@@ -73,39 +73,48 @@ export function changeConversation(
   id: string,
   changes: Partial<Pick<ChatSession, 'provider' | 'model' | 'reasoningEffort'>>,
 ) {
-  return mutatePersistedState(({ state }) => {
-    Object.assign(requireSession(state, id), changes);
-  });
+  return mutatePersistedState(
+    ({ state }) => {
+      Object.assign(requireSession(state, id), changes);
+    },
+    { preserveResourceFiles: true, fields: ['chatSessions'] },
+  );
 }
 
 export function markConversationRead(id: string, messageIds: string[]) {
-  return mutatePersistedState(({ state }) => {
-    requireSession(state, id);
-    const ids = new Set(messageIds);
-    const readAt = Date.now();
-    state.chats = (state.chats ?? []).map((message) =>
-      message.conversationId === id &&
-      ids.has(message.id) &&
-      message.role === 'assistant' &&
-      !message.readAt
-        ? { ...message, readAt }
-        : message,
-    );
-  });
+  return mutatePersistedState(
+    ({ state }) => {
+      requireSession(state, id);
+      const ids = new Set(messageIds);
+      const readAt = Date.now();
+      state.chats = (state.chats ?? []).map((message) =>
+        message.conversationId === id &&
+        ids.has(message.id) &&
+        message.role === 'assistant' &&
+        !message.readAt
+          ? { ...message, readAt }
+          : message,
+      );
+    },
+    { preserveResourceFiles: true, fields: ['chats'] },
+  );
 }
 
 export function deleteConversation(id: string) {
-  return mutatePersistedState((snapshot) => {
-    const { state } = snapshot;
-    snapshot.deletedConversationIds = [
-      ...new Set([...(snapshot.deletedConversationIds ?? []), id]),
-    ];
-    state.conversationDrafts = (state.conversationDrafts ?? []).filter(
-      (draft) => draft.conversationId !== id,
-    );
-    state.chatSessions = (state.chatSessions ?? []).filter((session) => session.id !== id);
-    state.chats = (state.chats ?? []).filter((message) => message.conversationId !== id);
-  });
+  return mutatePersistedState(
+    (snapshot) => {
+      const { state } = snapshot;
+      snapshot.deletedConversationIds = [
+        ...new Set([...(snapshot.deletedConversationIds ?? []), id]),
+      ];
+      state.conversationDrafts = (state.conversationDrafts ?? []).filter(
+        (draft) => draft.conversationId !== id,
+      );
+      state.chatSessions = (state.chatSessions ?? []).filter((session) => session.id !== id);
+      state.chats = (state.chats ?? []).filter((message) => message.conversationId !== id);
+    },
+    { preserveResourceFiles: true, fields: ['chats', 'chatSessions', 'conversationDrafts'] },
+  );
 }
 
 export function conversationResponse(value: unknown) {

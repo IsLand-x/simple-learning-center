@@ -102,12 +102,10 @@ export function createStateRoutes({
           mergeClientNoteDrafts(mergedState, currentState, snapshot.notesBase);
         return protectClientState(aiJobs.protectPersistedState, mergedState, currentState);
       },
-      domain === 'rss' || domain === 'videos'
-        ? {} // Resource deletion also cleans conversations in these domains.
-        : {
-            fields: stateDomainFields(domain),
-            readFields: [...stateDomainFields(domain), ...stateDomainFields('library')],
-          },
+      {
+        fields: stateDomainFields(domain),
+        readFields: [...stateDomainFields(domain), ...stateDomainFields('library')],
+      },
     );
     if (domain === 'notes' && snapshot.notesBase !== undefined) {
       const serialized = serializeStateDomainSnapshot(

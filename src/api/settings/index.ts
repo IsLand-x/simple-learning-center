@@ -1,11 +1,4 @@
-import type {
-  McpTokenResponse,
-  OAuthOperation,
-  OAuthProviderId,
-  OAuthProviderStatus,
-  OpenApiTokenStatus,
-  SystemInfo,
-} from './type';
+import type { McpTokenResponse, OpenApiTokenStatus, SystemInfo } from './type';
 import { apiTransport } from '../http/transport';
 import type { TtsStatus } from '../../../contracts/ai';
 import type { SaveTtsRequest } from './type';
@@ -59,20 +52,6 @@ class SettingsApi {
 
   readMcpToken(): Promise<McpTokenResponse> {
     return this.transport.json('/api/settings/openapi-token/mcp');
-  }
-
-  getOAuthProviders(signal?: AbortSignal): Promise<OAuthProviderStatus[]> {
-    return this.transport.json('/api/ai/oauth/providers', { signal });
-  }
-
-  operateOAuthProvider(
-    id: OAuthProviderId,
-    operation: OAuthOperation,
-  ): Promise<OAuthProviderStatus> {
-    return this.transport.json(`/api/ai/oauth/${id}${operation === 'logout' ? '' : '/login'}`, {
-      method: operation === 'login' ? 'POST' : 'DELETE',
-      headers: { 'X-Learning-Center-OAuth': '1' },
-    });
   }
 }
 

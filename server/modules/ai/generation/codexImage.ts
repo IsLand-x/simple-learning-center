@@ -246,14 +246,26 @@ export async function generateCodexImage({
       if (first?.b64_json) {
         pngBuffer = Buffer.from(first.b64_json, 'base64');
       } else if (first?.url) {
-        const downloadRes = await fetchImpl(first.url, { signal: requestSignal });
+        const parsedUrl = new URL(first.url);
+        if (parsedUrl.protocol !== 'https:') {
+          throw new Error('Invalid image URL protocol');
+        }
+        const downloadRes = await fetchImpl(parsedUrl.toString(), {
+          redirect: 'error',
+          signal: requestSignal,
+        });
         if (downloadRes.ok) {
           const ab = await downloadRes.arrayBuffer();
           pngBuffer = Buffer.from(ab);
         }
       }
 
-      if (!pngBuffer || pngBuffer.length === 0 || pngBuffer.length > 20 * 1024 * 1024) {
+      if (
+        !pngBuffer ||
+        pngBuffer.length === 0 ||
+        pngBuffer.length > 20 * 1024 * 1024 ||
+        !pngBuffer.subarray(0, PNG_HEADER.length).equals(PNG_HEADER)
+      ) {
         throw new Error('Missing or invalid image');
       }
       return pngBuffer;

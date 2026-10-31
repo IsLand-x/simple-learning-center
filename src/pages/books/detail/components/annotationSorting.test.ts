@@ -23,7 +23,7 @@ describe('阅读侧栏排序', () => {
       annotation('element-10', 'epubcfi(/6/2[chapter-99]!/4/10/1:0)', 3),
       annotation('offset-2', 'epubcfi(/6/2[chapter-99]!/4/2/1:2)', 4),
     ];
-    expect(ids(sortAnnotations(items, 'position'))).toEqual([
+    expect(ids(sortAnnotations(items, 'position-asc'))).toEqual([
       'offset-2',
       'offset-10',
       'element-10',
@@ -38,7 +38,7 @@ describe('阅读侧栏排序', () => {
       annotation('same-older', 'epubcfi(/6/2!/4/2,/1:2,/1:100)', 3),
       annotation('first', 'epubcfi(/6/2!/4/2/1:1)', 2),
     ];
-    expect(ids(sortAnnotations(items, 'position'))).toEqual([
+    expect(ids(sortAnnotations(items, 'position-asc'))).toEqual([
       'first',
       'same-older',
       'same-newer',
@@ -53,7 +53,7 @@ describe('阅读侧栏排序', () => {
       annotation('broken-range', 'epubcfi(/6/2!,/1:)', 3),
       { ...annotation('valid', 'epubcfi(/6/10!/4/2/1:2)', 4), page: 100 },
     ];
-    expect(ids(sortAnnotations(items, 'position'))).toEqual([
+    expect(ids(sortAnnotations(items, 'position-asc'))).toEqual([
       'valid',
       'missing',
       'invalid',
@@ -68,13 +68,13 @@ describe('阅读侧栏排序', () => {
       annotation('offset-10', 'demo:chapter-2:selection:2:10', 3),
       annotation('offset-2', 'demo:chapter-2:selection:2:2', 4),
     ];
-    expect(ids(sortAnnotations(items, 'position'))).toEqual([
+    expect(ids(sortAnnotations(items, 'position-asc'))).toEqual([
       'offset-2',
       'offset-10',
       'paragraph-10',
       'chapter-10',
     ]);
-    expect(sortAnnotations([], 'position')).toEqual([]);
+    expect(sortAnnotations([], 'position-asc')).toEqual([]);
   });
 
   it('支持书籍位置正序与倒序排序', () => {

@@ -1,3 +1,4 @@
+import type { BigIntStats } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import type { NoteItem } from '../../../contracts/reading.js';
 import { measureServerTiming, recordServerTiming } from '../../infrastructure/http/timing.js';
@@ -27,12 +28,8 @@ type StateFile =
   PersistedState | { formatVersion: 1; updatedAt: string; persistedState: DiskState };
 let stateReadCache: { signature: string; result: Promise<StateFile | null> } | undefined;
 
-function fileSignature(metadata: Awaited<ReturnType<typeof stateFileMetadata>>) {
+function fileSignature(metadata: BigIntStats) {
   return `${metadata.dev}:${metadata.ino}:${metadata.size}:${metadata.mtimeNs}:${metadata.ctimeNs}`;
-}
-
-function stateFileMetadata() {
-  return stat(STATE_FILE, { bigint: true });
 }
 
 function unwrapState(disk: StateFile | null): PersistedState | null {
@@ -43,10 +40,21 @@ function unwrapState(disk: StateFile | null): PersistedState | null {
     : (disk as PersistedState | null);
 }
 
+function extractNoteContents(state: StoredState): Map<string, string> | undefined {
+  if (!Array.isArray(state.notes)) return undefined;
+  const map = new Map<string, string>();
+  for (const note of state.notes) {
+    if (note && typeof note.id === 'string' && typeof note.content === 'string') {
+      map.set(note.id, note.content);
+    }
+  }
+  return map.size > 0 ? map : undefined;
+}
+
 async function readStateFile() {
   let signature: string;
   try {
-    signature = fileSignature(await stateFileMetadata());
+    signature = fileSignature(await stat(STATE_FILE, { bigint: true }));
   } catch (error) {
     if (!errorHasCode(error, 'ENOENT')) throw error;
     stateReadCache = undefined;
@@ -118,10 +126,11 @@ async function persistState(
   fields?: readonly (keyof StoredState)[],
 ) {
   const nextState = protectState(persistedState, currentPersistedState);
+  const noteContents = extractNoteContents(nextState.state);
   const stateForDisk = preserveResourceFiles
     ? nextState
-    : await measureServerTiming('state_prepare', () => prepareStateForDisk(nextState));
-  await commitState(stateForDisk, false, fields);
+    : await measureServerTiming('state_prepare', () => prepareStateForDisk(nextState, fields));
+  await commitState(stateForDisk, true, fields, noteContents);
 }
 
 function protectState(
@@ -139,8 +148,9 @@ function protectState(
 
 async function commitState(
   stateForDisk: DiskState,
-  cacheOwnedSnapshot = false,
+  cacheOwnedSnapshot = true,
   fields?: readonly (keyof StoredState)[],
+  noteContents?: ReadonlyMap<string, string>,
 ) {
   const envelope = {
     formatVersion: 1 as const,
@@ -160,6 +170,7 @@ async function commitState(
         state: stateForDisk.state as unknown as StoredState,
       },
       fields,
+      noteContents,
     );
   } catch (dbError) {
     console.warn('SQLite 状态同步写入失败:', dbError);
@@ -167,7 +178,7 @@ async function commitState(
   if (cacheOwnedSnapshot) {
     try {
       stateReadCache = {
-        signature: fileSignature(await stateFileMetadata()),
+        signature: fileSignature(await stat(STATE_FILE, { bigint: true })),
         result: Promise.resolve(envelope),
       };
     } catch {
@@ -251,6 +262,7 @@ export function writePersistedState(
             )[field];
           }
         }
+        const noteContents = extractNoteContents(selected);
         const prepared = await measureServerTiming('state_prepare', () =>
           prepareStateForDisk({ ...protectedState, state: selected }, options.fields),
         );
@@ -262,6 +274,7 @@ export function writePersistedState(
           },
           true,
           options.fields,
+          noteContents,
         );
         return;
       }
@@ -281,7 +294,11 @@ export function writePersistedState(
 
 export function mutatePersistedState<T>(
   mutator: (state: PersistedState) => T | Promise<T>,
-  options: { preserveResourceFiles?: boolean } = {},
+  options: {
+    preserveResourceFiles?: boolean;
+    fields?: readonly (keyof StoredState)[];
+    readOnly?: boolean;
+  } = {},
 ): Promise<T> {
   const queuedAt = performance.now();
   const operation = stateWriteQueue
@@ -296,9 +313,12 @@ export function mutatePersistedState<T>(
       if (!persistedState) {
         throw statusError(409, '服务端尚未初始化，无法修改数据');
       }
+      if (options.readOnly) {
+        return mutator(persistedState);
+      }
       const nextState = structuredClone(persistedState);
       const result = await mutator(nextState);
-      await persistState(nextState, null, options.preserveResourceFiles);
+      await persistState(nextState, null, options.preserveResourceFiles, options.fields);
       return result;
     });
   stateWriteQueue = operation.then(

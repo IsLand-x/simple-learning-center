@@ -54,9 +54,9 @@ contracts/
 
 根 `store/useLearningStore.ts` 是唯一持久化入口。persist key 仍为 `learning-center-state-v1`，version 为 42，library / reading / notes / highlights / conversations / preferences 六个活动分区按字段独立读写。笔记与高亮不再随阅读记录快照提交；笔记正文只在 notes 接口中从磁盘读取，notes 更新使用版本及显式删除记录保护；当前客户端另外传输非持久化的 notesBase 编辑基准，服务端在单实例写队列内进行正文合并并返回规范快照，持久化核心订阅保存结果以更新当前编辑区。独立文本修改自动合并，重叠修改保留完整草稿。AI 新增笔记使用同一写队列原子追加，替换仍要求读取版本。AI 笔记同步位于阅读页持续运行的任务层，不依赖聊天面板显示。路由继续 lazy loading 与 StateDomainGate。目录重构不修改用户数据格式。书籍置顶时间 `books[].pinnedAt` 归属 library 分区，迁移保留有效置顶；书架按置顶时间排序并单独展示，阅读进度更新不改变置顶顺序。存档同样使用 library 分区内的书籍可选元数据：`archivedAt` 表示当前存档，`archiveUpdatedAt` 独立记录存档与取消存档的修改版本；旧书籍缺省保持普通书架状态。服务端按该版本单独合并存档决定，旧客户端或较晚保存的阅读进度不会撤销存档；书籍和学习记录仍保存在原有位置。书架底部默认折叠存档区，搜索与筛选时展开匹配结果。
 
-RSS 和独立 YouTube 学习功能已下线，页面、业务 API、内容源凭据入口、抓取服务及定时任务均删除；旧页面地址通过路由兜底返回书架，旧业务接口返回 404。书籍内的章节讲解视频继续属于 reading 分区。历史 RSS/视频字段仅在兼容边界保留，不进入客户端活动状态，也不触发加载、抓取或 AI 任务；不删除服务器数据文件。
+RSS 和独立 YouTube 学习功能已下线，页面、业务 API、内容源凭据入口、抓取服务及定时任务均删除；旧页面地址通过路由兜底返回书架，旧业务接口返回 404。书籍内的章节讲解视频继续属于 reading 分区。
 
-`contracts/state.d.ts` 是活动状态与分区字段归属的类型来源，客户端默认值、Zustand actions 与服务端兼容存储均从其派生。两端字段表受精确元组约束，防止字段遗漏或顺序漂移。`LegacyLearningData` 独立表达旧字段，服务端继续保留旧快照中的未知字段。
+`contracts/state.d.ts` 是活动状态与分区字段归属的类型来源，客户端默认值、Zustand actions 与服务端存储均从其派生。两端字段表受精确元组约束，防止字段遗漏或顺序漂移；服务端继续保留快照中的未知扩展字段。
 
 ## API 与类型
 
@@ -72,6 +72,7 @@ server/
   app.ts                   按既定顺序挂载 middleware 和子路由
   dependencies.ts          构造共享依赖
   config.ts
+  db/                      SQLite (Drizzle ORM) 表结构、分区读写与 state.json 灾备迁移
   http/                    请求解析、响应、静态资源等 HTTP 原语
   infrastructure/          文件系统及外部 HTTP 原语
   modules/
@@ -104,6 +105,7 @@ AI 任务启动按输入校验、书籍上下文准备和任务注册拆分，�
 - API 只依赖传输与纯类型；类型文件不能包含运行时代码。
 - contracts 不依赖浏览器或服务端实现；infrastructure 不依赖业务 modules。
 - state 模块不直接导入其他业务模块，跨业务操作由应用装配后注入；books 不依赖 AI。
+- `server/db/` 只依赖自身、配置、状态类型与共享契约；业务模块必须通过状态服务访问持久化层，不得直接导入 `server/db/`。
 
 `check:boundaries` 通过 TypeScript AST 和模块解析检查静态/动态导入、重导出、循环依赖、API 文件配对及纯类型声明。`check:components` 检查所有生产 TSX 恰好定义一个组件，测试 TSX 最多一个组件，测试夹具单独管理。两项都进入 `verify`，并保留 TypeScript 未使用检查、零 warning lint、格式和 Knip。
 
@@ -117,7 +119,7 @@ AI 任务启动按输入校验、书籍上下文准备和任务注册拆分，�
 
 `verify` 包含类型、lint、格式、组件与模块边界、死代码、Node/Web 测试、Vite/PWA 构建。服务端由 `test:server` 编译一次，后续 `build:web` 只处理前端；独立 `build` 仍构建完整前后端。`verify:full` 再用固定 Docker 浏览器环境执行 E2E。视觉基线覆盖书架、阅读器和设置的四种宽度、两种主题，以及登录页，共 32 张；另有真实 EPUB、表单草稿、章节视频与持久化行为回归。导航删除属于本次明确批准的界面变更，相应基线在固定容器内更新。所有 E2E 使用临时示例数据，单 worker 避免并发改同一分区。
 
-生产流水线在验证阶段注入提交标识、更新时间及资源 CDN 配置，完成构建后只打包 `dist/` 与 `server-dist/`，通过同次运行、同一 SHA 的短期 artifact 传递。发布任务只构建 `verified-runtime`，不重复运行验证与源码构建；默认 `runtime` 仍从源码执行完整验证。两个目标继承同一个运行时基座，保留相同的非 root 用户、字体、健康检查与启动命令；生产依赖在 Alpine 中单独安装，与应用产物分层缓存，避免跨 libc 复用原生模块及每次发布重新传输依赖。只有 CI 验证通过的同一产物进入镜像，服务器继续按镜像 digest 发布、检查健康并在失败时回滚。
+生产流水线在验证阶段注入提交标识、更新时间及资源 CDN 配置，完成构建后只打包 `dist/` 与 `server-dist/`，通过同次运行、同一 SHA 的短期 artifact 传递。发布任务只构建 `verified-runtime`，不重复运行验证与源码构建；默认 `runtime` 仍从源码执行完整验证。两个目标继承同一个 `node:22-bookworm-slim` 运行时基座，保留相同的非 root 用户、字体、健康检查与启动命令；生产依赖在独立构建阶段安装，与应用产物分层缓存，避免每次发布重新传输依赖。只有 CI 验证通过的同一产物进入镜像，服务器继续按镜像 digest 发布、检查健康并在失败时回滚。
 小改本地以相关检查为主，避免与 CI 重复执行全量构建与浏览器矩阵。真实系统键盘、安全区和供应商账号授权仍需相应真机/账号环境，不以模拟结果替代。默认直接发布 `main` 到生产；按需预览的启动、部署与清理步骤见 `docs/preview.md`，只在明确要求预览时使用。
 
 ### OpenAPI 导入边界
@@ -220,7 +222,7 @@ EPUB 正文索引升级至 version 3，增加每个段落所属的目录节点�
 
 ### 状态分区读写与原文跳转
 
-状态仍以 `state.json` 和独立 Markdown 文件持久化，保留原有备份、迁移和单实例原子写队列。library、reading、notes、highlights、conversations、preferences 的 PUT 在队列内只复制目标分区和书籍生命周期依赖；兼容合并后仅写回目标字段，其余字段共享不可变磁盘快照并原样保留。只有 notes 写入才扫描和协调 Markdown 文件，library 写入才处理封面。分区提交后复用自有不可变快照，避免下次读取重新解析整份 JSON；inode/mtime/ctime 签名继续检测外部替换。文件整体序列化和原子替换仍随总数据量增长，本次未引入数据库或改变磁盘格式。
+状态以 SQLite（`learning-center.db`）与 `state.json` 双向同步持久化，并保留独立 Markdown 笔记文件与单实例原子写队列。启动时 `migrateFromStateJson` 自动校验并补齐 `state.json` 及笔记正文至 SQLite 数据库。library、reading、notes、highlights、conversations、preferences 的 PUT 在队列内只复制目标分区和书籍生命周期依赖；兼容合并后仅写回目标字段与对应 SQLite 表，其余字段共享不可变快照并原样保留。只有 notes 写入才扫描和协调 Markdown 文件，library 写入才处理封面；只读存在性校验在队列内执行且不触发落盘。inode/mtime/ctime 签名继续检测外部替换。
 
 元数据 GET 使用最近一次原子提交的快照，不等待未完成的后台写入；读取结果与缓存隔离，PUT 返回后可见新值。notes 依赖独立可编辑的 Markdown 文件，因此仍等待写队列。回收站过期检测只读元数据，不解析封面；实际删除仍在同一队列内复核。HTTP `Server-Timing` 通过请求范围的 AsyncLocalStorage 收集固定阶段和时长，不包含资源 ID、正文、查询参数或凭据。
 

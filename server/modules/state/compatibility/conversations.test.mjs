@@ -1,32 +1,36 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { protectConversations } from './conversations.js';
+import { protectConversations, mergeMigratedConversations } from './conversations.js';
 
 const sessions = [
-  { id: 'video-session', bookId: 'video:video' },
-  { id: 'rss-session', bookId: 'rss:item' },
+  { id: 'removed-session', bookId: 'book-a' },
   { id: 'book-session', bookId: 'book' },
 ];
 const current = {
-  version: 38,
+  version: 42,
+  deletedConversationIds: ['removed-session'],
   state: {
-    videoResources: [{ id: 'video' }],
-    rssFeeds: [{ id: 'feed' }],
-    rssItems: [{ id: 'item', feedId: 'feed' }],
-    chatSessions: sessions,
-    chats: sessions.map((session) => ({
-      id: session.id,
-      bookId: session.bookId,
-      conversationId: session.id,
-    })),
+    chatSessions: [{ id: 'book-session', bookId: 'book' }],
+    chats: [{ id: 'book-session', bookId: 'book', conversationId: 'book-session' }],
   },
 };
 
-test('删除视频或订阅源时清理未加载的会话，并保留其他资源', () => {
+test('服务端删除记录防止旧快照复活已删除会话与草稿', () => {
   const result = protectConversations(
     {
-      ...structuredClone(current),
-      state: { ...structuredClone(current.state), videoResources: [], rssFeeds: [] },
+      version: 42,
+      state: {
+        chatSessions: sessions,
+        chats: sessions.map((session) => ({
+          id: session.id,
+          bookId: session.bookId,
+          conversationId: session.id,
+        })),
+        conversationDrafts: [
+          { resourceId: 'book-a', conversationId: 'removed-session', text: '草稿', updatedAt: 1 },
+          { resourceId: 'book', conversationId: 'book-session', text: '保留', updatedAt: 1 },
+        ],
+      },
     },
     current,
   );
@@ -35,35 +39,30 @@ test('删除视频或订阅源时清理未加载的会话，并保留其他资�
     ['book-session'],
   );
   assert.deepEqual(
-    result.state.chats.map((message) => message.bookId),
-    ['book'],
-  );
-  assert.deepEqual(
-    new Set(result.deletedConversationIds),
-    new Set(['video-session', 'rss-session']),
-  );
-  const old = protectConversations(structuredClone(current), result);
-  assert.deepEqual(
-    old.state.chatSessions.map((session) => session.id),
+    result.state.chats.map((message) => message.conversationId),
     ['book-session'],
   );
+  assert.deepEqual(
+    result.state.conversationDrafts.map((draft) => draft.conversationId),
+    ['book-session'],
+  );
+  assert.deepEqual(result.deletedConversationIds, ['removed-session']);
 });
 
-test('旧客户端缺少资源分区时不推断删除，也不能自行注入删除记录', () => {
+test('客户端不能自行注入服务端删除记录', () => {
   const result = protectConversations(
     {
-      version: 17,
-      state: { videoResources: [], chatSessions: sessions },
+      version: 42,
+      state: { chatSessions: sessions },
       deletedConversationIds: ['book-session'],
     },
-    current,
+    { version: 42, state: { chatSessions: sessions } },
   );
-  assert.equal(result.state.chatSessions.length, 3);
+  assert.equal(result.state.chatSessions.length, 2);
   assert.equal(result.deletedConversationIds, undefined);
 });
 
-test('旧格式迁移保留读取后其他设备新增的消息与较新的会话模型', async () => {
-  const { mergeMigratedConversations } = await import('./conversations.js');
+test('旧格式迁移保留读取后其他设备新增的消息与较新的会话模型', () => {
   const latest = {
     version: 38,
     state: {

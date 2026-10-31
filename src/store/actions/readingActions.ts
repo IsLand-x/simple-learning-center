@@ -6,10 +6,7 @@ type ReadingActions = Pick<
   | 'addHighlight'
   | 'updateHighlight'
   | 'deleteHighlight'
-  | 'addNote'
   | 'setBookNoteContent'
-  | 'updateNote'
-  | 'deleteNote'
   | 'upsertReadingSession'
 >;
 
@@ -67,19 +64,6 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
           ],
         };
       }),
-    addNote: (note) =>
-      set((state) => {
-        const deletedAt =
-          state.deletedNoteTombstones.find(
-            (item) => item.noteId === note.id && item.bookId === note.bookId,
-          )?.deletedAt ?? 0;
-        return {
-          notes: [{ ...note, updatedAt: Math.max(note.updatedAt, deletedAt + 1) }, ...state.notes],
-          deletedNoteTombstones: state.deletedNoteTombstones.filter(
-            (item) => item.noteId !== note.id,
-          ),
-        };
-      }),
     setBookNoteContent: (bookId, bookTitle, content) =>
       set((state) => {
         const existing = state.notes
@@ -120,26 +104,6 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
                 bookId,
                 deletedAt: Math.max(timestamp, item.updatedAt + 1),
               })),
-          ],
-        };
-      }),
-    updateNote: (noteId, changes) =>
-      set((state) => ({
-        notes: state.notes.map((note) =>
-          note.id === noteId
-            ? { ...note, ...changes, updatedAt: Math.max(Date.now(), note.updatedAt + 1) }
-            : note,
-        ),
-      })),
-    deleteNote: (noteId) =>
-      set((state) => {
-        const note = state.notes.find((item) => item.id === noteId);
-        if (!note) return state;
-        return {
-          notes: state.notes.filter((item) => item.id !== noteId),
-          deletedNoteTombstones: [
-            ...state.deletedNoteTombstones.filter((item) => item.noteId !== noteId),
-            { noteId, bookId: note.bookId, deletedAt: Math.max(Date.now(), note.updatedAt + 1) },
           ],
         };
       }),

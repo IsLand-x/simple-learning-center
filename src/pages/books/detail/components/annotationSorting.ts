@@ -1,11 +1,9 @@
 import { collapse, compare, parse } from 'foliate-js/epubcfi.js';
 import type { HighlightItem } from '../../../../../contracts/reading';
 
-export type AnnotationSortOrder =
-  'created-desc' | 'created-asc' | 'position' | 'position-asc' | 'position-desc';
+export type AnnotationSortOrder = 'created-desc' | 'created-asc' | 'position-asc' | 'position-desc';
 
-type Position = ReturnType<typeof parse> | null;
-
+type Position = Array<Array<{ index: number; offset?: number }>> | null;
 function annotationPosition(cfi: string): Position {
   if (cfi.startsWith('demo:')) {
     const match = /^demo:chapter-(\d+):selection:(\d+)(?::(\d+))?$/.exec(cfi);
@@ -35,8 +33,7 @@ export function sortAnnotations(
   items: readonly HighlightItem[],
   order: AnnotationSortOrder,
 ): HighlightItem[] {
-  const isPositionSort =
-    order === 'position' || order === 'position-asc' || order === 'position-desc';
+  const isPositionSort = order === 'position-asc' || order === 'position-desc';
   const entries = items.map((item) => ({
     item,
     position: isPositionSort ? annotationPosition(item.cfi) : null,

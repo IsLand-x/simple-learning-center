@@ -23,8 +23,8 @@ test('阅读器运行时、共享模块、持久化、依赖和未知变动全�
     'src/pages/books/detail/components/ReaderSurface/foliate/readerAdapter.ts',
     'src/layout/AppRoutes.tsx',
     'src/styles/index.css',
-    'server/modules/state/state.ts',
-    'contracts/books.ts',
+    'server/modules/state/stateStore.ts',
+    'contracts/books.d.ts',
     'package-lock.json',
     'unexpected.file',
   ]) {

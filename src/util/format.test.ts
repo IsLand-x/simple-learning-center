@@ -1,17 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clamp, formatFileSize, formatRelativeTime } from './format';
-
-describe('formatFileSize', () => {
-  it.each([
-    [0, '1 KB'],
-    [1_024, '1 KB'],
-    [1_536, '2 KB'],
-    [1_048_576, '1.0 MB'],
-    [2_621_440, '2.5 MB'],
-  ])('formats %i bytes as %s', (bytes, expected) => {
-    expect(formatFileSize(bytes)).toBe(expected);
-  });
-});
+import { clamp, formatRelativeTime } from './format';
 
 describe('formatRelativeTime', () => {
   const now = new Date('2026-09-11T12:00:00+08:00');

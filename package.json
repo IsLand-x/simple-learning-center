@@ -79,7 +79,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@openai/sites-vite-plugin": "0.2.0",
     "@playwright/test": "^1.63.0",
     "@remotion/bundler": "4.0.538",
     "@remotion/cli": "4.0.538",

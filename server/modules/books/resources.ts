@@ -49,59 +49,71 @@ export async function listBookResources(bookId: string) {
 export async function saveBookResource(bookId: string, input: unknown) {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) throw statusError(400, '请提供有效的图片标识和标题（最多 200 字）');
-  return mutatePersistedState(async (snapshot) => {
-    requireBook(snapshot, bookId);
-    const { imageId, title } = parsed.data;
-    if (!(await exists(join(knowledgeMapDirectoryPath(bookId), `${imageId}.png`))))
-      throw statusError(404, '这本书的图片不存在');
-    const resources = await readResources(bookId);
-    if (!resources.some((item) => item.imageId === imageId)) {
-      resources.unshift({ imageId, title, savedAt: Date.now() });
-      await atomicWrite(manifestPath(bookId), JSON.stringify({ version: 1, resources }));
-    }
-    return present(bookId, resources);
-  });
+  return mutatePersistedState(
+    async (snapshot) => {
+      requireBook(snapshot, bookId);
+      const { imageId, title } = parsed.data;
+      if (!(await exists(join(knowledgeMapDirectoryPath(bookId), `${imageId}.png`))))
+        throw statusError(404, '这本书的图片不存在');
+      const resources = await readResources(bookId);
+      if (!resources.some((item) => item.imageId === imageId)) {
+        resources.unshift({ imageId, title, savedAt: Date.now() });
+        await atomicWrite(manifestPath(bookId), JSON.stringify({ version: 1, resources }));
+      }
+      return present(bookId, resources);
+    },
+    { preserveResourceFiles: true, readOnly: true },
+  );
 }
 
 export async function removeBookResource(bookId: string, imageId: string) {
   if (!imageIdSchema.safeParse(imageId).success) throw statusError(400, '图片标识不正确');
-  return mutatePersistedState(async (snapshot) => {
-    requireBook(snapshot, bookId);
-    const resources = (await readResources(bookId)).filter((item) => item.imageId !== imageId);
-    await atomicWrite(manifestPath(bookId), JSON.stringify({ version: 1, resources }));
-    return present(bookId, resources);
-  });
+  return mutatePersistedState(
+    async (snapshot) => {
+      requireBook(snapshot, bookId);
+      const resources = (await readResources(bookId)).filter((item) => item.imageId !== imageId);
+      await atomicWrite(manifestPath(bookId), JSON.stringify({ version: 1, resources }));
+      return present(bookId, resources);
+    },
+    { preserveResourceFiles: true, readOnly: true },
+  );
 }
 
 export async function renameBookResource(bookId: string, imageId: string, input: unknown) {
   if (!imageIdSchema.safeParse(imageId).success) throw statusError(400, '图片标识不正确');
   const parsed = z.object({ title: titleSchema }).strict().safeParse(input);
   if (!parsed.success) throw statusError(400, '标题不能为空且最多 200 字');
-  return mutatePersistedState(async (snapshot) => {
-    requireBook(snapshot, bookId);
-    const resources = await readResources(bookId);
-    const resource = resources.find((item) => item.imageId === imageId);
-    if (!resource) throw statusError(404, '图片尚未收藏或已从资源库移除');
-    resource.title = parsed.data.title;
-    await atomicWrite(manifestPath(bookId), JSON.stringify({ version: 1, resources }));
-    return present(bookId, resources);
-  });
+  return mutatePersistedState(
+    async (snapshot) => {
+      requireBook(snapshot, bookId);
+      const resources = await readResources(bookId);
+      const resource = resources.find((item) => item.imageId === imageId);
+      if (!resource) throw statusError(404, '图片尚未收藏或已从资源库移除');
+      resource.title = parsed.data.title;
+      await atomicWrite(manifestPath(bookId), JSON.stringify({ version: 1, resources }));
+      return present(bookId, resources);
+    },
+    { preserveResourceFiles: true, readOnly: true },
+  );
 }
 
 async function saveBookImage(book: BookItem, png: Buffer, signal?: AbortSignal, source?: string) {
   const id = randomUUID();
   // Serialize existence check and write with book deletion to prevent orphan files.
-  await mutatePersistedState(async (snapshot) => {
-    signal?.throwIfAborted();
-    if (
-      !snapshot.state.books?.some(
-        (item) => item.id === book.id && item.fileSize === book.fileSize && !item.deletedAt,
+  await mutatePersistedState(
+    async (snapshot) => {
+      signal?.throwIfAborted();
+      if (
+        !snapshot.state.books?.some(
+          (item) => item.id === book.id && item.fileSize === book.fileSize && !item.deletedAt,
+        )
       )
-    )
-      throw new Error('书籍已删除或变更，地图未保存。');
-    await atomicWrite(join(knowledgeMapDirectoryPath(book.id), `${id}.png`), png);
-    if (source) await atomicWrite(join(knowledgeMapDirectoryPath(book.id), `${id}.js`), source);
-  });
+        throw new Error('书籍已删除或变更，地图未保存。');
+      await atomicWrite(join(knowledgeMapDirectoryPath(book.id), `${id}.png`), png);
+      if (source) await atomicWrite(join(knowledgeMapDirectoryPath(book.id), `${id}.js`), source);
+    },
+    { preserveResourceFiles: true, readOnly: true },
+  );
   return `/api/books/${encodeURIComponent(book.id)}/knowledge-maps/${id}`;
 }
 

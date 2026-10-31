@@ -24,3 +24,18 @@ export function registerStaticOriginGuard(app: ServerApp) {
     await next();
   });
 }
+
+// TLS may terminate at a reverse proxy, so compare host headers rather than internal scheme.
+export function isSameOriginRequest(
+  origin: string | undefined,
+  requestUrl: string,
+  secFetchSite?: string,
+) {
+  if (secFetchSite === 'cross-site') return false;
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === new URL(requestUrl).host;
+  } catch {
+    return false;
+  }
+}

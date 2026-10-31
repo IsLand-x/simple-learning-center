@@ -3,7 +3,6 @@ import type { ReaderPreferences } from '../../../contracts/reading';
 import {
   DEFAULT_READER_CUSTOM_STYLE,
   getReaderTextureStyle,
-  legacyReaderPaperColor,
   normalizeReaderCustomStyle,
   readerDensityFromLineHeight,
   resolveReaderStyle,
@@ -167,14 +166,6 @@ describe('reader theme compatibility helpers', () => {
     [undefined, 'balanced'],
   ] as const)('maps line height %s to %s density', (lineHeight, expected) => {
     expect(readerDensityFromLineHeight(lineHeight)).toBe(expected);
-  });
-
-  it.each([
-    ['night', '#202A36'],
-    ['white', '#FAF9F6'],
-    ['paper', '#F3EBDD'],
-  ])('maps legacy theme %s to %s', (theme, expected) => {
-    expect(legacyReaderPaperColor(theme)).toBe(expected);
   });
 
   it('preserves the no-texture background contract', () => {

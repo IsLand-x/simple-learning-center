@@ -148,8 +148,7 @@ test('旧快照的可选配置、书籍删除时间和未知字段保持兼容',
     aiPreferences: legacy.state.aiPreferences,
     readerPreferences: legacy.state.readerPreferences,
   });
-  assert.deepEqual(createStateDomainSnapshot(merged, 'rss').state, {
-    rssItems: legacy.state.rssItems,
-    rssDigestSettings: legacy.state.rssDigestSettings,
+  assert.throws(() => createStateDomainSnapshot(merged, 'rss'), {
+    status: 404,
   });
 });

@@ -1,13 +1,29 @@
 import { useCallback, useEffect, useRef } from 'react';
+import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { aiApi } from '../../../../../api/ai/index';
 import type { AiJob, AiJobSummary } from '../../../../../api/ai/type';
-
-import type { MutableRefObject } from 'react';
-import { useLearningStore } from '../../../../../store/useLearningStore';
-import type { ConversationJobControls } from '../../../../../types/conversation';
+import type { AiDialogueContentItem } from '../../../../../../contracts/ai';
 import type { BookItem } from '../../../../../../contracts/books';
-import { watchAiJob } from '../../../../../util/ai/watchAiJob';
+import { useLearningStore } from '../../../../../store/useLearningStore';
+import { watchAiJob } from './watchAiJob';
 
+type ConversationStatus = 'unavailable' | 'ready' | 'generating' | 'error';
+
+interface StreamingAssistantMessage {
+  id: string;
+  role: 'assistant';
+  content: string | AiDialogueContentItem[];
+  status: 'queued' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
+  createdAt: number;
+}
+
+export interface ConversationJobControls {
+  activeJobId: string | null;
+  setActiveJobId: Dispatch<SetStateAction<string | null>>;
+  setStreamingAssistant: Dispatch<SetStateAction<StreamingAssistantMessage | null>>;
+  setStatus: Dispatch<SetStateAction<ConversationStatus>>;
+  setStatusMessage: Dispatch<SetStateAction<string>>;
+}
 export function useReaderConversationJobs({
   book,
   conversationId,

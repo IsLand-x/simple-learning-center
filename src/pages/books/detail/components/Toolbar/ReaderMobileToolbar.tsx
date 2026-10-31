@@ -5,9 +5,11 @@ import { readerAiActivityLabel } from '../AssistantPanel/activity';
 import { ReaderAiActivityIcon } from '../AssistantPanel/ReaderAiActivityIcon';
 import { useReaderAiActivity } from '../AssistantPanel/useReaderAiActivity';
 
-import type { ReaderToolbarNavigationProps } from './options';
-
-interface ReaderMobileToolbarProps extends ReaderToolbarNavigationProps {
+interface ReaderMobileToolbarProps {
+  tocCollapsed: boolean;
+  onToggleToc: () => void;
+  onPrev: () => void;
+  onNext: () => void;
   moreOpen: boolean;
   onToggleMore: () => void;
 }

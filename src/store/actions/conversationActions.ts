@@ -10,7 +10,6 @@ type ConversationActions = Pick<
   | 'updateChatSession'
   | 'deleteChatSession'
   | 'addChatMessage'
-  | 'clearBookChats'
   | 'loadConversationSummaries'
   | 'loadConversationMessages'
 >;
@@ -202,10 +201,5 @@ export function createConversationActions(
             : session,
         ),
       })),
-    clearBookChats: async (bookId) => {
-      await get().loadConversationSummaries(bookId);
-      for (const session of get().chatSessions.filter((session) => session.bookId === bookId))
-        await get().deleteChatSession(session.id);
-    },
   };
 }
