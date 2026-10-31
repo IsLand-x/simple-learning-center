@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import { chapterVideoPath } from '../../infrastructure/fs/files.js';
 import { statusError } from '../../infrastructure/http/errors.js';
 import { mutatePersistedState, readPersistedState } from '../state/stateStore.js';
+import { removeHostedChapterVideo } from './imageHosting.js';
 
 export async function requireChapterVideo(bookId: string, videoId: string) {
   if (!/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(videoId))
@@ -22,6 +23,7 @@ export async function requireChapterVideo(bookId: string, videoId: string) {
 }
 
 export async function removeChapterVideoFiles(bookId: string, videoId: string) {
+  await removeHostedChapterVideo(bookId, videoId).catch(() => undefined);
   await Promise.all(
     ['mp4', 'png'].map((extension) =>
       rm(chapterVideoPath(bookId, videoId, extension as 'mp4' | 'png'), { force: true }),

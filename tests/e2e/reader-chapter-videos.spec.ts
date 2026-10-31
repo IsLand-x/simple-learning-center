@@ -56,15 +56,16 @@ async function openPanel(page: Page, mobile: boolean) {
 }
 
 async function showGeneration(page: Page) {
-  const panel = page.getByRole('complementary', { name: '章节视频', exact: true });
-  if (!(await panel.locator('#chapter-video-scope').isVisible()))
+  const scope = page.locator('#chapter-video-scope');
+  if (!(await scope.isVisible())) {
+    const panel = page.getByRole('complementary', { name: '章节视频', exact: true });
     await panel.getByRole('button', { name: '生成视频', exact: true }).click();
+    await expect(scope).toBeVisible();
+  }
 }
 
 async function openScopeOptions(page: Page) {
-  const scope = page
-    .getByRole('complementary', { name: '章节视频', exact: true })
-    .locator('#chapter-video-scope');
+  const scope = page.locator('#chapter-video-scope');
   await expect(scope).toHaveAttribute('aria-disabled', 'false');
   await expect(scope).toHaveAttribute('aria-expanded', 'false');
   const popupId = await scope.getAttribute('aria-controls');
@@ -81,9 +82,7 @@ async function openScopeOptions(page: Page) {
 
 async function selectScopeOption(page: Page, options: Locator, label: string, index = 0) {
   await options.getByRole('option').filter({ hasText: label }).nth(index).click({ timeout: 5000 });
-  const scope = page
-    .getByRole('complementary', { name: '章节视频', exact: true })
-    .locator('#chapter-video-scope');
+  const scope = page.locator('#chapter-video-scope');
   await expect(scope).toHaveAttribute('aria-expanded', 'false');
   await expect(options).toHaveCount(0);
   await expect(scope).toContainText(label);
@@ -122,7 +121,8 @@ test('手机视频面板按当前阅读章节预选，同名章节跳转后更�
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
   await openPanel(page, true);
   const panel = page.getByRole('complementary', { name: '章节视频', exact: true });
-  const scope = panel.locator('#chapter-video-scope');
+  await showGeneration(page);
+  const scope = page.locator('#chapter-video-scope');
   await expect(scope).toContainText('同名章节');
   const options = await openScopeOptions(page);
   const choices = options.getByRole('option').filter({ hasText: '同名章节（含小节）' });
@@ -130,6 +130,7 @@ test('手机视频面板按当前阅读章节预选，同名章节跳转后更�
   await expect(choices.nth(1)).toHaveAttribute('aria-selected', 'false');
   await selectScopeOption(page, options, '全书导读');
   await expect(scope).toContainText('全书导读');
+  await page.goBack();
   await page.goBack();
   await expect(panel).toBeHidden();
   await page.getByRole('button', { name: '打开书籍目录', exact: true }).click();
@@ -143,12 +144,14 @@ test('手机视频面板按当前阅读章节预选，同名章节跳转后更�
   for (const width of [375, 768]) {
     await page.setViewportSize({ width, height: 900 });
     await openPanel(page, true);
+    await showGeneration(page);
     const options = await openScopeOptions(page);
     const choices = options.getByRole('option').filter({ hasText: '同名章节（含小节）' });
     await expect(choices.nth(1)).toHaveAttribute('aria-selected', 'true');
     await expect(choices.nth(0)).toHaveAttribute('aria-selected', 'false');
     await selectScopeOption(page, options, '全书导读');
     await expect(scope).toContainText('全书导读');
+    await page.goBack();
     await page.goBack();
     await expect(panel).toBeHidden();
   }
@@ -243,13 +246,15 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
   await openPanel(page, false);
   const panel = page.getByRole('complementary', { name: '章节视频', exact: true });
-  await expect(panel.getByText('还没有全书导读视频', { exact: true })).toBeVisible();
+  await expect(panel.getByText('这一章还没有视频', { exact: true })).toBeVisible();
   expect(requests).toBe(0);
-  const narration = panel.getByRole('checkbox', { name: '生成中文配音', exact: true });
+  await showGeneration(page);
+  await selectScopeOption(page, await openScopeOptions(page), '全书导读');
+  const narration = page.getByRole('checkbox', { name: '生成中文配音', exact: true });
   await expect(narration).toBeChecked();
   await narration.press('Space');
   await expect(narration).not.toBeChecked();
-  await panel.getByRole('button', { name: '开始生成', exact: true }).click();
+  await page.getByRole('button', { name: '开始生成', exact: true }).click();
   const player = panel.locator('video');
   await expect(player).toBeVisible({ timeout: 600_000 });
   await expect
@@ -292,13 +297,14 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       await openPanel(page, width <= 800);
       await showGeneration(page);
       if (width <= 800) {
-        await expect(panel.locator('#chapter-video-scope')).toContainText('本章小结');
+        await expect(page.locator('#chapter-video-scope')).toContainText('本章小结');
         const options = await openScopeOptions(page);
         await expect(
           options.getByRole('option').filter({ hasText: '本章小结（含小节）' }).first(),
         ).toHaveAttribute('aria-selected', 'true');
         await selectScopeOption(page, options, '全书导读');
       }
+      await page.getByRole('button', { name: '取消', exact: true }).click();
       await expect(player).toBeVisible();
       await expect
         .poll(() => player.evaluate((element: HTMLVideoElement) => element.readyState))
@@ -344,7 +350,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
       await selectScopeOption(page, selectedOptions, '全书导读');
       if (width <= 800) {
         expect(
-          await panel.locator('#chapter-video-scope').evaluate((element) => {
+          await page.locator('#chapter-video-scope').evaluate((element) => {
             element.scrollTop = 12;
             return {
               scrollTop: element.scrollTop,
@@ -354,14 +360,15 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
           }),
         ).toEqual({ scrollTop: 0, overflowY: 'visible', maxHeight: 'none' });
       }
-      const voice = panel.getByRole('checkbox', { name: '生成中文配音', exact: true });
+      const voice = page.getByRole('checkbox', { name: '生成中文配音', exact: true });
       await expect(voice).toBeChecked();
-      await expect(panel.getByRole('link', { name: '管理 TTS 配置', exact: true })).toBeVisible();
+      await expect(page.getByRole('link', { name: '管理 TTS 配置', exact: true })).toBeVisible();
       expect(await panel.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
         false,
       );
       await voice.press('Space');
       await expect(voice).not.toBeChecked();
+      await page.getByRole('button', { name: '取消', exact: true }).click();
       if (width <= 800) {
         await page.goBack();
         await expect(panel).toBeHidden();
@@ -373,14 +380,15 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   await page.goto(`/books/${book.id}`);
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
   await openPanel(page, true);
+  await showGeneration(page);
   await expect(narration).toBeChecked();
   await narration.press('Space');
   await expect(narration).not.toBeChecked();
   await selectScopeOption(page, await openScopeOptions(page), `${book.toc[0].label}（含小节）`);
-  modelGate = new Promise<void>((resolve) => {
-    releaseModel = resolve;
-  });
-  await panel.getByRole('button', { name: '开始生成', exact: true }).click();
+  const gate = Promise.withResolvers<void>();
+  modelGate = gate.promise;
+  releaseModel = gate.resolve;
+  await page.getByRole('button', { name: '开始生成', exact: true }).click();
   const tasks = panel.getByRole('region', { name: '视频生成任务', exact: true });
   await expect(tasks).toContainText('正在提炼知识点', { timeout: 30_000 });
   const progress = await (
@@ -392,12 +400,10 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   await expect(panel).toBeHidden();
   await openPanel(page, true);
   await expect(tasks).toContainText('正在提炼知识点');
-  await expect(panel.locator('#chapter-video-scope')).toContainText('本章小结');
   await page.reload();
   await expect(page.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
   await openPanel(page, true);
   await expect(tasks).toContainText('正在提炼知识点');
-  await expect(panel.locator('#chapter-video-scope')).toContainText('本章小结');
   expect(requests).toBe(completedRequests + 1);
   modelGate = undefined;
   releaseModel?.();
@@ -447,7 +453,7 @@ test('章节视频手动生成、实际播放、亮暗主题与四档宽度、�
   const savedId = await player.getAttribute('src');
   invalid = true;
   await showGeneration(page);
-  await panel.getByRole('button', { name: '重新生成', exact: true }).click();
+  await page.getByRole('button', { name: '重新生成', exact: true }).click();
   await expect(page.getByText('重新生成章节视频？', { exact: true })).toBeVisible();
   await page.keyboard.press('Enter');
   await expect(panel.getByRole('alert')).toContainText('无法核验', { timeout: 30_000 });

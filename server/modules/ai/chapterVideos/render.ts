@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { ChapterVideo } from '../../../../contracts/reading.js';
 import { chapterVideoDirectoryPath, chapterVideoPath } from '../../../infrastructure/fs/files.js';
 import { removeChapterVideoFiles } from '../../books/chapterVideos.js';
+import { publishChapterVideo } from '../../books/imageHosting.js';
 import { readPersistedState } from '../../state/stateStore.js';
 import { runMediaCommand, type VideoNarrationContext } from './media.js';
 import { createMotionRenderer } from './motion.js';
@@ -147,10 +148,22 @@ export async function renderChapterVideo(
       signal.throwIfAborted();
       await chmod(join(temporary, 'video.mp4'), 0o600);
       await chmod(join(temporary, 'poster.png'), 0o600);
-      await rename(join(temporary, 'video.mp4'), chapterVideoPath(video.bookId, video.id, 'mp4'));
-      await rename(join(temporary, 'poster.png'), chapterVideoPath(video.bookId, video.id, 'png'));
+      const mp4Path = chapterVideoPath(video.bookId, video.id, 'mp4');
+      const posterPath = chapterVideoPath(video.bookId, video.id, 'png');
+      await rename(join(temporary, 'video.mp4'), mp4Path);
+      await rename(join(temporary, 'poster.png'), posterPath);
       signal.throwIfAborted();
       next.durationSeconds = cursor;
+      const hosted = await publishChapterVideo({
+        bookId: video.bookId,
+        videoId: video.id,
+        mp4Path,
+        posterPath,
+        signal,
+        onStart: () => onProgress('正在上传视频到腾讯云 COS'),
+      });
+      if (hosted.cosUrl) next.cosUrl = hosted.cosUrl;
+      if (hosted.posterCosUrl) next.posterCosUrl = hosted.posterCosUrl;
       finished = true;
       return next;
     } finally {

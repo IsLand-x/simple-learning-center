@@ -7,8 +7,10 @@ import { createHash } from 'node:crypto';
 
 const directory = await mkdtemp(join(tmpdir(), 'cos-images-test-'));
 process.env.LEARNING_CENTER_DATA_DIR = directory;
-const { publishBookImage, removeHostedBookImages } = await import('./imageHosting.js');
-const { atomicWrite, knowledgeMapDirectoryPath } = await import('../../infrastructure/fs/files.js');
+const { publishBookImage, publishChapterVideo, removeHostedBookImages, removeHostedBookVideos } =
+  await import('./imageHosting.js');
+const { atomicWrite, chapterVideoDirectoryPath, chapterVideoPath, knowledgeMapDirectoryPath } =
+  await import('../../infrastructure/fs/files.js');
 const id = '11111111-1111-4111-8111-111111111111';
 const imageUrl = `/api/books/book/knowledge-maps/${id}`;
 const png = Buffer.from('89504e470d0a1a0a00000000', 'hex');
@@ -178,4 +180,32 @@ test('彻底删除书籍实际调用 COS 清理，再删除本地原图及追踪
   } finally {
     mocked.mock.restore();
   }
+});
+
+test('章节视频与封面同步上传腾讯云 COS，删除时清理 MP4 与封面云端对象', async () => {
+  const videoId = '33333333-3333-4333-8333-333333333333';
+  const mp4Path = chapterVideoPath('book', videoId, 'mp4');
+  const posterPath = chapterVideoPath('book', videoId, 'png');
+  const mp4Buffer = Buffer.from('00000018667479706d703432', 'hex');
+  await atomicWrite(mp4Path, mp4Buffer);
+  await atomicWrite(posterPath, png);
+  const hosted = await publishChapterVideo({ bookId: 'book', videoId, mp4Path, posterPath }, deps);
+  assert.equal(
+    hosted.cosUrl,
+    `https://${config.bucket}.cos.${config.region}.myqcloud.com/learning-center/2026-10-18/${videoId}.mp4`,
+  );
+  assert.equal(
+    hosted.posterCosUrl,
+    `https://${config.bucket}.cos.${config.region}.myqcloud.com/learning-center/2026-10-18/${videoId}.png`,
+  );
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].headers['content-type'], 'video/mp4');
+  assert.equal(requests[1].headers['content-type'], 'image/png');
+  await removeHostedBookVideos('book', deps);
+  assert.equal(requests.length, 4);
+  assert.equal(requests[2].method, 'DELETE');
+  assert.equal(requests[3].method, 'DELETE');
+  await assert.rejects(readFile(join(chapterVideoDirectoryPath('book'), `${videoId}.cos.json`)), {
+    code: 'ENOENT',
+  });
 });

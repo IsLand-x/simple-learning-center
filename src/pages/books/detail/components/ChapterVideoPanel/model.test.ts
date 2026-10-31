@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chapterEntries } from '../AssistantPanel/chapterIndex';
 import type { ChapterVideo } from '../../../../../../contracts/reading';
-import { chapterVideoParts, currentVideoChapter } from './model';
+import { chapterVideoParts, currentVideoChapter, describeChapterVideoScope } from './model';
 
 describe('视频面板的当前大章预选', () => {
   const chapters = chapterEntries([
@@ -70,5 +70,33 @@ describe('章节视频分 P 顺序', () => {
     ];
     expect(chapterVideoParts(videos, chapters).map((item) => item.id)).toEqual(['new', 'legacy']);
     expect(chapterVideoParts([], chapters)).toEqual([]);
+  });
+});
+
+describe('生成视频弹窗的章节与视频说明', () => {
+  const toc = [
+    {
+      id: 'c1',
+      href: 'c1.xhtml',
+      label: '第一大章',
+      subitems: [
+        { id: 'c1-1', href: 'c1.xhtml#1', label: '1.1 核心问题' },
+        { id: 'c1-2', href: 'c1.xhtml#2', label: '1.2 推导机制' },
+      ],
+    },
+    { id: 'c2', href: 'c2.xhtml', label: '第二大章' },
+  ];
+  const chapters = chapterEntries(toc);
+
+  it('选中大章时列出本章及全部下属小节，选中全书导读时列出全书各章', () => {
+    const chapterScope = describeChapterVideoScope(toc, chapters, chapters[0].id);
+    expect(chapterScope.scopeTitle).toBe('第一大章');
+    expect(chapterScope.includedChapters).toEqual(['第一大章', '1.1 核心问题', '1.2 推导机制']);
+    expect(chapterScope.scopeSummary).toContain('下属 2 个小节');
+
+    const bookScope = describeChapterVideoScope(toc, chapters, undefined);
+    expect(bookScope.scopeTitle).toBe('全书导读');
+    expect(bookScope.includedChapters).toEqual(['第一大章', '第二大章']);
+    expect(bookScope.scopeSummary).toContain('覆盖全书 2 个大章');
   });
 });

@@ -20,7 +20,7 @@ import { chapterVideoParts, currentVideoChapter } from './model';
 import { useChapterVideo } from './useChapterVideo';
 import { useChapterVideoPlayback } from './useChapterVideoPlayback';
 
-type VideoView = 'parts' | 'points' | 'tasks' | 'generate';
+type VideoView = 'parts' | 'points' | 'tasks';
 
 export function ChapterVideoPanel({
   book,
@@ -35,38 +35,51 @@ export function ChapterVideoPanel({
 }) {
   const [scope, setScope] = useState<{ chapterId: string | undefined }>();
   const setChapterId = useCallback((chapterId: string | undefined) => setScope({ chapterId }), []);
+  const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [narration, setNarration] = useState<ChapterVideoNarration>();
   const [narrationReady, setNarrationReady] = useState(false);
   const [continuous, setContinuous] = useState(true);
   const [autoplayId, setAutoplayId] = useState<string>();
   const chapters = useMemo(() => chapterEntries(book.toc), [book.toc]);
-  const chapterId = scope
-    ? scope.chapterId
-    : mobile
-      ? currentVideoChapter(chapters, activeHref, book.currentChapter)
-      : undefined;
+  const defaultChapterId = useMemo(
+    () => currentVideoChapter(chapters, activeHref, book.currentChapter),
+    [chapters, activeHref, book.currentChapter],
+  );
+  const chapterId = scope ? scope.chapterId : defaultChapterId;
   const ai = useChapterVideo(book, chapterId, mobile ? undefined : setChapterId);
   const parts = useMemo(() => chapterVideoParts(ai.videos, chapters), [ai.videos, chapters]);
-  const partIndex = parts.findIndex((item) => item.chapterId === chapterId);
-  const video = parts[partIndex];
-  const [view, setView] = useState<VideoView>(video ? 'parts' : 'generate');
+  const exactPartIndex = parts.findIndex((item) => item.chapterId === chapterId);
+  const partIndex = exactPartIndex >= 0 ? exactPartIndex : parts.length > 0 && !scope ? 0 : -1;
+  const video = partIndex >= 0 ? parts[partIndex] : undefined;
+  const [view, setView] = useState<VideoView>('parts');
   const viewRestored = useRef(false);
   const playback = useChapterVideoPlayback(video, autoplayId);
   const activeJobs = ai.jobs.filter((job) => job.status === 'queued' || job.status === 'running');
   const failedCount = ai.jobs.filter((job) => job.status === 'failed').length;
+
   useEffect(() => {
     if (ai.loading || viewRestored.current) return;
     viewRestored.current = true;
     if (activeJobs.length) setView('tasks');
   }, [ai.loading, activeJobs.length]);
+
   const chooseView = (next: VideoView) => {
     viewRestored.current = true;
     setView(next);
   };
+
   const selectScope = (id: string | undefined) => {
     setAutoplayId(undefined);
     setChapterId(id);
   };
+
+  const openGenerateModal = () => {
+    if (!scope && defaultChapterId !== undefined) {
+      setChapterId(defaultChapterId);
+    }
+    setGenerateModalOpen(true);
+  };
+
   const selectPart = (part: ChapterVideo | undefined) => {
     if (!part) return;
     if (part.id === video?.id) playback.play();
@@ -75,12 +88,18 @@ export function ChapterVideoPanel({
       setAutoplayId(part.id);
     }
   };
+
   const start = async (targetId: string | undefined) => {
     setChapterId(targetId);
-    if (await ai.generate(narration, { chapterId: targetId })) setView('tasks');
+    if (await ai.generate(narration, { chapterId: targetId })) {
+      setGenerateModalOpen(false);
+      setView('tasks');
+    }
   };
+
   const generate = () => {
-    if (!video) {
+    const existingForScope = parts.some((item) => item.chapterId === chapterId);
+    if (!existingForScope) {
       void start(chapterId);
       return;
     }
@@ -92,7 +111,9 @@ export function ChapterVideoPanel({
       onOk: () => start(chapterId),
     });
   };
+
   const retry = (job: ChapterVideoJob) => start(job.chapterId);
+
   const remove = () => {
     if (!video) return;
     confirmDialog({
@@ -103,6 +124,7 @@ export function ChapterVideoPanel({
       onOk: () => ai.remove(video),
     });
   };
+
   return (
     <div className="chapter-video-panel flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden [color:var(--semi-color-text-0)]">
       <div className="chapter-video-actions flex shrink-0 items-center justify-between gap-4 px-3 py-2">
@@ -111,11 +133,11 @@ export function ChapterVideoPanel({
         </Typography.Text>
         <Button
           size="small"
-          theme={view === 'generate' ? 'light' : 'solid'}
+          theme={generateModalOpen ? 'light' : 'solid'}
           icon={<IconPlus />}
           aria-label="生成视频"
-          aria-pressed={view === 'generate'}
-          onClick={() => chooseView('generate')}
+          aria-pressed={generateModalOpen}
+          onClick={openGenerateModal}
         >
           生成视频
         </Button>
@@ -138,7 +160,10 @@ export function ChapterVideoPanel({
           onEnded={() => {
             if (continuous) selectPart(parts[partIndex + 1]);
           }}
-          onRegenerate={generate}
+          onRegenerate={() => {
+            setChapterId(video.chapterId);
+            generate();
+          }}
           onRemove={remove}
         />
       ) : (
@@ -146,7 +171,9 @@ export function ChapterVideoPanel({
           className="shrink-0 px-3 py-4"
           title={chapterId ? '这一章还没有视频' : '还没有全书导读视频'}
           description={
-            parts.length ? '从选集观看已有章节，或生成当前章。' : '选择章节，手动生成图解课程。'
+            parts.length
+              ? '从选集观看已有章节，或点击右上角“生成视频”生成当前章。'
+              : '点击右上角“生成视频”，默认选中当前阅读章节生成图解课程。'
           }
         />
       )}
@@ -222,19 +249,6 @@ export function ChapterVideoPanel({
             生成已取消，可以重新生成。
           </p>
         )}
-        <div hidden={view !== 'generate'}>
-          <ChapterVideoGenerationForm
-            ai={ai}
-            chapters={chapters}
-            chapterId={chapterId}
-            narration={narration}
-            narrationReady={narrationReady}
-            onScopeChange={selectScope}
-            onNarrationChange={setNarration}
-            onNarrationReady={setNarrationReady}
-            onGenerate={generate}
-          />
-        </div>
         {view === 'parts' && (
           <ChapterVideoPlaylist
             videos={parts}
@@ -278,6 +292,22 @@ export function ChapterVideoPanel({
           />
         )}
       </div>
+      <ChapterVideoGenerationForm
+        visible={generateModalOpen}
+        mobile={mobile}
+        toc={book.toc}
+        parts={parts}
+        ai={ai}
+        chapters={chapters}
+        chapterId={chapterId}
+        narration={narration}
+        narrationReady={narrationReady}
+        onClose={() => setGenerateModalOpen(false)}
+        onScopeChange={selectScope}
+        onNarrationChange={setNarration}
+        onNarrationReady={setNarrationReady}
+        onGenerate={generate}
+      />
     </div>
   );
 }

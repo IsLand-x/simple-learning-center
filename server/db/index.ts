@@ -163,7 +163,9 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
       duration_seconds REAL NOT NULL DEFAULT 0,
       has_audio INTEGER NOT NULL DEFAULT 0,
       model TEXT NOT NULL,
-      generated_at INTEGER NOT NULL
+      generated_at INTEGER NOT NULL,
+      cos_url TEXT,
+      poster_cos_url TEXT
     );
 
     CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -222,6 +224,13 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
     CREATE INDEX IF NOT EXISTS idx_chats_conversation_id ON chats(conversation_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_chats_book_id ON chats(book_id);
   `);
+  for (const column of ['cos_url', 'poster_cos_url']) {
+    try {
+      sqlite.exec(`ALTER TABLE chapter_videos ADD COLUMN ${column} TEXT`);
+    } catch {
+      // Column already exists
+    }
+  }
 
   const db = drizzle(sqlite, { schema });
   dbInstance = db;

@@ -62,25 +62,47 @@ export function ConceptMotion({ scene }: { scene: ChapterVideoScene }) {
       })}
       {scene.points.map((point, index) => {
         const active = index === timing.point;
+        const passed = index < timing.point;
         const top = 28 + index * rowHeight;
+        const stepNumber = String(index + 1).padStart(2, '0');
         return (
-          <g key={index}>
-            {active && (
-              <rect x="124" y={top} width="1090" height={rowHeight - 6} rx="4" fill={c.highlight} />
-            )}
-            <line
-              x1="138"
-              x2="138"
-              y1={top + 12}
-              y2={top + rowHeight - 18}
+          <g key={index} opacity={active ? 1 : passed ? 0.88 : 0.58}>
+            <rect
+              x="124"
+              y={top}
+              width="1090"
+              height={rowHeight - 8}
+              rx="6"
+              fill={active ? c.highlight : c.light}
               stroke={active ? c.trade : c.line}
-              strokeWidth={active ? 4 : 2}
+              strokeWidth={active ? 2 : 1}
             />
-            <foreignObject x="158" y={top + 9} width="300" height={rowHeight - 18}>
+            <rect
+              x="124"
+              y={top}
+              width="6"
+              height={rowHeight - 8}
+              rx="3"
+              fill={active ? c.trade : passed ? c.demand : c.line}
+            />
+            <foreignObject x="146" y={top + 10} width="46" height={rowHeight - 20}>
+              <div
+                style={{
+                  color: active ? c.trade : c.muted,
+                  fontSize: 20,
+                  fontWeight: 700,
+                  fontFamily: 'monospace',
+                  lineHeight: 1.4,
+                }}
+              >
+                {stepNumber}
+              </div>
+            </foreignObject>
+            <foreignObject x="196" y={top + 9} width="280" height={rowHeight - 18}>
               <div
                 style={{
                   color: c.ink,
-                  fontSize: point.title.length > 20 ? 25 : 29,
+                  fontSize: point.title.length > 20 ? 24 : 28,
                   fontWeight: 700,
                   lineHeight: 1.3,
                   overflowWrap: 'anywhere',
@@ -89,11 +111,11 @@ export function ConceptMotion({ scene }: { scene: ChapterVideoScene }) {
                 {point.title}
               </div>
             </foreignObject>
-            <foreignObject x="488" y={top + 9} width="714" height={rowHeight - 18}>
+            <foreignObject x="492" y={top + 9} width="706" height={rowHeight - 18}>
               <div
                 style={{
                   color: active ? c.ink : c.muted,
-                  fontSize: point.detail.length > 52 ? 23 : 27,
+                  fontSize: point.detail.length > 52 ? 22 : 26,
                   lineHeight: 1.35,
                   overflowWrap: 'anywhere',
                 }}

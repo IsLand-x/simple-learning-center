@@ -4,7 +4,12 @@ import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { DATA_DIRECTORY } from '../../config.js';
-import { atomicWrite, exists, knowledgeMapDirectoryPath } from '../../infrastructure/fs/files.js';
+import {
+  atomicWrite,
+  chapterVideoDirectoryPath,
+  exists,
+  knowledgeMapDirectoryPath,
+} from '../../infrastructure/fs/files.js';
 import { errorHasCode } from '../../infrastructure/http/errors.js';
 import { mutatePersistedState } from '../state/stateStore.js';
 
@@ -26,12 +31,28 @@ const configSchema = z.object({
 const objectSchema = z.object({
   bucket: configSchema.shape.bucket,
   region: configSchema.shape.region,
-  key: z.string().regex(new RegExp(`^[a-z0-9][a-z0-9/_-]*/\\d{4}-\\d{2}-\\d{2}/${uuid}\\.png$`)),
+  key: z
+    .string()
+    .regex(new RegExp(`^[a-z0-9][a-z0-9/_-]*/\\d{4}-\\d{2}-\\d{2}/${uuid}\\.(?:png|mp4)$`)),
+});
+const videoRecordSchema = z.object({
+  bucket: configSchema.shape.bucket,
+  region: configSchema.shape.region,
+  key: z.string().regex(new RegExp(`^[a-z0-9][a-z0-9/_-]*/\\d{4}-\\d{2}-\\d{2}/${uuid}\\.mp4$`)),
+  posterKey: z
+    .string()
+    .regex(new RegExp(`^[a-z0-9][a-z0-9/_-]*/\\d{4}-\\d{2}-\\d{2}/${uuid}\\.png$`))
+    .optional(),
 });
 type HostingConfig = z.infer<typeof configSchema>;
 type HostedObject = z.infer<typeof objectSchema>;
 export interface ImageHostingResult {
   cosUrl?: string;
+  uploadWarning?: string;
+}
+export interface VideoHostingResult {
+  cosUrl?: string;
+  posterCosUrl?: string;
   uploadWarning?: string;
 }
 interface Dependencies {
@@ -71,21 +92,23 @@ async function requestObject(
   config: HostingConfig,
   object: HostedObject,
   fetchImpl: typeof fetch,
-  png?: Buffer,
+  payload?: Buffer,
   signal?: AbortSignal,
+  contentType: 'image/png' | 'video/mp4' = 'image/png',
+  timeoutMs = 30_000,
 ) {
   if (
     object.bucket !== config.bucket ||
     object.region !== config.region ||
     !object.key.startsWith(`${config.prefix}/`)
   )
-    throw new Error('COS 图片记录与当前图床配置不匹配，未操作其他存储桶。');
+    throw new Error('COS 记录与当前存储桶配置不匹配，未操作其他存储桶。');
   const url = new URL(objectUrl(object));
   const headers: { [key: string]: string } = { host: url.host };
   if (config.securityToken) headers['x-cos-security-token'] = config.securityToken;
-  if (png) {
-    headers['content-type'] = 'image/png';
-    headers['content-md5'] = createHash('md5').update(png).digest('base64');
+  if (payload) {
+    headers['content-type'] = contentType;
+    headers['content-md5'] = createHash('md5').update(payload).digest('base64');
     headers['content-disposition'] = 'inline';
     headers['cache-control'] = 'public, max-age=31536000, immutable';
     headers['x-cos-acl'] = 'public-read';
@@ -102,9 +125,12 @@ async function requestObject(
   const response = await fetchImpl(url, {
     method,
     headers,
-    body: png ? new Uint8Array(png) : undefined,
+    body: payload ? new Uint8Array(payload) : undefined,
     redirect: 'error',
-    signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(30_000)]),
+    signal: AbortSignal.any([
+      signal ?? new AbortController().signal,
+      AbortSignal.timeout(timeoutMs),
+    ]),
   });
   await response.body?.cancel();
   if (!response.ok && !(method === 'DELETE' && response.status === 404))
@@ -151,7 +177,7 @@ export async function publishBookImage(
       key: `${config.prefix}/${date}/${imageId}.png`,
     };
     attempted = true;
-    await requestObject('PUT', config, object, fetchImpl, png, signal);
+    await requestObject('PUT', config, object, fetchImpl, png, signal, 'image/png', 30_000);
     await mutatePersistedState(
       async (snapshot) => {
         signal?.throwIfAborted();
@@ -193,6 +219,169 @@ export async function publishBookImage(
     return {
       uploadWarning: '原图已保存在本地；COS 上传未完成，请检查服务器图床配置、权限与网络。',
     };
+  }
+}
+
+export async function publishChapterVideo(
+  {
+    bookId,
+    videoId,
+    mp4Path,
+    posterPath,
+    signal,
+    onStart,
+  }: {
+    bookId: string;
+    videoId: string;
+    mp4Path: string;
+    posterPath: string;
+    signal?: AbortSignal;
+    onStart?: () => void;
+  },
+  { configPath = configFile, fetchImpl = fetch, now = () => new Date() }: Dependencies = {},
+): Promise<VideoHostingResult> {
+  let config: HostingConfig | null = null;
+  let videoObject: HostedObject | undefined;
+  let posterObject: HostedObject | undefined;
+  let videoAttempted = false;
+  let posterAttempted = false;
+  let registered = false;
+  try {
+    signal?.throwIfAborted();
+    config = await readConfig(configPath);
+    if (!config) return {};
+    if (!new RegExp(`^${uuid}$`).test(videoId)) throw new Error('视频标识无效。');
+    onStart?.();
+    const [mp4, posterPng] = await Promise.all([readFile(mp4Path), readFile(posterPath)]);
+    if (mp4.length === 0 || mp4.length > 250 * 1024 * 1024) {
+      throw new Error('视频文件大小无效。');
+    }
+    const date = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now());
+    videoObject = {
+      bucket: config.bucket,
+      region: config.region,
+      key: `${config.prefix}/${date}/${videoId}.mp4`,
+    };
+    posterObject = {
+      bucket: config.bucket,
+      region: config.region,
+      key: `${config.prefix}/${date}/${videoId}.png`,
+    };
+    videoAttempted = true;
+    await requestObject('PUT', config, videoObject, fetchImpl, mp4, signal, 'video/mp4', 180_000);
+    posterAttempted = true;
+    await requestObject(
+      'PUT',
+      config,
+      posterObject,
+      fetchImpl,
+      posterPng,
+      signal,
+      'image/png',
+      30_000,
+    );
+    await mutatePersistedState(
+      async (snapshot) => {
+        signal?.throwIfAborted();
+        if (
+          !snapshot.state.books?.some((book) => book.id === bookId && !book.deletedAt) ||
+          !(await exists(mp4Path))
+        )
+          throw new Error('书籍或本地视频已删除。');
+        await atomicWrite(
+          join(chapterVideoDirectoryPath(bookId), `${videoId}.cos.json`),
+          JSON.stringify({
+            bucket: videoObject!.bucket,
+            region: videoObject!.region,
+            key: videoObject!.key,
+            posterKey: posterObject!.key,
+          }),
+        );
+        registered = true;
+      },
+      { preserveResourceFiles: true, readOnly: true },
+    );
+    return {
+      cosUrl: objectUrl(videoObject),
+      posterCosUrl: objectUrl(posterObject),
+    };
+  } catch (error) {
+    if (!registered && config && !(error instanceof CosRequestError && error.status < 500)) {
+      if (videoAttempted && videoObject) {
+        await requestObject('DELETE', config, videoObject, fetchImpl).catch(() => undefined);
+      }
+      if (posterAttempted && posterObject) {
+        await requestObject('DELETE', config, posterObject, fetchImpl).catch(() => undefined);
+      }
+    }
+    signal?.throwIfAborted();
+    return {
+      uploadWarning: '视频已保存在本地；COS 上传未完成，请检查服务器 COS 配置、权限与网络。',
+    };
+  }
+}
+
+export async function removeHostedChapterVideo(
+  bookId: string,
+  videoId: string,
+  { configPath = configFile, fetchImpl = fetch }: Dependencies = {},
+) {
+  const directory = chapterVideoDirectoryPath(bookId);
+  const recordPath = join(directory, `${videoId}.cos.json`);
+  let raw: string;
+  try {
+    raw = await readFile(recordPath, 'utf8');
+  } catch (error) {
+    if (errorHasCode(error, 'ENOENT')) return;
+    throw error;
+  }
+  const config = await readConfig(configPath);
+  if (!config) return;
+  const record = videoRecordSchema.parse(JSON.parse(raw));
+  if (!record.key.endsWith(`/${videoId}.mp4`)) {
+    throw new Error('COS 视频记录与本地视频标识不匹配。');
+  }
+  await requestObject(
+    'DELETE',
+    config,
+    { bucket: record.bucket, region: record.region, key: record.key },
+    fetchImpl,
+  );
+  if (record.posterKey) {
+    await requestObject(
+      'DELETE',
+      config,
+      { bucket: record.bucket, region: record.region, key: record.posterKey },
+      fetchImpl,
+    );
+  }
+  await rm(recordPath, { force: true });
+}
+
+export async function removeHostedBookVideos(
+  bookId: string,
+  { configPath = configFile, fetchImpl = fetch }: Dependencies = {},
+) {
+  const directory = chapterVideoDirectoryPath(bookId);
+  let names: string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if (errorHasCode(error, 'ENOENT')) return;
+    throw error;
+  }
+  const records = names.filter((name) => metadataName.test(name));
+  if (!records.length) return;
+  const config = await readConfig(configPath);
+  if (!config) throw new Error('无法清理 COS 视频：请恢复服务器图床配置后重试彻底删除。');
+  for (const name of records) {
+    const videoId = name.replace('.cos.json', '');
+    await removeHostedChapterVideo(bookId, videoId, { configPath, fetchImpl });
   }
 }
 

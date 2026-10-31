@@ -328,6 +328,8 @@ export function writeStateToDb(
           hasAudio: v.hasAudio ?? false,
           model: v.model,
           generatedAt: v.generatedAt,
+          cosUrl: v.cosUrl,
+          posterCosUrl: v.posterCosUrl,
         }));
         db.insert(schema.chapterVideos).values(rows).run();
       }
@@ -633,6 +635,8 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
       hasAudio: v.hasAudio,
       model: (v.model as unknown as ChapterVideo['model']) ?? undefined,
       generatedAt: v.generatedAt,
+      ...(v.cosUrl ? { cosUrl: v.cosUrl } : {}),
+      ...(v.posterCosUrl ? { posterCosUrl: v.posterCosUrl } : {}),
     }));
   }
 

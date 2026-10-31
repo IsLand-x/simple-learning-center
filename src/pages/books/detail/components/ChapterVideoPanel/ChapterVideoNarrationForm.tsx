@@ -1,40 +1,21 @@
 import { Checkbox } from '@douyinfe/semi-ui';
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ChapterVideoNarration } from '../../../../../../contracts/reading';
 import type { TtsStatus } from '../../../../../../contracts/ai';
-import { settingsApi } from '../../../../../api/settings';
 
 export function ChapterVideoNarrationForm({
   value,
+  status,
+  error,
   disabled,
   onChange,
-  onReady,
 }: {
   value: ChapterVideoNarration | undefined;
+  status?: TtsStatus;
+  error?: string;
   disabled: boolean;
   onChange: (value: ChapterVideoNarration | undefined) => void;
-  onReady: (ready: boolean) => void;
 }) {
-  const [status, setStatus] = useState<TtsStatus>();
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const controller = new AbortController();
-    void settingsApi
-      .getTts(controller.signal)
-      .then((next) => {
-        if (controller.signal.aborted) return;
-        setStatus(next);
-        onChange(next.configured ? { source: 'settings' } : undefined);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setError('读取语音配置失败，请重新打开面板');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) onReady(true);
-      });
-    return () => controller.abort();
-  }, [onChange, onReady]);
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="chapter-video-actions flex min-h-[44px] items-center">

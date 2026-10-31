@@ -123,6 +123,8 @@ export const chapterVideos = sqliteTable('chapter_videos', {
   hasAudio: integer('has_audio', { mode: 'boolean' }).notNull().default(false),
   model: text('model').notNull(),
   generatedAt: integer('generated_at').notNull(),
+  cosUrl: text('cos_url'),
+  posterCosUrl: text('poster_cos_url'),
 });
 
 export const chatSessions = sqliteTable('chat_sessions', {

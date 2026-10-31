@@ -1,4 +1,4 @@
-import { removeHostedBookImages } from './imageHosting.js';
+import { removeHostedBookImages, removeHostedBookVideos } from './imageHosting.js';
 import { removeBookShare } from './shares.js';
 import { rm } from 'node:fs/promises';
 import {
@@ -20,6 +20,7 @@ import { mutatePersistedState, readPersistedState } from '../state/stateStore.js
 
 async function removeBookFiles(bookId: string) {
   await removeHostedBookImages(bookId);
+  await removeHostedBookVideos(bookId);
   await Promise.all([
     rm(bookPath(bookId), { force: true }),
     rm(knowledgeMapDirectoryPath(bookId), { force: true, recursive: true }),

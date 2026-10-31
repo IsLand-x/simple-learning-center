@@ -1,6 +1,6 @@
 import { IconChevronLeft, IconChevronRight, IconExpand, IconMore } from '@douyinfe/semi-icons';
 import { Button, Dropdown, Select, Tooltip } from '@douyinfe/semi-ui';
-import { useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { ChapterVideo } from '../../../../../../contracts/reading';
 import { booksApi } from '../../../../../api/books';
 import { videoTime } from './model';
@@ -40,13 +40,26 @@ export function ChapterVideoPlayer({
 }) {
   const popup = useChapterVideoPopup(mobile, video.id);
   const speedLabelId = useId();
+  const [localFallback, setLocalFallback] = useState(false);
+
+  useEffect(() => {
+    setLocalFallback(false);
+  }, [video.id, video.cosUrl]);
+
+  const usingCos = Boolean(video.cosUrl && !localFallback);
+  const videoSrc = usingCos ? video.cosUrl! : booksApi.chapterVideoUrl(video.bookId, video.id);
+  const posterSrc =
+    !localFallback && video.posterCosUrl
+      ? video.posterCosUrl
+      : booksApi.chapterVideoUrl(video.bookId, video.id, true);
+
   return (
     <section className="shrink-0 min-w-0 px-3 pb-2" aria-label="视频讲解">
       <video
         ref={playback.player}
         className="block aspect-video max-h-[32dvh] w-full rounded-[var(--semi-border-radius-medium)] [background:var(--semi-color-bg-0)]"
-        src={booksApi.chapterVideoUrl(video.bookId, video.id)}
-        poster={booksApi.chapterVideoUrl(video.bookId, video.id, true)}
+        src={videoSrc}
+        poster={posterSrc}
         controls
         playsInline
         preload="metadata"
@@ -56,7 +69,13 @@ export function ChapterVideoPlayer({
           if (playback.player.current) playback.player.current.playbackRate = playback.rate;
         }}
         onEnded={onEnded}
-        onError={() => playback.setError('视频加载失败，请重新打开面板或重新生成')}
+        onError={() => {
+          if (usingCos) {
+            setLocalFallback(true);
+            return;
+          }
+          playback.setError('视频加载失败，请重新打开面板或重新生成');
+        }}
         onKeyDown={(event) => event.stopPropagation()}
         onKeyUp={(event) => event.stopPropagation()}
       />
@@ -72,6 +91,7 @@ export function ChapterVideoPlayer({
         <span className="text-[12px] tabular-nums [color:var(--semi-color-text-2)]">
           {part}/{total} P · {videoTime(video.durationSeconds)} ·{' '}
           {video.hasAudio ? 'AI 配音' : '字幕'}
+          {usingCos ? ' · COS 云端' : ''}
         </span>
         <div className="flex min-w-0 items-center gap-5">
           <span id={speedLabelId} className="sr-only">

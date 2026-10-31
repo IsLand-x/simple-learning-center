@@ -230,7 +230,7 @@ EPUB 正文索引升级至 version 3，增加每个段落所属的目录节点�
 
 ## 章节讲解视频
 
-阅读器的 `ChapterVideoPanel` 仅在用户点击生成后建立正文索引、等待状态写入并创建 `purpose = chapter-video` 的服务端任务；全书范围不带 chapterId，大章按服务端已核验的 TOC ID 包含下属小节。`ChapterSelect` 供思维导图和视频共用，稳定 ID 作为 value，独立 React label 避免 Semi 2.x 按同名文字联动勾选。播放器使用受认证的同源 MP4、原生全屏及知识点时间戳，不自动播放。
+阅读器的 `ChapterVideoPanel` 默认按实时阅读位置（`activeHref` 与当前章节）预选所在大章，点击“生成视频”打开 `AppFormModal` 弹窗，展示所含章节/小节清单与分集状态；仅在用户确认点击生成后建立正文索引、等待状态写入并创建 `purpose = chapter-video` 的服务端任务；全书范围不带 chapterId，大章按服务端已核验的 TOC ID 包含下属小节。`ChapterSelect` 供思维导图和视频共用，稳定 ID 作为 value，独立 React label 避免 Semi 2.x 按同名文字联动勾选。当 `data/cos-images.json` 启用时，渲染完成的 MP4 与封面 PNG 通过 `publishChapterVideo` 上传至腾讯云 COS，并将 `cosUrl`、`posterCosUrl` 写入 `ChapterVideo`（及 SQLite `chapter_videos` 表）；播放器默认直接从 COS 地址加载播放，失败时自动回退同源受认证 MP4 接口，删除视频或彻底删除书籍时同步清理 COS 对象。
 
 `ai/chapterVideos/jobJournal` 用独立串行队列和原子写入维护每书 `chapter-videos/<bookId>/jobs.json`，仅保存经过 schema 白名单校验的任务范围、模型名、阶段、状态、时间与错误，不保存 API Key、模型上下文或对话正文。任务启动必须先保存 queued 记录，再执行；阶段变化、取消与结束同步更新记录，相同阶段的模型流事件不重复落盘。保留所有进行中任务与最近 100 条结束记录，文件权限为 0600。`GET /api/ai/jobs/chapter-videos?bookId=…` 经现有认证返回该书记录；前端复用可见性/在线状态感知的轮询调度，任务页显示全书各范围的记录，不依赖当前选择范围；有进行中任务时重开直接显示任务页。桌面重开优先恢复进行中范围；手机以实时 activeHref 优先解析当前大章，保留稳定 ID，只有手动改选或点击任务才锁定范围，不由其他章节的任务覆盖当前阅读位置。完成后从 reading 分区刷新结果到唯一 Zustand 核心。首次读取旧进程记录时将 queued/running 标为中断失败，保留最后阶段，避免重启后永久显示生成中。任务表不参与客户端状态合并，过时客户端不能清空进度；移入回收站保留，彻底删除时随同书籍媒体目录清理，晚到的进度写入再次核验书籍存在性。
 

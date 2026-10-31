@@ -47,6 +47,7 @@ export function ChapterVideoPlaylist({
               <span className="block truncate text-[13px]">{video.chapterTitle}</span>
               <span className="mt-1 block truncate text-[11px] [color:var(--semi-color-text-2)]">
                 {video.scenes.length} 段讲解 · {video.hasAudio ? '中文配音' : '字幕讲解'}
+                {video.cosUrl ? ' · COS 云端' : ''}
               </span>
             </span>
             {selectedId === video.id && <IconPlay aria-hidden />}

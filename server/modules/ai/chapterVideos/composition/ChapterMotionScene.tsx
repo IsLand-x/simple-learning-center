@@ -15,6 +15,13 @@ export type MotionSceneProps = {
   count: number;
 };
 
+const LAYOUT_LABELS: Record<ChapterVideoScene['layout'], string> = {
+  concept: '核心机制',
+  steps: '推导链条',
+  compare: '维度对比',
+  summary: '要点归纳',
+};
+
 export function ChapterMotionScene({
   scene,
   bookTitle,
@@ -30,6 +37,7 @@ export function ChapterMotionScene({
       (item) => (frame / fps) * 1000 >= item.startMs && (frame / fps) * 1000 < item.endMs,
     ) ?? captions.at(-1)
   )?.text;
+  const layoutLabel = LAYOUT_LABELS[scene.layout] ?? '课程讲解';
   return (
     <AbsoluteFill
       style={{
@@ -42,28 +50,46 @@ export function ChapterMotionScene({
       <div
         style={{
           position: 'absolute',
-          top: 30,
+          top: 24,
           left: 68,
           right: 68,
+          paddingBottom: 12,
+          borderBottom: `1px solid ${c.line}`,
           display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
           gap: 24,
-          fontSize: 19,
+          fontSize: 18,
           color: c.muted,
         }}
       >
-        <span
-          style={{
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {bookTitle} · {chapterTitle}
-        </span>
-        <span style={{ flexShrink: 0 }}>
-          第 {index + 1} / {count} 节
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <span
+            style={{
+              flexShrink: 0,
+              padding: '2px 10px',
+              borderRadius: 4,
+              background: c.highlight,
+              color: c.trade,
+              fontSize: 16,
+              fontWeight: 700,
+            }}
+          >
+            {layoutLabel}
+          </span>
+          <span
+            style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {bookTitle} · {chapterTitle}
+          </span>
+        </div>
+        <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+          单元 {index + 1} / {count}
         </span>
       </div>
       <div
@@ -77,12 +103,12 @@ export function ChapterMotionScene({
         <div
           style={{
             position: 'absolute',
-            top: 78,
+            top: 76,
             left: 68,
             right: 68,
-            fontSize: scene.title.length > 23 ? 46 : 54,
+            fontSize: scene.title.length > 23 ? 44 : 52,
             fontWeight: 700,
-            lineHeight: 1.12,
+            lineHeight: 1.14,
             letterSpacing: -0.5,
           }}
         >
@@ -115,9 +141,9 @@ export function ChapterMotionScene({
           position: 'absolute',
           left: 68,
           right: 68,
-          bottom: 25,
+          bottom: 22,
           textAlign: 'center',
-          fontSize: 34,
+          fontSize: 32,
           lineHeight: 1.35,
           fontWeight: 500,
           color: c.ink,
@@ -130,11 +156,19 @@ export function ChapterMotionScene({
           position: 'absolute',
           bottom: 0,
           left: 0,
-          height: 3,
-          width: `${(100 * frame) / durationInFrames}%`,
-          background: c.trade,
+          right: 0,
+          height: 4,
+          background: c.line,
         }}
-      />
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${(100 * frame) / durationInFrames}%`,
+            background: c.trade,
+          }}
+        />
+      </div>
     </AbsoluteFill>
   );
 }

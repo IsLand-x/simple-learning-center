@@ -51,3 +51,35 @@ export function chapterVideoParts(
       return position(left) - position(right) || left.id.localeCompare(right.id);
     });
 }
+
+export function describeChapterVideoScope(
+  toc: TocItem[],
+  chapters: Array<TocItem & { path: string[] }>,
+  chapterId: string | undefined,
+) {
+  if (chapterId === undefined) {
+    const topChapters = toc.length > 0 ? toc : chapters.filter((item) => item.path.length === 1);
+    return {
+      scopeTitle: '全书导读',
+      scopeSummary:
+        topChapters.length > 0
+          ? `覆盖全书 ${topChapters.length} 个大章，提炼全书核心问题、主干脉络与章节关联，生成 1 集全书导读视频（排在选集 P1）。`
+          : '覆盖全书正文，提炼核心问题与主干脉络，生成 1 集全书导读视频（排在选集 P1）。',
+      includedChapters: topChapters.map((item) => item.label),
+    };
+  }
+  const target = chapters.find((item) => item.id === chapterId);
+  const subchapters = chapters.filter(
+    (item) => item.id !== chapterId && item.path[0] === (target?.path[0] ?? chapterId),
+  );
+  const label = target?.label ?? '当前章节';
+  return {
+    scopeTitle: label,
+    scopeSummary:
+      subchapters.length > 0
+        ? `包含《${label}》及其下属 ${subchapters.length} 个小节，按“问题引入 → 核心机制 → 逐步推导与算例 → 常见误区 → 要点归纳”合并生成 1 集完整课程视频。`
+        : `包含《${label}》完整章节正文，按“问题引入 → 核心机制 → 逐步推导与算例 → 常见误区 → 要点归纳”生成 1 集完整课程视频。`,
+    includedChapters:
+      subchapters.length > 0 ? [label, ...subchapters.map((item) => item.label)] : [label],
+  };
+}

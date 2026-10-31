@@ -192,4 +192,6 @@ export interface ChapterVideo {
   hasAudio: boolean;
   model: string;
   generatedAt: number;
+  cosUrl?: string;
+  posterCosUrl?: string;
 }
