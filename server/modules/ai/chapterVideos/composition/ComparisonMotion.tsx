@@ -39,7 +39,7 @@ export function ComparisonMotion({ scene }: { scene: ChapterVideoScene }) {
       {table.rows.map((row, index) => {
         const top = 76 + index * rowHeight;
         return (
-          <g key={row.label}>
+          <g key={row.label} opacity={timing.pointProgress(index)}>
             {timing.point === index && (
               <rect x="64" y={top} width="1152" height={rowHeight} fill={c.highlight} />
             )}

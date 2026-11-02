@@ -61,7 +61,15 @@ export async function renderChapterVideo(
         cursor += duration;
         if (cursor > 1800) throw new Error('视频超过 30 分钟单次上限，请选择较小章节');
         await motion.render(
-          { scene, bookTitle, chapterTitle: video.chapterTitle, index, count: next.scenes.length },
+          {
+            scene,
+            bookTitle,
+            chapterTitle: video.chapterTitle,
+            centralQuestion: video.centralQuestion,
+            previousTitle: next.scenes[index - 1]?.title,
+            index,
+            count: next.scenes.length,
+          },
           duration,
           join(temporary, `motion-${index}.mp4`),
           index === 0 ? join(temporary, 'poster.png') : undefined,

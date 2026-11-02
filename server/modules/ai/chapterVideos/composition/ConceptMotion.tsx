@@ -7,7 +7,17 @@ export function ConceptMotion({ scene }: { scene: ChapterVideoScene }) {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const timing = sceneTiming(scene, frame / fps, durationInFrames / fps);
-  const rowHeight = 368 / scene.points.length;
+  const connected = Boolean(scene.visual?.connections?.length);
+  const nodeWidth = connected ? (1128 - (scene.points.length - 1) * 40) / scene.points.length : 540;
+  const nodeHeight = connected ? 310 : scene.points.length > 2 ? 192 : 264;
+  const positions = scene.points.map((_, index) => ({
+    x: connected
+      ? 76 + index * (nodeWidth + 40)
+      : scene.points.length === 3 && index === 2
+        ? 370
+        : 76 + (index % 2) * 588,
+    y: connected ? 48 : scene.points.length > 2 ? 18 + Math.floor(index / 2) * 204 : 72,
+  }));
   return (
     <svg
       width="1280"
@@ -28,29 +38,35 @@ export function ConceptMotion({ scene }: { scene: ChapterVideoScene }) {
         </marker>
       </defs>
       {(scene.visual?.connections ?? []).map((edge, index) => {
-        const start = 28 + (edge.from + 0.5) * rowHeight;
-        const end = 28 + (edge.to + 0.5) * rowHeight;
+        const from = positions[edge.from];
+        const to = positions[edge.to];
+        const adjacent = edge.to === edge.from + 1;
+        const centerY = from.y + nodeHeight / 2;
+        const startX = adjacent ? from.x + nodeWidth : from.x + nodeWidth / 2;
+        const endX = adjacent ? to.x - 5 : to.x + nodeWidth / 2;
+        const lane = 18 + index * 5;
+        const path = adjacent
+          ? `M${startX} ${centerY}H${endX}`
+          : `M${startX} ${from.y}V${lane}H${endX}V${to.y - 5}`;
         return (
           <g
             key={index}
-            opacity={timing.point === edge.from || timing.point === edge.to ? 1 : 0.45}
+            opacity={Math.min(timing.pointProgress(edge.from), timing.pointProgress(edge.to))}
           >
-            <line
-              x1="106"
-              x2="106"
-              y1={start + 10}
-              y2={end - 12}
+            <path
+              d={path}
+              fill="none"
               stroke={c.trade}
               strokeWidth="2.5"
               markerEnd="url(#relation-arrow)"
             />
-            <foreignObject x="8" y={(start + end) / 2 - 35} width="84" height="74">
+            <foreignObject x={(startX + endX) / 2 - 100} y={365} width="200" height="52">
               <div
                 style={{
                   color: c.trade,
                   fontSize: 18,
                   lineHeight: 1.2,
-                  textAlign: 'right',
+                  textAlign: 'center',
                   overflowWrap: 'anywhere',
                 }}
               >
@@ -62,61 +78,58 @@ export function ConceptMotion({ scene }: { scene: ChapterVideoScene }) {
       })}
       {scene.points.map((point, index) => {
         const active = index === timing.point;
-        const passed = index < timing.point;
-        const top = 28 + index * rowHeight;
-        const stepNumber = String(index + 1).padStart(2, '0');
+        const { x, y } = positions[index];
+        const compact = connected && scene.points.length >= 3;
+        const titleHeight = connected ? 104 : scene.points.length > 2 ? 64 : 80;
         return (
-          <g key={index} opacity={active ? 1 : passed ? 0.88 : 0.58}>
+          <g key={index} opacity={timing.pointProgress(index)}>
             <rect
-              x="124"
-              y={top}
-              width="1090"
-              height={rowHeight - 8}
+              x={x}
+              y={y}
+              width={nodeWidth}
+              height={nodeHeight}
               rx="6"
               fill={active ? c.highlight : c.light}
               stroke={active ? c.trade : c.line}
               strokeWidth={active ? 2 : 1}
             />
             <rect
-              x="124"
-              y={top}
-              width="6"
-              height={rowHeight - 8}
-              rx="3"
-              fill={active ? c.trade : passed ? c.demand : c.line}
+              x={x + 18}
+              y={y + 18}
+              width="28"
+              height="4"
+              rx="2"
+              fill={active ? c.trade : c.demand}
             />
-            <foreignObject x="146" y={top + 10} width="46" height={rowHeight - 20}>
-              <div
-                style={{
-                  color: active ? c.trade : c.muted,
-                  fontSize: 20,
-                  fontWeight: 700,
-                  fontFamily: 'monospace',
-                  lineHeight: 1.4,
-                }}
-              >
-                {stepNumber}
-              </div>
-            </foreignObject>
-            <foreignObject x="196" y={top + 9} width="280" height={rowHeight - 18}>
+            <foreignObject x={x + 18} y={y + 32} width={nodeWidth - 36} height={titleHeight}>
               <div
                 style={{
                   color: c.ink,
-                  fontSize: point.title.length > 20 ? 24 : 28,
+                  fontSize: compact || scene.points.length > 2 ? 26 : 30,
                   fontWeight: 700,
-                  lineHeight: 1.3,
+                  lineHeight: 1.2,
                   overflowWrap: 'anywhere',
                 }}
               >
                 {point.title}
               </div>
             </foreignObject>
-            <foreignObject x="492" y={top + 9} width="706" height={rowHeight - 18}>
+            <foreignObject
+              x={x + 18}
+              y={y + 32 + titleHeight}
+              width={nodeWidth - 36}
+              height={nodeHeight - titleHeight - 44}
+            >
               <div
                 style={{
                   color: active ? c.ink : c.muted,
-                  fontSize: point.detail.length > 52 ? 22 : 26,
-                  lineHeight: 1.35,
+                  fontSize:
+                    connected && scene.points.length === 4
+                      ? 20
+                      : compact || scene.points.length > 2
+                        ? 22
+                        : 26,
+                  lineHeight: 1.25,
                   overflowWrap: 'anywhere',
                 }}
               >

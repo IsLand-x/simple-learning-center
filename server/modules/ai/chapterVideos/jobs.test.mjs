@@ -168,12 +168,21 @@ test(
       const completedChapter = (await videos()).find((video) => video.chapterId === 'one');
       assert.ok(completedChapter.coverage.length > 0);
       assert.ok(completedChapter.coverage.every((topic) => topic.sceneIndexes.length > 0));
+      assert.equal(completedChapter.centralQuestion, '怎样才能确认自己真正理解了作者的观点？');
+      const phases = received.slice(before).map((context) => context.videoPhase);
+      assert.ok(phases.indexOf('narrative') < phases.indexOf('script'));
+      assert.equal(phases.filter((phase) => phase === 'review').length, 2);
       assert.equal(received[before].messages[0].content.includes(other), false);
       assert.ok(received[before].messages[0].content.includes(quote), '大章包含下属小节的原文');
       const stale = await (await app.request('/api/state/reading')).json();
       stale.state.chapterVideos = [];
       await request('/api/state/reading', 'PUT', stale);
       assert.equal((await videos()).length, 2);
+      assert.equal(
+        (await videos()).find((video) => video.id === completedChapter.id).centralQuestion,
+        completedChapter.centralQuestion,
+        '旧客户端同步不能清除已保存的章节主线',
+      );
       invalid = true;
       const failed = await (await request('/api/ai/jobs', 'POST', input())).json();
       await wait(failed.id, 'failed');

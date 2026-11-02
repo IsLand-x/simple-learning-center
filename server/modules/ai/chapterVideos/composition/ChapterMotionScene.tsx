@@ -11,6 +11,8 @@ export type MotionSceneProps = {
   scene: ChapterVideoScene;
   bookTitle: string;
   chapterTitle: string;
+  centralQuestion?: string;
+  previousTitle?: string;
   index: number;
   count: number;
 };
@@ -19,13 +21,15 @@ const LAYOUT_LABELS: Record<ChapterVideoScene['layout'], string> = {
   concept: '核心机制',
   steps: '推导链条',
   compare: '维度对比',
-  summary: '要点归纳',
+  summary: '回到整体',
 };
 
 export function ChapterMotionScene({
   scene,
   bookTitle,
   chapterTitle,
+  centralQuestion,
+  previousTitle,
   index,
   count,
 }: MotionSceneProps) {
@@ -85,7 +89,7 @@ export function ChapterMotionScene({
               whiteSpace: 'nowrap',
             }}
           >
-            {bookTitle} · {chapterTitle}
+            {centralQuestion ? `本章问题：${centralQuestion}` : `${bookTitle} · ${chapterTitle}`}
           </span>
         </div>
         <span style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
@@ -106,14 +110,34 @@ export function ChapterMotionScene({
             top: 76,
             left: 68,
             right: 68,
-            fontSize: scene.title.length > 23 ? 44 : 52,
+            fontSize: Math.min(52, Math.floor(1100 / Array.from(scene.title).length)),
             fontWeight: 700,
             lineHeight: 1.14,
             letterSpacing: -0.5,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
           }}
         >
           {scene.title}
         </div>
+        {centralQuestion && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 146,
+              left: 68,
+              right: 68,
+              color: c.muted,
+              fontSize: 20,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {previousTitle ? `承接：${previousTitle}` : '从具体问题出发，逐步建立解释'}
+          </div>
+        )}
         {scene.visual?.kind === 'trade' ? (
           <TradeMarket scene={scene} />
         ) : scene.visual?.kind === 'ledger' ? (

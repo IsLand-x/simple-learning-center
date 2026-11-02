@@ -16,6 +16,13 @@ export function sceneTiming(scene: ChapterVideoScene, seconds: number, duration:
     beats.findLastIndex((beat) => seconds >= beat.startSeconds),
   );
   const beat = beats[current];
+  const pointFor = (item: ChapterVideoBeat, index: number) =>
+    item.pointIndex ?? Math.min(index, scene.points.length - 1);
+  const pointProgress = (pointIndex: number) => {
+    const target = beats.find((item, index) => pointFor(item, index) === pointIndex);
+    if (!target) return 0;
+    return Math.max(0, Math.min(1, (seconds - target.startSeconds) / 0.18));
+  };
   const progress = (focus: ChapterVideoBeat['focus'], fallback: number) => {
     const target = beats.find((item) => item.focus === focus);
     if (measured && !target) return focus === 'price' || focus === 'quantities' ? 1 : 0;
@@ -33,6 +40,7 @@ export function sceneTiming(scene: ChapterVideoScene, seconds: number, duration:
     beat,
     index: current,
     progress,
-    point: beat?.pointIndex ?? Math.min(current, scene.points.length - 1),
+    pointProgress,
+    point: beat && seconds >= beat.startSeconds ? pointFor(beat, current) : -1,
   };
 }

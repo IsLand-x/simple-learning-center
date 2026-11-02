@@ -13,7 +13,7 @@ import type { WebSearchConfig } from '../../../../contracts/settings.js';
 
 export type ReasoningEffort = Exclude<AiReasoningEffort, 'auto'>;
 export type JobPurpose = 'chat' | 'glossary' | 'mindmap' | 'chapter-video';
-export type VideoGenerationPhase = 'evidence' | 'plan' | 'script' | 'review';
+export type VideoGenerationPhase = 'evidence' | 'plan' | 'narrative' | 'script' | 'review';
 type JobStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface AiResult {

@@ -186,6 +186,8 @@ export interface ChapterVideo {
   chapterTitle: string;
   title: string;
   summary: string;
+  /** Teaching question shared by every scene; absent in previously generated videos. */
+  centralQuestion?: string;
   coverage?: Array<{ title: string; sceneIndexes: number[] }>;
   scenes: ChapterVideoScene[];
   durationSeconds: number;
