@@ -116,6 +116,56 @@ it('另一台设备的较新进度不会被当前页回声覆盖，翻页后仍�
   vi.useRealTimers();
 });
 
+it('没有保存过的位置会记下打开后的 CFI 和页数', () => {
+  act(() =>
+    root.render(<Reader currentBook={{ ...book, currentCfi: undefined, totalPages: undefined }} />),
+  );
+  vi.useFakeTimers();
+  act(() =>
+    navigation.handleLocationChange({
+      cfi: 'epubcfi(/opened)',
+      href: 'chapter-1',
+      progress: 0,
+      page: 1,
+      totalPages: 12,
+      reason: 'navigation',
+    }),
+  );
+  act(() => vi.advanceTimersByTime(1_000));
+  expect(state.updateBook).toHaveBeenCalledWith(
+    book.id,
+    expect.objectContaining({ currentCfi: 'epubcfi(/opened)', totalPages: 12 }),
+  );
+  vi.useRealTimers();
+});
+
+it('已有位置时钟时，重排只改变 CFI 文本也不会写回', () => {
+  act(() =>
+    root.render(
+      <Reader
+        currentBook={{
+          ...book,
+          progress: 48,
+          currentCfi: 'epubcfi(/remote)',
+          locationUpdatedAt: 50,
+          totalPages: 20,
+        }}
+      />,
+    ),
+  );
+  act(() =>
+    navigation.handleLocationChange({
+      cfi: 'epubcfi(/resized)',
+      href: 'chapter-1',
+      progress: 48,
+      page: 4,
+      totalPages: 40,
+      reason: 'anchor',
+    }),
+  );
+  expect(state.updateBook).not.toHaveBeenCalled();
+});
+
 it('术语、高亮和评论跳转保留尚未落盘的精确位置，连续目录跳转不覆盖它', () => {
   act(() => navigation.handleLocationChange({ cfi: liveCfi, href: 'chapter-1', page: 3 }));
   // An unrelated metadata update must not replace the pending live location.
