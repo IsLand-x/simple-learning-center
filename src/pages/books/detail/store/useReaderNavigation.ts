@@ -78,8 +78,17 @@ export function useReaderNavigation(
         (location.href === pendingTarget ||
           location.cfi === pendingTarget ||
           next.currentCfi === pendingTarget);
-      const userDriven = isUserDrivenLocation(location.reason, matchesPending);
-      if (matchesPending) pendingTargetRef.current = null;
+      const layoutReason =
+        !location.reason || location.reason === 'anchor' || location.reason === 'navigation';
+      const jumpArrived =
+        pendingTarget !== null &&
+        (matchesPending ||
+          (layoutReason &&
+            (previousReport === null ||
+              previousReport.currentCfi !== next.currentCfi ||
+              previousReport.currentChapter !== next.currentChapter)));
+      const userDriven = isUserDrivenLocation(location.reason, jumpArrived);
+      if (jumpArrived) pendingTargetRef.current = null;
       const stored = locationFromBook(current);
       const placeChanged =
         userDriven &&

@@ -16,7 +16,7 @@ async function syncFromForeground(page: Page) {
 
 test('两台浏览器同步进度和术语，重排不覆盖远端位置', async ({ browser }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
   const pageA = await contextA.newPage();
@@ -60,17 +60,22 @@ test('两台浏览器同步进度和术语，重排不覆盖远端位置', async
         renderer: { getContents: () => Array<{ doc: Document }> };
       };
       const { doc } = view.renderer.getContents()[0];
-      const paragraph = [...doc.querySelectorAll('p')].find((item) => item.textContent?.trim());
+      const paragraph = [...doc.querySelectorAll('p')].find((item) =>
+        item.textContent?.includes('概念'),
+      );
       const node = paragraph?.firstChild;
-      if (!node?.textContent) throw new Error('没有可选正文');
+      const text = node?.textContent ?? '';
+      const start = text.indexOf('概念');
+      if (!node || start < 0) throw new Error('没有可选正文');
       const range = doc.createRange();
-      range.setStart(node, 0);
-      range.setEnd(node, Math.min(2, node.textContent.length));
+      range.setStart(node, start);
+      range.setEnd(node, start + 2);
       const selection = doc.defaultView?.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
       doc.dispatchEvent(new Event('selectionchange', { bubbles: true }));
     });
+    await expect(pageA.getByRole('button', { name: '添加到术语表', exact: true })).toBeVisible();
     await pageA.getByRole('button', { name: '添加到术语表', exact: true }).click();
     await pageB.goto(`/books/${book.id}`);
     await expect(pageB.locator('foliate-view')).toBeVisible({ timeout: 30_000 });

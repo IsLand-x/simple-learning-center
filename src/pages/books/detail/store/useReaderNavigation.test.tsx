@@ -116,6 +116,25 @@ it('另一台设备的较新进度不会被当前页回声覆盖，翻页后仍�
   vi.useRealTimers();
 });
 
+it('跳到术语后，阅读器回报的页面 CFI 与术语 CFI 不同也会保存', () => {
+  act(() => navigation.jumpToCfi('epubcfi(/term)'));
+  vi.useFakeTimers();
+  act(() =>
+    navigation.handleLocationChange({
+      cfi: 'epubcfi(/page)',
+      href: 'chapter-2',
+      progress: 40,
+      reason: 'navigation',
+    }),
+  );
+  act(() => vi.advanceTimersByTime(1_000));
+  expect(state.updateBook).toHaveBeenCalledWith(
+    book.id,
+    expect.objectContaining({ currentCfi: 'epubcfi(/page)', currentChapter: '第二章' }),
+  );
+  vi.useRealTimers();
+});
+
 it('没有保存过的位置会记下打开后的 CFI 和页数', () => {
   act(() =>
     root.render(<Reader currentBook={{ ...book, currentCfi: undefined, totalPages: undefined }} />),
