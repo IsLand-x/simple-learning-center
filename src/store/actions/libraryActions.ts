@@ -38,17 +38,26 @@ export function createLibraryActions(set: LearningStoreSet): LibraryActions {
       set((state) => ({
         books: state.books.map((book) => {
           if (book.id !== bookId) return book;
-          const locationChanged = (
-            ['progress', 'currentCfi', 'currentChapter', 'currentPage', 'totalPages'] as const
-          ).some((key) => Object.hasOwn(changes, key) && changes[key] !== book[key]);
-          const updatedAt = changes.updatedAt ?? Date.now();
+          const {
+            locationUpdatedAt: requestedClock,
+            updatedAt: requestedUpdatedAt,
+            ...rest
+          } = changes;
+          const placeChanged =
+            (Object.hasOwn(changes, 'progress') && changes.progress !== book.progress) ||
+            (Object.hasOwn(changes, 'currentChapter') &&
+              changes.currentChapter !== book.currentChapter);
+          const updatedAt = Object.hasOwn(changes, 'updatedAt') ? requestedUpdatedAt! : Date.now();
+          const locationUpdatedAt = Object.hasOwn(changes, 'locationUpdatedAt')
+            ? requestedClock
+            : placeChanged
+              ? updatedAt
+              : book.locationUpdatedAt;
           return {
             ...book,
-            ...changes,
+            ...rest,
             updatedAt,
-            ...(locationChanged
-              ? { locationUpdatedAt: changes.locationUpdatedAt ?? updatedAt }
-              : {}),
+            ...(locationUpdatedAt === undefined ? {} : { locationUpdatedAt }),
           };
         }),
       })),

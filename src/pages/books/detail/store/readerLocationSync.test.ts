@@ -30,7 +30,8 @@ describe('isUserDrivenLocation', () => {
     expect(isUserDrivenLocation('scroll', false)).toBe(true);
     expect(isUserDrivenLocation('navigation', true)).toBe(true);
     expect(isUserDrivenLocation('navigation', false)).toBe(false);
-    expect(isUserDrivenLocation('anchor', true)).toBe(false);
+    expect(isUserDrivenLocation('anchor', true)).toBe(true);
+    expect(isUserDrivenLocation('anchor', false)).toBe(false);
     expect(isUserDrivenLocation('selection', true)).toBe(false);
     expect(isUserDrivenLocation(undefined, false)).toBe(false);
   });
