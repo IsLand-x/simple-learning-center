@@ -117,7 +117,6 @@ test('对话元数据更新保留封面与 Markdown 引用，且不覆盖独立�
   });
   // An external Markdown edit must not be replaced by a hydrated empty value.
   await atomicWrite(join(directory, noteFile), '独立文件里的最新正文');
-  const originalNote = await stat(join(directory, noteFile), { bigint: true });
   const originalCover = await stat(join(directory, coverFile), { bigint: true });
   const first = mutatePersistedState(
     (snapshot) => {
@@ -145,7 +144,10 @@ test('对话元数据更新保留封面与 Markdown 引用，且不覆盖独立�
   );
   await second;
   const beforeReply = await stat(join(directory, noteFile), { bigint: true });
-  assert.notEqual(beforeReply.mtimeNs, originalNote.mtimeNs);
+  assert.equal(
+    await readFile(join(directory, noteFile), 'utf8'),
+    '独立文件里的最新正文\n用户与 AI 同时编辑后的内容',
+  );
   await mutatePersistedState(
     (snapshot) => {
       snapshot.state.chats.push({

@@ -5,6 +5,8 @@ import type { MindMapSource } from '../../../../../contracts/reading';
 import { findChapterLabel, isReaderKeyboardEditingTarget } from '../components/ReaderSurface/model';
 import type { ReaderLocationUpdate, ReaderSurfaceHandle } from '../components/ReaderSurface/type';
 import {
+  isSameDemoAnchor,
+  isSameReaderPlace,
   isUserDrivenLocation,
   locationFromBook,
   reportedReaderLocation,
@@ -29,7 +31,7 @@ export function useReaderNavigation(
   const { latestBookRef, queueLocationSave } = useDeferredBookLocation(book, updateBook);
   const openedBookRef = useRef(book);
   const lastReportedRef = useRef<ReportedReaderLocation | null>(null);
-  const userNavigationRef = useRef(false);
+  const pendingTargetRef = useRef<string | null>(null);
   const bookId = book?.id;
   useEffect(() => {
     if (openedBookRef.current?.id === bookId) return;
@@ -70,34 +72,76 @@ export function useReaderNavigation(
       setActiveHref(location.href);
       const next = reportedReaderLocation(current, { ...location, chapter });
       const previousReport = lastReportedRef.current;
-      const userDriven = isUserDrivenLocation(location.reason, userNavigationRef.current);
-      if (location.reason === 'navigation') userNavigationRef.current = false;
-      if (
-        !userDriven ||
-        !shouldPersistReportedLocation(
-          locationFromBook(opened),
-          locationFromBook(current),
-          previousReport,
-          next,
-        )
-      ) {
+      const pendingTarget = pendingTargetRef.current;
+      const matchesPending =
+        pendingTarget !== null &&
+        (location.href === pendingTarget ||
+          location.cfi === pendingTarget ||
+          next.currentCfi === pendingTarget);
+      const layoutReason =
+        !location.reason || location.reason === 'anchor' || location.reason === 'navigation';
+      const jumpArrived =
+        pendingTarget !== null &&
+        (matchesPending ||
+          (layoutReason &&
+            (previousReport === null ||
+              previousReport.currentCfi !== next.currentCfi ||
+              previousReport.currentChapter !== next.currentChapter)));
+      const userDriven = isUserDrivenLocation(location.reason, jumpArrived);
+      if (jumpArrived) pendingTargetRef.current = null;
+      const stored = locationFromBook(current);
+      const placeChanged =
+        userDriven &&
+        shouldPersistReportedLocation(locationFromBook(opened), stored, previousReport, next);
+      const layoutReport =
+        location.reason === 'anchor' ||
+        location.reason === 'navigation' ||
+        location.reason === 'page' ||
+        location.reason === 'snap' ||
+        location.reason === 'scroll';
+      const samePlace = isSameReaderPlace(stored, next);
+      const establish = layoutReport && !stored.currentCfi && Boolean(next.currentCfi);
+      const fillPages =
+        layoutReport &&
+        samePlace &&
+        stored.totalPages === undefined &&
+        next.totalPages !== undefined;
+      const demoCanonical =
+        layoutReport &&
+        stored.currentCfi !== next.currentCfi &&
+        isSameDemoAnchor(stored.currentCfi, next.currentCfi);
+      if (!placeChanged && !establish && !fillPages && !demoCanonical) {
         lastReportedRef.current = next;
         return;
       }
       lastReportedRef.current = next;
-      queueLocationSave(current, {
-        progress: next.progress,
-        currentCfi: next.currentCfi,
-        currentChapter: next.currentChapter,
-        currentPage: next.currentPage,
-        totalPages: next.totalPages,
-      });
+      const cosmetic = !placeChanged && !establish;
+      queueLocationSave(
+        current,
+        cosmetic
+          ? {
+              progress: stored.progress,
+              currentCfi: next.currentCfi ?? stored.currentCfi,
+              currentChapter: stored.currentChapter,
+              currentPage: fillPages ? next.currentPage : stored.currentPage,
+              totalPages: next.totalPages ?? stored.totalPages,
+              updatedAt: current.updatedAt,
+              locationUpdatedAt: current.locationUpdatedAt,
+            }
+          : {
+              progress: next.progress,
+              currentCfi: next.currentCfi,
+              currentChapter: next.currentChapter,
+              currentPage: next.currentPage,
+              totalPages: next.totalPages,
+            },
+      );
     },
     [latestBookRef, queueLocationSave],
   );
   const selectToc = (item: TocItem, closeOverlay = true) => {
     rememberProgress();
-    userNavigationRef.current = true;
+    pendingTargetRef.current = item.href;
     setActiveHref(item.href);
     readerRef.current?.display(item.href, item.label);
     if (closeOverlay) closeToc();
@@ -111,7 +155,7 @@ export function useReaderNavigation(
   };
   const jumpToCfi = (cfi: string) => {
     rememberProgress();
-    userNavigationRef.current = true;
+    pendingTargetRef.current = cfi;
     readerRef.current?.display(cfi);
   };
   const locateSource = async (source: MindMapSource) => {
@@ -120,18 +164,18 @@ export function useReaderNavigation(
     const cfi = lastReportedRef.current?.currentCfi ?? latestBookRef.current?.currentCfi;
     // A failed lookup must not create a return entry. Capture before awaiting,
     // since the successful navigation changes the current CFI.
-    userNavigationRef.current = true;
+    pendingTargetRef.current = source.cfi ?? null;
     try {
       await reader.locateSource(source);
     } catch (error) {
-      userNavigationRef.current = false;
+      pendingTargetRef.current = null;
       throw error;
     }
     if (latestBookRef.current?.id === bookId && cfi) setReturnCfi((original) => original ?? cfi);
   };
   const returnToProgress = returnCfi
     ? () => {
-        userNavigationRef.current = true;
+        pendingTargetRef.current = returnCfi;
         readerRef.current?.display(returnCfi);
         setReturnCfi(null);
         closeToc();

@@ -65,8 +65,28 @@ function samePlace(current: ReportedReaderLocation, next: ReportedReaderLocation
 // pendingUserNavigation so that one `navigation` sample is still saved.
 export function isUserDrivenLocation(reason: string | undefined, pendingUserNavigation: boolean) {
   if (reason === 'page' || reason === 'snap' || reason === 'scroll') return true;
-  if (reason === 'navigation' && pendingUserNavigation) return true;
+  if ((reason === 'navigation' || reason === 'anchor') && pendingUserNavigation) return true;
   return false;
+}
+
+export function isSameDemoAnchor(currentCfi: string | undefined, nextCfi: string | undefined) {
+  const parse = (cfi: string | undefined) => {
+    const match = cfi?.match(/^demo:(.+):scroll:(-?\d+(?:\.\d+)?)$/);
+    if (!match) return null;
+    return { href: match[1], ratio: Number(match[2]) };
+  };
+  const current = parse(currentCfi);
+  const next = parse(nextCfi);
+  return (
+    current !== null &&
+    next !== null &&
+    current.href === next.href &&
+    Math.abs(current.ratio - next.ratio) < 1e-6
+  );
+}
+
+export function isSameReaderPlace(current: ReportedReaderLocation, next: ReportedReaderLocation) {
+  return samePlace(current, next);
 }
 
 // Page and totalPages change when the renderer reflows. Only a new place is a

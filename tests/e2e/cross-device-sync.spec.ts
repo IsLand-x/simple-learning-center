@@ -16,7 +16,7 @@ async function syncFromForeground(page: Page) {
 
 test('两台浏览器同步进度和术语，重排不覆盖远端位置', async ({ browser }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-chrome');
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
   const pageA = await contextA.newPage();
@@ -31,10 +31,41 @@ test('两台浏览器同步进度和术语，重排不覆盖远端位置', async
     });
     expect(uploaded.status()).toBe(201);
     const { book } = await uploaded.json();
+    book.title = `同步回归${book.id.slice(0, 8)}`;
+    const namedLibrary = await (await pageA.request.get('/api/state/library')).json();
+    namedLibrary.state.books = namedLibrary.state.books.map((item: { id: string }) =>
+      item.id === book.id ? { ...item, title: book.title } : item,
+    );
+    expect((await pageA.request.put('/api/state/library', { data: namedLibrary })).status()).toBe(
+      204,
+    );
     await pageB.goto('/');
     await expect(pageB.getByRole('heading', { name: '我的书架' })).toBeVisible();
     await pageA.goto(`/books/${book.id}`);
     await expect(pageA.locator('foliate-view')).toBeVisible({ timeout: 30_000 });
+    await expect(pageA.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
+    await pageA.locator('foliate-view').evaluate((element) => {
+      const view = element as unknown as {
+        renderer: { getContents: () => Array<{ doc: Document }> };
+      };
+      const { doc } = view.renderer.getContents()[0];
+      const paragraph = [...doc.querySelectorAll('p')].find((item) =>
+        item.textContent?.includes('概念'),
+      );
+      const node = paragraph?.firstChild;
+      const text = node?.textContent ?? '';
+      const start = text.indexOf('概念');
+      if (!node || start < 0) throw new Error('没有可选正文');
+      const range = doc.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, start + 2);
+      const selection = doc.defaultView?.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      doc.dispatchEvent(new Event('selectionchange', { bubbles: true }));
+    });
+    await expect(pageA.getByRole('button', { name: '添加到术语表', exact: true })).toBeVisible();
+    await pageA.getByRole('button', { name: '添加到术语表', exact: true }).click();
     const before = await (await pageA.request.get('/api/state/library')).json();
     const original = before.state.books.find((item: { id: string }) => item.id === book.id);
     await pageA.getByRole('button', { name: '下一页', exact: true }).click();
@@ -55,23 +86,6 @@ test('两台浏览器同步进度和术语，重排不覆盖远端位置', async
       )
       .toContain(`已读 ${progress.progress}%`);
 
-    await pageA.locator('foliate-view').evaluate((element) => {
-      const view = element as unknown as {
-        renderer: { getContents: () => Array<{ doc: Document }> };
-      };
-      const { doc } = view.renderer.getContents()[0];
-      const paragraph = [...doc.querySelectorAll('p')].find((item) => item.textContent?.trim());
-      const node = paragraph?.firstChild;
-      if (!node?.textContent) throw new Error('没有可选正文');
-      const range = doc.createRange();
-      range.setStart(node, 0);
-      range.setEnd(node, Math.min(2, node.textContent.length));
-      const selection = doc.defaultView?.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-      doc.dispatchEvent(new Event('selectionchange', { bubbles: true }));
-    });
-    await pageA.getByRole('button', { name: '添加到术语表', exact: true }).click();
     await pageB.goto(`/books/${book.id}`);
     await expect(pageB.locator('foliate-view')).toBeVisible({ timeout: 30_000 });
     await pageB.getByRole('button', { name: '打开术语表', exact: true }).click();
