@@ -30,14 +30,11 @@ npm start
 npm run preview
 ```
 
-验证与部署流程精简约定：
+验证与部署：
 
-- 纯文档：`git diff --check`。
-- 本地开发与提交：支持运行 `npm run format` 快速一键自动格式化；按需运行 `npm run lint` 与相关单元测试（`npx vitest related --run <变动文件...>` / `npm test`）。本地无需重复运行耗时的全量容器 E2E 回归，交由 CI 流水线按变动自动执行。
-- 小范围迭代的本地验收以变更文件 lint、相关单元测试和必要的单次定向浏览器验证为主；全量工程检查统一由 CI 完成。没有新的源码变更或待定位失败时，不重复运行完整构建或已通过的回归矩阵。工作流、构建或容器变更按需完整验证一次，并检查对应构建目标。
-- CI 精简：CI 保持必要的核心代码验证（lint、格式校验、组件与边界检查、死代码检查、前后端测试与构建），裁剪冗余离线缓存/CDN 重复校验与多余镜像构建；浏览器/视觉回归由定时任务或按需触发。
-- 常规 CI 发布的生产前后端只构建一次：`verify` 中的服务端测试负责服务端编译，随后 `build:web` 完成前端检查与构建；发布任务通过本次提交的 artifact 打包 `verified-runtime`，不再在 Docker 内重复验证或重建。默认 Docker/Compose 源码构建仍须完整验证。生产依赖与字体层保持独立，避免应用小改触发重新安装和全量传输。PR、定时与手动完整浏览器回归使用同源资源；手动完整回归通过后需要发布 CDN 版本时，才额外生成对应前端产物。
-- 部署：合并或 push 到 `main` 后自动触发验证并发布生产；push 后通过 `gh run list` / `gh run view` 关注部署状态即可。
+- 纯文档只跑 `git diff --check`。
+- 代码改动在本地按需运行 `npm run format`、`npm run lint` 和相关测试。全量 `npm run verify` 由 CI 执行；浏览器回归由定时任务或手动触发。
+- 推送到 `main` 后，验证通过才用同一次构建产物发布生产。用 `gh run list` / `gh run view` 确认部署和健康检查，不要把 push 当成已经部署。
 
 ## 目录职责
 
@@ -66,7 +63,7 @@ npm run preview
 - 纯 model 不依赖 UI；共享 components 不依赖 page/layout；util 不依赖任何上层界面或 store；根 store 不依赖 pages/components/layout；contracts 不依赖前后端运行时实现。
 - `src/store/useLearningStore.ts` 保持唯一薄组合入口，page store 不重新建立并行 persist。
 - 只有 `server/app.ts` 可以装配 routes；测试可核对 HTTP 路由契约。业务服务不得导入 routes，通用基础设施不得导入业务模块。
-- 保留服务端单实例写队列；业务模块不得独立覆盖 state.json。
+- 保留服务端单实例写队列；业务模块不得绕过状态服务写 SQLite。
 - 边界检查使用 TypeScript AST 和模块解析，覆盖静态导入、重导出、动态导入及循环引用；不使用别名或动态表达式绕过。
 - 修改模块关系后必须通过 `npm run check:boundaries`，新增目录必须进入格式、lint、类型与死代码检查。
 
@@ -74,7 +71,9 @@ npm run preview
 
 - 默认数据目录是仓库根目录下的 `data/`，可通过 `LEARNING_CENTER_DATA_DIR` 指向其他路径。
 - EPUB 文件保存在 `data/books/`，书内搜索索引保存在 `data/search-indexes/`，Markdown 笔记正文保存在 `data/notes/`。
-- 元数据、阅读进度、高亮、评论、AI 对话、模型配置和笔记元数据持久化保存在 SQLite 数据库（`data/learning-center.db`）并与 `data/state.json` 保持双向灾备同步。
+- SQLite（`data/learning-center.db`，WAL）是学习状态的唯一运行时权威。`state.json` 只在数据库还没有用户数据时导入一次。用户数据包括版本、导入标记、任意业务表，以及主题等非保留键值。成功后保留文件，但不再读写。新安装不生成 `state.json`。损坏的 JSON 或损坏的库文件使启动失败并可重试，不能覆盖已经有效的数据库。
+- 在线备份和恢复使用 `server/db/sqliteBackup.ts` 的 SQLite backup API。备份包含已提交的 WAL。恢复必须删除目标库的 `-wal` 和 `-shm`。不要在运行中只复制主库文件。数据库备份不是完整应用备份。
+- Markdown 笔记、EPUB、封面、登录凭据、OAuth、TTS、OpenAPI Token、分享、COS 配置和章节视频 `jobs.json` 继续独立存放，不要为了统一存储搬进数据库。
 - `localStorage` 与 IndexedDB 的旧数据只用于服务端空目录首次启动时的自动迁移；迁移后不得继续作为日常持久化来源。
 - 修改持久化数据结构时必须同步检查 `LearningState`、默认值、所属 action、客户端与服务端 `STATE_DOMAIN_FIELDS`、store version、迁移、合并规则及对应测试，不能让已有本地数据静默丢失。
 - 每个持久化字段必须且只能归属一个状态分区。新增或调整顶层路由时，必须在 `src/layout/AppRoutes.tsx` 保持 lazy loading 与 `StateDomainGate`，同步更新客户端路径分区、客户端/服务端字段映射以及顶层路由 E2E。

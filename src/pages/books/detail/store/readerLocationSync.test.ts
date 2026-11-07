@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isUserDrivenLocation,
   locationFromBook,
   reportedReaderLocation,
   shouldPersistReportedLocation,
@@ -22,31 +23,63 @@ const opened: BookItem = {
   toc: [],
 };
 
+describe('isUserDrivenLocation', () => {
+  it('keeps a page turn and a requested directory jump, and ignores open or reflow', () => {
+    expect(isUserDrivenLocation('page', false)).toBe(true);
+    expect(isUserDrivenLocation('snap', false)).toBe(true);
+    expect(isUserDrivenLocation('scroll', false)).toBe(true);
+    expect(isUserDrivenLocation('navigation', true)).toBe(true);
+    expect(isUserDrivenLocation('navigation', false)).toBe(false);
+    expect(isUserDrivenLocation('anchor', true)).toBe(false);
+    expect(isUserDrivenLocation('selection', true)).toBe(false);
+    expect(isUserDrivenLocation(undefined, false)).toBe(false);
+  });
+});
+
 describe('shouldPersistReportedLocation', () => {
-  it('does not save the open page again after another device stored a newer location', () => {
-    const stored = { ...opened, progress: 48, currentCfi: 'epubcfi(/remote)', updatedAt: 30 };
-    const echo = reportedReaderLocation(opened, {
+  it('ignores reflow of the open page and a later page-count change', () => {
+    const stored = {
+      ...opened,
+      progress: 48,
+      currentCfi: 'epubcfi(/remote)',
+      currentChapter: '第三章',
+      updatedAt: 30,
+    };
+    const reflow = reportedReaderLocation(opened, {
       cfi: 'epubcfi(/normalized)',
-      progress: 0.051,
+      progress: opened.progress,
       chapter: opened.currentChapter,
-      page: 2,
+      page: 4,
+      totalPages: 20,
+    });
+    const again = reportedReaderLocation(opened, {
+      cfi: 'epubcfi(/resized)',
+      progress: opened.progress,
+      chapter: opened.currentChapter,
+      page: 5,
+      totalPages: 40,
     });
     expect(
       shouldPersistReportedLocation(
         locationFromBook(opened),
-        opened.updatedAt,
         locationFromBook(stored),
-        stored.updatedAt,
         null,
-        echo,
+        reflow,
+      ),
+    ).toBe(false);
+    expect(
+      shouldPersistReportedLocation(
+        locationFromBook(opened),
+        locationFromBook(stored),
+        reflow,
+        again,
       ),
     ).toBe(false);
   });
 
-  it('saves a later page turn from the same open reader', () => {
+  it('keeps the first real page turn even before another sample exists', () => {
     const stored = { ...opened, progress: 48, currentCfi: 'epubcfi(/remote)', updatedAt: 30 };
-    const first = reportedReaderLocation(opened, { cfi: opened.currentCfi, progress: 0.05 });
-    const turned = reportedReaderLocation(stored, {
+    const turned = reportedReaderLocation(opened, {
       cfi: 'epubcfi(/turned)',
       progress: 0.62,
       chapter: '第二章',
@@ -55,10 +88,8 @@ describe('shouldPersistReportedLocation', () => {
     expect(
       shouldPersistReportedLocation(
         locationFromBook(opened),
-        opened.updatedAt,
         locationFromBook(stored),
-        stored.updatedAt,
-        first,
+        null,
         turned,
       ),
     ).toBe(true);

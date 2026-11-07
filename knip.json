@@ -3,6 +3,7 @@
   "entry": [
     "scripts/start-e2e-server.mjs",
     "server/index.ts",
+    "server/db/sqliteBackup.ts",
     "server/dev.ts",
     "server/modules/ai/diagrams/worker.ts",
     "server/modules/ai/chapterVideos/composition/index.ts",

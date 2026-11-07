@@ -66,7 +66,9 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
       current_chapter TEXT NOT NULL DEFAULT '',
       current_page INTEGER,
       total_pages INTEGER,
+      location_updated_at INTEGER,
       toc TEXT NOT NULL DEFAULT '[]',
+      extensions TEXT,
       deleted_at INTEGER
     );
 
@@ -231,6 +233,16 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
       // Column already exists
     }
   }
+  for (const statement of [
+    'ALTER TABLE books ADD COLUMN location_updated_at INTEGER',
+    'ALTER TABLE books ADD COLUMN extensions TEXT',
+  ]) {
+    try {
+      sqlite.exec(statement);
+    } catch {
+      // Column already exists
+    }
+  }
 
   const db = drizzle(sqlite, { schema });
   dbInstance = db;
@@ -243,6 +255,20 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
   }
 
   return { db, sqlite };
+}
+
+export function closeDatabase() {
+  if (sqliteInstance) {
+    try {
+      sqliteInstance.close();
+    } catch {
+      // The caller is replacing or discarding this connection.
+    }
+  }
+  sqliteInstance = undefined;
+  dbInstance = undefined;
+  currentDbFile = undefined;
+  currentDbIno = undefined;
 }
 
 export function getDatabase() {

@@ -49,10 +49,13 @@ test('偏好保存不读取或重建无关封面和笔记，保留原有文件�
     }),
   });
   assert.equal(response.status, 204);
-  const saved = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8')).persistedState;
-  assert.equal(saved.state.themeMode, 'dark');
-  assert.deepEqual(saved.state.notes, [note, missingNote]);
-  assert.deepEqual(saved.state.books, [book]);
+  const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
+  const saved = readStateFromDb();
+  assert.equal(saved?.state.themeMode, 'dark');
+  assert.deepEqual(saved?.state.notes, [note, missingNote]);
+  assert.equal(saved?.state.books?.[0]?.id, book.id);
+  assert.equal(saved?.state.books?.[0]?.title, book.title);
+  assert.equal(saved?.state.books?.[0]?.coverDataUrl, book.coverDataUrl);
   assert.equal(
     await readFile(join(directory, note.contentFile), 'utf8'),
     '不能被偏好保存清空的笔记正文',
@@ -147,23 +150,25 @@ test('书架及进度分区保存不访问其他正文资源，也不会丢失�
       ).status,
       204,
     );
-    const saved = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8')).persistedState;
-    assert.equal(saved.state.notes[0].id, note.id);
-    assert.equal(saved.state.notes[0].contentFile, note.contentFile);
-    assert.equal(saved.state.notes[0].updatedAt, note.updatedAt);
-    assert.equal(Object.hasOwn(saved.state.notes[0], 'content'), false);
-    assert.deepEqual(saved.state.rssItems, untouched.rssItems);
-    assert.deepEqual(saved.state.extension, untouched.extension);
-    assert.deepEqual(saved.deletedConversationIds, ['removed-session']);
+    const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
+    const saved = readStateFromDb();
+    assert.equal(saved?.state.notes?.[0]?.id, note.id);
+    assert.equal(saved?.state.notes?.[0]?.contentFile, note.contentFile);
+    assert.equal(saved?.state.notes?.[0]?.updatedAt, note.updatedAt);
+    assert.equal(Object.hasOwn(saved?.state.notes?.[0] ?? {}, 'content'), false);
+    assert.deepEqual(saved?.state.rssItems, untouched.rssItems);
+    assert.deepEqual(saved?.state.extension, untouched.extension);
+    assert.deepEqual(saved?.deletedConversationIds, ['removed-session']);
     assert.equal(
       await readFile(join(directory, note.contentFile), 'utf8'),
       '用户直接编辑的 Markdown',
     );
   }
-  const saved = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8')).persistedState;
-  assert.equal(saved.state.books[0].title, '新书名');
-  assert.equal(saved.state.readingSessions[0].id, 'reading');
-  assert.equal(saved.state.highlights[0].id, 'highlight');
+  const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
+  const saved = readStateFromDb();
+  assert.equal(saved?.state.books?.[0]?.title, '新书名');
+  assert.equal(saved?.state.readingSessions?.[0]?.id, 'reading');
+  assert.equal(saved?.state.highlights?.[0]?.id, 'highlight');
 });
 
 test('书架读取不被未完成的后台写入阻塞，写入提交后立即读取新版本', async () => {

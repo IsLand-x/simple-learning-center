@@ -37,8 +37,8 @@ test('状态更新、图片收藏和书籍回收共用串行提交边界', async
   const trash = movePersistedBookToTrash('book', { now: () => 100 });
 
   try {
-    const diskState = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8'));
-    assert.equal(diskState.persistedState.state.books[0].title, '原书名');
+    const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
+    assert.equal(readStateFromDb()?.state.books?.[0]?.title, '原书名');
     await assert.rejects(readFile(join(imageDirectory, 'resources.json')), { code: 'ENOENT' });
   } finally {
     release.resolve();
@@ -163,10 +163,11 @@ test('对话元数据更新保留封面与 Markdown 引用，且不覆盖独立�
     (await stat(join(directory, noteFile), { bigint: true })).mtimeNs,
     beforeReply.mtimeNs,
   );
-  const stored = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8')).persistedState;
-  assert.equal(stored.state.notes[0].contentFile, noteFile);
-  assert.equal(Object.hasOwn(stored.state.notes[0], 'content'), false);
-  assert.equal(stored.state.chats.length, 2);
+  const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
+  const stored = readStateFromDb();
+  assert.equal(stored?.state.notes?.[0]?.contentFile, noteFile);
+  assert.equal(Object.hasOwn(stored?.state.notes?.[0] ?? {}, 'content'), false);
+  assert.equal(stored?.state.chats?.length, 2);
   assert.equal(
     (await readPersistedState()).state.notes[0].content,
     '独立文件里的最新正文\n用户与 AI 同时编辑后的内容',
@@ -190,16 +191,21 @@ test('并发分区读取相互隔离，并在提交后读取最新磁盘内容',
 
 test('已提交的 SQLite 进度不会被旧的 state.json 读回覆盖', async () => {
   const path = join(directory, 'state.json');
-  const original = await readFile(path, 'utf8');
   const first = await readPersistedState({ fields: ['books'] });
   first.state.books[0].title = '调用者自己的修改';
   assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '原书名');
-  const replacement = original.replace('原书名', '新书名');
-  assert.equal(Buffer.byteLength(replacement), Buffer.byteLength(original));
-  await atomicWrite(path, replacement);
+  await atomicWrite(
+    path,
+    JSON.stringify({
+      formatVersion: 1,
+      persistedState: {
+        version: 99,
+        state: { books: [{ id: 'book', title: '新书名', fileSize: 42, updatedAt: 9_999 }] },
+      },
+    }),
+  );
   assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '原书名');
   await atomicWrite(path, '{invalid JSON');
-  assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].progress ?? 0, 0);
   assert.equal((await readPersistedState()).state.books[0].title, '原书名');
   await rm(path);
   assert.equal((await readPersistedState()).state.books[0].title, '原书名');

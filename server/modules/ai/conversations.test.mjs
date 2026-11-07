@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
@@ -181,12 +181,7 @@ test('显式已读、模型修改和删除不会覆盖其他会话，旧快照�
     ).status,
     404,
   );
-  assert.equal((await stat(join(directory, 'state.json'))).mode & 0o777, 0o600);
-  assert.ok(
-    JSON.parse(
-      await readFile(join(directory, 'state.json'), 'utf8'),
-    ).persistedState.deletedConversationIds.includes('one'),
-  );
+  assert.ok(saved.deletedConversationIds?.includes('one'));
 });
 
 test('旧对话接口在同一文件版本内复用序列化快照，304 不再克隆消息列表', async () => {

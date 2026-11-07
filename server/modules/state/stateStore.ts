@@ -1,15 +1,17 @@
 import type { BigIntStats } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import type { NoteItem } from '../../../contracts/reading.js';
 import { measureServerTiming, recordServerTiming } from '../../infrastructure/http/timing.js';
 import { STATE_FILE } from '../../config.js';
-import { atomicWrite, exists } from '../../infrastructure/fs/files.js';
+import { exists } from '../../infrastructure/fs/files.js';
 import { errorHasCode, statusError } from '../../infrastructure/http/errors.js';
 import { protectBookListStateFromOlderClient } from './compatibility/olderClients.js';
 import { protectChatReadState } from './compatibility/chatReadState.js';
 import { protectBookTrashStateFromClient } from './compatibility/bookTrash.js';
 import { hydrateStateFromDisk, prepareStateForDisk } from './serialization.js';
 import type { PersistedState, StoredState } from './types.js';
+import { migrateFromStateJson } from '../../db/migrateFromStateJson.js';
 import {
   hasAuthoritativeDatabase,
   readStateFromDb,
@@ -17,7 +19,7 @@ import {
   writeStateToDb,
 } from '../../db/sqliteStateStorage.js';
 
-// Every state.json mutation shares this queue, including resource existence checks.
+// Every persisted-state mutation shares this queue, including resource existence checks.
 // Queue callbacks must not call readPersistedState or enqueue another mutation.
 let stateWriteQueue = Promise.resolve();
 type DiskState = {
@@ -95,6 +97,11 @@ function projectAuthoritativeState(state: PersistedState, fields?: readonly (key
   return { ...state, state: selected };
 }
 
+export function clearPersistedStateCache() {
+  authoritativeCache = undefined;
+  stateReadCache = undefined;
+}
+
 function rememberAuthoritativeState(state: PersistedState) {
   const revision = readStateRevision();
   if (revision === null) {
@@ -105,6 +112,14 @@ function rememberAuthoritativeState(state: PersistedState) {
 }
 
 async function readAuthoritativeState(fields?: readonly (keyof StoredState)[]) {
+  if (!hasAuthoritativeDatabase() && existsSync(STATE_FILE)) {
+    const migration = await migrateFromStateJson();
+    if ('blocking' in migration) {
+      throw migration.error instanceof Error
+        ? migration.error
+        : new Error('state.json 无法导入 SQLite');
+    }
+  }
   if (hasAuthoritativeDatabase()) {
     const revision = readStateRevision();
     if (
@@ -177,45 +192,14 @@ async function commitState(
   fields?: readonly (keyof StoredState)[],
   noteContents?: ReadonlyMap<string, string>,
 ) {
-  const envelope = {
-    formatVersion: 1 as const,
-    updatedAt: new Date().toISOString(),
-    persistedState: stateForDisk,
-  };
   const persisted = {
     version: stateForDisk.version,
     deletedConversationIds: stateForDisk.deletedConversationIds,
     state: stateForDisk.state as unknown as StoredState,
   };
-  // SQLite commits before the JSON mirror. A failed database write leaves the
-  // previous authoritative snapshot in place and fails the caller.
   writeStateToDb(persisted, fields, noteContents);
   rememberAuthoritativeState(persisted);
-  const serialized = await measureServerTiming(
-    'state_encode',
-    () => `${JSON.stringify(envelope, null, 2)}\n`,
-  );
-  try {
-    await measureServerTiming('state_write', () => atomicWrite(STATE_FILE, serialized));
-  } catch (error) {
-    // The committed database is already visible to other devices. Keep that
-    // write, but drop the file cache so a later read cannot prefer a partial file.
-    stateReadCache = undefined;
-    console.error('状态 JSON 镜像写入失败，SQLite 中的状态已提交:', error);
-    throw error;
-  }
-  if (cacheOwnedSnapshot) {
-    try {
-      stateReadCache = {
-        signature: fileSignature(await stat(STATE_FILE, { bigint: true })),
-        result: Promise.resolve(envelope),
-      };
-    } catch {
-      stateReadCache = undefined;
-    }
-  } else {
-    stateReadCache = undefined;
-  }
+  if (!cacheOwnedSnapshot) authoritativeCache = undefined;
 }
 
 export async function readPersistedState(options?: {
@@ -253,8 +237,12 @@ export async function stateFileEtag() {
   }
 }
 
+export function isPersistedStateInitialized() {
+  return hasAuthoritativeDatabase();
+}
+
 async function stateAlreadyInitialized() {
-  if (hasAuthoritativeDatabase()) return true;
+  if (isPersistedStateInitialized()) return true;
   return exists(STATE_FILE);
 }
 

@@ -101,11 +101,11 @@ async function fetchStateDomain(domain: StateDomain) {
   const snapshot = response.snapshot;
   loadedDomains.add(domain);
   if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) {
+    domainEtags.delete(domain);
     // A local save started while this response was in flight. Keep that local
-    // edit, but still merge the remote progress and terms; dropping the whole
-    // snapshot left the other device's commit invisible until the ETag changed
-    // again. The ETag stays unchanged so the next refresh re-reads the result
-    // of the local save.
+    // edit, and still merge remote notes, highlights, and the shelf. Drop the
+    // in-flight ETag so the next quiet refresh cannot answer 304 for a partial
+    // merge. Reading sessions and preferences wait for that quiet refresh.
     if (!preparedEnvelope) return;
     const local = preparedEnvelope;
     if (domain === 'notes') {

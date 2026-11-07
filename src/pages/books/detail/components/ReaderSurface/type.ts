@@ -13,6 +13,7 @@ export interface ReaderLocationUpdate {
   progress?: number;
   page?: number;
   totalPages?: number;
+  reason?: string;
 }
 
 export interface ReaderSurfaceHandle {

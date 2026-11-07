@@ -36,11 +36,21 @@ export function createLibraryActions(set: LearningStoreSet): LibraryActions {
       })),
     updateBook: (bookId, changes) =>
       set((state) => ({
-        books: state.books.map((book) =>
-          book.id === bookId
-            ? { ...book, ...changes, updatedAt: changes.updatedAt ?? Date.now() }
-            : book,
-        ),
+        books: state.books.map((book) => {
+          if (book.id !== bookId) return book;
+          const locationChanged = (
+            ['progress', 'currentCfi', 'currentChapter', 'currentPage', 'totalPages'] as const
+          ).some((key) => Object.hasOwn(changes, key) && changes[key] !== book[key]);
+          const updatedAt = changes.updatedAt ?? Date.now();
+          return {
+            ...book,
+            ...changes,
+            updatedAt,
+            ...(locationChanged
+              ? { locationUpdatedAt: changes.locationUpdatedAt ?? updatedAt }
+              : {}),
+          };
+        }),
       })),
     setBookPinned: (bookId, pinned, pinnedAt = Date.now()) =>
       set((state) => ({

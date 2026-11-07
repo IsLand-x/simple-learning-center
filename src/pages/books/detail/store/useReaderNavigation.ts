@@ -5,6 +5,7 @@ import type { MindMapSource } from '../../../../../contracts/reading';
 import { findChapterLabel, isReaderKeyboardEditingTarget } from '../components/ReaderSurface/model';
 import type { ReaderLocationUpdate, ReaderSurfaceHandle } from '../components/ReaderSurface/type';
 import {
+  isUserDrivenLocation,
   locationFromBook,
   reportedReaderLocation,
   shouldPersistReportedLocation,
@@ -28,6 +29,7 @@ export function useReaderNavigation(
   const { latestBookRef, queueLocationSave } = useDeferredBookLocation(book, updateBook);
   const openedBookRef = useRef(book);
   const lastReportedRef = useRef<ReportedReaderLocation | null>(null);
+  const userNavigationRef = useRef(false);
   const bookId = book?.id;
   useEffect(() => {
     if (openedBookRef.current?.id === bookId) return;
@@ -68,12 +70,13 @@ export function useReaderNavigation(
       setActiveHref(location.href);
       const next = reportedReaderLocation(current, { ...location, chapter });
       const previousReport = lastReportedRef.current;
+      const userDriven = isUserDrivenLocation(location.reason, userNavigationRef.current);
+      if (location.reason === 'navigation') userNavigationRef.current = false;
       if (
+        !userDriven ||
         !shouldPersistReportedLocation(
           locationFromBook(opened),
-          opened.updatedAt,
           locationFromBook(current),
-          current.updatedAt,
           previousReport,
           next,
         )
@@ -94,6 +97,7 @@ export function useReaderNavigation(
   );
   const selectToc = (item: TocItem, closeOverlay = true) => {
     rememberProgress();
+    userNavigationRef.current = true;
     setActiveHref(item.href);
     readerRef.current?.display(item.href, item.label);
     if (closeOverlay) closeToc();
@@ -107,6 +111,7 @@ export function useReaderNavigation(
   };
   const jumpToCfi = (cfi: string) => {
     rememberProgress();
+    userNavigationRef.current = true;
     readerRef.current?.display(cfi);
   };
   const locateSource = async (source: MindMapSource) => {
@@ -115,11 +120,18 @@ export function useReaderNavigation(
     const cfi = lastReportedRef.current?.currentCfi ?? latestBookRef.current?.currentCfi;
     // A failed lookup must not create a return entry. Capture before awaiting,
     // since the successful navigation changes the current CFI.
-    await reader.locateSource(source);
+    userNavigationRef.current = true;
+    try {
+      await reader.locateSource(source);
+    } catch (error) {
+      userNavigationRef.current = false;
+      throw error;
+    }
     if (latestBookRef.current?.id === bookId && cfi) setReturnCfi((original) => original ?? cfi);
   };
   const returnToProgress = returnCfi
     ? () => {
+        userNavigationRef.current = true;
         readerRef.current?.display(returnCfi);
         setReturnCfi(null);
         closeToc();

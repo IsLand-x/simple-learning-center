@@ -32,6 +32,7 @@ interface ReaderLocationUpdate {
   progress?: number;
   page?: number;
   totalPages?: number;
+  reason?: string;
 }
 
 export interface FoliateReaderLifecycleOptions {
@@ -165,6 +166,10 @@ export function useFoliateReaderLifecycle({
       });
     };
 
+    const relocateReasonRef = { current: undefined as string | undefined };
+    const rememberRelocateReason = (event: Event) => {
+      relocateReasonRef.current = (event as CustomEvent<{ reason?: string }>).detail?.reason;
+    };
     const handleRelocate = (event: Event) => {
       const view = viewRef.current;
       if (!view) return;
@@ -183,6 +188,7 @@ export function useFoliateReaderLifecycle({
         progress,
         page: detail.location ? detail.location.current + 1 : undefined,
         totalPages: detail.location?.total,
+        reason: relocateReasonRef.current,
       });
       if (sectionIndex !== undefined) void syncVisibleAnnotations(view, sectionIndex);
       window.requestAnimationFrame(() => mobileSelectionControllerRef.current?.refresh());
@@ -230,6 +236,7 @@ export function useFoliateReaderLifecycle({
       });
       await view.open(file);
       if (disposed || ownedView !== view || viewRef.current !== view) return;
+      view.renderer.addEventListener('relocate', rememberRelocateReason, true);
       prepareFoliateBookForBrowser(view);
       configureFoliateReader(view, preferencesRef.current, compactLayoutRef.current);
 
@@ -292,6 +299,7 @@ export function useFoliateReaderLifecycle({
       if (view) {
         touchPagingSelectionLockedRef.current = false;
         view.renderer?.setTouchPagingBlocked?.(false);
+        view.renderer?.removeEventListener('relocate', rememberRelocateReason, true);
         view.removeEventListener('load', handleLoad);
         view.removeEventListener('relocate', handleRelocate);
         view.removeEventListener('create-overlay', handleCreateOverlay);

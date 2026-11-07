@@ -120,8 +120,17 @@ test('两台设备的进度和术语以 SQLite 为准，旧快照不能回退', 
   );
 
   const statePath = join(directory, 'state.json');
-  const mirror = await readFile(statePath, 'utf8');
-  await atomicWrite(statePath, mirror.replace('epubcfi(/6/8)', 'epubcfi(/6/2)'));
+  await assert.rejects(readFile(statePath), { code: 'ENOENT' });
+  await atomicWrite(
+    statePath,
+    JSON.stringify({
+      formatVersion: 1,
+      persistedState: {
+        version: 99,
+        state: { books: [{ ...book, progress: 1, currentCfi: 'epubcfi(/6/2)', updatedAt: 1_000 }] },
+      },
+    }),
+  );
   await utimes(statePath, new Date(), new Date());
   assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].progress, 48);
 
@@ -134,7 +143,10 @@ test('两台设备的进度和术语以 SQLite 为准，旧快照不能回退', 
     .values({ key: '__stateRevision', value: '99' })
     .onConflictDoUpdate({ target: schema.keyValues.key, set: { value: '99' } })
     .run();
-  await atomicWrite(statePath, mirror);
+  await atomicWrite(
+    statePath,
+    '{"formatVersion":1,"persistedState":{"version":100,"state":{"books":[]}}}',
+  );
   assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].progress, 90);
   assert.notEqual((await app.request('/api/state/library')).headers.get('etag'), progressEtag);
 });

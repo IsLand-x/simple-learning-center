@@ -70,10 +70,31 @@ it('另一台设备的较新进度不会被当前页回声覆盖，翻页后仍�
   );
   act(() =>
     navigation.handleLocationChange({
-      cfi: 'epubcfi(/normalized-open-page)',
+      cfi: book.currentCfi,
       href: 'chapter-1',
-      progress: 0.05,
-      page: 1,
+      progress: 0,
+      page: 3,
+      totalPages: 20,
+    }),
+  );
+  act(() =>
+    navigation.handleLocationChange({
+      cfi: book.currentCfi,
+      href: 'chapter-1',
+      progress: 0,
+      page: 4,
+      totalPages: 40,
+    }),
+  );
+  expect(state.updateBook).not.toHaveBeenCalled();
+  act(() =>
+    navigation.handleLocationChange({
+      cfi: 'epubcfi(/resized)',
+      href: 'chapter-1',
+      progress: 12,
+      page: 2,
+      totalPages: 30,
+      reason: 'anchor',
     }),
   );
   expect(state.updateBook).not.toHaveBeenCalled();
@@ -84,6 +105,7 @@ it('另一台设备的较新进度不会被当前页回声覆盖，翻页后仍�
       href: 'chapter-2',
       progress: 62,
       page: 8,
+      reason: 'page',
     }),
   );
   act(() => vi.advanceTimersByTime(1_000));
