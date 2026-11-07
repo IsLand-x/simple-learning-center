@@ -21,7 +21,9 @@ export const books = sqliteTable('books', {
   currentChapter: text('current_chapter').notNull().default(''),
   currentPage: integer('current_page'),
   totalPages: integer('total_pages'),
+  locationUpdatedAt: integer('location_updated_at'),
   toc: text('toc', { mode: 'json' }).$type<TocItem[]>().notNull().default([]),
+  extensions: text('extensions', { mode: 'json' }).$type<Record<string, unknown>>(),
   deletedAt: integer('deleted_at'),
 });
 

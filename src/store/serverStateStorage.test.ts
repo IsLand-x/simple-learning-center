@@ -662,7 +662,7 @@ it('refresh keeps a remote term and newer progress when a local save races the r
       version: LEARNING_STORE_VERSION,
       state: {
         ...state,
-        books: [{ ...state.books[0], progress: 6, updatedAt: 6 }],
+        books: [{ ...state.books[0], progress: 6, updatedAt: 6, locationUpdatedAt: 6 }],
         highlights: [{ ...localTerm, definition: '本地尚未提交', updatedAt: 20 }],
       },
     }),
@@ -696,7 +696,15 @@ it('refresh keeps a remote term and newer progress when a local save races the r
     snapshot: {
       version: LEARNING_STORE_VERSION,
       state: {
-        books: [{ ...state.books[0], progress: 48, currentCfi: 'remote-cfi', updatedAt: 30 }],
+        books: [
+          {
+            ...state.books[0],
+            progress: 48,
+            currentCfi: 'remote-cfi',
+            updatedAt: 30,
+            locationUpdatedAt: 30,
+          },
+        ],
       },
     },
   });
@@ -705,6 +713,30 @@ it('refresh keeps a remote term and newer progress when a local save races the r
   expect(merged.books[0]).toMatchObject({ progress: 48, currentCfi: 'remote-cfi' });
   expect(merged.highlights.map((item: { id: string }) => item.id)).toEqual(['remote-term']);
   expect(merged.highlights[0].definition).toBe('手改释义');
+  mocks.readDomain.mockClear();
+  mocks.readDomain.mockResolvedValueOnce({
+    status: 200,
+    etag: 'library-next',
+    snapshot: {
+      version: LEARNING_STORE_VERSION,
+      state: {
+        books: [
+          {
+            ...state.books[0],
+            progress: 48,
+            currentCfi: 'remote-cfi',
+            updatedAt: 30,
+            locationUpdatedAt: 30,
+          },
+        ],
+      },
+    },
+  });
+  await storage.refreshServerState(['library']);
+  expect(mocks.readDomain.mock.calls[0]?.[1]).toBe('library-next');
+  mocks.readDomain.mockResolvedValueOnce({ status: 304, etag: 'library-next' });
+  await storage.refreshServerState(['library']);
+  expect(mocks.readDomain.mock.calls.at(-1)?.[1]).toBe('library-next');
 });
 
 it.each(['/', '/books/test', '/rss', '/videos'])(

@@ -209,7 +209,7 @@ export function useDemoReader({
     let currentRatio = savedRatio;
     let saveTimer: number | null = null;
 
-    const reportLocation = (ratio = currentRatio) => {
+    const reportLocation = (ratio = currentRatio, reason: 'scroll' | 'anchor' = 'anchor') => {
       if (!restored) return;
       const progress = Math.max(
         0,
@@ -225,6 +225,7 @@ export function useDemoReader({
           ? Math.max(1, Math.round((book.totalPages * progress) / 100))
           : undefined,
         totalPages: book.totalPages,
+        reason,
       });
     };
     const scheduleSave = () => {
@@ -232,15 +233,15 @@ export function useDemoReader({
       const maxScroll = Math.max(0, readerRoot.scrollHeight - readerRoot.clientHeight);
       currentRatio = maxScroll ? readerRoot.scrollTop / maxScroll : 0;
       if (saveTimer) window.clearTimeout(saveTimer);
-      saveTimer = window.setTimeout(() => reportLocation(currentRatio), 120);
+      saveTimer = window.setTimeout(() => reportLocation(currentRatio, 'scroll'), 120);
     };
     const flushWhenHidden = () => {
-      if (document.visibilityState === 'hidden') reportLocation(currentRatio);
+      if (document.visibilityState === 'hidden') reportLocation(currentRatio, 'scroll');
     };
 
     readerRoot.addEventListener('scroll', scheduleSave, { passive: true });
     document.addEventListener('visibilitychange', flushWhenHidden);
-    const handlePageHide = () => reportLocation(currentRatio);
+    const handlePageHide = () => reportLocation(currentRatio, 'scroll');
     window.addEventListener('pagehide', handlePageHide);
     const maxScroll = Math.max(0, readerRoot.scrollHeight - readerRoot.clientHeight);
     readerRoot.scrollTop = maxScroll * savedRatio;

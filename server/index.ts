@@ -8,7 +8,13 @@ import { initializeDataDirectories } from './infrastructure/fs/files.js';
 validateServerConfig();
 await initializeDataDirectories();
 import { migrateFromStateJson } from './db/migrateFromStateJson.js';
-await migrateFromStateJson();
+const stateMigration = await migrateFromStateJson();
+if ('blocking' in stateMigration) {
+  console.error(
+    'state.json 未能导入 SQLite，进程已停止。修复文件后重新启动即可重试，现有数据库不会被覆盖。',
+  );
+  process.exit(1);
+}
 const bookTrashScheduler = createBookTrashScheduler();
 const aiJobManager = createAiJobManager();
 

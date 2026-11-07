@@ -1,11 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
-import { sql } from 'drizzle-orm';
 import { DB_FILE, STATE_FILE } from '../config.js';
 import { initDatabase } from './index.js';
-import * as schema from './schema.js';
-import { writeStateToDb } from './sqliteStateStorage.js';
+import {
+  databaseHasUserData,
+  STATE_JSON_IMPORT_KEY,
+  writeStateToDb,
+} from './sqliteStateStorage.js';
 import type { NoteItem } from '../../contracts/reading.js';
 import type { StoredState } from '../modules/state/types.js';
 
@@ -22,10 +24,17 @@ interface StateJsonFormat {
   state?: Record<string, unknown>;
 }
 
-async function loadDiskNoteContents(
-  dataDirectory: string,
-  notes: unknown,
-): Promise<Map<string, string>> {
+export type StateJsonMigration =
+  | { migrated: true }
+  | { migrated: false; reason: 'state_file_not_found' | 'database_already_initialized' }
+  | {
+      migrated: false;
+      reason: 'invalid_json' | 'invalid_persisted_state' | 'transaction_failed';
+      blocking: true;
+      error?: unknown;
+    };
+
+async function loadDiskNoteContents(dataDirectory: string, notes: unknown) {
   const contents = new Map<string, string>();
   if (!Array.isArray(notes)) return contents;
   for (const item of notes as Array<NoteItem & { contentFile?: string }>) {
@@ -42,34 +51,41 @@ async function loadDiskNoteContents(
       try {
         contents.set(item.id, await readFile(targetPath, 'utf8'));
       } catch {
-        // Ignore missing note file during migration
+        // A missing note file is retained as an empty body and can be repaired later.
       }
     }
   }
   return contents;
 }
 
+function databaseAlreadyInitialized(dbFilePath: string) {
+  const { db } = initDatabase(dbFilePath);
+  return databaseHasUserData(db);
+}
+
 export async function migrateFromStateJson(
   stateFilePath: string = STATE_FILE,
   dbFilePath: string = DB_FILE,
-) {
-  if (!existsSync(stateFilePath)) {
-    return { migrated: false, reason: 'state_file_not_found' };
+): Promise<StateJsonMigration> {
+  if (!existsSync(stateFilePath)) return { migrated: false, reason: 'state_file_not_found' };
+  try {
+    if (databaseAlreadyInitialized(dbFilePath)) {
+      return { migrated: false, reason: 'database_already_initialized' };
+    }
+  } catch (error) {
+    return { migrated: false, reason: 'transaction_failed', blocking: true, error };
   }
 
-  const { db } = initDatabase(dbFilePath);
-
-  const content = await readFile(stateFilePath, 'utf8');
   let parsed: StateJsonFormat;
   try {
-    parsed = JSON.parse(content) as StateJsonFormat;
+    parsed = JSON.parse(await readFile(stateFilePath, 'utf8')) as StateJsonFormat;
   } catch (error) {
-    return { migrated: false, reason: 'invalid_json', error };
+    return { migrated: false, reason: 'invalid_json', blocking: true, error };
   }
 
   const persistedState = parsed.formatVersion === 1 ? parsed.persistedState : parsed;
   if (!persistedState || typeof persistedState !== 'object') {
-    return { migrated: false, reason: 'invalid_persisted_state' };
+    return { migrated: false, reason: 'invalid_persisted_state', blocking: true };
   }
 
   const state = (persistedState.state ?? {}) as StoredState;
@@ -79,43 +95,6 @@ export async function migrateFromStateJson(
   const deletedConversationIds = Array.isArray(persistedState.deletedConversationIds)
     ? persistedState.deletedConversationIds
     : undefined;
-
-  const hasVersion = db
-    .select()
-    .from(schema.keyValues)
-    .where(sql`${schema.keyValues.key} = 'version'`)
-    .get();
-  const storedFieldsRow = db
-    .select()
-    .from(schema.keyValues)
-    .where(sql`${schema.keyValues.key} = '__storedFields'`)
-    .get();
-
-  let storedFieldsSet: Set<string> | undefined;
-  if (storedFieldsRow?.value) {
-    try {
-      storedFieldsSet = new Set(JSON.parse(storedFieldsRow.value));
-    } catch {
-      storedFieldsSet = undefined;
-    }
-  }
-
-  const stateKeys = Object.keys(state).filter((k) => state[k] !== undefined);
-  const allFieldsTracked =
-    Boolean(storedFieldsSet) && stateKeys.every((k) => storedFieldsSet!.has(k));
-  const dbBookCount =
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(schema.books)
-      .get()?.count ?? 0;
-  const jsonBookCount = Array.isArray(state.books) ? state.books.length : 0;
-
-  // Skip only when the DB is already initialized AND has complete field tracking
-  // and book count parity with state.json. This automatically repairs any partial
-  // or legacy DB state on startup so remote data is guaranteed to be in SQLite.
-  if (hasVersion && allFieldsTracked && dbBookCount >= jsonBookCount) {
-    return { migrated: false, reason: 'database_already_has_data' };
-  }
 
   try {
     const noteContents = await loadDiskNoteContents(dirname(stateFilePath), state.notes);
@@ -127,10 +106,11 @@ export async function migrateFromStateJson(
       },
       undefined,
       noteContents,
+      { [STATE_JSON_IMPORT_KEY]: 'imported' },
     );
     return { migrated: true };
   } catch (error) {
-    console.error('Migration from state.json to SQLite failed:', error);
-    return { migrated: false, reason: 'transaction_failed', error };
+    console.error('从 state.json 导入 SQLite 失败，数据库未标记为已导入:', error);
+    return { migrated: false, reason: 'transaction_failed', blocking: true, error };
   }
 }

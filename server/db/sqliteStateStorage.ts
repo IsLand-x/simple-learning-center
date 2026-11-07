@@ -11,6 +11,37 @@ import type {
   AiReasoningEffort,
 } from '../../contracts/ai.js';
 
+const BOOK_COLUMNS = new Set([
+  'id',
+  'kind',
+  'title',
+  'author',
+  'fileName',
+  'fileSize',
+  'coverDataUrl',
+  'createdAt',
+  'updatedAt',
+  'pinnedAt',
+  'archivedAt',
+  'archiveUpdatedAt',
+  'progress',
+  'currentCfi',
+  'currentChapter',
+  'currentPage',
+  'totalPages',
+  'locationUpdatedAt',
+  'toc',
+  'deletedAt',
+]);
+
+function bookExtensions(book: object) {
+  const extra: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(book)) {
+    if (!BOOK_COLUMNS.has(key) && value !== undefined) extra[key] = value;
+  }
+  return Object.keys(extra).length > 0 ? extra : null;
+}
+
 const TABLE_BACKED_FIELDS: Record<string, true> = {
   books: true,
   bookLists: true,
@@ -34,7 +65,10 @@ const RESERVED_KV_KEYS: Record<string, true> = {
   deletedConversationIds: true,
   __storedFields: true,
   __stateRevision: true,
+  __stateJsonImport: true,
 };
+
+export const STATE_JSON_IMPORT_KEY = '__stateJsonImport';
 
 function readKeyValue(db: AppDatabase, key: string) {
   return db
@@ -44,10 +78,42 @@ function readKeyValue(db: AppDatabase, key: string) {
     .get();
 }
 
+const USER_TABLES = [
+  schema.books,
+  schema.bookLists,
+  schema.trashedBooks,
+  schema.deletedBookTombstones,
+  schema.highlights,
+  schema.deletedHighlightTombstones,
+  schema.notes,
+  schema.deletedNoteTombstones,
+  schema.readingSessions,
+  schema.chapterMindMaps,
+  schema.chapterVideos,
+  schema.chatSessions,
+  schema.chats,
+  schema.conversationDrafts,
+  schema.openAiConfigs,
+];
+
+export function databaseHasUserData(db: AppDatabase = getDatabase().db) {
+  if (readKeyValue(db, 'version') || readKeyValue(db, STATE_JSON_IMPORT_KEY)) return true;
+  for (const table of USER_TABLES) {
+    const row = db
+      .select({ count: sql<number>`count(*)` })
+      .from(table)
+      .get();
+    if ((row?.count ?? 0) > 0) return true;
+  }
+  return db
+    .select({ key: schema.keyValues.key })
+    .from(schema.keyValues)
+    .all()
+    .some((row) => !RESERVED_KV_KEYS[row.key]);
+}
+
 export function hasAuthoritativeDatabase() {
-  const { db } = getDatabase();
-  if (readKeyValue(db, 'version')) return true;
-  return Boolean(db.select({ id: schema.books.id }).from(schema.books).limit(1).get());
+  return databaseHasUserData();
 }
 
 export function readStateRevision() {
@@ -95,6 +161,7 @@ export function writeStateToDb(
   persisted: PersistedState,
   fields?: readonly (keyof StoredState)[],
   noteContents?: ReadonlyMap<string, string>,
+  meta?: Readonly<Record<string, string>>,
 ) {
   const { db, sqlite } = getDatabase();
   const state = persisted.state;
@@ -189,7 +256,9 @@ export function writeStateToDb(
           currentChapter: b.currentChapter ?? '',
           currentPage: b.currentPage,
           totalPages: b.totalPages,
+          locationUpdatedAt: b.locationUpdatedAt,
           toc: b.toc ?? [],
+          extensions: bookExtensions(b),
           deletedAt: b.deletedAt,
         }));
         db.insert(schema.books).values(normalizedBooks).run();
@@ -465,6 +534,12 @@ export function writeStateToDb(
         set: { value: String(nextRevision) },
       })
       .run();
+    for (const [key, value] of Object.entries(meta ?? {})) {
+      db.insert(schema.keyValues)
+        .values({ key, value })
+        .onConflictDoUpdate({ target: schema.keyValues.key, set: { value } })
+        .run();
+    }
   })();
 }
 
@@ -493,10 +568,7 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
     .where(sql`${schema.keyValues.key} = 'version'`)
     .get();
 
-  if (!versionRow) {
-    const hasAnyBook = db.select({ id: schema.books.id }).from(schema.books).limit(1).get();
-    if (!hasAnyBook) return null;
-  }
+  if (!databaseHasUserData(db)) return null;
 
   const version = versionRow ? Number(versionRow.value) : 42;
 
@@ -540,7 +612,11 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
         ? { currentPage: b.currentPage }
         : {}),
       ...(b.totalPages !== null && b.totalPages !== undefined ? { totalPages: b.totalPages } : {}),
+      ...(b.locationUpdatedAt !== null && b.locationUpdatedAt !== undefined
+        ? { locationUpdatedAt: b.locationUpdatedAt }
+        : {}),
       toc: b.toc ?? [],
+      ...(b.extensions && typeof b.extensions === 'object' ? b.extensions : {}),
       ...(b.deletedAt !== null && b.deletedAt !== undefined ? { deletedAt: b.deletedAt } : {}),
     }));
   }

@@ -23,6 +23,7 @@ export interface BookItem {
   currentChapter: string;
   currentPage?: number;
   totalPages?: number;
+  locationUpdatedAt?: number;
   toc: TocItem[];
 }
 

@@ -91,8 +91,8 @@ test('AI 阅读笔记支持创建、读取和带版本保护的编辑', async (t
   );
   const finalNotes = await readBookNotes('book-a');
   assert.equal(finalNotes[0].content, '# 修订稿\n\n第二版');
-  const diskState = JSON.parse(await readFile(join(dataDirectory, 'state.json'), 'utf8'));
-  const path = join(dataDirectory, diskState.persistedState.state.notes[0].contentFile);
+  const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
+  const path = join(dataDirectory, readStateFromDb()?.state.notes?.[0]?.contentFile ?? '');
   assert.equal(await readFile(path, 'utf8'), '# 修订稿\n\n第二版');
 
   const deletedSnapshot = await readPersistedState();

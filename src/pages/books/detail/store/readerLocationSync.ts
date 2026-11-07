@@ -50,20 +50,35 @@ export function locationFromBook(
 
 // The open reader reports its current page again after a remote snapshot arrives.
 // That echo must not become a newer local save, while a real page turn still does.
+function samePlace(current: ReportedReaderLocation, next: ReportedReaderLocation) {
+  // CFI strings change when the renderer normalizes or reflows the same page.
+  // A navigation is a new chapter or a progress change.
+  return (
+    Math.abs(current.progress - next.progress) < 0.1 &&
+    current.currentChapter === next.currentChapter
+  );
+}
+
+// Foliate reports `page`, `snap`, and `scroll` for a user page turn. Opening a
+// saved CFI and reflowing after resize, columns, or font use `anchor`,
+// `navigation`, or `selection`. A directory or reference jump sets
+// pendingUserNavigation so that one `navigation` sample is still saved.
+export function isUserDrivenLocation(reason: string | undefined, pendingUserNavigation: boolean) {
+  if (reason === 'page' || reason === 'snap' || reason === 'scroll') return true;
+  if (reason === 'navigation' && pendingUserNavigation) return true;
+  return false;
+}
+
+// Page and totalPages change when the renderer reflows. Only a new place is a
+// navigation. The first real page turn is kept; later reflow samples are not.
 export function shouldPersistReportedLocation(
   opened: ReportedReaderLocation,
-  openedUpdatedAt: number,
   stored: ReportedReaderLocation,
-  storedUpdatedAt: number,
   previousReport: ReportedReaderLocation | null,
   next: ReportedReaderLocation,
 ) {
   if (previousReport && sameReaderLocation(previousReport, next)) return false;
-  const remoteSupersededOpen =
-    storedUpdatedAt > openedUpdatedAt && !sameReaderLocation(stored, opened);
-  // The first sample after opening is the page already on screen, even when the
-  // renderer normalizes its CFI. Do not turn that sample into a newer save once
-  // another device has stored a later location.
-  if (!previousReport && (remoteSupersededOpen || sameReaderLocation(opened, next))) return false;
-  return !sameReaderLocation(stored, next);
+  const baseline = previousReport ?? opened;
+  if (samePlace(baseline, next)) return false;
+  return !samePlace(stored, next);
 }
