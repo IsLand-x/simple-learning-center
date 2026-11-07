@@ -1,6 +1,8 @@
 import type { LearningData, StateDomain } from '../../contracts/state';
 import { measureAsync } from '../util/browser/measureAsync';
+import { mergeLibraryBooks } from './persistence/libraryStateMerge';
 import { mergeReadingNotes } from './persistence/noteStateMerge';
+import { mergeReaderHighlights } from './persistence/readerStateMerge';
 import type { PersistedStateEnvelope, StateDomainSnapshot } from '../api/state/type';
 import type { StateStorage } from 'zustand/middleware';
 import type { NoteItem } from '../../contracts/reading';
@@ -99,10 +101,14 @@ async function fetchStateDomain(domain: StateDomain) {
   const snapshot = response.snapshot;
   loadedDomains.add(domain);
   if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) {
-    // A progress save during the request must not discard freshly created AI
-    // notes. Merge only the versioned note fields; retain other local changes.
-    if (domain === 'notes' && preparedEnvelope) {
-      const local = preparedEnvelope;
+    // A local save started while this response was in flight. Keep that local
+    // edit, but still merge the remote progress and terms; dropping the whole
+    // snapshot left the other device's commit invisible until the ETag changed
+    // again. The ETag stays unchanged so the next refresh re-reads the result
+    // of the local save.
+    if (!preparedEnvelope) return;
+    const local = preparedEnvelope;
+    if (domain === 'notes') {
       mergePreparedState({
         version: snapshot.version,
         state: mergeReadingNotes(
@@ -115,6 +121,29 @@ async function fetchStateDomain(domain: StateDomain) {
           },
           local.state ?? {},
         ),
+      });
+    } else if (domain === 'highlights') {
+      mergePreparedState({
+        version: snapshot.version,
+        state: mergeReaderHighlights(
+          {
+            highlights: 'highlights' in snapshot.state ? snapshot.state.highlights : undefined,
+            deletedHighlightTombstones:
+              'deletedHighlightTombstones' in snapshot.state
+                ? snapshot.state.deletedHighlightTombstones
+                : undefined,
+          },
+          {
+            highlights: local.state?.highlights,
+            deletedHighlightTombstones: local.state?.deletedHighlightTombstones,
+          },
+        ),
+      });
+    } else if (domain === 'library') {
+      const remoteBooks = 'books' in snapshot.state ? snapshot.state.books : undefined;
+      mergePreparedState({
+        version: snapshot.version,
+        state: { books: mergeLibraryBooks(remoteBooks, local.state?.books) },
       });
     }
     return;

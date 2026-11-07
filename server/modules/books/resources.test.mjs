@@ -8,6 +8,7 @@ const directory = await mkdtemp(join(tmpdir(), 'book-resources-test-'));
 process.env.LEARNING_CENTER_DATA_DIR = directory;
 const { createApp } = await import('../../app.js');
 const { atomicWrite, knowledgeMapDirectoryPath } = await import('../../infrastructure/fs/files.js');
+const { writeStateToDb } = await import('../../db/sqliteStateStorage.js');
 const { saveBookResource, renameBookResource, saveBookDiagram } = await import('./resources.js');
 const app = createApp({ mode: 'local', serveFrontend: false });
 const id = '11111111-1111-4111-8111-111111111111';
@@ -65,18 +66,14 @@ test('脚本图与可运行源码私有保存，下载受认证并随书籍彻�
 after(() => rm(directory, { recursive: true, force: true }));
 beforeEach(async () => {
   await rm(knowledgeMapDirectoryPath('book'), { recursive: true, force: true });
-  await atomicWrite(
-    join(directory, 'state.json'),
-    JSON.stringify({
-      version: 33,
-      state: {
-        books: [
-          { id: 'book', title: '示例', fileSize: 42 },
-          { id: 'other', title: '另一本书', fileSize: 42 },
-        ],
-      },
-    }),
-  );
+  const state = {
+    books: [
+      { id: 'book', title: '示例', fileSize: 42 },
+      { id: 'other', title: '另一本书', fileSize: 42 },
+    ],
+  };
+  writeStateToDb({ version: 33, state });
+  await atomicWrite(join(directory, 'state.json'), JSON.stringify({ version: 33, state }));
   await atomicWrite(image, Buffer.from('local-image-fixture'));
 });
 

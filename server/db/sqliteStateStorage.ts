@@ -33,7 +33,29 @@ const RESERVED_KV_KEYS: Record<string, true> = {
   version: true,
   deletedConversationIds: true,
   __storedFields: true,
+  __stateRevision: true,
 };
+
+function readKeyValue(db: AppDatabase, key: string) {
+  return db
+    .select()
+    .from(schema.keyValues)
+    .where(sql`${schema.keyValues.key} = ${key}`)
+    .get();
+}
+
+export function hasAuthoritativeDatabase() {
+  const { db } = getDatabase();
+  if (readKeyValue(db, 'version')) return true;
+  return Boolean(db.select({ id: schema.books.id }).from(schema.books).limit(1).get());
+}
+
+export function readStateRevision() {
+  if (!hasAuthoritativeDatabase()) return null;
+  const row = readKeyValue(getDatabase().db, '__stateRevision');
+  const revision = Number(row?.value);
+  return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
+}
 
 function inferExistingStoredFields(db: AppDatabase): Set<string> {
   const inferred = new Set<string>();
@@ -80,6 +102,10 @@ export function writeStateToDb(
   const updates = (f: keyof StoredState) => shouldUpdateAll || fields?.includes(f);
 
   sqlite.transaction(() => {
+    const revisionRow = readKeyValue(db, '__stateRevision');
+    const currentRevision = Number(revisionRow?.value);
+    const nextRevision =
+      Number.isSafeInteger(currentRevision) && currentRevision >= 0 ? currentRevision + 1 : 1;
     let existingStoredFields: Set<string> | undefined;
     if (!shouldUpdateAll) {
       const storedFieldsRow = db
@@ -432,6 +458,13 @@ export function writeStateToDb(
       );
     }
     saveKv('__storedFields', [...storedFieldsSet]);
+    db.insert(schema.keyValues)
+      .values({ key: '__stateRevision', value: String(nextRevision) })
+      .onConflictDoUpdate({
+        target: schema.keyValues.key,
+        set: { value: String(nextRevision) },
+      })
+      .run();
   })();
 }
 

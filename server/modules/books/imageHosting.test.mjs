@@ -11,6 +11,10 @@ const { publishBookImage, publishChapterVideo, removeHostedBookImages, removeHos
   await import('./imageHosting.js');
 const { atomicWrite, chapterVideoDirectoryPath, chapterVideoPath, knowledgeMapDirectoryPath } =
   await import('../../infrastructure/fs/files.js');
+const { writeStateToDb } = await import('../../db/sqliteStateStorage.js');
+function replaceState(state, version = 37) {
+  writeStateToDb({ version, state });
+}
 const id = '11111111-1111-4111-8111-111111111111';
 const imageUrl = `/api/books/book/knowledge-maps/${id}`;
 const png = Buffer.from('89504e470d0a1a0a00000000', 'hex');
@@ -38,10 +42,9 @@ after(() => rm(directory, { recursive: true, force: true }));
 beforeEach(async () => {
   requests.length = 0;
   await rm(knowledgeMapDirectoryPath('book'), { recursive: true, force: true });
-  await atomicWrite(
-    join(directory, 'state.json'),
-    JSON.stringify({ version: 37, state: { books: [{ id: 'book', fileSize: 42 }] } }),
-  );
+  const state = { books: [{ id: 'book', fileSize: 42 }] };
+  replaceState(state);
+  await atomicWrite(join(directory, 'state.json'), JSON.stringify({ version: 37, state }));
   await atomicWrite(join(knowledgeMapDirectoryPath('book'), `${id}.png`), png);
   await atomicWrite(configPath, JSON.stringify(config));
 });
@@ -122,11 +125,11 @@ test('上传后书籍被删除或用户取消时清理云端对象，不留下�
           const response = await deps.fetchImpl(url, options);
           if (options.method === 'PUT') {
             if (cancel) controller.abort();
-            else
-              await atomicWrite(
-                join(directory, 'state.json'),
-                JSON.stringify({ version: 37, state: { books: [] } }),
-              );
+            else replaceState({ books: [] });
+            await atomicWrite(
+              join(directory, 'state.json'),
+              JSON.stringify({ version: 37, state: { books: [] } }),
+            );
           }
           return response;
         },

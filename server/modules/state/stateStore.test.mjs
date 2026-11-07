@@ -79,25 +79,18 @@ test('失败操作不提交半成品，后续排队写入继续读取最后成�
 });
 
 test('读取偏好分区不会处理无关封面或笔记，完整读取仍保留正文和封面', async () => {
+  const { writeStateToDb } = await import('../../db/sqliteStateStorage.js');
   const cover = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64');
   const noteFile = 'notes/book/note.md';
   await atomicWrite(join(directory, noteFile), '原创笔记正文');
-  await atomicWrite(
-    join(directory, 'state.json'),
-    JSON.stringify({
-      formatVersion: 1,
-      persistedState: {
-        version: 37,
-        state: {
-          themeMode: 'dark',
-          books: [
-            { id: 'book', title: '测试书', coverDataUrl: `data:image/svg+xml;base64,${cover}` },
-          ],
-          notes: [{ id: 'note', bookId: 'book', title: '测试笔记', contentFile: noteFile }],
-        },
-      },
-    }),
-  );
+  writeStateToDb({
+    version: 37,
+    state: {
+      themeMode: 'dark',
+      books: [{ id: 'book', title: '测试书', coverDataUrl: `data:image/svg+xml;base64,${cover}` }],
+      notes: [{ id: 'note', bookId: 'book', title: '测试笔记', contentFile: noteFile }],
+    },
+  });
   const preferences = await readPersistedState({ fields: ['themeMode'] });
   assert.deepEqual(preferences, { version: 37, state: { themeMode: 'dark' } });
   await assert.rejects(readFile(join(directory, 'covers/book/cover.svg')), { code: 'ENOENT' });
@@ -195,7 +188,7 @@ test('并发分区读取相互隔离，并在提交后读取最新磁盘内容',
   assert.equal((await readPersistedState({ fields: ['themeMode'] })).state.themeMode, 'dark');
 });
 
-test('复用快照仍能发现同长度外部替换、文件删除和解析失败后的修复', async () => {
+test('已提交的 SQLite 进度不会被旧的 state.json 读回覆盖', async () => {
   const path = join(directory, 'state.json');
   const original = await readFile(path, 'utf8');
   const first = await readPersistedState({ fields: ['books'] });
@@ -204,13 +197,10 @@ test('复用快照仍能发现同长度外部替换、文件删除和解析失�
   const replacement = original.replace('原书名', '新书名');
   assert.equal(Buffer.byteLength(replacement), Buffer.byteLength(original));
   await atomicWrite(path, replacement);
-  assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '新书名');
-  await atomicWrite(path, '{invalid JSON');
-  await assert.rejects(readPersistedState(), SyntaxError);
-  await atomicWrite(path, original);
   assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '原书名');
+  await atomicWrite(path, '{invalid JSON');
+  assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].progress ?? 0, 0);
+  assert.equal((await readPersistedState()).state.books[0].title, '原书名');
   await rm(path);
-  assert.equal(await readPersistedState(), null);
-  await atomicWrite(path, replacement);
-  assert.equal((await readPersistedState({ fields: ['books'] })).state.books[0].title, '新书名');
+  assert.equal((await readPersistedState()).state.books[0].title, '原书名');
 });

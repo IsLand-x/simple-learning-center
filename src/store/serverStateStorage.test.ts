@@ -600,6 +600,113 @@ it('preserves conversation normalization during one-time migration and then disc
   expect(storage.areServerStateDomainsActive(['conversations'])).toBe(false);
 });
 
+it('refresh keeps a remote term and newer progress when a local save races the response', async () => {
+  vi.resetModules();
+  mocks.readDomain.mockReset();
+  mocks.writeDomain.mockReset();
+  mocks.writeDomain.mockResolvedValue(undefined);
+  window.history.replaceState(null, '', '/books/test');
+  const { initialLearningState } = await import('./defaults');
+  const storage = await import('./serverStateStorage');
+  const localTerm = {
+    id: 'local-term',
+    bookId: 'test',
+    kind: 'term' as const,
+    text: '本地术语',
+    cfi: 'local',
+    chapter: '章',
+    createdAt: 2,
+    updatedAt: 20,
+  };
+  const state = {
+    ...structuredClone(initialLearningState),
+    books: [
+      {
+        id: 'test',
+        kind: 'epub' as const,
+        title: '书',
+        author: '',
+        fileName: '',
+        fileSize: 1,
+        createdAt: 1,
+        updatedAt: 5,
+        progress: 5,
+        currentCfi: 'local-cfi',
+        currentChapter: '章',
+        toc: [],
+      },
+    ],
+    highlights: [localTerm],
+  };
+  mocks.readDomain.mockResolvedValue({
+    status: 200,
+    etag: 'initial',
+    snapshot: { version: LEARNING_STORE_VERSION, state },
+  });
+  await storage.prepareServerState();
+  let resolveLibrary: (response: StateDomainResponse) => void = () => {};
+  let resolveHighlights: (response: StateDomainResponse) => void = () => {};
+  mocks.readDomain.mockImplementation(
+    (domain: StateDomain) =>
+      new Promise<StateDomainResponse>((resolve) => {
+        if (domain === 'library') resolveLibrary = resolve;
+        else if (domain === 'highlights') resolveHighlights = resolve;
+        else resolve({ status: 204, etag: null });
+      }),
+  );
+  const refreshing = storage.refreshServerState(['library', 'highlights']);
+  await vi.waitFor(() => expect(resolveHighlights).toBeTypeOf('function'));
+  await storage.serverStateStorage.setItem(
+    'test',
+    JSON.stringify({
+      version: LEARNING_STORE_VERSION,
+      state: {
+        ...state,
+        books: [{ ...state.books[0], progress: 6, updatedAt: 6 }],
+        highlights: [{ ...localTerm, definition: '本地尚未提交', updatedAt: 20 }],
+      },
+    }),
+  );
+  resolveHighlights({
+    status: 200,
+    etag: 'highlights-next',
+    snapshot: {
+      version: LEARNING_STORE_VERSION,
+      state: {
+        highlights: [
+          {
+            id: 'remote-term',
+            bookId: 'test',
+            kind: 'term',
+            text: '远端术语',
+            definition: '手改释义',
+            cfi: 'remote',
+            chapter: '章',
+            createdAt: 3,
+            updatedAt: 30,
+          },
+        ],
+        deletedHighlightTombstones: [{ highlightId: 'local-term', bookId: 'test', deletedAt: 40 }],
+      },
+    },
+  });
+  resolveLibrary({
+    status: 200,
+    etag: 'library-next',
+    snapshot: {
+      version: LEARNING_STORE_VERSION,
+      state: {
+        books: [{ ...state.books[0], progress: 48, currentCfi: 'remote-cfi', updatedAt: 30 }],
+      },
+    },
+  });
+  await refreshing;
+  const merged = JSON.parse((await storage.serverStateStorage.getItem('test'))!).state;
+  expect(merged.books[0]).toMatchObject({ progress: 48, currentCfi: 'remote-cfi' });
+  expect(merged.highlights.map((item: { id: string }) => item.id)).toEqual(['remote-term']);
+  expect(merged.highlights[0].definition).toBe('手改释义');
+});
+
 it.each(['/', '/books/test', '/rss', '/videos'])(
   '打开 %s 或升级旧快照时不请求、不写入停用分区',
   async (pathname) => {

@@ -60,6 +60,40 @@ afterEach(() => {
   container.remove();
 });
 
+it('另一台设备的较新进度不会被当前页回声覆盖，翻页后仍会保存', () => {
+  act(() =>
+    root.render(
+      <Reader
+        currentBook={{ ...book, progress: 48, currentCfi: 'epubcfi(/remote)', updatedAt: 50 }}
+      />,
+    ),
+  );
+  act(() =>
+    navigation.handleLocationChange({
+      cfi: 'epubcfi(/normalized-open-page)',
+      href: 'chapter-1',
+      progress: 0.05,
+      page: 1,
+    }),
+  );
+  expect(state.updateBook).not.toHaveBeenCalled();
+  vi.useFakeTimers();
+  act(() =>
+    navigation.handleLocationChange({
+      cfi: liveCfi,
+      href: 'chapter-2',
+      progress: 62,
+      page: 8,
+    }),
+  );
+  act(() => vi.advanceTimersByTime(1_000));
+  expect(state.updateBook).toHaveBeenCalledWith(
+    book.id,
+    expect.objectContaining({ progress: 62, currentCfi: liveCfi, currentPage: 8 }),
+  );
+  vi.useRealTimers();
+});
+
 it('术语、高亮和评论跳转保留尚未落盘的精确位置，连续目录跳转不覆盖它', () => {
   act(() => navigation.handleLocationChange({ cfi: liveCfi, href: 'chapter-1', page: 3 }));
   // An unrelated metadata update must not replace the pending live location.

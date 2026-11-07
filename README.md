@@ -17,7 +17,7 @@
 
 每个生产 TSX 文件只定义一个组件，私有子组件也独立成文件。目录内的复杂 Hook 按实际职责拆分，组件自己的草稿与交互状态就近管理；`check:components` 和 `check:boundaries` 在验证时自动检查。
 
-详细规则见 [`docs/architecture.md`](docs/architecture.md)。前端输出到 `dist/`，后端 TypeScript 输出到 `server-dist/`；测试与容器运行编译后的 Node ESM。服务端使用 SQLite (Drizzle ORM，WAL 模式) 作为高性能持久化引擎，按分区与实体提供毫秒级读写，大幅降低大文件全量反序列化造成的卡顿，并与 `state.json` 保持双向灾备与兼容。
+详细规则见 [`docs/architecture.md`](docs/architecture.md)。前端输出到 `dist/`，后端 TypeScript 输出到 `server-dist/`；测试与容器运行编译后的 Node ESM。服务端使用 SQLite (Drizzle ORM，WAL 模式) 作为状态的运行时权威，按分区与实体提供毫秒级读写。`state.json` 在提交成功后镜像一份，已初始化的数据库不会再被这份 JSON 读回覆盖。
 
 书籍页面路由、Cookie、ETag、SSE、`data/` 目录和 persist key 保持兼容；旧版 `/api/state` 继续保留。笔记、高亮和阅读记录分别使用独立状态接口，当前 store version 为 42。不要直接编辑构建产物。
 
@@ -141,7 +141,7 @@ npm run verify:full  # 再在固定 Docker 环境执行真实浏览器与视觉�
 ```text
 data/
 ├── learning-center.db          # SQLite 数据库（WAL 模式，按表保存书籍、笔记、高亮、对话、设置等）
-├── state.json                  # 状态快照（与 SQLite 双向灾备与兼容同步）
+├── state.json                  # 状态镜像（SQLite 提交成功后写入；不覆盖已有数据库）
 ├── auth.json                   # 登录凭据哈希与会话签名密钥
 ├── ai-oauth.json               # ChatGPT / Kimi OAuth 授权凭据（0600）
 ├── tts.json                    # 阿里云百炼 TTS 语音凭据与偏好（0600）

@@ -10,7 +10,12 @@ import { protectChatReadState } from './compatibility/chatReadState.js';
 import { protectBookTrashStateFromClient } from './compatibility/bookTrash.js';
 import { hydrateStateFromDisk, prepareStateForDisk } from './serialization.js';
 import type { PersistedState, StoredState } from './types.js';
-import { readStateFromDb, writeStateToDb } from '../../db/sqliteStateStorage.js';
+import {
+  hasAuthoritativeDatabase,
+  readStateFromDb,
+  readStateRevision,
+  writeStateToDb,
+} from '../../db/sqliteStateStorage.js';
 
 // Every state.json mutation shares this queue, including resource existence checks.
 // Queue callbacks must not call readPersistedState or enqueue another mutation.
@@ -27,6 +32,7 @@ type DiskState = {
 type StateFile =
   PersistedState | { formatVersion: 1; updatedAt: string; persistedState: DiskState };
 let stateReadCache: { signature: string; result: Promise<StateFile | null> } | undefined;
+let authoritativeCache: { revision: number; state: PersistedState } | undefined;
 
 function fileSignature(metadata: BigIntStats) {
   return `${metadata.dev}:${metadata.ino}:${metadata.size}:${metadata.mtimeNs}:${metadata.ctimeNs}`;
@@ -66,18 +72,9 @@ async function readStateFile() {
   if (stateReadCache?.signature === signature) return stateReadCache.result;
   const entry = {
     signature,
-    result: readFile(STATE_FILE, 'utf8').then((content) => {
-      const parsed = JSON.parse(content) as StateFile;
-      const unwrapped = unwrapState(parsed);
-      if (unwrapped) {
-        try {
-          writeStateToDb(unwrapped);
-        } catch {
-          // Ignore DB write errors during fallback hydration
-        }
-      }
-      return parsed;
-    }),
+    // Parsing state.json must not write SQLite. A read that captured an older
+    // file can otherwise finish after a newer commit and roll the database back.
+    result: readFile(STATE_FILE, 'utf8').then((content) => JSON.parse(content) as StateFile),
   };
   stateReadCache = entry;
   try {
@@ -89,6 +86,45 @@ async function readStateFile() {
   }
 }
 
+function projectAuthoritativeState(state: PersistedState, fields?: readonly (keyof StoredState)[]) {
+  if (!fields) return state;
+  const selected: StoredState = {};
+  for (const field of fields) {
+    if (Object.hasOwn(state.state, field)) selected[field] = state.state[field];
+  }
+  return { ...state, state: selected };
+}
+
+function rememberAuthoritativeState(state: PersistedState) {
+  const revision = readStateRevision();
+  if (revision === null) {
+    authoritativeCache = undefined;
+    return;
+  }
+  authoritativeCache = { revision, state: structuredClone(state) };
+}
+
+async function readAuthoritativeState(fields?: readonly (keyof StoredState)[]) {
+  if (hasAuthoritativeDatabase()) {
+    const revision = readStateRevision();
+    if (
+      revision !== null &&
+      authoritativeCache?.revision === revision &&
+      authoritativeCache.state
+    ) {
+      return projectAuthoritativeState(authoritativeCache.state, fields);
+    }
+    const stored = readStateFromDb();
+    if (stored) {
+      rememberAuthoritativeState(stored);
+      return projectAuthoritativeState(stored, fields);
+    }
+  }
+  // A database that has never been committed still accepts the legacy JSON file.
+  // Once SQLite has a version or any book, that file is no longer consulted.
+  return unwrapState(await measureServerTiming('state_read', readStateFile));
+}
+
 async function readPersistedStateFromDisk(
   options: {
     hydrateNote?: (note: NoteItem) => boolean;
@@ -96,18 +132,7 @@ async function readPersistedStateFromDisk(
     hydrateCovers?: boolean;
   } = {},
 ) {
-  const diskFile = await measureServerTiming('state_read', readStateFile);
-  let diskState: PersistedState | null = null;
-  if (options.fields && diskFile) {
-    try {
-      diskState = readStateFromDb(options.fields);
-    } catch {
-      // Fallback
-    }
-  }
-  if (!diskState && diskFile) {
-    diskState = unwrapState(diskFile);
-  }
+  const diskState = await readAuthoritativeState(options.fields);
   return diskState
     ? measureServerTiming('state_hydrate', () =>
         hydrateStateFromDisk(diskState, options.hydrateNote, options.fields, options.hydrateCovers),
@@ -116,7 +141,7 @@ async function readPersistedStateFromDisk(
 }
 
 async function readResourceMetadata() {
-  return structuredClone(unwrapState(await readStateFile()));
+  return structuredClone(await readAuthoritativeState());
 }
 
 async function persistState(
@@ -157,23 +182,27 @@ async function commitState(
     updatedAt: new Date().toISOString(),
     persistedState: stateForDisk,
   };
+  const persisted = {
+    version: stateForDisk.version,
+    deletedConversationIds: stateForDisk.deletedConversationIds,
+    state: stateForDisk.state as unknown as StoredState,
+  };
+  // SQLite commits before the JSON mirror. A failed database write leaves the
+  // previous authoritative snapshot in place and fails the caller.
+  writeStateToDb(persisted, fields, noteContents);
+  rememberAuthoritativeState(persisted);
   const serialized = await measureServerTiming(
     'state_encode',
     () => `${JSON.stringify(envelope, null, 2)}\n`,
   );
-  await measureServerTiming('state_write', () => atomicWrite(STATE_FILE, serialized));
   try {
-    writeStateToDb(
-      {
-        version: stateForDisk.version,
-        deletedConversationIds: stateForDisk.deletedConversationIds,
-        state: stateForDisk.state as unknown as StoredState,
-      },
-      fields,
-      noteContents,
-    );
-  } catch (dbError) {
-    console.warn('SQLite 状态同步写入失败:', dbError);
+    await measureServerTiming('state_write', () => atomicWrite(STATE_FILE, serialized));
+  } catch (error) {
+    // The committed database is already visible to other devices. Keep that
+    // write, but drop the file cache so a later read cannot prefer a partial file.
+    stateReadCache = undefined;
+    console.error('状态 JSON 镜像写入失败，SQLite 中的状态已提交:', error);
+    throw error;
   }
   if (cacheOwnedSnapshot) {
     try {
@@ -208,11 +237,13 @@ export async function readStateProjection<T>(
 ): Promise<T> {
   if (options.waitForWrites !== false)
     await measureServerTiming('state_queue', () => stateWriteQueue.catch(() => undefined));
-  const envelope = unwrapState(await readStateFile());
+  const envelope = await readAuthoritativeState();
   return structuredClone(project(envelope?.state ?? {}, envelope?.version ?? 0));
 }
 
 export async function stateFileEtag() {
+  const revision = readStateRevision();
+  if (revision !== null) return `W/"db-${revision.toString(16)}"`;
   try {
     const metadata = await stat(STATE_FILE, { bigint: true });
     return `W/"${metadata.size.toString(16)}-${metadata.mtimeNs.toString(16)}"`;
@@ -220,6 +251,11 @@ export async function stateFileEtag() {
     if (errorHasCode(error, 'ENOENT')) return null;
     throw error;
   }
+}
+
+async function stateAlreadyInitialized() {
+  if (hasAuthoritativeDatabase()) return true;
+  return exists(STATE_FILE);
 }
 
 export function writePersistedState(
@@ -240,11 +276,11 @@ export function writePersistedState(
     .catch(() => undefined)
     .then(async () => {
       recordServerTiming('state_queue', performance.now() - queuedAt);
-      if (initializeOnly && (await exists(STATE_FILE))) {
+      if (initializeOnly && (await stateAlreadyInitialized())) {
         throw statusError(409, '服务端已经包含数据');
       }
       if (options.fields) {
-        const raw = unwrapState(await measureServerTiming('state_read', readStateFile));
+        const raw = await readAuthoritativeState();
         const current = raw
           ? await hydrateStateFromDisk(raw, undefined, options.readFields ?? options.fields, false)
           : null;

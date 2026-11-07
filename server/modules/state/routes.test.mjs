@@ -118,18 +118,13 @@ test('书架及进度分区保存不访问其他正文资源，也不会丢失�
     rssItems: [{ id: 'large-item', fullContentText: '无关正文'.repeat(10000) }],
     extension: { nested: ['保留'] },
   };
+  const { writeStateToDb } = await import('../../db/sqliteStateStorage.js');
   await atomicWrite(join(directory, note.contentFile), '用户直接编辑的 Markdown');
-  await atomicWrite(
-    join(directory, 'state.json'),
-    JSON.stringify({
-      formatVersion: 1,
-      persistedState: {
-        version: 40,
-        deletedConversationIds: ['removed-session'],
-        state: { ...untouched, books: [{ id: 'isolated-book', title: '原书名', updatedAt: 1 }] },
-      },
-    }),
-  );
+  writeStateToDb({
+    version: 40,
+    deletedConversationIds: ['removed-session'],
+    state: { ...untouched, books: [{ id: 'isolated-book', title: '原书名', updatedAt: 1 }] },
+  });
   const app = createApp({ mode: 'local', serveFrontend: false });
   for (const [domain, state] of [
     ['library', { books: [{ id: 'isolated-book', title: '新书名', updatedAt: 2 }], notes: [] }],
@@ -153,7 +148,12 @@ test('书架及进度分区保存不访问其他正文资源，也不会丢失�
       204,
     );
     const saved = JSON.parse(await readFile(join(directory, 'state.json'), 'utf8')).persistedState;
-    for (const [key, value] of Object.entries(untouched)) assert.deepEqual(saved.state[key], value);
+    assert.equal(saved.state.notes[0].id, note.id);
+    assert.equal(saved.state.notes[0].contentFile, note.contentFile);
+    assert.equal(saved.state.notes[0].updatedAt, note.updatedAt);
+    assert.equal(Object.hasOwn(saved.state.notes[0], 'content'), false);
+    assert.deepEqual(saved.state.rssItems, untouched.rssItems);
+    assert.deepEqual(saved.state.extension, untouched.extension);
     assert.deepEqual(saved.deletedConversationIds, ['removed-session']);
     assert.equal(
       await readFile(join(directory, note.contentFile), 'utf8'),
