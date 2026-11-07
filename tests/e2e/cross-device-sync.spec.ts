@@ -31,30 +31,19 @@ test('两台浏览器同步进度和术语，重排不覆盖远端位置', async
     });
     expect(uploaded.status()).toBe(201);
     const { book } = await uploaded.json();
+    book.title = `同步回归${book.id.slice(0, 8)}`;
+    const namedLibrary = await (await pageA.request.get('/api/state/library')).json();
+    namedLibrary.state.books = namedLibrary.state.books.map((item: { id: string }) =>
+      item.id === book.id ? { ...item, title: book.title } : item,
+    );
+    expect((await pageA.request.put('/api/state/library', { data: namedLibrary })).status()).toBe(
+      204,
+    );
     await pageB.goto('/');
     await expect(pageB.getByRole('heading', { name: '我的书架' })).toBeVisible();
     await pageA.goto(`/books/${book.id}`);
     await expect(pageA.locator('foliate-view')).toBeVisible({ timeout: 30_000 });
-    const before = await (await pageA.request.get('/api/state/library')).json();
-    const original = before.state.books.find((item: { id: string }) => item.id === book.id);
-    await pageA.getByRole('button', { name: '下一页', exact: true }).click();
-    await expect
-      .poll(async () => {
-        const library = await (await pageA.request.get('/api/state/library')).json();
-        return library.state.books.find((item: { id: string }) => item.id === book.id)?.currentCfi;
-      })
-      .not.toBe(original.currentCfi);
-    const moved = await (await pageA.request.get('/api/state/library')).json();
-    const progress = moved.state.books.find((item: { id: string }) => item.id === book.id);
-    await syncFromForeground(pageB);
-    await expect
-      .poll(async () =>
-        pageB
-          .getByRole('button', { name: new RegExp(`打开《${book.title}》`) })
-          .getAttribute('aria-label'),
-      )
-      .toContain(`已读 ${progress.progress}%`);
-
+    await expect(pageA.getByText('正在打开 EPUB…', { exact: true })).toBeHidden();
     await pageA.locator('foliate-view').evaluate((element) => {
       const view = element as unknown as {
         renderer: { getContents: () => Array<{ doc: Document }> };
@@ -77,6 +66,26 @@ test('两台浏览器同步进度和术语，重排不覆盖远端位置', async
     });
     await expect(pageA.getByRole('button', { name: '添加到术语表', exact: true })).toBeVisible();
     await pageA.getByRole('button', { name: '添加到术语表', exact: true }).click();
+    const before = await (await pageA.request.get('/api/state/library')).json();
+    const original = before.state.books.find((item: { id: string }) => item.id === book.id);
+    await pageA.getByRole('button', { name: '下一页', exact: true }).click();
+    await expect
+      .poll(async () => {
+        const library = await (await pageA.request.get('/api/state/library')).json();
+        return library.state.books.find((item: { id: string }) => item.id === book.id)?.currentCfi;
+      })
+      .not.toBe(original.currentCfi);
+    const moved = await (await pageA.request.get('/api/state/library')).json();
+    const progress = moved.state.books.find((item: { id: string }) => item.id === book.id);
+    await syncFromForeground(pageB);
+    await expect
+      .poll(async () =>
+        pageB
+          .getByRole('button', { name: new RegExp(`打开《${book.title}》`) })
+          .getAttribute('aria-label'),
+      )
+      .toContain(`已读 ${progress.progress}%`);
+
     await pageB.goto(`/books/${book.id}`);
     await expect(pageB.locator('foliate-view')).toBeVisible({ timeout: 30_000 });
     await pageB.getByRole('button', { name: '打开术语表', exact: true }).click();
