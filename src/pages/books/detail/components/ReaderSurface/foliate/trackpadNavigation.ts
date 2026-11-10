@@ -36,9 +36,10 @@ export function createFoliateTrackpadNavigation({
     const selection = (event.target as Node | null)?.ownerDocument?.defaultView?.getSelection();
     if (hasActiveTextSelection(selection)) return;
     const { x, y } = normalizedWheelDelta(event);
-    if ((!x && !y) || !viewRef.current) return;
+    if (!x && !y) return;
 
-    if (event.cancelable) event.preventDefault();
+    if (event.cancelable && (x !== 0 || viewRef.current)) event.preventDefault();
+    if (!viewRef.current) return;
     onContentInteractionRef.current();
 
     const now = performance.now();

@@ -134,6 +134,9 @@ describe('createFoliateTrackpadNavigation', () => {
     nav.handleWheel(wheel(0, 0));
     const view = options.viewRef.current;
     options.viewRef.current = null;
+    const horizontalEventWhileLoading = wheel(100, 0);
+    nav.handleWheel(horizontalEventWhileLoading);
+    expect(horizontalEventWhileLoading.defaultPrevented).toBe(true);
     nav.handleWheel(wheel(0, 100));
     options.viewRef.current = view;
     nav.dispose();

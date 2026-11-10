@@ -113,8 +113,9 @@ function createFoliateReaderStyles(preferences: ReaderPreferences, compactLayout
     html, body {
       color: ${style.textColor} !important;
       background-color: transparent !important;
-      overscroll-behavior: contain;
-      touch-action: pan-y;
+      overscroll-behavior-x: none !important;
+      overscroll-behavior-y: contain !important;
+      touch-action: pan-x pan-y pinch-zoom;
       -webkit-user-select: text;
       user-select: text;
     }
