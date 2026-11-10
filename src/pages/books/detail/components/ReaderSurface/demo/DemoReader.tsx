@@ -28,7 +28,7 @@ export function DemoReader(
   return (
     <div
       ref={readerRootRef}
-      className={`demo-reader [overscroll-behavior-x:contain] [touch-action:pan-y] [transition:color_180ms_ease,_background-color_180ms_ease] demo-reader--${preferences.theme}`}
+      className={`demo-reader [overscroll-behavior-x:none] [overscroll-behavior-y:contain] [touch-action:pan-x_pan-y_pinch-zoom] [transition:color_180ms_ease,_background-color_180ms_ease] demo-reader--${preferences.theme}`}
       style={{
         ...readerCssVariables,
         color: readerStyle.textColor,

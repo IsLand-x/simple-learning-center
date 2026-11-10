@@ -112,4 +112,24 @@ describe('Foliate chapter document interaction assembly', () => {
     expect(options.mobileSelectionControllerRef.current).toBeNull();
     expect(options.selectionReporter.clear).toHaveBeenCalledWith(false);
   });
+
+  it('prevents default on horizontal swipe touchmove to block browser back/forward navigation', () => {
+    const { doc, cleanup } = setup();
+    const touchStart = new TouchEvent('touchstart', {
+      bubbles: true,
+      cancelable: true,
+      touches: [{ identifier: 1, clientX: 100, clientY: 100 } as Touch],
+    });
+    doc.dispatchEvent(touchStart);
+
+    const horizontalMove = new TouchEvent('touchmove', {
+      bubbles: true,
+      cancelable: true,
+      touches: [{ identifier: 1, clientX: 80, clientY: 100 } as Touch],
+    });
+    doc.dispatchEvent(horizontalMove);
+    expect(horizontalMove.defaultPrevented).toBe(true);
+
+    cleanup();
+  });
 });

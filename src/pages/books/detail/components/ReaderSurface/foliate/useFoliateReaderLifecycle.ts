@@ -229,6 +229,7 @@ export function useFoliateReaderLifecycle({
       view.addEventListener('show-annotation', handleShowAnnotation);
       view.addEventListener('pointerdown', handleViewPointerDown);
       view.addEventListener('wheel', handleWheel, { passive: false });
+      surfaceRef.current?.addEventListener('wheel', handleWheel, { passive: false });
       host.replaceChildren(view);
 
       const file = new File([data], book.fileName || `${book.title}.epub`, {
@@ -292,6 +293,7 @@ export function useFoliateReaderLifecycle({
       selectionReporter.dispose();
       hasCustomMobileSelectionRef.current = false;
       mobileSelectionPointerDragRef.current = null;
+      surfaceRef.current?.removeEventListener('wheel', handleWheel);
       trackpadNavigation.dispose();
       documentCleanups.forEach((cleanup) => cleanup());
       documentCleanups.clear();

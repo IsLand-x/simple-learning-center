@@ -79,7 +79,7 @@ export function useSharedBookPreview(token: string) {
         const colors = getComputedStyle(document.body);
         const density = READER_DENSITY_PRESETS.find((item) => item.id === 'balanced')!;
         view.renderer.setStyles?.(
-          `html,body { color:${colors.getPropertyValue('--semi-color-text-0')}; background:${colors.getPropertyValue('--semi-color-bg-0')}; overscroll-behavior:contain; touch-action:pan-y; } body { font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif; font-size:18px; line-height:${density.lineHeight}; padding-inline:${density.pagePadding}; } p { margin-block-end:${density.paragraphSpacing}em; } img,svg { max-width:100%; }`,
+          `html,body { color:${colors.getPropertyValue('--semi-color-text-0')}; background:${colors.getPropertyValue('--semi-color-bg-0')}; overscroll-behavior-x:none; overscroll-behavior-y:contain; touch-action:pan-x pan-y pinch-zoom; } body { font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif; font-size:18px; line-height:${density.lineHeight}; padding-inline:${density.pagePadding}; } p { margin-block-end:${density.paragraphSpacing}em; } img,svg { max-width:100%; }`,
         );
         await view.init({ showTextStart: true });
         if (disposed) return;

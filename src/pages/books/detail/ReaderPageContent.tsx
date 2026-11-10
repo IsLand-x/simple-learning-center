@@ -51,7 +51,7 @@ export function ReaderPageContent() {
   if (!book) return <MissingReaderBook onBack={() => navigate('/')} />;
   return (
     <main
-      className={`reader-page w-full min-w-0 min-h-0 overflow-hidden [background:var(--semi-color-bg-0)] mobile:relative mobile:[padding-bottom:calc(var(--mobile-reader-toolbar-height)_+_env(safe-area-inset-bottom))] ${layout.mobileReader && !layout.mobileChromeVisible ? ' reader-page--mobile-immersive' : ''}`}
+      className={`reader-page w-full min-w-0 min-h-0 overflow-hidden [overscroll-behavior-x:none] [background:var(--semi-color-bg-0)] mobile:relative mobile:[padding-bottom:calc(var(--mobile-reader-toolbar-height)_+_env(safe-area-inset-bottom))] ${layout.mobileReader && !layout.mobileChromeVisible ? ' reader-page--mobile-immersive' : ''}`}
     >
       <ReaderPageHeader
         book={book}

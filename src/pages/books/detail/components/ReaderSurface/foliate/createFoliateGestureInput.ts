@@ -192,16 +192,29 @@ export function createFoliateGestureInput(
       touchEvent.stopImmediatePropagation();
       return;
     }
-    if (
-      Math.abs(touch.clientX - gesture.startX) >= 8 ||
-      Math.abs(touch.clientY - gesture.startY) >= 8
-    )
+    const horizontalDistance = Math.abs(touch.clientX - gesture.startX);
+    const verticalDistance = Math.abs(touch.clientY - gesture.startY);
+    const isHorizontalSwipeGesture =
+      !mobileSelection.hasDocumentSelection() &&
+      !touchPagingSelectionLockedRef.current &&
+      (intent === 'page-turn' ||
+        (horizontalDistance >= 6 && horizontalDistance >= verticalDistance));
+
+    if (isHorizontalSwipeGesture) {
+      clearTouchSelectionTimer();
+      if (touchEvent.cancelable) touchEvent.preventDefault();
+    }
+
+    if (horizontalDistance >= 8 || verticalDistance >= 8)
       input.suppressCenterTapUntil = performance.now() + 450;
     if (intent !== 'pending') input.suppressCenterTapUntil = performance.now() + 450;
     if (intent !== 'pending' && !mobileSelection.customMobileSelectionEnabled)
       clearTouchSelectionTimer();
     if (intent !== 'page-turn') {
-      if (mobileSelection.customMobileSelectionEnabled && touchEvent.cancelable)
+      if (
+        touchEvent.cancelable &&
+        (mobileSelection.customMobileSelectionEnabled || isHorizontalSwipeGesture)
+      )
         touchEvent.preventDefault();
       touchEvent.stopImmediatePropagation();
     }
