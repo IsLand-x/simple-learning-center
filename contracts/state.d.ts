@@ -7,6 +7,7 @@ import type {
 } from './ai.js';
 import type { BookItem, BookList, DeletedBookTombstone, TrashedBookItem } from './books.js';
 import type {
+  DiscussionItem,
   ChapterMindMap,
   ChapterVideo,
   DeletedHighlightTombstone,
@@ -29,6 +30,7 @@ export interface LearningData {
   deletedNoteTombstones: DeletedNoteTombstone[];
   chats: ChatMessage[];
   chatSessions: ChatSession[];
+  discussions: DiscussionItem[];
   readingSessions: ReadingSession[];
   chapterMindMaps: ChapterMindMap[];
   chapterVideos: ChapterVideo[];
@@ -47,7 +49,7 @@ export interface LearningData {
 // 精确元组同时约束分区归属、完整字段和顺序，保持两端快照及 ETag 一致。
 export interface StateDomainFields {
   library: readonly ['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'];
-  reading: readonly ['readingSessions', 'chapterMindMaps', 'chapterVideos'];
+  reading: readonly ['readingSessions', 'chapterMindMaps', 'chapterVideos', 'discussions'];
   notes: readonly ['notes', 'deletedNoteTombstones'];
   highlights: readonly ['highlights', 'deletedHighlightTombstones'];
   conversations: readonly ['chats', 'chatSessions'];

@@ -4,6 +4,7 @@ export type RightPanel =
   | 'resources'
   | 'mindmap'
   | 'chapter-video'
+  | 'discussions'
   | 'notes'
   | 'glossary'
   | 'highlights'

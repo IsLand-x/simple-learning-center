@@ -1,3 +1,4 @@
+import { DiscussionPanel } from '../DiscussionPanel/DiscussionPanel';
 import { ChapterMindMapPanel } from '../MindMapPanel/ChapterMindMapPanel';
 import { ChapterVideoPanel } from '../ChapterVideoPanel/ChapterVideoPanel';
 import { IconPlus, IconSetting } from '@douyinfe/semi-icons';
@@ -29,6 +30,7 @@ export function ReaderRightPanel({
   mindMapSelection,
   onMindMapSelectionChange,
   onLocateSource,
+  getDiscussionSource,
   getCurrentText,
   onClearSelectedText,
   onStartNewConversation,
@@ -178,6 +180,7 @@ export function ReaderRightPanel({
             book={book}
             conversationId={conversationId}
             selectedQuote={selectedQuote}
+            getDiscussionSource={getDiscussionSource}
             getCurrentText={getCurrentText}
             onClearSelectedText={onClearSelectedText}
           />
@@ -206,6 +209,23 @@ export function ReaderRightPanel({
             book={book}
             activeHref={activeHref}
             mobile={mobile}
+            onLocateSource={onLocateSource}
+          />
+        )}
+        {activePanel === 'discussions' && (
+          <DiscussionPanel
+            key={book.id}
+            book={book}
+            getSource={
+              getDiscussionSource ??
+              (() => ({
+                passageId: '',
+                chapter: book.currentChapter,
+                href: activeHref ?? '',
+                cfi: book.currentCfi,
+                quote: '',
+              }))
+            }
             onLocateSource={onLocateSource}
           />
         )}

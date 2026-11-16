@@ -289,6 +289,7 @@ it('writes only the changed panel domain, keeping note/highlight/progress payloa
     'readingSessions',
     'chapterMindMaps',
     'chapterVideos',
+    'discussions',
   ]);
   mocks.writeDomain.mockClear();
   state.highlights = [

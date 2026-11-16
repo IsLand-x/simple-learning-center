@@ -2,7 +2,7 @@ import type { StateDomain, StateDomainFields } from '../../contracts/state';
 
 export const STATE_DOMAIN_FIELDS = {
   library: ['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'],
-  reading: ['readingSessions', 'chapterMindMaps', 'chapterVideos'],
+  reading: ['readingSessions', 'chapterMindMaps', 'chapterVideos', 'discussions'],
   notes: ['notes', 'deletedNoteTombstones'],
   highlights: ['highlights', 'deletedHighlightTombstones'],
   conversations: ['chats', 'chatSessions'],
@@ -20,7 +20,7 @@ export const STATE_DOMAIN_FIELDS = {
   ],
 } as const satisfies StateDomainFields;
 
-export const LEARNING_STORE_VERSION = 42;
+export const LEARNING_STORE_VERSION = 43;
 
 export const ALL_STATE_DOMAINS = Object.freeze(Object.keys(STATE_DOMAIN_FIELDS) as StateDomain[]);
 

@@ -9,7 +9,12 @@ import type {
   OpenAICompatibleConfig,
 } from '../../contracts/ai';
 import type { BookItem, BookList } from '../../contracts/books';
-import type { HighlightItem, ReaderPreferences, ReadingSession } from '../../contracts/reading';
+import type {
+  DiscussionItem,
+  HighlightItem,
+  ReaderPreferences,
+  ReadingSession,
+} from '../../contracts/reading';
 import type { ThemeMode, WebSearchConfig } from '../../contracts/settings';
 
 export interface LearningState extends LearningData {
@@ -42,6 +47,8 @@ export interface LearningState extends LearningData {
     changes: Partial<Pick<HighlightItem, 'comment' | 'definition'>>,
   ) => void;
   deleteHighlight: (highlightId: string) => void;
+  saveDiscussion: (discussion: DiscussionItem) => void;
+  deleteDiscussion: (id: string) => void;
   setBookNoteContent: (bookId: string, bookTitle: string, content: string) => void;
   markChatMessagesRead: (messageIds: string[]) => Promise<void>;
   createChatSession: (session: ChatSession) => void;

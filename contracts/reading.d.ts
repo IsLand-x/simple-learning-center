@@ -1,3 +1,15 @@
+export interface DiscussionItem {
+  id: string;
+  bookId: string;
+  question: string;
+  content: string;
+  source: MindMapSource;
+  conversationId?: string;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
 export type ReaderTheme =
   | 'paper'
   | 'ivory'

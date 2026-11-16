@@ -16,6 +16,7 @@ import { TableOfContents } from './TableOfContents/TableOfContents';
 import { ReaderActivityBar } from './Toolbar/ReaderActivityBar';
 
 interface ReaderWorkspaceProps {
+  getDiscussionSource: () => MindMapSource;
   activeHref?: string;
   activePanel: RightPanel;
   book: BookItem;
@@ -42,6 +43,7 @@ interface ReaderWorkspaceProps {
 }
 
 export function ReaderWorkspace({
+  getDiscussionSource,
   activeHref,
   activePanel,
   book,
@@ -137,6 +139,7 @@ export function ReaderWorkspace({
               >
                 {desktop && activePanel && (
                   <ReaderRightPanel
+                    getDiscussionSource={getDiscussionSource}
                     book={book}
                     activeHref={activeHref}
                     onLocateSource={onLocateSource}

@@ -28,6 +28,7 @@ export interface ReaderRightPanelProps {
   mindMapSelection?: MindMapPanelSelection;
   onMindMapSelectionChange?: (selection: MindMapPanelSelection) => void;
   onLocateSource?: (source: MindMapSource) => Promise<void>;
+  getDiscussionSource?: () => MindMapSource;
   getCurrentText: () => string;
   onClearSelectedText: () => void;
   onStartNewConversation: () => void;
@@ -48,6 +49,7 @@ export const panelMeta = {
   resources: { label: '资源库', Icon: IconImage },
   mindmap: { label: '思维导图', Icon: IconBranch },
   'chapter-video': { label: '章节视频', Icon: IconVideo },
+  discussions: { label: '讨论', Icon: IconComment },
   notes: { label: '笔记', Icon: IconEditStroked },
   glossary: { label: '术语表', Icon: IconBook },
   highlights: { label: '高亮', Icon: IconBookmark },
@@ -68,6 +70,7 @@ export const mobilePanelItems: Array<{
   { panel: 'resources', label: '资源库', ariaLabel: '打开资源库', Icon: IconImage },
   { panel: 'mindmap', label: '导图', ariaLabel: '打开思维导图', Icon: IconBranch },
   { panel: 'chapter-video', label: '视频', ariaLabel: '打开章节视频', Icon: IconVideo },
+  { panel: 'discussions', label: '讨论', ariaLabel: '打开讨论', Icon: IconComment },
   { panel: 'notes', label: '笔记', ariaLabel: '打开笔记', Icon: IconEditStroked },
   { panel: 'glossary', label: '术语表', ariaLabel: '打开术语表', Icon: IconBook },
   { panel: 'highlights', label: '高亮', ariaLabel: '打开高亮', Icon: IconBookmark },

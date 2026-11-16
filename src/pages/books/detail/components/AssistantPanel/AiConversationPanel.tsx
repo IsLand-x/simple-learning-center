@@ -1,3 +1,6 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { SaveDiscussionButton } from '../DiscussionPanel/SaveDiscussionButton';
+import type { MindMapSource } from '../../../../../../contracts/reading';
 import { IconBookOpenStroked } from '@douyinfe/semi-icons';
 import { useConversationDraft } from '../../../../../components/ai/useConversationDraft';
 import { AIChatInput, Button, Tooltip, Typography } from '@douyinfe/semi-ui';
@@ -17,16 +20,19 @@ export function AiConversationPanel({
   book,
   conversationId,
   selectedQuote,
+  getDiscussionSource,
   getCurrentText,
   onClearSelectedText,
 }: {
   book: BookItem;
   conversationId: string;
   selectedQuote?: NonNullable<ChatMessage['quote']>;
+  getDiscussionSource?: () => MindMapSource;
   getCurrentText: () => string;
   onClearSelectedText: () => void;
 }) {
   const {
+    chats,
     messageLoading,
     chatAreaRef,
     userTurns,
@@ -58,8 +64,52 @@ export function AiConversationPanel({
     onClearSelectedText,
   });
   const draft = useConversationDraft(book.id, conversationId);
+  const latestQuestion = chats.reduce(
+    (index, message, current) => (message.role === 'user' ? current : index),
+    -1,
+  );
+  const turn = useMemo(
+    () => (latestQuestion >= 0 ? chats.slice(latestQuestion) : []),
+    [chats, latestQuestion],
+  );
+  const turnSource = useRef<{ messageId: string; source: MindMapSource }>();
+  useEffect(() => {
+    if (turn[0] && turnSource.current?.messageId !== turn[0].id) {
+      turnSource.current = {
+        messageId: turn[0].id,
+        source: getDiscussionSource?.() ?? {
+          passageId: '',
+          chapter: book.currentChapter,
+          href: '',
+          cfi: book.currentCfi,
+          quote: '',
+        },
+      };
+    }
+  }, [turn, getDiscussionSource, book.currentChapter, book.currentCfi]);
   return (
     <div className="right-panel__body min-h-0 ai-panel [gap:6px]">
+      <div className="shrink-0 py-2">
+        <SaveDiscussionButton
+          messages={turn}
+          bookId={book.id}
+          conversationId={conversationId}
+          source={() =>
+            turnSource.current?.source ??
+            getDiscussionSource?.() ?? {
+              passageId: '',
+              chapter: book.currentChapter,
+              href: '',
+              quote: '',
+            }
+          }
+          disabled={
+            status === 'generating' ||
+            starting ||
+            !turn.some((message) => message.role === 'assistant')
+          }
+        />
+      </div>
       <ConversationMessageControls {...messageLoading} />
       <div
         ref={chatAreaRef}

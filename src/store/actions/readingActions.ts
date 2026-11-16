@@ -3,6 +3,8 @@ import type { LearningState, LearningStoreSet } from '../learningState';
 
 type ReadingActions = Pick<
   LearningState,
+  | 'saveDiscussion'
+  | 'deleteDiscussion'
   | 'addHighlight'
   | 'updateHighlight'
   | 'deleteHighlight'
@@ -12,6 +14,25 @@ type ReadingActions = Pick<
 
 export function createReadingActions(set: LearningStoreSet): ReadingActions {
   return {
+    saveDiscussion: (discussion) =>
+      set((state) => {
+        const existing = state.discussions.find((item) => item.id === discussion.id);
+        if (existing?.deletedAt) return state;
+        return {
+          discussions: [
+            { ...discussion, updatedAt: Math.max(Date.now(), (existing?.updatedAt ?? 0) + 1) },
+            ...state.discussions.filter((item) => item.id !== discussion.id),
+          ],
+        };
+      }),
+    deleteDiscussion: (id) =>
+      set((state) => ({
+        discussions: state.discussions.map((item) =>
+          item.id === id
+            ? { ...item, content: '', deletedAt: Math.max(Date.now(), item.updatedAt + 1) }
+            : item,
+        ),
+      })),
     addHighlight: (highlight) =>
       set((state) => ({
         highlights: [

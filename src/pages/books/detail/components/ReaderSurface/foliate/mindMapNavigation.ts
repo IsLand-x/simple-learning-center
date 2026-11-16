@@ -13,6 +13,12 @@ export function clearMindMapSourceHint(view: FoliateView) {
 }
 
 export async function locateMindMapSource(view: FoliateView, source: MindMapSource) {
+  if (!source.quote) {
+    const target = source.cfi || source.href;
+    if (!target || !(await navigateToFoliateTarget(view, target)))
+      throw new Error('无法跳转到记录的书中位置');
+    return;
+  }
   if (!source.cfi) throw new Error('该出处缺少定位信息，请重新生成导图');
   const target = view.resolveNavigation(source.cfi);
   if (!target || typeof target.anchor !== 'function')

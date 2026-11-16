@@ -100,6 +100,17 @@ export function protectReaderStateFromClient(
   const protectedState = structuredClone(persistedState);
   const incoming = protectedState.state;
   const current = currentPersistedState.state;
+  const discussions = new Map((current.discussions ?? []).map((item) => [item.id, item]));
+  for (const item of incoming.discussions ?? []) {
+    const existing = discussions.get(item.id);
+    if (
+      !existing ||
+      Math.max(item.updatedAt, item.deletedAt ?? 0) >=
+        Math.max(existing.updatedAt, existing.deletedAt ?? 0)
+    )
+      discussions.set(item.id, item);
+  }
+  incoming.discussions = [...discussions.values()];
   // Missing notes in an older snapshot are not a deletion operation.
   const notes = new Map((current.notes ?? []).map((note) => [note.id, note]));
   for (const note of incoming.notes ?? []) {

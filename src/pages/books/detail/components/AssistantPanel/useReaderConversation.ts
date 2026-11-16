@@ -436,6 +436,7 @@ export function useReaderConversation({
     });
   };
   return {
+    chats,
     messageLoading,
     chatAreaRef,
     userTurns,

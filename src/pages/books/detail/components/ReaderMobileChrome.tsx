@@ -21,6 +21,7 @@ import { ReaderMobileToolbar } from './Toolbar/ReaderMobileToolbar';
 const { Text } = Typography;
 
 interface ReaderMobileChromeProps {
+  getDiscussionSource: () => MindMapSource;
   activeHref?: string;
   activePanel: MobileReaderPanel | null;
   book: BookItem;
@@ -48,6 +49,7 @@ interface ReaderMobileChromeProps {
 }
 
 export function ReaderMobileChrome({
+  getDiscussionSource,
   activeHref,
   activePanel,
   book,
@@ -160,6 +162,7 @@ export function ReaderMobileChrome({
               </aside>
             ) : (
               <ReaderRightPanel
+                getDiscussionSource={getDiscussionSource}
                 book={book}
                 activeHref={activeHref}
                 mindMapSelection={mindMapSelection}

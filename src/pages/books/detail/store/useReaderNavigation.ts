@@ -185,7 +185,15 @@ export function useReaderNavigation(
     () => (book ? (findChapterLabel(book.toc, activeHref) ?? book.currentChapter) : ''),
     [activeHref, book],
   );
+  const getDiscussionSource = (): MindMapSource => ({
+    passageId: '',
+    chapter: currentChapter || '当前位置',
+    href: activeHref ?? '',
+    cfi: lastReportedRef.current?.currentCfi ?? latestBookRef.current?.currentCfi,
+    quote: '',
+  });
   return {
+    getDiscussionSource,
     activeHref,
     currentChapter,
     handleLocationChange,

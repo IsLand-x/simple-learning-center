@@ -173,6 +173,13 @@ export function useDemoReader({
             reject(new Error('出处所在章节不存在'));
             return;
           }
+          if (!source.quote) {
+            pendingDemoTargetRef.current = source.cfi ?? `demo:${source.href}`;
+            setChapterIndex(index);
+            setDemoNavigationRevision((revision) => revision + 1);
+            resolve();
+            return;
+          }
           pendingSourceRef.current?.reject(new Error('已切换到另一个出处'));
           pendingSourceRef.current = { source, resolve, reject };
           setChapterIndex(index);

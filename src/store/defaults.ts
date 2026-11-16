@@ -55,6 +55,7 @@ export const initialLearningState: LearningStateData = {
   chats: [],
   chatSessions: [],
   conversationSummaries: [],
+  discussions: [],
   readingSessions: [],
   chapterMindMaps: [],
   chapterVideos: [],

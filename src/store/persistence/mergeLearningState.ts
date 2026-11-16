@@ -1,3 +1,4 @@
+import { mergeDiscussions } from './discussions';
 import { mergeConversationDrafts } from './conversationDrafts';
 import { upgradeReaderTypography } from '../../util/reading/readerThemes';
 import {
@@ -49,6 +50,7 @@ export function mergeLearningState(
   return {
     ...currentState,
     ...persisted,
+    discussions: mergeDiscussions(currentState.discussions, persisted.discussions ?? []),
     chapterVideos: Array.isArray(persisted.chapterVideos)
       ? persisted.chapterVideos
       : currentState.chapterVideos,

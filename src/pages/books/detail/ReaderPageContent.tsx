@@ -83,6 +83,7 @@ export function ReaderPageContent() {
       />
 
       <ReaderWorkspace
+        getDiscussionSource={navigation.getDiscussionSource}
         activeHref={navigation.activeHref}
         activePanel={layout.activePanel === 'style' ? null : layout.activePanel}
         book={book}
@@ -148,6 +149,7 @@ export function ReaderPageContent() {
       </ReaderWorkspace>
       {layout.mobileReader && (
         <ReaderMobileChrome
+          getDiscussionSource={navigation.getDiscussionSource}
           activeHref={navigation.activeHref}
           activePanel={layout.activePanel}
           book={book}
