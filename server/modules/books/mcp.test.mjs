@@ -20,7 +20,6 @@ test('MCP HTTP 直连可调用全部书架工具，并保持权限和数据隔�
     state: {
       books: [{ id: 'b1', title: '测试书', kind: 'epub', progress: 42, updatedAt: 1 }],
       bookLists: [{ id: 'l1', name: '学习', note: '', bookIds: [], createdAt: 1, updatedAt: 1 }],
-      notes: [{ id: 'n1', bookId: 'b1', title: '笔记', content: 'abcdef', updatedAt: 1 }],
       highlights: [
         { id: 'h1', bookId: 'b1', text: '摘录', comment: '见解', kind: 'highlight', updatedAt: 1 },
       ],
@@ -76,7 +75,6 @@ test('MCP HTTP 直连可调用全部书架工具，并保持权限和数据隔�
         'list_book',
         'edit_book',
         'list_book_highlight_and_comment',
-        'read_book_note',
         'trash_book',
         'list_book_list',
         'edit_book_list',
@@ -139,9 +137,6 @@ test('MCP HTTP 直连可调用全部书架工具，并保持权限和数据隔�
       (await call('list_book_highlight_and_comment', { book_id: 'b1' })).items[0].comment,
       '见解',
     );
-    const note = (await call('read_book_note', { book_id: 'b1', offset: 1, limit: 3 })).notes[0];
-    assert.equal(note.content, 'bcd');
-    assert.equal(note.nextOffset, 4);
     const fixture = await readFile(
       new URL('../../../tests/fixtures/openapi-sample.epub', import.meta.url),
     );
@@ -174,10 +169,6 @@ test('MCP HTTP 直连可调用全部书架工具，并保持权限和数据隔�
       false,
     );
     assert.equal((await readPersistedState()).state.trashedBooks[0].book.id, 'b1');
-    assert.equal(
-      (await client.callTool({ name: 'read_book_note', arguments: { book_id: 'b1' } })).isError,
-      true,
-    );
     await app.request(tokenPath, {
       method: 'DELETE',
       headers: { 'X-Learning-Center-Request': '1' },

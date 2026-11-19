@@ -56,7 +56,6 @@ export function createJobStarter({ jobs, pruneJobs, executeJob, persistJob }: St
       revision: 0,
       content: '',
       dialogueContent: [],
-      notesRevision: 0,
       discussionsRevision: 0,
       createdAt: timestamp,
       updatedAt: timestamp,

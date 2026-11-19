@@ -32,7 +32,6 @@ test('摘要按资源分页，不携带正文；消息相同时间戳分页无�
     version: 38,
     state: {
       books: [{ id: 'book', title: '测试书籍', kind: 'demo' }],
-      notes: [],
       chatSessions: [session('one'), session('two'), session('other', 'rss:other')],
       chats: [
         ...Array.from({ length: 65 }, (_, i) => message(i)),

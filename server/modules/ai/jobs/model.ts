@@ -42,7 +42,6 @@ export function publicJob(job: AiJob) {
     revision: job.revision,
     content: job.content,
     dialogueContent: job.dialogueContent,
-    notesRevision: job.notesRevision,
     discussionsRevision: job.discussionsRevision ?? 0,
     error: job.error,
     createdAt: job.createdAt,

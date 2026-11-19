@@ -43,7 +43,7 @@ test('讨论属于阅读分区，旧客户端不能覆盖编辑或恢复已删�
     createStateDomainSnapshot(current, 'reading').state.discussions,
     current.state.discussions,
   );
-  assert.equal(createStateDomainSnapshot(current, 'notes').state.discussions, undefined);
+  assert.equal(createStateDomainSnapshot(current, 'highlights').state.discussions, undefined);
   const incoming = mergeStateDomainSnapshot(
     current,
     { version: 42, state: { discussions: [item] } },

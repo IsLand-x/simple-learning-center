@@ -9,9 +9,9 @@ vi.mock('../../../../../store/learningStateSync', () => ({
   synchronizeLearningState: mocks.synchronize,
 }));
 
-it('retries failed synchronization even for the same job revision and acknowledges successful notes only once', async () => {
+it('retries failed synchronization even for the same job revision and acknowledges success only once', async () => {
   const root = createRoot(document.createElement('div'));
-  let sync: ReturnType<typeof useReaderAiStateSync>;
+  let sync: (job: AiJob) => Promise<void> | undefined;
   function Probe() {
     sync = useReaderAiStateSync('book');
     return null;
@@ -24,7 +24,7 @@ it('retries failed synchronization even for the same job revision and acknowledg
     assistantMessageId: 'assistant',
     status: 'completed',
     revision: 1,
-    notesRevision: 1,
+    discussionsRevision: 1,
     content: '',
     dialogueContent: [],
     createdAt: 1,
@@ -39,17 +39,14 @@ it('retries failed synchronization even for the same job revision and acknowledg
     await expect(sync!(job)).rejects.toThrow('temporary disconnect');
     await sync!(job);
     expect(mocks.synchronize).toHaveBeenCalledTimes(2);
-    expect(mocks.synchronize).toHaveBeenLastCalledWith(['notes']);
+    expect(mocks.synchronize).toHaveBeenLastCalledWith(['reading']);
     await sync!(job);
     expect(mocks.synchronize).toHaveBeenCalledTimes(2);
-    await sync!({ ...job, notesRevision: 2 });
+    await sync!({ ...job, discussionsRevision: 2 });
     expect(mocks.synchronize).toHaveBeenCalledTimes(3);
-    await sync!({ ...job, notesRevision: 2, discussionsRevision: 1 });
     expect(mocks.synchronize).toHaveBeenLastCalledWith(['reading']);
-    await sync!({ ...job, notesRevision: 2, discussionsRevision: 1 });
-    expect(mocks.synchronize).toHaveBeenCalledTimes(4);
-    await sync!({ ...job, notesRevision: 3, discussionsRevision: 2 });
-    expect(mocks.synchronize).toHaveBeenLastCalledWith(['notes', 'reading']);
+    await sync!({ ...job, bookId: 'other-book', discussionsRevision: 3 });
+    expect(mocks.synchronize).toHaveBeenCalledTimes(3);
   } finally {
     await act(async () => root.unmount());
     warning.mockRestore();

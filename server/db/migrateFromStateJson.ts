@@ -1,6 +1,5 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, resolve, sep } from 'node:path';
 import { DB_FILE, STATE_FILE } from '../config.js';
 import { initDatabase } from './index.js';
 import {
@@ -8,7 +7,6 @@ import {
   STATE_JSON_IMPORT_KEY,
   writeStateToDb,
 } from './sqliteStateStorage.js';
-import type { NoteItem } from '../../contracts/reading.js';
 import type { StoredState } from '../modules/state/types.js';
 
 interface StateJsonFormat {
@@ -33,30 +31,6 @@ export type StateJsonMigration =
       blocking: true;
       error?: unknown;
     };
-
-async function loadDiskNoteContents(dataDirectory: string, notes: unknown) {
-  const contents = new Map<string, string>();
-  if (!Array.isArray(notes)) return contents;
-  for (const item of notes as Array<NoteItem & { contentFile?: string }>) {
-    if (!item || typeof item !== 'object' || typeof item.id !== 'string') continue;
-    if (typeof item.content === 'string' && item.content.length > 0) {
-      contents.set(item.id, item.content);
-      continue;
-    }
-    if (typeof item.contentFile === 'string') {
-      const targetPath = resolve(dataDirectory, item.contentFile);
-      if (targetPath === dataDirectory || !targetPath.startsWith(`${dataDirectory}${sep}`)) {
-        continue;
-      }
-      try {
-        contents.set(item.id, await readFile(targetPath, 'utf8'));
-      } catch {
-        // A missing note file is retained as an empty body and can be repaired later.
-      }
-    }
-  }
-  return contents;
-}
 
 function databaseAlreadyInitialized(dbFilePath: string) {
   const { db } = initDatabase(dbFilePath);
@@ -89,6 +63,9 @@ export async function migrateFromStateJson(
   }
 
   const state = (persistedState.state ?? {}) as StoredState;
+  // 旧快照里的阅读笔记不再迁移；生产库中已有的 notes 表保持原样。
+  delete (state as Record<string, unknown>).notes;
+  delete (state as Record<string, unknown>).deletedNoteTombstones;
   const version = Number.isInteger(persistedState.version)
     ? (persistedState.version as number)
     : 42;
@@ -97,7 +74,6 @@ export async function migrateFromStateJson(
     : undefined;
 
   try {
-    const noteContents = await loadDiskNoteContents(dirname(stateFilePath), state.notes);
     writeStateToDb(
       {
         version,
@@ -105,7 +81,6 @@ export async function migrateFromStateJson(
         state,
       },
       undefined,
-      noteContents,
       { [STATE_JSON_IMPORT_KEY]: 'imported' },
     );
     return { migrated: true };

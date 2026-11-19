@@ -8,7 +8,7 @@ import type {
 import type { ChapterMindMap, ChapterVideo } from '../../../../contracts/reading.js';
 import type { VideoNarrationContext } from '../chapterVideos/media.js';
 import type { BookItem } from '../../../../contracts/books.js';
-import type { HighlightItem, NoteItem, ReadingSession } from '../../../../contracts/reading.js';
+import type { HighlightItem, ReadingSession } from '../../../../contracts/reading.js';
 import type { WebSearchConfig } from '../../../../contracts/settings.js';
 
 export type ReasoningEffort = Exclude<AiReasoningEffort, 'auto'>;
@@ -43,7 +43,6 @@ export interface AiJob {
   content: string;
   mindMap?: ChapterMindMap;
   dialogueContent: AiDialogueContentItem[];
-  notesRevision: number;
   discussionsRevision?: number;
   createdAt: number;
   updatedAt: number;
@@ -69,7 +68,6 @@ export interface AiChatContext {
   purpose: JobPurpose;
   book: BookItem;
   currentText: string;
-  notes: NoteItem[];
   highlights: HighlightItem[];
   readingSessions: ReadingSession[];
   webSearchConfig: WebSearchConfig;
@@ -82,7 +80,6 @@ export type AiChatRunner = (
   input: AiChatContext & {
     signal: AbortSignal;
     onProgress: (progress: AiResult) => void;
-    onNoteChange: () => void;
     onDiscussionChange?: () => void;
   },
 ) => Promise<AiResult>;

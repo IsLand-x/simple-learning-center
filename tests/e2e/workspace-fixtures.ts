@@ -120,7 +120,6 @@ export async function prepareWorkspace(
     deletedBookTombstones: [],
   });
   await seed('reading', { readingSessions: [] });
-  await seed('notes', { notes: [], deletedNoteTombstones: [] });
   await seed('highlights', { highlights: [], deletedHighlightTombstones: [] });
   await seed('conversations', { chats: [], chatSessions: [] });
   await seed('preferences', {

@@ -43,7 +43,6 @@ export function createChapterVideoJobJournal() {
       await readPersistedState({
         fields: ['books', 'trashedBooks'],
         hydrateCovers: false,
-        hydrateNote: () => false,
       })
     )?.state;
     return (

@@ -109,7 +109,6 @@ describe('book archiving', () => {
     });
     expect(getState().bookLists).toBe(before.bookLists);
     expect(getState().trashedBooks).toBe(before.trashedBooks);
-    expect(getState().notes).toBe(before.notes);
     actions.updateBook(original.id, { progress: 50, updatedAt: 30 });
     const restored = mergeLearningState(
       JSON.parse(JSON.stringify({ books: getState().books })),

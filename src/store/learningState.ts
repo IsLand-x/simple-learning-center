@@ -49,7 +49,6 @@ export interface LearningState extends LearningData {
   deleteHighlight: (highlightId: string) => void;
   saveDiscussion: (discussion: DiscussionItem) => void;
   deleteDiscussion: (id: string) => void;
-  setBookNoteContent: (bookId: string, bookTitle: string, content: string) => void;
   markChatMessagesRead: (messageIds: string[]) => Promise<void>;
   createChatSession: (session: ChatSession) => void;
   updateChatSession: (

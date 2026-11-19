@@ -144,7 +144,6 @@ test(
       assert.ok(whole.durationSeconds >= 24);
       assert.ok(received[0].messages[0].content.includes(other), '全书导读必须处理所有章节正文');
       assert.equal(received[0].currentText, '');
-      assert.deepEqual(received[0].notes, []);
       assert.equal((await stat(chapterVideoPath('book', whole.id, 'mp4'))).mode & 0o777, 0o600);
       const mediaUrl = `/api/books/book/chapter-videos/${whole.id}`;
       const ranged = await app.request(mediaUrl, { headers: { Range: 'bytes=0-31' } });

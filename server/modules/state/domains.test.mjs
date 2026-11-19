@@ -60,11 +60,10 @@ test('状态分区 ETag 只随该分区内容变化', () => {
   );
 });
 
-test('阅读记录与高亮接口不能读写笔记，笔记接口也不能覆盖高亮', () => {
+test('阅读记录与高亮接口互不越界读写', () => {
   const current = {
     version: 35,
     state: {
-      notes: [{ id: 'note', content: 'AI 正文' }],
       highlights: [{ id: 'highlight' }],
       readingSessions: [{ id: 'session' }],
     },
@@ -72,26 +71,27 @@ test('阅读记录与高亮接口不能读写笔记，笔记接口也不能覆�
   assert.deepEqual(Object.keys(createStateDomainSnapshot(current, 'reading').state), [
     'readingSessions',
   ]);
-  assert.deepEqual(Object.keys(createStateDomainSnapshot(current, 'notes').state), ['notes']);
   assert.deepEqual(Object.keys(createStateDomainSnapshot(current, 'highlights').state), [
     'highlights',
   ]);
-  for (const domain of ['reading', 'highlights']) {
-    const merged = mergeStateDomainSnapshot(current, { version: 35, state: { notes: [] } }, domain);
-    assert.deepEqual(merged.state.notes, current.state.notes);
-    assert.equal(
-      serializeStateDomainSnapshot(merged, 'notes').etag,
-      serializeStateDomainSnapshot(current, 'notes').etag,
-    );
-  }
-  const changedNotes = mergeStateDomainSnapshot(
+  const merged = mergeStateDomainSnapshot(
     current,
-    { version: 35, state: { notes: [{ id: 'note', content: '修订正文' }], highlights: [] } },
-    'notes',
+    { version: 35, state: { highlights: [] } },
+    'highlights',
   );
-  assert.deepEqual(changedNotes.state.highlights, current.state.highlights);
+  assert.deepEqual(merged.state.readingSessions, current.state.readingSessions);
   assert.equal(
-    serializeStateDomainSnapshot(changedNotes, 'highlights').etag,
+    serializeStateDomainSnapshot(merged, 'reading').etag,
+    serializeStateDomainSnapshot(current, 'reading').etag,
+  );
+  const changedSessions = mergeStateDomainSnapshot(
+    current,
+    { version: 35, state: { readingSessions: [{ id: 'session-2' }], highlights: [] } },
+    'reading',
+  );
+  assert.deepEqual(changedSessions.state.highlights, current.state.highlights);
+  assert.equal(
+    serializeStateDomainSnapshot(changedSessions, 'highlights').etag,
     serializeStateDomainSnapshot(current, 'highlights').etag,
   );
 });

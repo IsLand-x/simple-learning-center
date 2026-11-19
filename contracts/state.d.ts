@@ -11,9 +11,7 @@ import type {
   ChapterMindMap,
   ChapterVideo,
   DeletedHighlightTombstone,
-  DeletedNoteTombstone,
   HighlightItem,
-  NoteItem,
   ReaderPreferences,
   ReadingSession,
 } from './reading.js';
@@ -26,8 +24,6 @@ export interface LearningData {
   deletedBookTombstones: DeletedBookTombstone[];
   deletedHighlightTombstones: DeletedHighlightTombstone[];
   highlights: HighlightItem[];
-  notes: NoteItem[];
-  deletedNoteTombstones: DeletedNoteTombstone[];
   chats: ChatMessage[];
   chatSessions: ChatSession[];
   discussions: DiscussionItem[];
@@ -50,7 +46,6 @@ export interface LearningData {
 export interface StateDomainFields {
   library: readonly ['books', 'bookLists', 'trashedBooks', 'deletedBookTombstones'];
   reading: readonly ['readingSessions', 'chapterMindMaps', 'chapterVideos', 'discussions'];
-  notes: readonly ['notes', 'deletedNoteTombstones'];
   highlights: readonly ['highlights', 'deletedHighlightTombstones'];
   conversations: readonly ['chats', 'chatSessions'];
   preferences: readonly [

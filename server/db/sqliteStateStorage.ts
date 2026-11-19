@@ -3,7 +3,7 @@ import { getDatabase, type AppDatabase } from './index.js';
 import * as schema from './schema.js';
 import type { PersistedState, StoredState } from '../modules/state/types.js';
 import type { BookItem } from '../../contracts/books.js';
-import type { HighlightItem, NoteItem, ChapterVideo } from '../../contracts/reading.js';
+import type { HighlightItem, ChapterVideo } from '../../contracts/reading.js';
 import type {
   ChatMessage,
   OpenAICompatibleConfig,
@@ -49,8 +49,6 @@ const TABLE_BACKED_FIELDS: Record<string, true> = {
   deletedBookTombstones: true,
   highlights: true,
   deletedHighlightTombstones: true,
-  notes: true,
-  deletedNoteTombstones: true,
   readingSessions: true,
   chapterMindMaps: true,
   chapterVideos: true,
@@ -85,8 +83,6 @@ const USER_TABLES = [
   schema.deletedBookTombstones,
   schema.highlights,
   schema.deletedHighlightTombstones,
-  schema.notes,
-  schema.deletedNoteTombstones,
   schema.readingSessions,
   schema.chapterMindMaps,
   schema.chapterVideos,
@@ -138,8 +134,6 @@ function inferExistingStoredFields(db: AppDatabase): Set<string> {
   checkTable('deletedBookTombstones', schema.deletedBookTombstones);
   checkTable('highlights', schema.highlights);
   checkTable('deletedHighlightTombstones', schema.deletedHighlightTombstones);
-  checkTable('notes', schema.notes);
-  checkTable('deletedNoteTombstones', schema.deletedNoteTombstones);
   checkTable('readingSessions', schema.readingSessions);
   checkTable('chapterMindMaps', schema.chapterMindMaps);
   checkTable('chapterVideos', schema.chapterVideos);
@@ -160,7 +154,6 @@ function inferExistingStoredFields(db: AppDatabase): Set<string> {
 export function writeStateToDb(
   persisted: PersistedState,
   fields?: readonly (keyof StoredState)[],
-  noteContents?: ReadonlyMap<string, string>,
   meta?: Readonly<Record<string, string>>,
 ) {
   const { db, sqlite } = getDatabase();
@@ -189,20 +182,6 @@ export function writeStateToDb(
       }
       if (!existingStoredFields) {
         existingStoredFields = inferExistingStoredFields(db);
-      }
-    }
-
-    let existingNoteContents: Map<string, string> | undefined;
-    if (updates('notes') && state.notes && !noteContents) {
-      const needsExistingContent = state.notes.some(
-        (n) => typeof (n as NoteItem).content !== 'string',
-      );
-      if (needsExistingContent) {
-        const rows = db
-          .select({ id: schema.notes.id, content: schema.notes.content })
-          .from(schema.notes)
-          .all();
-        existingNoteContents = new Map(rows.map((r) => [r.id, r.content]));
       }
     }
 
@@ -334,42 +313,6 @@ export function writeStateToDb(
           deletedAt: t.deletedAt,
         }));
         db.insert(schema.deletedHighlightTombstones).values(rows).run();
-      }
-    }
-
-    if (updates('notes')) {
-      db.delete(schema.notes).run();
-      if (state.notes && state.notes.length > 0) {
-        const normalizedNotes = state.notes.map((n) => {
-          const noteWithOptionalDiskFields = n as NoteItem & { contentFile?: string };
-          const resolvedContent =
-            typeof n.content === 'string'
-              ? n.content
-              : (noteContents?.get(n.id) ?? existingNoteContents?.get(n.id) ?? '');
-          return {
-            id: n.id,
-            bookId: n.bookId,
-            title: n.title ?? '',
-            content: resolvedContent,
-            fileName: n.fileName,
-            contentFile: noteWithOptionalDiskFields.contentFile,
-            createdAt: n.createdAt ?? 0,
-            updatedAt: n.updatedAt ?? 0,
-          };
-        });
-        db.insert(schema.notes).values(normalizedNotes).run();
-      }
-    }
-
-    if (updates('deletedNoteTombstones')) {
-      db.delete(schema.deletedNoteTombstones).run();
-      if (state.deletedNoteTombstones && state.deletedNoteTombstones.length > 0) {
-        const rows = state.deletedNoteTombstones.map((t) => ({
-          noteId: t.noteId,
-          bookId: t.bookId,
-          deletedAt: t.deletedAt,
-        }));
-        db.insert(schema.deletedNoteTombstones).values(rows).run();
       }
     }
 
@@ -674,28 +617,6 @@ export function readStateFromDb(fields?: readonly (keyof StoredState)[]): Persis
     const rows = db.select().from(schema.deletedHighlightTombstones).all();
     state.deletedHighlightTombstones = rows.map((t) => ({
       highlightId: t.highlightId,
-      bookId: t.bookId,
-      deletedAt: t.deletedAt,
-    }));
-  }
-
-  if (shouldInclude('notes')) {
-    const rows = db.select().from(schema.notes).all();
-    state.notes = rows.map((n) => ({
-      id: n.id,
-      bookId: n.bookId,
-      title: n.title,
-      ...(n.contentFile ? { contentFile: n.contentFile } : { content: n.content }),
-      ...(n.fileName ? { fileName: n.fileName } : {}),
-      createdAt: n.createdAt,
-      updatedAt: n.updatedAt,
-    })) as unknown as NoteItem[];
-  }
-
-  if (shouldInclude('deletedNoteTombstones')) {
-    const rows = db.select().from(schema.deletedNoteTombstones).all();
-    state.deletedNoteTombstones = rows.map((t) => ({
-      noteId: t.noteId,
       bookId: t.bookId,
       deletedAt: t.deletedAt,
     }));

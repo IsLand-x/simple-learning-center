@@ -202,7 +202,6 @@ const options = {
   conversationId: 'infographic-test',
   messages: [{ role: 'user', content: '请生成复制方式的信息图' }],
   currentText: '同步复制等待副本确认；异步复制不等待。',
-  notes: [],
   highlights: [],
   readingSessions: [],
 };

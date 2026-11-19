@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { DiscussionItem, MindMapSource } from '../../../../../../contracts/reading';
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import { confirmDialog } from '../../../../../util/confirmDialog';
-import { MarkdownNoteEditor } from '../BookNotePanel/MarkdownNoteEditor';
+import { MarkdownNoteEditor } from './MarkdownNoteEditor';
 
 export function DiscussionEditor({
   discussion,

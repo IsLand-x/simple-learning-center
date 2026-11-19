@@ -12,7 +12,6 @@ import { requiredString, normalizedMessage } from './model.js';
 export async function prepareJobResources(input: NormalizedJobInput, jobs: Map<string, AiJob>) {
   const { request, purpose, configId, model, bookId, conversationId, userMessageId } = input;
   const persistedState = await readPersistedState({
-    hydrateNote: (note) => note.bookId === bookId,
     hydrateCovers: false,
   });
   if (!persistedState?.state) throw statusError(409, '服务端尚未初始化');

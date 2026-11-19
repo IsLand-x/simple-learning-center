@@ -1,22 +1,12 @@
-import { readFile, readdir, rm } from 'node:fs/promises';
-import { join, relative, resolve, sep } from 'node:path';
+import { join } from 'node:path';
 import type { BookItem } from '../../../contracts/books.js';
-import type { NoteItem } from '../../../contracts/reading.js';
-import { DATA_DIRECTORY, NOTE_DIRECTORY } from '../../config.js';
 import {
   atomicWrite,
-  exists,
   coverDirectoryPath,
   findBookCoverPath,
-  notePath,
 } from '../../infrastructure/fs/files.js';
 import { statusError } from '../../infrastructure/http/errors.js';
 import type { PersistedState, StoredState } from './types.js';
-
-function persistedStateNotes(persistedState: PersistedState | null) {
-  const notes = persistedState?.state?.notes;
-  return Array.isArray(notes) ? notes : [];
-}
 
 const COVER_FORMATS = new Map([
   ['image/avif', 'avif'],
@@ -90,72 +80,18 @@ function stripStoredCoverUrls(persistedState: PersistedState) {
   }
 }
 
-async function listMarkdownFiles(directory: string): Promise<string[]> {
-  if (!(await exists(directory))) return [];
-  const entries = await readdir(directory, { withFileTypes: true });
-  const nested = await Promise.all(
-    entries.map(async (entry) => {
-      const path = join(directory, entry.name);
-      if (entry.isDirectory()) return listMarkdownFiles(path);
-      return entry.isFile() && entry.name.endsWith('.md') ? [path] : [];
-    }),
-  );
-  return nested.flat();
-}
-
-export async function prepareStateForDisk(
-  persistedState: PersistedState,
-  fields?: readonly (keyof StoredState)[],
-) {
+export async function prepareStateForDisk(persistedState: PersistedState) {
   if (!persistedState || typeof persistedState !== 'object' || !persistedState.state) {
     throw statusError(400, '状态数据格式不正确');
   }
   const diskState = structuredClone(persistedState);
   await externalizeStateCovers(diskState);
   stripStoredCoverUrls(diskState);
-  // Only a complete notes partition may reconcile Markdown files. A library or
-  // progress update must never scan, rewrite or delete unrelated note bodies.
-  if (fields && !fields.includes('notes')) return diskState;
-  const notes = persistedStateNotes(diskState);
-  const expectedNoteFiles = new Set();
-  const storedNotes = [];
-
-  for (const note of notes) {
-    if (
-      !note ||
-      typeof note !== 'object' ||
-      typeof note.id !== 'string' ||
-      typeof note.bookId !== 'string'
-    ) {
-      continue;
-    }
-    const path = notePath(note.bookId, note.id);
-    const content = typeof note.content === 'string' ? note.content : '';
-    expectedNoteFiles.add(resolve(path));
-    let existingContent;
-    try {
-      existingContent = await readFile(path, 'utf8');
-    } catch {
-      existingContent = undefined;
-    }
-    if (existingContent !== content) await atomicWrite(path, content);
-    const { content: _content, ...metadata } = note;
-    storedNotes.push({
-      ...metadata,
-      contentFile: relative(DATA_DIRECTORY, path).split(sep).join('/'),
-    });
-  }
-
-  for (const path of await listMarkdownFiles(NOTE_DIRECTORY)) {
-    if (!expectedNoteFiles.has(resolve(path))) await rm(path, { force: true });
-  }
-
-  return { ...diskState, state: { ...diskState.state, notes: storedNotes } };
+  return diskState;
 }
 
 export async function hydrateStateFromDisk(
   diskState: PersistedState & { formatVersion?: number; persistedState?: PersistedState },
-  hydrateNote: (note: NoteItem) => boolean = () => true,
   fields?: readonly (keyof StoredState)[],
   hydrateCovers = true,
 ) {
@@ -173,23 +109,5 @@ export async function hydrateStateFromDisk(
   }
   const hydratedState = structuredClone({ ...persistedState, state: selectedState });
   if (hydrateCovers) await externalizeStateCovers(hydratedState);
-  if (fields && !fields.includes('notes')) return hydratedState;
-  hydratedState.state.notes = await Promise.all(
-    persistedStateNotes(hydratedState).map(async (note) => {
-      if (!note || typeof note !== 'object') return note;
-      const { contentFile, ...metadata } = note as NoteItem & { contentFile?: string };
-      if (!hydrateNote(note)) return { ...metadata, content: '' };
-      if (typeof contentFile !== 'string') return { ...metadata, content: note.content ?? '' };
-      const path = resolve(DATA_DIRECTORY, contentFile);
-      if (path !== DATA_DIRECTORY && !path.startsWith(`${DATA_DIRECTORY}${sep}`)) {
-        return { ...metadata, content: '' };
-      }
-      try {
-        return { ...metadata, content: await readFile(path, 'utf8') };
-      } catch {
-        return { ...metadata, content: '' };
-      }
-    }),
-  );
   return hydratedState;
 }

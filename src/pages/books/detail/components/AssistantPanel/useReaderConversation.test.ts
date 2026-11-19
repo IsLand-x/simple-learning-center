@@ -40,7 +40,6 @@ vi.mock('../../../../../components/ai/useConversationMessages', () => ({
 }));
 vi.mock('../../../../../store/serverStateStorage', () => ({
   serverStateStorage: { getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() },
-  subscribeServerNoteSaves: vi.fn(),
   migrateServerConversations: vi.fn(),
   waitForServerStateWrites: mocks.waitForServerStateWrites,
 }));

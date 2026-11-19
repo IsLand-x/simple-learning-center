@@ -95,38 +95,8 @@ export function createLibraryMcpServer() {
     },
   );
   tool(
-    'read_book_note',
-    '读取指定书籍的 Markdown 阅读笔记；可指定 note_id，使用 offset/limit 分段读取正文，避免超长响应。',
-    {
-      book_id: id,
-      note_id: id.optional(),
-      offset: z.number().int().min(0).default(0),
-      limit: z.number().int().min(1).max(20000).default(10000),
-    },
-    true,
-    async ({ book_id, note_id, offset, limit }) => {
-      const state = await libraryState(
-        (note) => note.bookId === book_id && (!note_id || note.id === note_id),
-      );
-      requireBook(state, book_id);
-      const notes = (state.notes || []).filter(
-        (note) => note.bookId === book_id && (!note_id || note.id === note_id),
-      );
-      return {
-        notes: notes.map((note) => ({
-          id: note.id,
-          title: note.title,
-          updatedAt: note.updatedAt,
-          content: note.content.slice(offset, offset + limit),
-          totalLength: note.content.length,
-          nextOffset: offset + limit < note.content.length ? offset + limit : null,
-        })),
-      };
-    },
-  );
-  tool(
     'trash_book',
-    '将书籍放入回收站，保留书籍文件、笔记、高亮和评论；可在应用内恢复，30 天后自动清理。',
+    '将书籍放入回收站，保留书籍文件、高亮和评论；可在应用内恢复，30 天后自动清理。',
     { book_id: id },
     false,
     async ({ book_id }) => {
