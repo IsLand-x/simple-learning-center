@@ -22,9 +22,6 @@ export function createJobContext(
     purpose,
     book: structuredClone(book),
     currentText,
-    notes: (Array.isArray(state.notes) ? state.notes : [])
-      .filter((note) => note.bookId === bookId)
-      .map((note) => structuredClone(note)),
     highlights: (Array.isArray(state.highlights) ? state.highlights : [])
       .filter((highlight) => highlight.bookId === bookId)
       .map((highlight) => structuredClone(highlight)),

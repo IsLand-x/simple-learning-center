@@ -86,8 +86,6 @@ export function protectBookTrashStateFromClient(
   for (const key of [
     'highlights',
     'deletedHighlightTombstones',
-    'notes',
-    'deletedNoteTombstones',
     'chats',
     'chatSessions',
     'readingSessions',
@@ -220,8 +218,6 @@ export function permanentlyDeleteBookInState(
   for (const key of [
     'highlights',
     'deletedHighlightTombstones',
-    'notes',
-    'deletedNoteTombstones',
     'chats',
     'chatSessions',
     'readingSessions',

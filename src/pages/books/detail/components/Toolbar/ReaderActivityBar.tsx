@@ -33,7 +33,6 @@ export function ReaderActivityBar({ activePanel, onChangePanel }: ReaderActivity
         activePanel={activePanel}
         onClick={() => toggle('discussions')}
       />
-      <ActivityButton panel="notes" activePanel={activePanel} onClick={() => toggle('notes')} />
       <ActivityButton
         panel="comments"
         activePanel={activePanel}

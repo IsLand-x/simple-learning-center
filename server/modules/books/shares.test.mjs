@@ -28,7 +28,6 @@ test('分享只公开明确授权的书籍，匿名读取、撤销、删除和�
             updatedAt: 1,
           },
         ],
-        notes: [],
         highlights: [],
         readingSessions: [],
       },

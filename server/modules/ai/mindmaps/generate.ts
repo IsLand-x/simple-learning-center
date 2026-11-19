@@ -42,12 +42,10 @@ export async function generateChapterMindMap(
       conversationId: `${context.conversationId}:${calls}`,
       messages: [{ role: 'user', content: `章节：${chapter.label}\n${text}` }],
       currentText: '',
-      notes: [],
       highlights: [],
       readingSessions: [],
       assistantPrompt: '',
       signal,
-      onNoteChange: () => undefined,
       onProgress: (progress) =>
         onProgress({ content: stage, dialogueContent: progress.dialogueContent }),
     });

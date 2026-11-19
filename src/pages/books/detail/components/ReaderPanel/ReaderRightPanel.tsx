@@ -7,7 +7,6 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { ConversationHistoryPanel } from '../AssistantPanel/ConversationHistoryPanel';
 import { AiConversationPanel } from '../AssistantPanel/AiConversationPanel';
 import { ReaderAiSettingsDialog } from '../AssistantPanel/ReaderAiSettingsDialog';
-import { BookNotePanel } from '../BookNotePanel/BookNotePanel';
 import { CommentsPanel } from '../CommentsPanel';
 import { GlossaryPanel } from '../GlossaryPanel/GlossaryPanel';
 import { HighlightsPanel } from '../HighlightsPanel';
@@ -230,7 +229,6 @@ export function ReaderRightPanel({
             onLocateSource={onLocateSource}
           />
         )}
-        {activePanel === 'notes' && <BookNotePanel book={book} />}
         {activePanel === 'glossary' && (
           <GlossaryPanel
             book={book}

@@ -1,7 +1,6 @@
 import type { BigIntStats } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
-import type { NoteItem } from '../../../contracts/reading.js';
 import { measureServerTiming, recordServerTiming } from '../../infrastructure/http/timing.js';
 import { STATE_FILE } from '../../config.js';
 import { exists } from '../../infrastructure/fs/files.js';
@@ -23,11 +22,7 @@ import {
 // Queue callbacks must not call readPersistedState or enqueue another mutation.
 let stateWriteQueue = Promise.resolve();
 type DiskState = {
-  state: {
-    [K in keyof StoredState]: K extends 'notes'
-      ? Array<NoteItem | (Omit<NoteItem, 'content'> & { contentFile: string })>
-      : StoredState[K];
-  };
+  state: StoredState;
   version: number;
   deletedConversationIds?: string[];
 };
@@ -41,22 +36,9 @@ function fileSignature(metadata: BigIntStats) {
 }
 
 function unwrapState(disk: StateFile | null): PersistedState | null {
-  // Disk notes contain contentFile instead of content. The hydration boundary
-  // below resolves those references before a note is exposed to callers.
   return disk?.formatVersion === 1
     ? (disk.persistedState as PersistedState)
     : (disk as PersistedState | null);
-}
-
-function extractNoteContents(state: StoredState): Map<string, string> | undefined {
-  if (!Array.isArray(state.notes)) return undefined;
-  const map = new Map<string, string>();
-  for (const note of state.notes) {
-    if (note && typeof note.id === 'string' && typeof note.content === 'string') {
-      map.set(note.id, note.content);
-    }
-  }
-  return map.size > 0 ? map : undefined;
 }
 
 async function readStateFile() {
@@ -142,7 +124,6 @@ async function readAuthoritativeState(fields?: readonly (keyof StoredState)[]) {
 
 async function readPersistedStateFromDisk(
   options: {
-    hydrateNote?: (note: NoteItem) => boolean;
     fields?: readonly (keyof StoredState)[];
     hydrateCovers?: boolean;
   } = {},
@@ -150,7 +131,7 @@ async function readPersistedStateFromDisk(
   const diskState = await readAuthoritativeState(options.fields);
   return diskState
     ? measureServerTiming('state_hydrate', () =>
-        hydrateStateFromDisk(diskState, options.hydrateNote, options.fields, options.hydrateCovers),
+        hydrateStateFromDisk(diskState, options.fields, options.hydrateCovers),
       )
     : null;
 }
@@ -166,11 +147,10 @@ async function persistState(
   fields?: readonly (keyof StoredState)[],
 ) {
   const nextState = protectState(persistedState, currentPersistedState);
-  const noteContents = extractNoteContents(nextState.state);
   const stateForDisk = preserveResourceFiles
     ? nextState
-    : await measureServerTiming('state_prepare', () => prepareStateForDisk(nextState, fields));
-  await commitState(stateForDisk, true, fields, noteContents);
+    : await measureServerTiming('state_prepare', () => prepareStateForDisk(nextState));
+  await commitState(stateForDisk, true, fields);
 }
 
 function protectState(
@@ -190,20 +170,18 @@ async function commitState(
   stateForDisk: DiskState,
   cacheOwnedSnapshot = true,
   fields?: readonly (keyof StoredState)[],
-  noteContents?: ReadonlyMap<string, string>,
 ) {
   const persisted = {
     version: stateForDisk.version,
     deletedConversationIds: stateForDisk.deletedConversationIds,
     state: stateForDisk.state as unknown as StoredState,
   };
-  writeStateToDb(persisted, fields, noteContents);
+  writeStateToDb(persisted, fields);
   rememberAuthoritativeState(persisted);
   if (!cacheOwnedSnapshot) authoritativeCache = undefined;
 }
 
 export async function readPersistedState(options?: {
-  hydrateNote?: (note: NoteItem) => boolean;
   fields?: readonly (keyof StoredState)[];
   hydrateCovers?: boolean;
   waitForWrites?: boolean;
@@ -270,7 +248,7 @@ export function writePersistedState(
       if (options.fields) {
         const raw = await readAuthoritativeState();
         const current = raw
-          ? await hydrateStateFromDisk(raw, undefined, options.readFields ?? options.fields, false)
+          ? await hydrateStateFromDisk(raw, options.readFields ?? options.fields, false)
           : null;
         const transformed = transform
           ? await transform(structuredClone(persistedState), current)
@@ -286,9 +264,8 @@ export function writePersistedState(
             )[field];
           }
         }
-        const noteContents = extractNoteContents(selected);
         const prepared = await measureServerTiming('state_prepare', () =>
-          prepareStateForDisk({ ...protectedState, state: selected }, options.fields),
+          prepareStateForDisk({ ...protectedState, state: selected }),
         );
         await commitState(
           {
@@ -298,12 +275,11 @@ export function writePersistedState(
           },
           true,
           options.fields,
-          noteContents,
         );
         return;
       }
-      // Preference updates cannot change books or notes. Keep their on-disk
-      // metadata untouched instead of resolving every cover and Markdown file.
+      // Preference updates cannot change books. Keep their on-disk
+      // metadata untouched instead of resolving every cover file.
       const currentPersistedState = options.preserveResourceFiles
         ? await readResourceMetadata()
         : await readPersistedStateFromDisk();
@@ -329,8 +305,8 @@ export function mutatePersistedState<T>(
     .catch(() => undefined)
     .then(async () => {
       recordServerTiming('state_queue', performance.now() - queuedAt);
-      // Metadata-only mutations keep the same atomic queue and on-disk book/note
-      // references. Callers must not edit books, trashed books or notes in this mode.
+      // Metadata-only mutations keep the same atomic queue and on-disk book
+      // references. Callers must not edit books or trashed books in this mode.
       const persistedState = options.preserveResourceFiles
         ? await readResourceMetadata()
         : await readPersistedStateFromDisk();

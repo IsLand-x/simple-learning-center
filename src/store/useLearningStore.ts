@@ -1,10 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import {
-  serverStateStorage,
-  subscribeServerNoteSaves,
-  migrateServerConversations,
-} from './serverStateStorage';
+import { serverStateStorage, migrateServerConversations } from './serverStateStorage';
 import { LEARNING_STORE_VERSION } from './stateDomains';
 import { createConversationActions } from './actions/conversationActions';
 import { createLibraryActions } from './actions/libraryActions';
@@ -35,18 +31,22 @@ export const useLearningStore = create<LearningState>()(
         ...state
       }) => state,
       migrate: async (state, version) => {
-        const envelope = (state ?? {}) as Partial<LearningState>;
+        // 44 起删除阅读笔记分区，剥离旧快照里的 notes / deletedNoteTombstones。
+        const envelope = (state ?? {}) as Partial<LearningState> & {
+          notes?: unknown;
+          deletedNoteTombstones?: unknown;
+        };
         await migrateServerConversations(envelope, version);
-        const { chats: _chats, chatSessions: _sessions, ...rest } = envelope;
+        const {
+          chats: _chats,
+          chatSessions: _sessions,
+          notes: _notes,
+          deletedNoteTombstones: _noteTombstones,
+          ...rest
+        } = envelope;
         return rest;
       },
       merge: mergeLearningState,
     },
   ),
 );
-
-subscribeServerNoteSaves(() => {
-  void Promise.resolve(useLearningStore.persist.rehydrate()).catch((error: unknown) => {
-    console.warn('同步已保存的阅读笔记失败', error);
-  });
-});

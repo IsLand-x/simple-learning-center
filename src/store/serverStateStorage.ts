@@ -1,12 +1,10 @@
 import type { LearningData, StateDomain } from '../../contracts/state';
 import { measureAsync } from '../util/browser/measureAsync';
 import { mergeLibraryBooks } from './persistence/libraryStateMerge';
-import { mergeReadingNotes } from './persistence/noteStateMerge';
 import { mergeReaderHighlights } from './persistence/readerStateMerge';
 import { mergeDiscussions } from './persistence/discussions';
 import type { PersistedStateEnvelope, StateDomainSnapshot } from '../api/state/type';
 import type { StateStorage } from 'zustand/middleware';
-import type { NoteItem } from '../../contracts/reading';
 import { stateApi } from '../api/state';
 import {
   ALL_STATE_DOMAINS,
@@ -22,29 +20,17 @@ const loadedDomains = new Set<StateDomain>();
 const activeDomains = new Set<StateDomain>();
 const domainEtags = new Map<StateDomain, string>();
 const domainPayloads = new Map<StateDomain, string>();
-const domainSubmittedPayloads = new Map<StateDomain, string>();
 const domainQueuedPayloads = new Map<StateDomain, string>();
 const domainLoadPromises = new Map<StateDomain, Promise<void>>();
 const domainLocalRevisions = new Map<StateDomain, number>();
-const noteSaveListeners = new Set<() => void>();
 
 interface DomainWrite {
   body: string;
   snapshot: StateDomainSnapshot;
-  notesBase?: NoteItem[];
-  revision: number;
 }
 
-let pendingNoteWrite: DomainWrite | undefined;
 let pendingPreferenceWrite: DomainWrite | undefined;
 let activePreferenceWrite: DomainWrite | undefined;
-
-export function subscribeServerNoteSaves(listener: () => void) {
-  noteSaveListeners.add(listener);
-  return () => {
-    noteSaveListeners.delete(listener);
-  };
-}
 
 function parseStateEnvelope(rawState: string) {
   try {
@@ -104,26 +90,12 @@ async function fetchStateDomain(domain: StateDomain) {
   if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) {
     domainEtags.delete(domain);
     // A local save started while this response was in flight. Keep that local
-    // edit, and still merge remote notes, discussions, highlights, and the shelf. Drop the
+    // edit, and still merge remote discussions, highlights, and the shelf. Drop the
     // in-flight ETag so the next quiet refresh cannot answer 304 for a partial
     // merge. Reading sessions and preferences wait for that quiet refresh.
     if (!preparedEnvelope) return;
     const local = preparedEnvelope;
-    if (domain === 'notes') {
-      mergePreparedState({
-        version: snapshot.version,
-        state: mergeReadingNotes(
-          {
-            notes: 'notes' in snapshot.state ? snapshot.state.notes : undefined,
-            deletedNoteTombstones:
-              'deletedNoteTombstones' in snapshot.state
-                ? snapshot.state.deletedNoteTombstones
-                : undefined,
-          },
-          local.state ?? {},
-        ),
-      });
-    } else if (domain === 'highlights') {
+    if (domain === 'highlights') {
       mergePreparedState({
         version: snapshot.version,
         state: mergeReaderHighlights(
@@ -158,7 +130,6 @@ async function fetchStateDomain(domain: StateDomain) {
   const nextEtag = response.etag;
   if (nextEtag) domainEtags.set(domain, nextEtag);
   domainPayloads.set(domain, JSON.stringify(stateDomainSnapshot(snapshot, domain)));
-  domainSubmittedPayloads.delete(domain);
   mergePreparedState(snapshot);
 }
 
@@ -232,7 +203,6 @@ export async function migrateServerConversations(state: Partial<LearningData>, v
   loadedDomains.delete('conversations');
   domainPayloads.delete('conversations');
   domainEtags.delete('conversations');
-  domainSubmittedPayloads.delete('conversations');
   domainQueuedPayloads.delete('conversations');
 }
 export async function prepareServerState(onProgress?: (message: string) => void) {
@@ -260,39 +230,22 @@ export const serverStateStorage: StateStorage = {
     for (const domain of domains) {
       const snapshot = stateDomainSnapshot(envelope, domain);
       const body = JSON.stringify(snapshot);
-      const previous =
-        domainQueuedPayloads.get(domain) ??
-        domainSubmittedPayloads.get(domain) ??
-        domainPayloads.get(domain);
+      const previous = domainQueuedPayloads.get(domain) ?? domainPayloads.get(domain);
       if (previous === body) {
         // The cache already contains this snapshot. Re-merging unchanged
-        // domains would parse and serialize every note once per domain on each
-        // keystroke; it can also replace a pending canonical note response.
+        // domains would parse and serialize every record once per domain on each
+        // keystroke.
         continue;
       }
       mergePreparedState(snapshot);
-      const revision = (domainLocalRevisions.get(domain) ?? 0) + 1;
-      const baseline = domainQueuedPayloads.get(domain) ?? domainPayloads.get(domain);
-      const notesBase =
-        domain === 'notes'
-          ? ((baseline ? parseStateEnvelope(baseline).state?.notes : undefined) ?? [])
-          : undefined;
-      const pending =
-        domain === 'notes'
-          ? pendingNoteWrite
-          : domain === 'preferences'
-            ? pendingPreferenceWrite
-            : undefined;
+      const pending = domain === 'preferences' ? pendingPreferenceWrite : undefined;
       if (pending) {
-        // Keep the latest unsent snapshot behind the active request. Notes retain
-        // the first editing base so concurrent AI changes still merge safely.
+        // Keep the latest unsent snapshot behind the active request.
         pending.body = body;
         pending.snapshot = snapshot;
-        pending.revision = revision;
       } else {
-        const write = { body, snapshot, notesBase, revision };
+        const write = { body, snapshot };
         domainBodies.set(domain, write);
-        if (domain === 'notes') pendingNoteWrite = write;
         if (domain === 'preferences') pendingPreferenceWrite = write;
       }
       domainQueuedPayloads.set(domain, body);
@@ -302,27 +255,17 @@ export const serverStateStorage: StateStorage = {
       .catch(() => undefined)
       .then(async () => {
         try {
-          for (const [domain, { body, snapshot, notesBase, revision }] of domainBodies) {
-            if (domain === 'notes') pendingNoteWrite = undefined;
+          for (const [domain, { body, snapshot }] of domainBodies) {
             if (domain === 'preferences') {
               pendingPreferenceWrite = undefined;
               activePreferenceWrite = domainBodies.get(domain);
             }
-            const saved = await stateApi.writeDomain(domain, snapshot, notesBase);
-            // Compare notes against the last submitted local draft until the
-            // store has observed the canonical response, rather than treating
-            // an unchanged stale value as a new edit on a progress save.
+            const saved = await stateApi.writeDomain(domain, snapshot);
             domainPayloads.set(domain, saved ? JSON.stringify(saved) : body);
-            if (domain === 'notes') domainSubmittedPayloads.set(domain, body);
-            if (saved && domain === 'notes' && domainLocalRevisions.get(domain) === revision) {
-              mergePreparedState(saved);
-              noteSaveListeners.forEach((listener) => listener());
-            }
           }
         } finally {
-          // An earlier domain can fail before the note request starts. Release
-          // that unsent draft too, so subsequent edits can schedule a retry.
-          if (pendingNoteWrite === domainBodies.get('notes')) pendingNoteWrite = undefined;
+          // An earlier domain can fail before the preference request starts.
+          // Release that unsent draft too, so subsequent edits can schedule a retry.
           if (pendingPreferenceWrite === domainBodies.get('preferences'))
             pendingPreferenceWrite = undefined;
           if (activePreferenceWrite === domainBodies.get('preferences'))

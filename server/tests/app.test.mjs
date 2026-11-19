@@ -35,7 +35,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const persistedState = {
       state: {
         books: [],
-        notes: [],
         openAIConfigs: [
           {
             id: 'provider-1',
@@ -93,7 +92,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     const stateAfterPreferenceWrite = await (await app.request('/api/state')).json();
     assert.equal(stateAfterPreferenceWrite.state.themeMode, 'dark');
     assert.equal(stateAfterPreferenceWrite.state.openAIConfigs[0].apiKey, 'test-key-1');
-    assert.equal(stateAfterPreferenceWrite.state.notes.length, 0);
   });
 
   await t.test('API Key 导入导出接口已移除，已有配置保持不变', async () => {
@@ -434,16 +432,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
         createdAt: 100,
       },
     ];
-    currentState.state.notes = [
-      {
-        id: 'trash-sync-note',
-        bookId: book.id,
-        title: '保留的笔记',
-        content: '笔记正文',
-        createdAt: 100,
-        updatedAt: 100,
-      },
-    ];
     currentState.state.chats = [];
     currentState.state.chatSessions = [];
     currentState.state.readingSessions = [];
@@ -468,7 +456,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     assert.ok((await coverResponse.arrayBuffer()).byteLength > 0);
     const staleDeviceSnapshot = structuredClone(currentState);
     staleDeviceSnapshot.state.highlights = [];
-    staleDeviceSnapshot.state.notes = [];
 
     const trashResponse = await app.request(`/api/books/${book.id}/trash`, { method: 'POST' });
     assert.equal(trashResponse.status, 200);
@@ -480,7 +467,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     );
     assert.equal(serverState.state.trashedBooks[0].book.id, book.id);
     assert.equal(serverState.state.highlights[0].text, '保留的高亮');
-    assert.equal(serverState.state.notes[0].content, '笔记正文');
     assert.deepEqual(serverState.state.bookLists[0].bookIds, []);
     assert.equal((await app.request(`/api/books/${book.id}`)).status, 200);
 
@@ -496,7 +482,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     );
     assert.equal(serverState.state.trashedBooks[0].book.id, book.id);
     assert.equal(serverState.state.highlights[0].text, '保留的高亮');
-    assert.equal(serverState.state.notes[0].content, '笔记正文');
 
     const restoreResponse = await app.request(`/api/books/${book.id}/restore`, { method: 'POST' });
     assert.equal(restoreResponse.status, 200);
@@ -535,10 +520,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
       false,
     );
     assert.equal(
-      serverState.state.notes.some((item) => item.bookId === book.id),
-      false,
-    );
-    assert.equal(
       serverState.state.deletedBookTombstones.some((item) => item.bookId === book.id),
       true,
     );
@@ -557,10 +538,6 @@ test('数据 API、API Key 迁移与远程认证', async (t) => {
     );
     assert.equal(
       serverState.state.highlights.some((item) => item.bookId === book.id),
-      false,
-    );
-    assert.equal(
-      serverState.state.notes.some((item) => item.bookId === book.id),
       false,
     );
   });

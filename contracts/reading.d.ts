@@ -75,22 +75,6 @@ export interface HighlightItem {
   updatedAt: number;
 }
 
-export interface DeletedNoteTombstone {
-  noteId: string;
-  bookId: string;
-  deletedAt: number;
-}
-
-export interface NoteItem {
-  id: string;
-  bookId: string;
-  title: string;
-  content: string;
-  fileName?: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
 export interface ReadingSession {
   id: string;
   bookId: string;

@@ -44,8 +44,7 @@ export function TrashView({ trashedBooks }: TrashViewProps) {
   const removePermanently = (item: TrashedBookItem) => {
     confirmDialog({
       title: `彻底删除《${item.book.title}》？`,
-      content:
-        'EPUB 文件、阅读进度、笔记、高亮、评论和 AI 对话都会从服务器数据目录中清除，且无法恢复。',
+      content: 'EPUB 文件、阅读进度、高亮、评论和 AI 对话都会从服务器数据目录中清除，且无法恢复。',
       icon: <IconDeleteStroked size="large" style={{ color: 'var(--semi-color-danger)' }} />,
       okText: '彻底删除',
       cancelText: '取消',

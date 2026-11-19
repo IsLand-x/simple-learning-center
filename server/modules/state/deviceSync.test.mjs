@@ -55,7 +55,7 @@ test('两台设备的进度和术语以 SQLite 为准，旧快照不能回退', 
     (
       await request(app, '/api/state?initialize=1', 'PUT', {
         version: 42,
-        state: { books: [book], highlights: [], notes: [] },
+        state: { books: [book], highlights: [] },
       })
     ).status,
     204,

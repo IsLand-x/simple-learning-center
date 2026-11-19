@@ -12,7 +12,6 @@ export async function requireChapterVideo(bookId: string, videoId: string) {
   const state = (
     await readPersistedState({
       fields: ['books', 'chapterVideos'],
-      hydrateNote: () => false,
       hydrateCovers: false,
     })
   )?.state;

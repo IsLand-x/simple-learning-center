@@ -178,10 +178,6 @@ async function mockJobs(page: Page, delayedStart = false, background = false) {
     submitted: () => submitted,
     conversationId: () => job?.conversationId,
     servedRevision: () => servedRevision,
-    noteChanged: () => {
-      if (job)
-        job = { ...job, revision: job.revision + 1, notesRevision: (job.notesRevision ?? 0) + 1 };
-    },
     cancellations: () => cancellations,
     releaseStart,
     complete: () => {
@@ -514,47 +510,6 @@ test('浏览 Codex 模型时后台回复更新不会跳回 Kimi', async ({ page 
   await expect(lastModel).toBeVisible();
   await lastModel.click();
   await expect(page.locator('.ai-composer-model-cascader')).toContainText('codex-test-29');
-});
-
-test('AI 新建笔记后旧阅读快照不会删除文件，笔记面板及刷新均能显示正文', async ({
-  page,
-}, testInfo) => {
-  // Includes a full reload and two editor mounts in the fixed browser container.
-  test.setTimeout(60_000);
-  const mobile = testInfo.project.name === 'mobile-chrome';
-  await seed(page);
-  const jobs = await mockJobs(page);
-  await page.goto(`/books/${book.id}`);
-  await entry(page, mobile).click();
-  await send(page);
-  await expect(page.getByText('正在后台继续生成', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: '打开笔记', exact: true }).click();
-  const stale = await (await page.request.get('/api/state/reading')).json();
-  const updated = await (await page.request.get('/api/state/notes')).json();
-  const content = '工具创建的阅读笔记：这段正文必须保存并显示。';
-  const timestamp = Date.now();
-  updated.state.notes = [
-    {
-      id: `book-note:${book.id}`,
-      bookId: book.id,
-      title: '阅读笔记',
-      fileName: 'reading-note.md',
-      content,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    },
-  ];
-  expect((await page.request.put('/api/state/notes', { data: updated })).status()).toBe(204);
-  expect((await page.request.put('/api/state/reading', { data: stale })).status()).toBe(204);
-  jobs.noteChanged();
-  jobs.complete();
-  // AI is hidden while the task completes; the page-level listener must sync notes.
-  const editor = page.getByLabel(`编辑《${book.title}》的 Markdown 笔记`);
-  await expect(editor).toContainText(content);
-  await page.reload();
-  if (mobile) await entry(page, true).click();
-  await page.getByRole('button', { name: '打开笔记', exact: true }).click();
-  await expect(editor).toContainText(content);
 });
 
 test('生成漫画仅对订阅生图可用，发送本章导读需求并防止重复生成', async ({ page }, testInfo) => {

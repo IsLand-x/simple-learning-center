@@ -11,7 +11,6 @@ const STATE_DOMAIN_FIELDS = Object.freeze({
     'chapterVideos',
     'discussions',
   ] as const),
-  notes: Object.freeze(['notes', 'deletedNoteTombstones'] as const),
   highlights: Object.freeze(['highlights', 'deletedHighlightTombstones'] as const),
   conversations: Object.freeze(['chats', 'chatSessions'] as const),
   preferences: Object.freeze([

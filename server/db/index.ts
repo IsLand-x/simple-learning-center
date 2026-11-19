@@ -114,23 +114,6 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
       deleted_at INTEGER NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS notes (
-      id TEXT PRIMARY KEY,
-      book_id TEXT NOT NULL,
-      title TEXT NOT NULL DEFAULT '',
-      content TEXT NOT NULL DEFAULT '',
-      file_name TEXT,
-      content_file TEXT,
-      created_at INTEGER NOT NULL DEFAULT 0,
-      updated_at INTEGER NOT NULL DEFAULT 0
-    );
-
-    CREATE TABLE IF NOT EXISTS deleted_note_tombstones (
-      note_id TEXT PRIMARY KEY,
-      book_id TEXT NOT NULL,
-      deleted_at INTEGER NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS reading_sessions (
       id TEXT PRIMARY KEY,
       book_id TEXT NOT NULL,
@@ -218,7 +201,6 @@ export function initDatabase(dbFilePath: string = getDbFile()) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_highlights_book_id ON highlights(book_id);
-    CREATE INDEX IF NOT EXISTS idx_notes_book_id ON notes(book_id);
     CREATE INDEX IF NOT EXISTS idx_reading_sessions_book_id ON reading_sessions(book_id);
     CREATE INDEX IF NOT EXISTS idx_chapter_mind_maps_book_id ON chapter_mind_maps(book_id);
     CREATE INDEX IF NOT EXISTS idx_chapter_videos_book_id ON chapter_videos(book_id);

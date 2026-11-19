@@ -64,10 +64,6 @@ export function noteDirectoryPath(bookId: string) {
   return join(NOTE_DIRECTORY, encodedId(bookId));
 }
 
-export function notePath(bookId: string, noteId: string) {
-  return join(noteDirectoryPath(bookId), `${encodedId(noteId)}.md`);
-}
-
 export async function exists(path: string) {
   try {
     await access(path);

@@ -1,6 +1,5 @@
 import { compress } from 'hono/compress';
 import { protectClientState } from './compatibility/clientState.js';
-import { mergeClientNoteDrafts } from './noteDrafts.js';
 import type { PersistedState } from './types.js';
 import type { AppDependencies } from '../../dependencies.js';
 import { createRouter } from '../../http/router.js';
@@ -65,10 +64,9 @@ export function createStateRoutes({
         ? null
         : await readPersistedState({
             fields: stateDomainFields(domain),
-            hydrateNote: () => domain === 'notes',
-            // Notes use separate mutable Markdown files; keep their reads behind
-            // the writer. Metadata partitions can read the last atomic commit.
-            waitForWrites: domain === 'notes',
+            // Metadata partitions read the last atomic commit instead of waiting
+            // behind a slow writer.
+            waitForWrites: false,
           });
     const serialized =
       domain === 'conversations'
@@ -98,8 +96,6 @@ export function createStateRoutes({
         const mergedState = mergeStateDomainSnapshot(currentState, incomingSnapshot, domain);
         if (domain === 'conversations' && c.req.query('migrate') === '1')
           mergeMigratedConversations(mergedState, currentState);
-        if (domain === 'notes' && snapshot.notesBase !== undefined)
-          mergeClientNoteDrafts(mergedState, currentState, snapshot.notesBase);
         return protectClientState(aiJobs.protectPersistedState, mergedState, currentState);
       },
       {
@@ -107,14 +103,6 @@ export function createStateRoutes({
         readFields: [...stateDomainFields(domain), ...stateDomainFields('library')],
       },
     );
-    if (domain === 'notes' && snapshot.notesBase !== undefined) {
-      const serialized = serializeStateDomainSnapshot(
-        await readPersistedState({ fields: stateDomainFields('notes') }),
-        domain,
-      )!;
-      c.header('ETag', serialized.etag);
-      return c.body(serialized.body, 200, { 'Content-Type': 'application/json; charset=utf-8' });
-    }
     return noContent(c);
   });
   app.all('/:domain', methodNotAllowed);

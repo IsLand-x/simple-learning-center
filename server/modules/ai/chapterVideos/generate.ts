@@ -52,12 +52,10 @@ export async function generateChapterVideo(
         { role: 'user', content: `书籍：${book.title}\n范围：${chapterTitle}\n${content}` },
       ],
       currentText: '',
-      notes: [],
       highlights: [],
       readingSessions: [],
       assistantPrompt: '',
       signal,
-      onNoteChange: () => undefined,
       onProgress: (progress) =>
         onProgress({ content: stage, dialogueContent: progress.dialogueContent }),
     });

@@ -12,30 +12,20 @@ const { writePersistedState, mutatePersistedState } = await import('./stateStore
 const { atomicWrite } = await import('../../infrastructure/fs/files.js');
 after(() => rm(directory, { recursive: true, force: true }));
 
-test('偏好保存不读取或重建无关封面和笔记，保留原有文件元数据及正文', async () => {
-  const note = {
-    id: 'note',
-    bookId: 'book',
-    title: '原始笔记',
-    createdAt: 1,
-    updatedAt: 1,
-    contentFile: 'notes/book/note.md',
-  };
-  const missingNote = { ...note, id: 'missing', contentFile: 'notes/book/missing.md' };
+test('偏好保存不读取或重建无关封面，保留原有文件元数据', async () => {
   const cover = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64');
   const book = {
     id: 'preferences-resource-book',
     title: '封面无需处理',
     coverDataUrl: `data:image/svg+xml;base64,${cover}`,
   };
-  await atomicWrite(join(directory, note.contentFile), '不能被偏好保存清空的笔记正文');
   await atomicWrite(
     join(directory, 'state.json'),
     JSON.stringify({
       formatVersion: 1,
       persistedState: {
         version: 40,
-        state: { themeMode: 'light', books: [book], notes: [note, missingNote] },
+        state: { themeMode: 'light', books: [book] },
       },
     }),
   );
@@ -45,22 +35,16 @@ test('偏好保存不读取或重建无关封面和笔记，保留原有文件�
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       version: 40,
-      state: { themeMode: 'dark', notes: [], books: [] },
+      state: { themeMode: 'dark', books: [] },
     }),
   });
   assert.equal(response.status, 204);
   const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
   const saved = readStateFromDb();
   assert.equal(saved?.state.themeMode, 'dark');
-  assert.deepEqual(saved?.state.notes, [note, missingNote]);
   assert.equal(saved?.state.books?.[0]?.id, book.id);
   assert.equal(saved?.state.books?.[0]?.title, book.title);
   assert.equal(saved?.state.books?.[0]?.coverDataUrl, book.coverDataUrl);
-  assert.equal(
-    await readFile(join(directory, note.contentFile), 'utf8'),
-    '不能被偏好保存清空的笔记正文',
-  );
-  await assert.rejects(readFile(join(directory, missingNote.contentFile)), { code: 'ENOENT' });
   await assert.rejects(readFile(join(directory, 'covers', book.id, 'cover.svg')), {
     code: 'ENOENT',
   });
@@ -71,7 +55,6 @@ test('状态分区压缩保持内容、鉴权与重验证语义，更新后不�
     version: 25,
     state: {
       books: [{ id: 'book', title: '书架压缩回归测试'.repeat(300), fileSize: 42 }],
-      notes: [],
     },
   });
   const app = createApp({ mode: 'local', serveFrontend: false });
@@ -110,19 +93,11 @@ test('状态分区压缩保持内容、鉴权与重验证语义，更新后不�
 });
 
 test('书架及进度分区保存不访问其他正文资源，也不会丢失未知状态或服务器删除记录', async () => {
-  const note = {
-    id: 'isolated-note',
-    bookId: 'isolated-book',
-    updatedAt: 1,
-    contentFile: 'notes/isolated-book/note.md',
-  };
   const untouched = {
-    notes: [note],
     rssItems: [{ id: 'large-item', fullContentText: '无关正文'.repeat(10000) }],
     extension: { nested: ['保留'] },
   };
   const { writeStateToDb } = await import('../../db/sqliteStateStorage.js');
-  await atomicWrite(join(directory, note.contentFile), '用户直接编辑的 Markdown');
   writeStateToDb({
     version: 40,
     deletedConversationIds: ['removed-session'],
@@ -130,13 +105,12 @@ test('书架及进度分区保存不访问其他正文资源，也不会丢失�
   });
   const app = createApp({ mode: 'local', serveFrontend: false });
   for (const [domain, state] of [
-    ['library', { books: [{ id: 'isolated-book', title: '新书名', updatedAt: 2 }], notes: [] }],
-    ['reading', { readingSessions: [{ id: 'reading', bookId: 'isolated-book' }], notes: [] }],
+    ['library', { books: [{ id: 'isolated-book', title: '新书名', updatedAt: 2 }] }],
+    ['reading', { readingSessions: [{ id: 'reading', bookId: 'isolated-book' }] }],
     [
       'highlights',
       {
         highlights: [{ id: 'highlight', bookId: 'isolated-book', createdAt: 2, updatedAt: 2 }],
-        notes: [],
       },
     ],
   ]) {
@@ -152,17 +126,9 @@ test('书架及进度分区保存不访问其他正文资源，也不会丢失�
     );
     const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
     const saved = readStateFromDb();
-    assert.equal(saved?.state.notes?.[0]?.id, note.id);
-    assert.equal(saved?.state.notes?.[0]?.contentFile, note.contentFile);
-    assert.equal(saved?.state.notes?.[0]?.updatedAt, note.updatedAt);
-    assert.equal(Object.hasOwn(saved?.state.notes?.[0] ?? {}, 'content'), false);
     assert.deepEqual(saved?.state.rssItems, untouched.rssItems);
     assert.deepEqual(saved?.state.extension, untouched.extension);
     assert.deepEqual(saved?.deletedConversationIds, ['removed-session']);
-    assert.equal(
-      await readFile(join(directory, note.contentFile), 'utf8'),
-      '用户直接编辑的 Markdown',
-    );
   }
   const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
   const saved = readStateFromDb();
@@ -174,7 +140,7 @@ test('书架及进度分区保存不访问其他正文资源，也不会丢失�
 test('书架读取不被未完成的后台写入阻塞，写入提交后立即读取新版本', async () => {
   await writePersistedState({
     version: 40,
-    state: { books: [{ id: 'read-committed', title: '已提交', updatedAt: 1 }], notes: [] },
+    state: { books: [{ id: 'read-committed', title: '已提交', updatedAt: 1 }] },
   });
   const app = createApp({ mode: 'local', serveFrontend: false });
   const ready = Promise.withResolvers();
@@ -207,7 +173,7 @@ test('书架读取不被未完成的后台写入阻塞，写入提交后立即�
 });
 
 test('仅书架和完整状态读取执行注入的回收站清理，并在条件请求前完成', async () => {
-  await writePersistedState({ version: 42, state: { books: [], notes: [], themeMode: 'light' } });
+  await writePersistedState({ version: 42, state: { books: [], themeMode: 'light' } });
   let purgeCount = 0;
   const app = createApp({
     mode: 'local',

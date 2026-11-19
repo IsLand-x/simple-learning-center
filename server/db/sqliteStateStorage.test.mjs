@@ -19,10 +19,9 @@ beforeEach(async () => {
 });
 after(() => rm(directory, { recursive: true, force: true }));
 
-test('migrateFromStateJson 将远端 state.json 与笔记正文完整迁移至 SQLite 且支持增量分区更新', async () => {
+test('migrateFromStateJson 将远端 state.json 完整迁移至 SQLite 且支持增量分区更新', async () => {
   const stateFilePath = join(directory, 'state.json');
   const dbFilePath = join(directory, 'learning-center.db');
-  await atomicWrite(join(directory, 'notes/book-1/note-1.md'), '# 远端笔记正文');
   await atomicWrite(
     stateFilePath,
     JSON.stringify({
@@ -69,16 +68,6 @@ test('migrateFromStateJson 将远端 state.json 与笔记正文完整迁移至 S
               updatedAt: 150,
             },
           ],
-          notes: [
-            {
-              id: 'note-1',
-              bookId: 'book-1',
-              title: '读书笔记',
-              contentFile: 'notes/book-1/note-1.md',
-              createdAt: 120,
-              updatedAt: 180,
-            },
-          ],
           chats: [
             {
               id: 'msg-1',
@@ -107,13 +96,9 @@ test('migrateFromStateJson 将远端 state.json 与笔记正文完整迁移至 S
   const result = await migrateFromStateJson(stateFilePath, dbFilePath);
   assert.equal(result.migrated, true);
 
-  // Verify note Markdown body is stored inside SQLite notes.content column
   const { db } = initDatabase(dbFilePath);
-  const noteRow = db.select().from(schema.notes).get();
-  assert.equal(noteRow?.content, '# 远端笔记正文');
-  assert.equal(noteRow?.contentFile, 'notes/book-1/note-1.md');
 
-  // Verify partial domain update (e.g. preferences) does not lose books, notes, highlights, or chats
+  // Verify partial domain update (e.g. preferences) does not lose books, highlights, or chats
   writeStateToDb(
     {
       version: 42,
@@ -128,7 +113,6 @@ test('migrateFromStateJson 将远端 state.json 与笔记正文完整迁移至 S
   assert.equal(fullFromDb?.state.books?.length, 1);
   assert.equal(fullFromDb?.state.books?.[0]?.title, '远端书籍');
   assert.equal(fullFromDb?.state.highlights?.length, 1);
-  assert.equal(fullFromDb?.state.notes?.length, 1);
   assert.equal(fullFromDb?.state.chats?.length, 1);
   assert.deepEqual(fullFromDb?.deletedConversationIds, ['deleted-conv-1']);
 

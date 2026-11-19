@@ -1,5 +1,4 @@
 import type { BookItem } from '../../../contracts/books.js';
-import type { NoteItem } from '../../../contracts/reading.js';
 import type { StoredState } from '../state/types.js';
 import { readPersistedState, mutatePersistedState } from '../state/stateStore.js';
 import { statusError } from '../../infrastructure/http/errors.js';
@@ -10,10 +9,9 @@ export function requireBook(state: StoredState, id: string) {
   return book;
 }
 
-export async function libraryState(hydrateNote: (note: NoteItem) => boolean = () => false) {
+export async function libraryState() {
   const persisted = await readPersistedState({
-    fields: ['books', 'bookLists', 'highlights', 'notes'],
-    hydrateNote,
+    fields: ['books', 'bookLists', 'highlights'],
   });
   if (!persisted?.state) throw statusError(409, '请先打开应用完成初始化');
   return persisted.state;

@@ -13,7 +13,7 @@ import { statusError } from '../../infrastructure/http/errors.js';
 import { oauthService } from './oauth.js';
 import { createOpenAICompatiblePiRuntime } from './runtime.js';
 import type { PiRuntime } from './runtime.js';
-import { createAgentTools, DEFAULT_NOTE_ACTIONS } from './tools.js';
+import { createAgentTools } from './tools.js';
 import { createDiscussionTools } from './discussions.js';
 import { piTool } from './toolDefinition.js';
 import {
@@ -35,13 +35,11 @@ type MapResult = Awaited<ReturnType<typeof generateBookKnowledgeMap>>;
 interface ChatOptions extends AiChatContext {
   signal?: AbortSignal;
   onProgress?: (progress: AiResult) => void;
-  onNoteChange?: (note: Awaited<ReturnType<typeof DEFAULT_NOTE_ACTIONS.createBookNote>>) => void;
   onDiscussionChange?: () => void;
   runtimeFactory?: (
     ...args: Parameters<typeof createOpenAICompatiblePiRuntime>
   ) => PiRuntime | Promise<PiRuntime>;
   oauth?: Pick<typeof oauthService, 'runtime'>;
-  noteActions?: typeof DEFAULT_NOTE_ACTIONS;
   knowledgeMapGenerator?: typeof generateBookKnowledgeMap;
   infographicImageGenerator?: typeof generateCodexImage;
   infographicImageSave?: typeof saveKnowledgeMap;
@@ -66,11 +64,9 @@ export async function runServerAiChat({
   videoPhase,
   signal,
   onProgress,
-  onNoteChange,
   onDiscussionChange,
   runtimeFactory = createOpenAICompatiblePiRuntime,
   oauth = oauthService,
-  noteActions = DEFAULT_NOTE_ACTIONS,
   knowledgeMapGenerator = generateBookKnowledgeMap,
   infographicImageGenerator,
   infographicImageSave,
@@ -81,24 +77,6 @@ export async function runServerAiChat({
     ? await oauth.runtime(config.oauthProvider, model, signal)
     : await runtimeFactory(config, model, reasoningEffort);
   const piModel = runtime.model;
-  const trackedNoteActions = {
-    readBookNotes: noteActions.readBookNotes,
-    async appendBookNote(...args: Parameters<typeof noteActions.appendBookNote>) {
-      const note = await noteActions.appendBookNote(...args);
-      onNoteChange?.(note);
-      return note;
-    },
-    async createBookNote(...args: Parameters<typeof noteActions.createBookNote>) {
-      const note = await noteActions.createBookNote(...args);
-      onNoteChange?.(note);
-      return note;
-    },
-    async updateBookNote(...args: Parameters<typeof noteActions.updateBookNote>) {
-      const note = await noteActions.updateBookNote(...args);
-      onNoteChange?.(note);
-      return note;
-    },
-  };
   const requestMessages = messages.map((message) => ({
     role: message.role,
     content: requestMessageContent(message, book),
@@ -190,7 +168,6 @@ export async function runServerAiChat({
     highlights,
     readingSessions,
     webSearchConfig,
-    noteActions: trackedNoteActions,
     knowledgeMapAction,
     infographicTools,
     diagramTools:

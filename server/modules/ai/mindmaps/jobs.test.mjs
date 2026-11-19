@@ -155,7 +155,6 @@ test('章节导图后台生成、分区保护、失败保留、取消与书籍�
     assert.equal(received[0].purpose, 'mindmap');
     assert.equal(received[0].messages[0].content.includes('这是第二章的原文'), false);
     assert.equal(received[0].currentText, '');
-    assert.deepEqual(received[0].notes, []);
     assert.equal((await maps())[0].nodes[1].sources[0].cfi, 'trusted-cfi');
     assert.equal((await maps())[0].revision, 1);
     assert.deepEqual((await readPersistedState()).state.chats, []);

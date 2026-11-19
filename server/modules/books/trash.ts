@@ -62,7 +62,6 @@ export async function purgeExpiredTrashedBooks({ now = Date.now, logger = consol
   const timestamp = now();
   const currentState = await readPersistedState({
     fields: ['trashedBooks'],
-    hydrateNote: () => false,
     hydrateCovers: false,
     waitForWrites: false,
   });

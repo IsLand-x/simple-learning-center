@@ -25,7 +25,6 @@ export async function renderChapterVideo(
     signal.throwIfAborted();
     const current = await readPersistedState({
       fields: ['books'],
-      hydrateNote: () => false,
       hydrateCovers: false,
     });
     if (!current?.state.books?.some((book) => book.id === video.bookId))

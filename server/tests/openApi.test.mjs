@@ -49,7 +49,7 @@ test('开放接口鉴权、导入、状态保护与 Token 生命周期', async (
     409,
   );
   assert.deepEqual(await readdir(join(directory, 'books')), []);
-  await writePersistedState({ version: 25, state: { books: [], notes: [] } });
+  await writePersistedState({ version: 25, state: { books: [] } });
   const response = await app.request(uploadPath, { method: 'POST', headers, body: fixture });
   assert.equal(response.status, 201);
   const { book } = await response.json();
@@ -57,7 +57,7 @@ test('开放接口鉴权、导入、状态保护与 Token 生命周期', async (
   assert.equal(book.author, '测试作者');
   assert.equal(book.toc[0].href, 'EPUB/chapter.xhtml');
   assert.deepEqual(await readFile(join(directory, 'books', `${book.id}.epub`)), fixture);
-  await writePersistedState({ version: 25, state: { books: [], notes: [] } });
+  await writePersistedState({ version: 25, state: { books: [] } });
   assert.equal((await readPersistedState()).state.books[0].id, book.id);
   const restarted = createApp({ mode: 'remote', serveFrontend: false });
   assert.equal((await restarted.request('/api/state', { headers })).status, 401);

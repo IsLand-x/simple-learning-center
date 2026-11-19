@@ -71,23 +71,6 @@ export const deletedHighlightTombstones = sqliteTable('deleted_highlight_tombsto
   deletedAt: integer('deleted_at').notNull(),
 });
 
-export const notes = sqliteTable('notes', {
-  id: text('id').primaryKey(),
-  bookId: text('book_id').notNull(),
-  title: text('title').notNull().default(''),
-  content: text('content').notNull().default(''),
-  fileName: text('file_name'),
-  contentFile: text('content_file'),
-  createdAt: integer('created_at').notNull().default(0),
-  updatedAt: integer('updated_at').notNull().default(0),
-});
-
-export const deletedNoteTombstones = sqliteTable('deleted_note_tombstones', {
-  noteId: text('note_id').primaryKey(),
-  bookId: text('book_id').notNull(),
-  deletedAt: integer('deleted_at').notNull(),
-});
-
 export const readingSessions = sqliteTable('reading_sessions', {
   id: text('id').primaryKey(),
   bookId: text('book_id').notNull(),

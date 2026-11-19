@@ -17,7 +17,7 @@ beforeEach(async () => {
   await rm(directory, { recursive: true, force: true });
   await writePersistedState({
     version: 25,
-    state: { books: [{ id: 'book', title: '原书名', fileSize: 42 }], notes: [] },
+    state: { books: [{ id: 'book', title: '原书名', fileSize: 42 }] },
   });
 });
 after(() => rm(directory, { recursive: true, force: true }));
@@ -78,29 +78,24 @@ test('失败操作不提交半成品，后续排队写入继续读取最后成�
   assert.equal(stored.state.books[0].title, '后续操作已保存');
 });
 
-test('读取偏好分区不会处理无关封面或笔记，完整读取仍保留正文和封面', async () => {
+test('读取偏好分区不会处理无关封面，完整读取仍保留封面', async () => {
   const { writeStateToDb } = await import('../../db/sqliteStateStorage.js');
   const cover = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64');
-  const noteFile = 'notes/book/note.md';
-  await atomicWrite(join(directory, noteFile), '原创笔记正文');
   writeStateToDb({
     version: 37,
     state: {
       themeMode: 'dark',
       books: [{ id: 'book', title: '测试书', coverDataUrl: `data:image/svg+xml;base64,${cover}` }],
-      notes: [{ id: 'note', bookId: 'book', title: '测试笔记', contentFile: noteFile }],
     },
   });
   const preferences = await readPersistedState({ fields: ['themeMode'] });
   assert.deepEqual(preferences, { version: 37, state: { themeMode: 'dark' } });
   await assert.rejects(readFile(join(directory, 'covers/book/cover.svg')), { code: 'ENOENT' });
   const full = await readPersistedState();
-  assert.equal(full.state.notes[0].content, '原创笔记正文');
   assert.equal(full.state.books[0].coverDataUrl, '/api/books/book/cover');
 });
 
-test('对话元数据更新保留封面与 Markdown 引用，且不覆盖独立文件或队列中的笔记修改', async () => {
-  const noteFile = 'notes/book/note.md';
+test('对话元数据更新保留封面文件，且分页提交不互相覆盖', async () => {
   const coverFile = 'covers/book/cover.svg';
   await writePersistedState({
     version: 41,
@@ -112,13 +107,10 @@ test('对话元数据更新保留封面与 Markdown 引用，且不覆盖独立�
           coverDataUrl: `data:image/svg+xml;base64,${Buffer.from('<svg/>').toString('base64')}`,
         },
       ],
-      notes: [{ id: 'note', bookId: 'book', content: '原始笔记', updatedAt: 1 }],
     },
   });
-  // An external Markdown edit must not be replaced by a hydrated empty value.
-  await atomicWrite(join(directory, noteFile), '独立文件里的最新正文');
   const originalCover = await stat(join(directory, coverFile), { bigint: true });
-  const first = mutatePersistedState(
+  await mutatePersistedState(
     (snapshot) => {
       snapshot.state.chats = [
         {
@@ -133,20 +125,9 @@ test('对话元数据更新保留封面与 Markdown 引用，且不覆盖独立�
     },
     { preserveResourceFiles: true },
   );
-  const second = mutatePersistedState((snapshot) => {
-    assert.equal(snapshot.state.notes[0].content, '独立文件里的最新正文');
-    snapshot.state.notes[0].content += '\n用户与 AI 同时编辑后的内容';
-  });
-  await first;
   assert.equal(
     (await stat(join(directory, coverFile), { bigint: true })).mtimeNs,
     originalCover.mtimeNs,
-  );
-  await second;
-  const beforeReply = await stat(join(directory, noteFile), { bigint: true });
-  assert.equal(
-    await readFile(join(directory, noteFile), 'utf8'),
-    '独立文件里的最新正文\n用户与 AI 同时编辑后的内容',
   );
   await mutatePersistedState(
     (snapshot) => {
@@ -161,19 +142,9 @@ test('对话元数据更新保留封面与 Markdown 引用，且不覆盖独立�
     },
     { preserveResourceFiles: true },
   );
-  assert.equal(
-    (await stat(join(directory, noteFile), { bigint: true })).mtimeNs,
-    beforeReply.mtimeNs,
-  );
   const { readStateFromDb } = await import('../../db/sqliteStateStorage.js');
   const stored = readStateFromDb();
-  assert.equal(stored?.state.notes?.[0]?.contentFile, noteFile);
-  assert.equal(Object.hasOwn(stored?.state.notes?.[0] ?? {}, 'content'), false);
   assert.equal(stored?.state.chats?.length, 2);
-  assert.equal(
-    (await readPersistedState()).state.notes[0].content,
-    '独立文件里的最新正文\n用户与 AI 同时编辑后的内容',
-  );
 });
 
 test('并发分区读取相互隔离，并在提交后读取最新磁盘内容', async () => {

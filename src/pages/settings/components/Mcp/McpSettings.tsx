@@ -134,8 +134,8 @@ export function McpSettings() {
           直接上传文件（最大 100 MiB）。服务端无法读取客户端的本地路径。
         </Text>
         <Text type="tertiary" size="small">
-          配置包含访问书架、笔记、高亮和评论的凭据，请妥善保存。Token
-          仅保存在服务器数据目录；远程连接使用 HTTPS，客户端必须能访问配置中的服务地址。
+          配置包含访问书架、高亮和评论的凭据，请妥善保存。Token 仅保存在服务器数据目录；远程连接使用
+          HTTPS，客户端必须能访问配置中的服务地址。
         </Text>
       </section>
       <section

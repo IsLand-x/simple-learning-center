@@ -721,7 +721,6 @@
 }
 
 .ai-panel,
-.notes-panel,
 .highlights-panel,
 .comments-panel,
 .history-panel,
@@ -811,12 +810,6 @@
 
 .history-panel .semi-empty {
   padding: 24px 8px;
-}
-
-.book-note-panel {
-  gap: 8px;
-  padding: 8px;
-  overflow: hidden;
 }
 
 .markdown-note-editor__footer {

@@ -1,7 +1,6 @@
 import type { StateDomain } from '../../../contracts/state';
 import type { StateDomainResponse, StateDomainSnapshot } from './type';
 import { apiTransport } from '../http/transport';
-import type { NoteItem } from '../../../contracts/reading';
 
 export class StateApi {
   constructor(private readonly transport = apiTransport) {}
@@ -47,12 +46,11 @@ export class StateApi {
   async writeDomain<Domain extends StateDomain>(
     domain: Domain,
     snapshot: StateDomainSnapshot<Domain>,
-    notesBase?: NoteItem[],
   ): Promise<StateDomainSnapshot<Domain> | undefined> {
     const response = await this.transport.request(`/api/state/${domain}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...snapshot, ...(notesBase ? { notesBase } : {}) }),
+      body: JSON.stringify(snapshot),
     });
     return response.status === 204 ? undefined : response.json();
   }

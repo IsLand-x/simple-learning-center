@@ -27,7 +27,6 @@ export interface AiJob {
   revision: number;
   content: string;
   dialogueContent: AiDialogueContentItem[];
-  notesRevision?: number;
   discussionsRevision?: number;
   error?: string;
   createdAt: number;

@@ -51,14 +51,7 @@ test('手机工具面板内横滑不关闭弹层，返回仍逐层关闭', async
   await swipe(session, page.locator('.mobile-assistant-sheet .right-panel__body'), 'right');
   await swipe(session, tabs, 'left');
   await swipe(session, tabs, 'right');
-  for (const name of [
-    '打开笔记',
-    '打开高亮',
-    '打开评论',
-    '打开对话历史',
-    '打开阅读轨迹',
-    '打开阅读样式设置',
-  ]) {
+  for (const name of ['打开高亮', '打开评论', '打开对话历史', '打开阅读轨迹', '打开阅读样式设置']) {
     await tabs.getByRole('button', { name, exact: true }).click();
     const content = page.locator(
       '.mobile-assistant-sheet .right-panel__body, .mobile-style-panel__body',

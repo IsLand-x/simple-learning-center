@@ -13,7 +13,6 @@ describe('MCP HTTP 连接配置', () => {
       'list_book',
       'edit_book',
       'list_book_highlight_and_comment',
-      'read_book_note',
       'trash_book',
       'list_book_list',
       'edit_book_list',

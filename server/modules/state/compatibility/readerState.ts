@@ -111,25 +111,6 @@ export function protectReaderStateFromClient(
       discussions.set(item.id, item);
   }
   incoming.discussions = [...discussions.values()];
-  // Missing notes in an older snapshot are not a deletion operation.
-  const notes = new Map((current.notes ?? []).map((note) => [note.id, note]));
-  for (const note of incoming.notes ?? []) {
-    const existing = notes.get(note.id);
-    if (!existing || existing.bookId !== note.bookId || note.updatedAt >= existing.updatedAt) {
-      notes.set(note.id, note);
-    }
-  }
-  const noteDeletions = mergeLatestById(
-    incoming.deletedNoteTombstones ?? [],
-    current.deletedNoteTombstones ?? [],
-    'noteId',
-    (item) => item?.deletedAt ?? 0,
-  );
-  incoming.deletedNoteTombstones = [...noteDeletions.values()];
-  incoming.notes = [...notes.values()].filter((note) => {
-    const deletion = noteDeletions.get(note.id);
-    return !deletion || deletion.bookId !== note.bookId || deletion.deletedAt < note.updatedAt;
-  });
   const highlights = mergeLatestById(
     stateArray(incoming, 'highlights'),
     stateArray(current, 'highlights'),

@@ -1,4 +1,3 @@
-import type { NoteItem } from '../../../contracts/reading';
 import type { LearningState, LearningStoreSet } from '../learningState';
 
 type ReadingActions = Pick<
@@ -8,7 +7,6 @@ type ReadingActions = Pick<
   | 'addHighlight'
   | 'updateHighlight'
   | 'deleteHighlight'
-  | 'setBookNoteContent'
   | 'upsertReadingSession'
 >;
 
@@ -82,49 +80,6 @@ export function createReadingActions(set: LearningStoreSet): ReadingActions {
             ...state.deletedHighlightTombstones.filter(
               (tombstone) => tombstone.highlightId !== highlightId,
             ),
-          ],
-        };
-      }),
-    setBookNoteContent: (bookId, bookTitle, content) =>
-      set((state) => {
-        const existing = state.notes
-          .filter((note) => note.bookId === bookId)
-          .sort((left, right) => left.createdAt - right.createdAt)[0];
-        const timestamp = Math.max(
-          Date.now(),
-          (existing?.updatedAt ?? 0) + 1,
-          ...state.deletedNoteTombstones
-            .filter((item) => item.bookId === bookId)
-            .map((item) => item.deletedAt + 1),
-        );
-        const note: NoteItem = existing
-          ? {
-              ...existing,
-              title: `${bookTitle} · 阅读笔记`,
-              content,
-              fileName: 'reading-note.md',
-              updatedAt: timestamp,
-            }
-          : {
-              id: `book-note:${bookId}`,
-              bookId,
-              title: `${bookTitle} · 阅读笔记`,
-              content,
-              fileName: 'reading-note.md',
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            };
-        return {
-          notes: [note, ...state.notes.filter((item) => item.bookId !== bookId)],
-          deletedNoteTombstones: [
-            ...state.deletedNoteTombstones.filter((item) => item.noteId !== note.id),
-            ...state.notes
-              .filter((item) => item.bookId === bookId && item.id !== note.id)
-              .map((item) => ({
-                noteId: item.id,
-                bookId,
-                deletedAt: Math.max(timestamp, item.updatedAt + 1),
-              })),
           ],
         };
       }),
