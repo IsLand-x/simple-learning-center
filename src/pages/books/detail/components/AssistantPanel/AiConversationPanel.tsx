@@ -27,7 +27,6 @@ export function AiConversationPanel({
   onClearSelectedText: () => void;
 }) {
   const {
-    chats,
     messageLoading,
     chatAreaRef,
     userTurns,
@@ -61,17 +60,6 @@ export function AiConversationPanel({
   const draft = useConversationDraft(book.id, conversationId);
   return (
     <div className="right-panel__body min-h-0 ai-panel [gap:6px]">
-      <div className="shrink-0 py-2">
-        <Button
-          size="small"
-          theme="borderless"
-          type="tertiary"
-          disabled={!canSend || starting || !chats.some((message) => message.role === 'assistant')}
-          onClick={() => void send('请总结当前 session 的全部对话，按问题—答案整理并保存到讨论。')}
-        >
-          总结对话并保存
-        </Button>
-      </div>
       <ConversationMessageControls {...messageLoading} />
       <div
         ref={chatAreaRef}

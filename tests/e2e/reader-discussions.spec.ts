@@ -18,6 +18,10 @@ test('讨论支持编辑、刷新恢复、章节跳转和删除', async ({ page 
   await open();
   const panel = page.getByRole('complementary', { name: '讨论', exact: true });
   await panel.getByRole('button', { name: '新建讨论', exact: true }).click();
+  const titlebar = panel.locator('.panel-titlebar');
+  await expect(titlebar).toHaveCount(1);
+  await expect(titlebar.getByRole('button', { name: '返回问题列表', exact: true })).toBeVisible();
+  await expect(titlebar.getByRole('button', { name: '删除', exact: true })).toBeVisible();
   const question = `可靠性为什么重要 ${testInfo.project.name}`;
   await panel.getByRole('textbox', { name: '讨论问题' }).fill(question);
   await panel.getByLabel('编辑讨论内容').fill('讨论后的结论：需要考虑故障。');

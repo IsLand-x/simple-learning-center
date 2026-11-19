@@ -1,3 +1,4 @@
+import { IconComment } from '@douyinfe/semi-icons';
 import { Button, Empty, Input, Typography } from '@douyinfe/semi-ui';
 import { useEffect, useState } from 'react';
 import type { BookItem } from '../../../../../../contracts/books';
@@ -58,47 +59,57 @@ export function DiscussionPanel({
     setSelectedId(item.id);
   };
   return (
-    <div className="right-panel__body min-h-0 flex flex-col gap-3 p-3 text-[var(--semi-color-text-0)]">
-      <div className="flex shrink-0 items-center justify-between gap-3 py-2">
-        <Typography.Text type="tertiary" size="small">
-          {items.length} 个问题
-        </Typography.Text>
-        <Button theme="solid" onClick={create}>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col text-[var(--semi-color-text-0)]">
+      <div className="panel-titlebar shrink-0 [height:var(--reader-bar-height)] [min-height:var(--reader-bar-height)] justify-between [padding:0_8px_0_12px]">
+        <div className="panel-titlebar__title min-w-0 text-[var(--semi-color-text-1)]">
+          <IconComment size="large" className="panel-tool-icon" />
+          <Typography.Text strong>讨论</Typography.Text>
+          <Typography.Text type="tertiary" size="small">
+            {items.length} 个问题
+          </Typography.Text>
+        </div>
+        <Button
+          className="shrink-0 mobile:relative mobile:after:absolute mobile:after:-inset-1.5 mobile:after:content-['']"
+          theme="solid"
+          onClick={create}
+        >
           新建讨论
         </Button>
       </div>
-      <label className="flex flex-col gap-2 text-sm">
-        搜索讨论
-        <Input
-          value={search}
-          onChange={setSearch}
-          placeholder="问题、内容或章节"
-          className="mobile:[&_input]:text-base"
-        />
-      </label>
-      {error && <Typography.Text type="danger">{error}</Typography.Text>}
-      <div className="min-h-0 flex-1 overflow-auto">
-        {!visible.length && (
-          <Empty
-            title={search ? '没有匹配的讨论' : '还没有讨论'}
-            description="新建问题，或对 AI 说“总结对话”，自动整理问答并保存。"
+      <div className="discussion-panel__body flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 py-2">
+        <label className="flex shrink-0 flex-col gap-1 text-sm">
+          搜索讨论
+          <Input
+            value={search}
+            onChange={setSearch}
+            placeholder="问题、内容或章节"
+            className="mobile:[&_input]:text-base"
           />
-        )}
-        {visible.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className="flex min-h-[60px] w-full flex-col gap-1 rounded-[var(--semi-border-radius-small)] border-0 bg-transparent p-3 text-left text-[var(--semi-color-text-0)] hover:bg-[var(--semi-color-fill-0)] focus-visible:outline-2 focus-visible:outline-[var(--semi-color-focus-border)]"
-            onClick={() => setSelectedId(item.id)}
-          >
-            <span className="w-full truncate text-sm font-medium">
-              {item.question || '未命名讨论'}
-            </span>
-            <span className="w-full truncate text-xs text-[var(--semi-color-text-2)]">
-              {item.source.chapter}
-            </span>
-          </button>
-        ))}
+        </label>
+        {error && <Typography.Text type="danger">{error}</Typography.Text>}
+        <div className="min-h-0 flex-1 overflow-auto">
+          {!visible.length && (
+            <Empty
+              title={search ? '没有匹配的讨论' : '还没有讨论'}
+              description="新建问题，或对 AI 说“总结对话”，自动整理问答并保存。"
+            />
+          )}
+          {visible.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className="flex min-h-[60px] w-full flex-col gap-1 rounded-[var(--semi-border-radius-small)] border-0 bg-transparent p-3 text-left text-[var(--semi-color-text-0)] hover:bg-[var(--semi-color-fill-0)] focus-visible:outline-2 focus-visible:outline-[var(--semi-color-focus-border)]"
+              onClick={() => setSelectedId(item.id)}
+            >
+              <span className="w-full truncate text-sm font-medium">
+                {item.question || '未命名讨论'}
+              </span>
+              <span className="w-full truncate text-xs text-[var(--semi-color-text-2)]">
+                {item.source.chapter}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

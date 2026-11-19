@@ -101,79 +101,81 @@ export function ReaderRightPanel({
         className={`right-panel w-full min-h-0 overflow-hidden [background:var(--semi-color-bg-1)] min-w-0 [max-width:none] ${activePanel === 'ai' ? ' right-panel--ai' : ''}`}
         aria-label={panelMeta[activePanel].label}
       >
-        <div className="panel-titlebar [height:var(--reader-bar-height)] [min-height:var(--reader-bar-height)] justify-between [padding:0_8px_0_12px]">
-          <div className="panel-titlebar__title min-w-0 [color:var(--semi-color-text-1)]">
-            <ActivePanelIcon size="large" className="panel-tool-icon" />
-            <Text strong>{panelMeta[activePanel].label}</Text>
-          </div>
-          {sortablePanel && (
-            <div className="shrink-0">
-              <span id={sortLabelId} className="sr-only">
-                {panelMeta[sortablePanel].label}排序
-              </span>
-              <Select
-                key={sortablePanel}
-                ref={sortDropdown.selectRef}
-                onDropdownVisibleChange={sortDropdown.onDropdownVisibleChange}
-                aria-labelledby={sortLabelId}
-                className="reader-panel-sort w-[146px] shrink-0"
-                size="small"
-                value={sortOrders[sortablePanel]}
-                optionList={[
-                  {
-                    value: 'created-desc',
-                    label: '添加时间倒序',
-                  },
-                  { value: 'created-asc', label: '添加时间正序' },
-                  {
-                    value: 'position-asc',
-                    label: '书籍位置正序',
-                  },
-                  {
-                    value: 'position-desc',
-                    label: '书籍位置倒序',
-                  },
-                ]}
-                onChange={(value) => {
-                  if (
-                    value === 'created-desc' ||
-                    value === 'created-asc' ||
-                    value === 'position-asc' ||
-                    value === 'position-desc'
-                  ) {
-                    setSortOrders((current) => ({ ...current, [sortablePanel]: value }));
-                  }
-                }}
-              />
+        {activePanel !== 'discussions' && (
+          <div className="panel-titlebar [height:var(--reader-bar-height)] [min-height:var(--reader-bar-height)] justify-between [padding:0_8px_0_12px]">
+            <div className="panel-titlebar__title min-w-0 [color:var(--semi-color-text-1)]">
+              <ActivePanelIcon size="large" className="panel-tool-icon" />
+              <Text strong>{panelMeta[activePanel].label}</Text>
             </div>
-          )}
-          {activePanel === 'ai' && (
-            <div className="panel-titlebar__actions min-w-0 [gap:2px]">
-              <Button
-                aria-label="新建 AI 对话"
-                className="panel-titlebar__new-chat"
-                icon={<IconPlus />}
-                size="small"
-                theme="borderless"
-                type="tertiary"
-                onClick={onStartNewConversation}
-              >
-                新建对话
-              </Button>
-              <Tooltip content="AI 助手设置" position="bottomRight">
+            {sortablePanel && (
+              <div className="shrink-0">
+                <span id={sortLabelId} className="sr-only">
+                  {panelMeta[sortablePanel].label}排序
+                </span>
+                <Select
+                  key={sortablePanel}
+                  ref={sortDropdown.selectRef}
+                  onDropdownVisibleChange={sortDropdown.onDropdownVisibleChange}
+                  aria-labelledby={sortLabelId}
+                  className="reader-panel-sort w-[146px] shrink-0"
+                  size="small"
+                  value={sortOrders[sortablePanel]}
+                  optionList={[
+                    {
+                      value: 'created-desc',
+                      label: '添加时间倒序',
+                    },
+                    { value: 'created-asc', label: '添加时间正序' },
+                    {
+                      value: 'position-asc',
+                      label: '书籍位置正序',
+                    },
+                    {
+                      value: 'position-desc',
+                      label: '书籍位置倒序',
+                    },
+                  ]}
+                  onChange={(value) => {
+                    if (
+                      value === 'created-desc' ||
+                      value === 'created-asc' ||
+                      value === 'position-asc' ||
+                      value === 'position-desc'
+                    ) {
+                      setSortOrders((current) => ({ ...current, [sortablePanel]: value }));
+                    }
+                  }}
+                />
+              </div>
+            )}
+            {activePanel === 'ai' && (
+              <div className="panel-titlebar__actions min-w-0 [gap:2px]">
                 <Button
-                  aria-label="打开 AI 助手设置"
-                  className="panel-titlebar__settings"
-                  icon={<IconSetting />}
+                  aria-label="新建 AI 对话"
+                  className="panel-titlebar__new-chat"
+                  icon={<IconPlus />}
                   size="small"
                   theme="borderless"
                   type="tertiary"
-                  onClick={() => setSettingsVisible(true)}
-                />
-              </Tooltip>
-            </div>
-          )}
-        </div>
+                  onClick={onStartNewConversation}
+                >
+                  新建对话
+                </Button>
+                <Tooltip content="AI 助手设置" position="bottomRight">
+                  <Button
+                    aria-label="打开 AI 助手设置"
+                    className="panel-titlebar__settings"
+                    icon={<IconSetting />}
+                    size="small"
+                    theme="borderless"
+                    type="tertiary"
+                    onClick={() => setSettingsVisible(true)}
+                  />
+                </Tooltip>
+              </div>
+            )}
+          </div>
+        )}
         {activePanel === 'ai' && (
           <AiConversationPanel
             key={conversationId}
