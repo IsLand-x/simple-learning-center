@@ -43,6 +43,7 @@ export function publicJob(job: AiJob) {
     content: job.content,
     dialogueContent: job.dialogueContent,
     notesRevision: job.notesRevision,
+    discussionsRevision: job.discussionsRevision ?? 0,
     error: job.error,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,

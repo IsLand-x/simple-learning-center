@@ -2,7 +2,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { AiJob } from '../../../../../api/ai/type';
-import { useReaderNoteSync } from './useReaderNoteSync';
+import { useReaderAiStateSync } from './useReaderAiStateSync';
 
 const mocks = vi.hoisted(() => ({ synchronize: vi.fn() }));
 vi.mock('../../../../../store/learningStateSync', () => ({
@@ -11,9 +11,9 @@ vi.mock('../../../../../store/learningStateSync', () => ({
 
 it('retries failed synchronization even for the same job revision and acknowledges successful notes only once', async () => {
   const root = createRoot(document.createElement('div'));
-  let sync: ReturnType<typeof useReaderNoteSync>;
+  let sync: ReturnType<typeof useReaderAiStateSync>;
   function Probe() {
-    sync = useReaderNoteSync('book');
+    sync = useReaderAiStateSync('book');
     return null;
   }
   const job: AiJob = {
@@ -44,6 +44,12 @@ it('retries failed synchronization even for the same job revision and acknowledg
     expect(mocks.synchronize).toHaveBeenCalledTimes(2);
     await sync!({ ...job, notesRevision: 2 });
     expect(mocks.synchronize).toHaveBeenCalledTimes(3);
+    await sync!({ ...job, notesRevision: 2, discussionsRevision: 1 });
+    expect(mocks.synchronize).toHaveBeenLastCalledWith(['reading']);
+    await sync!({ ...job, notesRevision: 2, discussionsRevision: 1 });
+    expect(mocks.synchronize).toHaveBeenCalledTimes(4);
+    await sync!({ ...job, notesRevision: 3, discussionsRevision: 2 });
+    expect(mocks.synchronize).toHaveBeenLastCalledWith(['notes', 'reading']);
   } finally {
     await act(async () => root.unmount());
     warning.mockRestore();

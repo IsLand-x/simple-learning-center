@@ -180,7 +180,6 @@ export function ReaderRightPanel({
             book={book}
             conversationId={conversationId}
             selectedQuote={selectedQuote}
-            getDiscussionSource={getDiscussionSource}
             getCurrentText={getCurrentText}
             onClearSelectedText={onClearSelectedText}
           />

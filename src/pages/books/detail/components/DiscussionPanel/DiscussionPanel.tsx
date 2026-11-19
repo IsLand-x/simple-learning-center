@@ -81,7 +81,7 @@ export function DiscussionPanel({
         {!visible.length && (
           <Empty
             title={search ? '没有匹配的讨论' : '还没有讨论'}
-            description="新建问题，或在 AI 对话中将问答保存到讨论。"
+            description="新建问题，或对 AI 说“总结对话”，自动整理问答并保存。"
           />
         )}
         {visible.map((item) => (

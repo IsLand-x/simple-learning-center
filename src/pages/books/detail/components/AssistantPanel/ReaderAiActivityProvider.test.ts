@@ -20,7 +20,7 @@ vi.mock('../../../../../store/useLearningStore', () => ({
 vi.mock('../../../../../components/ai/useConversationSummaries', () => ({
   useConversationSummaries: () => undefined,
 }));
-vi.mock('./useReaderNoteSync', () => ({ useReaderNoteSync: () => ignoreNotes }));
+vi.mock('./useReaderAiStateSync', () => ({ useReaderAiStateSync: () => ignoreNotes }));
 vi.mock('./useReaderJobPolling', () => ({ useReaderJobPolling: () => undefined }));
 function ignoreNotes() {}
 

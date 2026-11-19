@@ -70,6 +70,12 @@ export function createJobExecutor({ runChat, publishJob, pruneJobs }: ExecutionD
                   job.revision += 1;
                   publishJob(job);
                 },
+                onDiscussionChange() {
+                  job.discussionsRevision = (job.discussionsRevision ?? 0) + 1;
+                  job.updatedAt = Date.now();
+                  job.revision += 1;
+                  publishJob(job);
+                },
               });
       generatedVideo = rawResult.chapterVideo;
       if (job.controller.signal.aborted || isCancelled(job)) return;

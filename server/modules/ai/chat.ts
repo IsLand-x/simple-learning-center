@@ -14,6 +14,7 @@ import { oauthService } from './oauth.js';
 import { createOpenAICompatiblePiRuntime } from './runtime.js';
 import type { PiRuntime } from './runtime.js';
 import { createAgentTools, DEFAULT_NOTE_ACTIONS } from './tools.js';
+import { createDiscussionTools } from './discussions.js';
 import { piTool } from './toolDefinition.js';
 import {
   streamEntriesToProgress,
@@ -35,6 +36,7 @@ interface ChatOptions extends AiChatContext {
   signal?: AbortSignal;
   onProgress?: (progress: AiResult) => void;
   onNoteChange?: (note: Awaited<ReturnType<typeof DEFAULT_NOTE_ACTIONS.createBookNote>>) => void;
+  onDiscussionChange?: () => void;
   runtimeFactory?: (
     ...args: Parameters<typeof createOpenAICompatiblePiRuntime>
   ) => PiRuntime | Promise<PiRuntime>;
@@ -52,6 +54,7 @@ export async function runServerAiChat({
   model,
   reasoningEffort,
   conversationId,
+  userMessageId,
   messages,
   purpose = 'chat',
   book,
@@ -64,6 +67,7 @@ export async function runServerAiChat({
   signal,
   onProgress,
   onNoteChange,
+  onDiscussionChange,
   runtimeFactory = createOpenAICompatiblePiRuntime,
   oauth = oauthService,
   noteActions = DEFAULT_NOTE_ACTIONS,
@@ -206,8 +210,12 @@ export async function runServerAiChat({
         : undefined,
   });
   const structuredGeneration = purpose === 'mindmap' || purpose === 'chapter-video';
-  const tools = Object.entries(structuredGeneration ? {} : toolMap).map(([name, definition]) =>
-    piTool(name, definition),
+  const discussionTools: ReturnType<typeof createAgentTools> =
+    purpose === 'chat' && userMessageId
+      ? createDiscussionTools({ book, conversationId, userMessageId, onChange: onDiscussionChange })
+      : {};
+  const tools = Object.entries(structuredGeneration ? {} : { ...toolMap, ...discussionTools }).map(
+    ([name, definition]) => piTool(name, definition),
   );
 
   const entries: StreamEntry[] = [];

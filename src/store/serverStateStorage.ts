@@ -3,6 +3,7 @@ import { measureAsync } from '../util/browser/measureAsync';
 import { mergeLibraryBooks } from './persistence/libraryStateMerge';
 import { mergeReadingNotes } from './persistence/noteStateMerge';
 import { mergeReaderHighlights } from './persistence/readerStateMerge';
+import { mergeDiscussions } from './persistence/discussions';
 import type { PersistedStateEnvelope, StateDomainSnapshot } from '../api/state/type';
 import type { StateStorage } from 'zustand/middleware';
 import type { NoteItem } from '../../contracts/reading';
@@ -103,7 +104,7 @@ async function fetchStateDomain(domain: StateDomain) {
   if ((domainLocalRevisions.get(domain) ?? 0) !== localRevision) {
     domainEtags.delete(domain);
     // A local save started while this response was in flight. Keep that local
-    // edit, and still merge remote notes, highlights, and the shelf. Drop the
+    // edit, and still merge remote notes, discussions, highlights, and the shelf. Drop the
     // in-flight ETag so the next quiet refresh cannot answer 304 for a partial
     // merge. Reading sessions and preferences wait for that quiet refresh.
     if (!preparedEnvelope) return;
@@ -138,6 +139,12 @@ async function fetchStateDomain(domain: StateDomain) {
             deletedHighlightTombstones: local.state?.deletedHighlightTombstones,
           },
         ),
+      });
+    } else if (domain === 'reading') {
+      const remote = 'discussions' in snapshot.state ? snapshot.state.discussions : [];
+      mergePreparedState({
+        version: snapshot.version,
+        state: { discussions: mergeDiscussions(remote ?? [], local.state?.discussions ?? []) },
       });
     } else if (domain === 'library') {
       const remoteBooks = 'books' in snapshot.state ? snapshot.state.books : undefined;

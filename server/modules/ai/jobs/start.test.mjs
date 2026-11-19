@@ -121,6 +121,7 @@ test('启动边界保持资源校验、持久化失败和执行上下文行为',
         const accepted = await pending;
         assert.equal(received.length, 1);
         assert.equal(received[0].job.id, accepted.id);
+        assert.equal(received[0].input.userMessageId, 'next-question');
         assert.deepEqual(
           received[0].input.messages.map((message) => message.content),
           ['问题', '下个问题'],

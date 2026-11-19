@@ -782,3 +782,63 @@ it.each(['/', '/books/test', '/rss', '/videos'])(
     ).toBe(true);
   },
 );
+
+it('merges AI discussions while a local reading write overlaps the refresh', async () => {
+  vi.resetModules();
+  mocks.readDomain.mockReset();
+  mocks.writeDomain.mockReset();
+  mocks.writeDomain.mockResolvedValue(undefined);
+  window.history.replaceState(null, '', '/books/test');
+  const storage = await import('./serverStateStorage');
+  const original = {
+    id: 'existing',
+    bookId: 'test',
+    question: '已有问题',
+    content: '原答案',
+    source: { passageId: '', chapter: '', href: '', quote: '' },
+    createdAt: 1,
+    updatedAt: 1,
+  };
+  mocks.readDomain.mockResolvedValue({
+    status: 200,
+    etag: 'initial',
+    snapshot: {
+      version: LEARNING_STORE_VERSION,
+      state: { discussions: [original], readingSessions: [] },
+    },
+  });
+  await storage.prepareServerState();
+  let resolveResponse!: (response: StateDomainResponse) => void;
+  mocks.readDomain.mockReturnValue(
+    new Promise<StateDomainResponse>((resolve) => {
+      resolveResponse = resolve;
+    }),
+  );
+  const refreshing = storage.refreshServerState(['reading']);
+  await vi.waitFor(() => expect(mocks.readDomain).toHaveBeenLastCalledWith('reading', 'initial'));
+  const edited = { ...original, content: '用户编辑后的答案', updatedAt: 10 };
+  const sessions = [{ id: 'reading', bookId: 'test', startedAt: 1, endedAt: 2, durationMs: 1 }];
+  await storage.serverStateStorage.setItem(
+    'test',
+    JSON.stringify({
+      version: LEARNING_STORE_VERSION,
+      state: { discussions: [edited], readingSessions: sessions },
+    }),
+  );
+  const generated = { ...original, id: 'new', question: 'AI 整理的问题', content: 'AI 整理的答案' };
+  resolveResponse({
+    status: 200,
+    etag: 'remote',
+    snapshot: {
+      version: LEARNING_STORE_VERSION,
+      state: { discussions: [original, generated], readingSessions: [] },
+    },
+  });
+  await refreshing;
+  const state = JSON.parse((await storage.serverStateStorage.getItem('test'))!).state;
+  expect(state.discussions).toEqual([edited, generated]);
+  expect(state.readingSessions).toEqual(sessions);
+  mocks.readDomain.mockResolvedValue({ status: 304, etag: 'remote' });
+  await storage.refreshServerState(['reading']);
+  expect(mocks.readDomain).toHaveBeenLastCalledWith('reading', undefined);
+});

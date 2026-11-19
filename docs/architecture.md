@@ -22,6 +22,8 @@ React 18 / TypeScript / Vite 前端，Node.js / Hono 数据服务，用户数据
 
 活动分区是 library、reading、notes、highlights、conversations、preferences。每个持久化字段只属于一个分区。客户端按路由加载分区，并用 ETag 避免未变化的分区重复下载。
 
+AI 的会话整理工具分页读取当前 session 在请求前的完整历史，再将归纳后的问答通过状态写队列保存到 reading 分区的 discussions。原始问题消息 ID 用于防止重复保存，已有编辑和删除记录优先保留。任务通过 discussionsRevision 通知阅读页刷新 reading 分区，旧任务缺省为 0。
+
 服务端用单实例写队列。书籍删除、回收站、高亮删除记录、未知扩展字段和多设备合并都在这把队列里完成。笔记正文在 `data/notes/`，只有笔记写入才协调 Markdown 文件。
 
 SQLite（`data/learning-center.db`，WAL）是唯一运行时权威。正常 GET、PUT 和 AI 状态写入只读写数据库，不再序列化 `state.json`。数据库已有版本、导入标记、任意业务表或非保留键值后，JSON 不再被读取。损坏的库文件会阻止启动，不会被旧 JSON 换掉。
@@ -37,7 +39,7 @@ SQLite（`data/learning-center.db`，WAL）是唯一运行时权威。正常 GET
 
 阅读位置使用独立的 `locationUpdatedAt`。改名、置顶和存档只更新各自的时钟，不能改写进度。没有该字段的旧记录仍按整书 `updatedAt` 比较；已有位置时钟的记录不会被缺字段的旧客户端换掉。术语和高亮按更新时间与删除记录合并。打开中的阅读器不因远端进度跳页。打开、旋转、分栏和字体变化产生的 Foliate `anchor` / `navigation` 回声不写入位置；用户翻页（`page` / `snap` / `scroll`）和主动目录跳转仍会保存，包括第一次真实翻页。
 
-刷新与本地写入重叠时，笔记、高亮和书架会合并，并丢掉该分区 ETag，下一次在写入结束后开始的刷新再记下新 ETag。阅读会话和偏好不在重叠响应里按字段合并，连续本地写入会推迟它们，直到一次安静刷新。打开或重排阅读器不再在每次刷新时写书架。
+刷新与本地写入重叠时，笔记、讨论、高亮和书架会合并，并丢掉该分区 ETag，下一次在写入结束后开始的刷新再记下新 ETag。阅读会话和偏好不在重叠响应里按字段合并，连续本地写入会推迟它们，直到一次安静刷新。打开或重排阅读器不再在每次刷新时写书架。
 
 备份和恢复使用 SQLite 在线 backup API（`server/db/sqliteBackup.ts`）。备份包含 WAL 中已提交的帧。恢复先生成一致的库文件，再替换主库并删除 `-wal` 与 `-shm`。数据库不是完整应用备份：Markdown 笔记、EPUB、封面、凭据、TTS、OAuth、OpenAPI Token、分享、COS 和图床配置、视频 `jobs.json` 仍是独立文件。
 

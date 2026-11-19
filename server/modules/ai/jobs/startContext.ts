@@ -16,6 +16,7 @@ export function createJobContext(
     model,
     reasoningEffort,
     conversationId,
+    userMessageId: userMessage.id,
     messages: [...existingChats, normalizedMessage(userMessage)],
     resourceType: 'book',
     purpose,

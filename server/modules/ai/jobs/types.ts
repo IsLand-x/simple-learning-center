@@ -44,6 +44,7 @@ export interface AiJob {
   mindMap?: ChapterMindMap;
   dialogueContent: AiDialogueContentItem[];
   notesRevision: number;
+  discussionsRevision?: number;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
@@ -60,6 +61,7 @@ export interface AiChatContext {
   model: string;
   reasoningEffort?: ReasoningEffort;
   conversationId: string;
+  userMessageId?: string;
   messages: Array<
     Pick<ChatMessage, 'role' | 'content' | 'quote'> & Partial<Pick<ChatMessage, 'createdAt'>>
   >;
@@ -81,6 +83,7 @@ export type AiChatRunner = (
     signal: AbortSignal;
     onProgress: (progress: AiResult) => void;
     onNoteChange: () => void;
+    onDiscussionChange?: () => void;
   },
 ) => Promise<AiResult>;
 
