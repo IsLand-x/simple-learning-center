@@ -6,15 +6,18 @@ import type { DiscussionItem, MindMapSource } from '../../../../../../contracts/
 import { useLearningStore } from '../../../../../store/useLearningStore';
 import { synchronizeLearningState } from '../../../../../store/learningStateSync';
 import { DiscussionEditor } from './DiscussionEditor';
+import { useDiscussionHistory } from './useDiscussionHistory';
 
 export function DiscussionPanel({
   book,
   getSource,
   onLocateSource,
+  mobile,
 }: {
   book: BookItem;
   getSource: () => MindMapSource;
   onLocateSource?: (source: MindMapSource) => Promise<void>;
+  mobile?: boolean;
 }) {
   const discussions = useLearningStore((state) => state.discussions);
   const saveDiscussion = useLearningStore((state) => state.saveDiscussion);
@@ -26,8 +29,15 @@ export function DiscussionPanel({
       setError('读取讨论失败，请稍后重新打开面板'),
     );
   }, [book.id]);
+  const isMobile =
+    mobile ?? (typeof window !== 'undefined' && window.matchMedia('(max-width: 800px)').matches);
   const items = discussions.filter((item) => item.bookId === book.id && !item.deletedAt);
   const selected = items.find((item) => item.id === selectedId);
+  useDiscussionHistory({
+    mobile: isMobile,
+    active: Boolean(selected),
+    onClose: () => setSelectedId(null),
+  });
   if (selected)
     return (
       <DiscussionEditor

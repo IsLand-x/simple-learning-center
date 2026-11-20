@@ -42,6 +42,12 @@ test('讨论支持编辑、刷新恢复、章节跳转和删除', async ({ page 
     await expect(panel).toBeHidden();
     await open();
     await panel.getByRole('button', { name: new RegExp(question) }).click();
+    await expect(panel.getByRole('button', { name: '返回问题列表', exact: true })).toBeVisible();
+    await page.evaluate(() => window.history.back());
+    await expect(panel.getByRole('button', { name: '新建讨论', exact: true })).toBeVisible();
+    await expect(panel.getByRole('button', { name: new RegExp(question) })).toBeVisible();
+    await panel.getByRole('button', { name: new RegExp(question) }).click();
+    await expect(panel.getByRole('button', { name: '返回问题列表', exact: true })).toBeVisible();
   }
   await panel.getByRole('button', { name: '删除', exact: true }).click();
   await page.getByRole('button', { name: 'confirm', exact: true }).click();

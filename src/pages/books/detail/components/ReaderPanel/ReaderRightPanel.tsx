@@ -216,6 +216,7 @@ export function ReaderRightPanel({
           <DiscussionPanel
             key={book.id}
             book={book}
+            mobile={mobile}
             getSource={
               getDiscussionSource ??
               (() => ({
